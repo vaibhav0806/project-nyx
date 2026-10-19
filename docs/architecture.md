@@ -155,6 +155,8 @@ The separate `search_matches` tool checks semantically ranked candidates includi
 
 An invalid decision, including a completion that references no current-turn observation, gets one correction attempt inside the existing six-decision limit. Repeated invalid output returns uncertainty. Tool traces and the correction reason persist with conversation metadata; the repair does not create evidence or expand action authorization.
 
+For the current single-task workflows, a completed tool result selects its authoritative observation directly, without another language-model generation. Uncertain results still require an agent decision about the next useful search. This preserves evidence checks while avoiding a redundant completion call.
+
 `attention.py` compares inexpensive grayscale local blocks. Continuous indexing selects pre-change/changed/settled/periodic frames and removes skipped thumbnails before embedding; videos retain actual decoded offsets and a sampling-policy field. Each independent segment retains an anchor, so per-file selection does not assert cross-segment continuity. Original media, retention/deletion and encoder compatibility are unchanged.
 
 `observation.py` owns an ephemeral, session-bound live buffer (at most six 640×360 images), clock/order/gap checks and an epoch invalidated by camera/session changes. Selected bursts inspect at most three images locally. Low-latency event checks run separately from saved segment indexing; no cloud media path exists. The model's structured departure fields are fallible, and actual event recognition is not validated.

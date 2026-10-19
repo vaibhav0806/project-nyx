@@ -72,3 +72,5 @@ HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/restart.py \
 ```
 
 This checks source persistence, recovered indexing, semantic candidate search and HTTP range playback. It starts no browser or hardware and does not verify that a retrieved object is present.
+
+For an existing **synthetic** recording-smoke workspace, add `--check-library-deletion` to exercise multi-page library access, cancelled/confirmed deletion of its `scenes.mp4` fixture, preservation of other clips, reload and mobile layout in isolated Chrome with hardware requests disabled. This flag actually deletes that synthetic import. Do not use it on a personal workspace. Long recording measurements are saved separately before subsequent lifecycle checks, so a later harness failure does not erase the completed phase's evidence.

@@ -76,6 +76,18 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                     requests = []
                     page.on("pageerror", lambda error: errors.append(str(error)))
                     page.on("request", lambda request: requests.append(request.url))
+                    held_claims = []
+                    if args.speech:
+
+                        def hold_claim(route):
+                            held_claims.append((route, route.fetch()))
+
+                        page.route("**/api/deliveries/*/claim", hold_claim)
+                        page.add_init_script("""window.reminderAudioStarts=0;
+                            const originalPlay=HTMLAudioElement.prototype.play;
+                            HTMLAudioElement.prototype.play=function(){
+                                window.reminderAudioStarts++;return originalPlay.call(this);
+                            };""")
                     page.add_init_script("""navigator.mediaDevices.getUserMedia = async constraints => {
                         if (constraints.audio && constraints.video===false) {
                             window.fakeMicContext=new AudioContext({sampleRate:16000});
@@ -98,6 +110,23 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                     if not args.speech:
                         page.locator("#start").click()
                     expect(page.locator("#camera-state")).to_have_text("Recording video")
+                    if args.speech:
+                        expect(page.locator("#reminders")).to_contain_text(
+                            "delivering", timeout=20000
+                        )
+                        page.get_by_role("button", name="Cancel", exact=True).click()
+                        expect(page.locator("#reminders")).to_contain_text("cancelled")
+                        assert len(held_claims) == 1
+                        route, response = held_claims[0]
+                        route.fulfill(response=response)
+                        page.unroute("**/api/deliveries/*/claim", hold_claim)
+                        page.wait_for_function("!companion.delivering")
+                        assert page.evaluate("window.reminderAudioStarts") == 0
+                        requests.clear()
+                        page.locator("#companion-message").fill(
+                            "Remind me about water when I leave"
+                        )
+                        page.locator("#companion-send").click()
                     expect(page.locator("#reminders")).to_contain_text(
                         "delivered" if args.speech else "failed", timeout=20000
                     )
@@ -114,6 +143,21 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                                 ]
                             )
                             == 1
+                        )
+                        page.evaluate("""() => { window.testReminderPlay=HTMLAudioElement.prototype.play;
+                            HTMLAudioElement.prototype.play=()=>Promise.reject(
+                                new DOMException('Synthetic playback denial','NotAllowedError')); };""")
+                        page.locator("#companion-message").fill(
+                            "Remind me about water when I leave"
+                        )
+                        page.locator("#companion-send").click()
+                        expect(page.locator("#reminders")).to_contain_text("failed", timeout=20000)
+                        assert (
+                            page.request.get(url + "/api/companion").json()["reminders"][0]["state"]
+                            == "failed"
+                        )
+                        page.evaluate(
+                            "() => { HTMLAudioElement.prototype.play=window.testReminderPlay; }"
                         )
                     page.locator("#companion-message").fill("Where is the green thing?")
                     page.locator("#companion-send").click()
@@ -134,16 +178,17 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                             "frame_count": 1,
                             "recorded_at": None,
                         }
-                        for index in range(51)
+                        for index in range(151)
                     ]
                     page.route(url + "/api/videos", lambda route: route.fulfill(json=library))
                     page.evaluate("refreshLibrary()")
                     expect(page.locator("#clips .clip-row")).to_have_count(50)
-                    page.get_by_role("button", name="Show older clips", exact=True).click()
-                    expect(page.locator("#clips .clip-row")).to_have_count(51)
+                    for count in [100, 150, 151]:
+                        page.get_by_role("button", name="Show older clips", exact=True).click()
+                        expect(page.locator("#clips .clip-row")).to_have_count(count)
                     expect(
                         page.locator(".clip-row")
-                        .filter(has_text="Synthetic saved clip 50")
+                        .filter(has_text="Synthetic saved clip 150")
                         .get_by_role("button", name="Delete clip", exact=True)
                     ).to_be_enabled()
                     page.unroute(url + "/api/videos")
@@ -161,6 +206,8 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                                 "fake_devices": True,
                                 "models": "deterministic boundary fixtures",
                                 "synthetic_speech": args.speech,
+                                "cancelled_pending_audio": args.speech,
+                                "playback_denial_reports_failure": args.speech,
                                 "older_library_access": True,
                                 "passed": True,
                             },

@@ -148,7 +148,7 @@ const voice = {
     this.probePromise = api("/api/voice/probe", { method: "POST", headers: this.headers(), body: pcm.buffer, signal: AbortSignal.timeout(5000) })
       .then((reply) => {
         if (epoch !== this.epoch || !this.token || reply.state !== "activated") return;
-        if (typeof companion !== "undefined") companion.player?.pause();
+        if (typeof companion !== "undefined") companion.interruptDelivery();
         if (this.playing) { this.stopPlayback(); this.epoch++; }
         this.wakeUntil = performance.now() + 10000;
         this.state("I'm listening…");

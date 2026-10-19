@@ -267,8 +267,8 @@ def run(audio, output, conversation=False):
                     "mute during permission request releases late-arriving microphone tracks",
                 ],
                 "limitations": [
-                    "cloud routing, STT, TTS and visual judgment mocked in this browser check",
-                    "Sarvam connection checked separately with generated speech",
+                    "Sarvam STT/TTS, agent decisions and visual judgment mocked in this browser check",
+                    "this check makes no hosted-provider calls; provider validation is separate",
                     "no actual webcam or microphone opened",
                 ],
             }

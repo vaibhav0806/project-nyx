@@ -236,7 +236,12 @@ def run(url, video, output, record_seconds=0, server_pid=None, visual_answers=Fa
             for _ in range((before_delete + 49) // 50):
                 if selected.count():
                     break
+                visible_clips = page.locator("#clips .clip-row").count()
                 page.get_by_role("button", name="Show older clips", exact=True).click()
+                page.wait_for_function(
+                    "count => document.querySelectorAll('#clips .clip-row').length > count",
+                    arg=visible_clips,
+                )
             page.once("dialog", lambda dialog: dialog.dismiss())
             selected.get_by_role("button", name="Delete clip", exact=True).click()
             assert len(page.request.get(url + "/api/videos").json()) == before_delete

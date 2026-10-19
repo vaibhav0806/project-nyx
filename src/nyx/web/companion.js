@@ -4,6 +4,12 @@
 const companion = {
   epoch: 0, job: null, working: false, observing: false, delivering: false,
   armed: false, refreshBusy: false, player: null, delivery: null, deliveryIntention: null,
+  deliveryEpoch: 0,
+
+  interruptDelivery() {
+    this.deliveryEpoch++;
+    this.player?.pause();
+  },
 
   snapshot(maxWidth = 1280) {
     const viewer = $("viewer");
@@ -18,6 +24,7 @@ const companion = {
 
   async request(text, turn = null) {
     if (this.working) throw new Error("Finish or stop the current companion request first.");
+    this.interruptDelivery();
     this.working = true;
     const epoch = ++this.epoch;
     $("companion-stop").hidden = false;
@@ -54,6 +61,7 @@ const companion = {
   },
 
   async cancel() {
+    this.interruptDelivery();
     this.epoch++;
     if (this.job) await api(`/api/agent/${this.job}/cancel`, { method: "POST" }).catch(() => {});
     $("companion-status").textContent = "Request stopped. Departure reminders have separate Cancel controls.";
@@ -74,11 +82,15 @@ const companion = {
   async deliver(item) {
     if (this.delivering || this.working || busy || voice.working || voice.playing || !enabled) return;
     this.delivering = true;
+    const epoch = ++this.deliveryEpoch;
+    this.deliveryIntention = item.intention_id;
+    $("companion-stop").hidden = false;
     let outcome = "failed";
     try {
       const reply = await api(`/api/deliveries/${item.id}/claim`, { method: "POST" });
       this.delivery = item.id;
       this.deliveryIntention = reply.intention_id;
+      if (epoch !== this.deliveryEpoch || !enabled) { outcome = "interrupted"; return; }
       $("companion-status").textContent = reply.message;
       if (!reply.audio) {
         $("companion-status").textContent += " · Spoken reminder unavailable; displayed only.";
@@ -115,7 +127,7 @@ const companion = {
     try {
       const state = await api("/api/companion");
       this.armed = state.reminders.some(row => row.state === "armed");
-      if (this.deliveryIntention && state.reminders.some(row => row.id === this.deliveryIntention && row.state !== "delivering")) this.player?.pause();
+      if (this.deliveryIntention && state.reminders.some(row => row.id === this.deliveryIntention && !["pending", "delivering"].includes(row.state))) this.interruptDelivery();
       $("companion-thread").replaceChildren();
       for (const turn of state.conversations.slice(-6)) {
         const row = document.createElement("p");
@@ -130,8 +142,8 @@ const companion = {
           const cancel = document.createElement("button");
           cancel.textContent = "Cancel";
           cancel.onclick = async () => {
+            if (this.deliveryIntention === item.id) this.interruptDelivery();
             await api(`/api/reminders/${item.id}`, { method: "DELETE" });
-            if (this.player) this.player.pause();
             await this.refresh();
           };
           row.append(cancel);
@@ -156,9 +168,9 @@ $("companion-form").onsubmit = async event => {
   try { await companion.request($("companion-message").value.trim()); }
   catch (error) { $("companion-status").textContent = error.message; }
 };
-$("companion-stop").onclick = () => { companion.player?.pause(); companion.cancel(); };
-window.addEventListener("nyx-camera-stopped", () => { companion.player?.pause(); });
-window.addEventListener("pagehide", () => { companion.player?.pause(); companion.cancel(); });
+$("companion-stop").onclick = () => { companion.cancel(); };
+window.addEventListener("nyx-camera-stopped", () => { companion.interruptDelivery(); });
+window.addEventListener("pagehide", () => { companion.cancel(); });
 setInterval(() => companion.observe(), 750);
 setInterval(() => companion.refresh().catch(() => {}), 1000);
 companion.refresh().catch(error => { $("companion-status").textContent = error.message; });

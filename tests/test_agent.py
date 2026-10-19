@@ -207,3 +207,22 @@ def test_invalid_completion_gets_one_bounded_correction_before_a_real_tool_resul
     assert result["status"] == "armed"
     assert result["answer"] == "Next departure request saved"
     assert len(result["decision_errors"]) == 1
+
+
+@pytest.mark.parametrize("status", ["seen", "armed", "cancelled", "complete"])
+def test_completed_tool_result_needs_no_additional_model_generation(status):
+    from nyx.verification import LocalVerifier
+
+    verifier = object.__new__(LocalVerifier)
+    verifier.generate_json = lambda *args: pytest.fail(
+        "Completed evidence needs no more generation"
+    )
+    action = verifier.decide(
+        {
+            "observations": [
+                {"index": 0, "status": "uncertain", "answer": "No current view"},
+                {"index": 1, "status": status, "answer": "Authoritative completed tool result"},
+            ]
+        }
+    )
+    assert action == {"action": "finish", "observation": 1}
