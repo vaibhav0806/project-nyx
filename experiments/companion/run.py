@@ -210,6 +210,28 @@ def main():
             )
             save()
 
+    # Isolate unknown-date footage so a dated duplicate cannot hide a failure.
+    with TestClient(
+        create_app(args.output / "undated-workspace", verifier_factory=lambda: model)
+    ) as client:
+        imported = client.post(
+            "/api/import", params={"name": "unknown-time.mp4"}, content=video
+        ).json()
+        assert wait(client, imported["id"])["status"] == "succeeded"
+        started = time.perf_counter()
+        request = client.post(
+            "/api/agent",
+            json={
+                "message": "Find the television remote control in my imported clip",
+                "request_id": "unknown-time-import",
+            },
+        ).json()
+        job = wait(client, request["id"])
+        row = {"name": "unknown-time-import", "seconds": time.perf_counter() - started, "job": job}
+        results["cases"].append(row)
+        print(json.dumps(row), flush=True)
+        save()
+
 
 if __name__ == "__main__":
     main()

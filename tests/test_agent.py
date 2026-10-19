@@ -177,3 +177,33 @@ def test_time_budget_is_checked_between_images_of_a_history_tool(monkeypatch):
     assert next(steps) == {"checked": 1}
     clock[0] = 100.0
     assert complete(steps)["status"] == "uncertain"
+
+
+def test_invalid_completion_gets_one_bounded_correction_before_a_real_tool_result():
+    from nyx.agent import agent_steps
+
+    decisions = iter(
+        [
+            {"action": "finish", "observation": 0},
+            {"action": "remind_on_departure", "message": "Take water"},
+            {"action": "finish", "observation": 0},
+        ]
+    )
+
+    def decide(state):
+        if state.get("decision_error"):
+            assert not state["observations"]
+            assert "observation" in state["decision_error"]
+        return next(decisions)
+
+    result = complete(
+        agent_steps(
+            "Remind me to take water when I leave",
+            [],
+            decide,
+            lambda action: {"status": "armed", "answer": "Next departure request saved"},
+        )
+    )
+    assert result["status"] == "armed"
+    assert result["answer"] == "Next departure request saved"
+    assert len(result["decision_errors"]) == 1

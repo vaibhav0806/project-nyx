@@ -372,3 +372,41 @@ def test_model_cannot_drop_negation_or_a_future_day_from_departure_request(tmp_p
         ).json()
         wait_for_job(client, job["id"])
         assert client.get("/api/companion").json()["reminders"] == []
+
+
+def test_imported_unknown_time_media_can_be_checked_without_claiming_latest(tmp_path, video):
+    import numpy as np
+
+    class ImportedPlanner(Planner):
+        def decide(self, state):
+            return (
+                {"action": "finish", "observation": 0}
+                if state["observations"]
+                else {"action": "search_matches", "query": "green"}
+            )
+
+        def inspect(self, image, query):
+            visible = np.asarray(image).mean(axis=(0, 1))[1] > 100
+            return {
+                "visibility": "visible" if visible else "not_visible",
+                "location": "center" if visible else None,
+                "description": "Color fixture",
+                "ambiguous": False,
+            }
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=ImportedPlanner)
+    ) as client:
+        imported = client.post(
+            "/api/import", params={"name": "unknown.mp4"}, content=video.read_bytes()
+        ).json()
+        wait_for_job(client, imported["id"])
+        job = client.post(
+            "/api/agent",
+            json={"message": "Find green in my imported clip", "request_id": "undated-query"},
+        ).json()
+        output = wait_for_job(client, job["id"])["result"]
+        assert output["status"] == "seen"
+        assert output["visual"]["evidence"]["observed_at"] is None
+        assert "unknown recording time" in output["answer"]
+        assert "latest" not in output["answer"].lower()

@@ -14,6 +14,19 @@ def test_next_departure_request_survives_restart_and_creation_replay(tmp_path):
     assert len(tasks.active()) == 1
 
 
+def test_active_request_stays_visible_after_more_than_thirty_closed_requests(tmp_path):
+    from nyx.intentions import Intentions
+
+    tasks = Intentions(tmp_path)
+    active = tasks.create("long-lived-request", "Take your water bottle")
+    for index in range(31):
+        other = tasks.create(f"closed-{index}", "Take keys")
+        tasks.cancel(other["id"])
+    visible = tasks.recent()
+    assert any(row["id"] == active["id"] and row["state"] == "armed" for row in visible)
+    assert len(visible) == 31
+
+
 def test_delivery_claim_is_atomic_and_cannot_replay_or_resurrect_cancelled_task(tmp_path):
     from nyx.intentions import Intentions
 

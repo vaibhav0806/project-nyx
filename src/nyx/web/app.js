@@ -23,6 +23,7 @@ let uploadFailed = false;
 let downloadUrl = null;
 let latestReadyCount = null;
 let finalizing = 0;
+let clipsShown = 50;
 
 function message(text, error = false) {
   $(error ? "error" : "task").textContent = text;
@@ -40,6 +41,7 @@ function controls() {
   $("search").disabled = busy;
   $("ask-history").disabled = busy;
   $("inspect-now").disabled = busy || !enabled || !stream;
+  $("show-older-clips").disabled = busy;
   document.querySelectorAll(".delete-clip").forEach((button) => { button.disabled = busy || enabled || paused || requestingCamera || Boolean(remoteSession) || uploads.length > 0 || finalizing > 0; });
   $("recording-badge").hidden = !enabled;
   $("camera-state").classList.toggle("active", enabled);
@@ -111,7 +113,7 @@ async function refreshLibrary() {
   $("clips").replaceChildren();
   const ready = videos.filter((video) => video.status === "ready");
   $("clip-count").textContent = `${ready.length} ${ready.length === 1 ? "clip" : "clips"}`;
-  for (const video of videos.slice(0, 50)) {
+  for (const video of videos.slice(0, clipsShown)) {
     const row = document.createElement("div");
     row.className = "clip-row";
     const button = document.createElement("button");
@@ -140,6 +142,7 @@ async function refreshLibrary() {
     $("clips").append(row);
   }
   for (const video of ready) $("scope").add(new Option(video.name, video.id));
+  $("show-older-clips").hidden = videos.length <= clipsShown;
   if (!videos.length) {
     const empty = document.createElement("p");
     empty.className = "empty-library";
@@ -149,6 +152,12 @@ async function refreshLibrary() {
   if (ready.some((video) => video.id === scope)) $("scope").value = scope;
   controls();
 }
+
+$("show-older-clips").onclick = async () => {
+  clipsShown += 50;
+  try { await refreshLibrary(); }
+  catch (error) { message(error.message, true); }
+};
 
 async function deleteClip(video) {
   if (!window.confirm(`Permanently delete “${video.name}”? Its saved video, thumbnails and search vectors will be removed. This cannot be undone.`)) return;

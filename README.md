@@ -6,6 +6,8 @@ We’re building Nyx to help people stay independent as they age: a physical AI 
 
 Nyx is intended to connect live surroundings, recorded history, conversations, and simple actions through natural speech. The first development target is a laptop demo; older adults are the intended starting audience.
 
+For a product-level explanation and a map of the working components, read [how the companion works](docs/companion-walkthrough.md).
+
 ## Project state
 
 **A local conversational agent now connects current inspection, recent visual history and experimental departure reminders. Continuous recording and hands-free voice remain available; household, event and voice evaluation are still in progress.**
@@ -16,7 +18,7 @@ A pinned SigLIP 2 encoder runs on this Mac's MPS GPU. Search results remain unve
 
 ## Run the local demo
 
-The **Talk to Nyx** field works without an API key. Ask “Where are my reading glasses?”, refine the description, or ask “Where did you last see them?” The local agent chooses tools over a bounded conversation and tool-result loop. Present-location requests inspect an available fresh view first; historical tools can search recent dated windows before widening. Answers retain current/historical attribution. The details show what was checked. Stop cancels subsequent steps; in-flight inference can finish. Direct candidate search and explicit visual checks remain available below.
+The **Talk to Nyx** field works without an API key. Ask “Where are my reading glasses?”, refine the description, or ask “Where did you last see them?” The local agent chooses tools over a bounded conversation and tool-result loop. Present-location requests inspect an available fresh view first; historical tools can search recent dated windows before widening. Imported clips with unknown dates can be checked as best matches, without claiming a latest sighting. Answers retain current/historical attribution. The details show what was checked. Stop cancels subsequent steps; in-flight inference can finish. Direct candidate search and explicit visual checks remain available below.
 
 “Remind me to take my water bottle when I leave” saves a **next-departure** request. With recording running and the main door visible, a separate live observer checks local changes and selected short image sequences without waiting for saved-segment indexing. The reminder list shows actual state; Cancel removes an active request and **Got it** acknowledges played speech. Requests survive restart, but old events are not silently replayed. Spoken delivery requires Sarvam configuration and browser playback permission; display-only output is not counted as speech.
 
@@ -38,6 +40,8 @@ Capture is video-only. Continuous segments now select initial, changed, pre-chan
 The saved original-video budget is **1 GiB**, including existing clips. Recording stops on a full backlog, upload failure, quota or low disk space; existing clips are preserved. Thumbnails and the model cache use additional space. Failed uploads stay available for retry/download while the page remains open. A browser exit can lose the unsaved tail. Camera loss or detected suspension stops capture with an interruption warning; merely hiding the tab does not deliberately stop it. Browser/OS recording behavior and clock accuracy still need real hardware testing.
 
 On server restart, saved interrupted work is requeued and live sessions are marked interrupted. The backend alone never opens hardware. A configured voice page starts a new capture/listening session when loaded; the old interrupted session remains in history. Interrupted tails retain searchable clip offsets but no asserted wall-clock time. Original media and inference stay on this laptop; the server binds to localhost. `Ctrl+C` stops it; `serve --port 8001` selects another port. Stop recording and wait for indexing/search to finish to use **Delete clip** beside a source. Confirmation removes its original video, thumbnails and search vectors; unrelated clips remain. Interrupted cleanup stays hidden and can be retried or finished on restart. Nothing expires automatically. Retention duration and the thirty-minute real-camera soak remain open M2 work.
+
+The saved library initially shows fifty sources. **Show older clips** reveals additional sources for playback or explicit deletion; older clips remain searchable throughout.
 
 ## Hands-free voice
 
@@ -95,6 +99,7 @@ uv run --no-sync ruff check src tests experiments
 uv run --no-sync ruff format --check src tests experiments
 node --check src/nyx/web/app.js
 node --check src/nyx/web/voice.js
+node --check src/nyx/web/companion.js
 node --check src/nyx/web/audio-worklet.js
 uv run --no-sync python experiments/image-text-retrieval/run.py \
   --download-samples --output data/runs/siglip-baseline

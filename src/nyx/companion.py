@@ -123,6 +123,8 @@ def install_companion(app, workspace, voice):
             if len(requests) > 30:
                 del requests[key]
         context = [row for row in conversations.recent() if row["status"] == "complete"][-12:]
+        store = workspace.store()
+        library = [row for row in store.list_videos() if row["status"] == "ready"] if store else []
         identifier = body.voice_turn_id or conversations.begin(body.message, {"mode": "agent"})
 
         def cancelled():
@@ -162,7 +164,7 @@ def install_companion(app, workspace, voice):
                 }
                 result["answer"] = spoken_answer(result)
                 return result
-            if name == "search_history":
+            if name in {"search_history", "search_matches"}:
                 if workspace.store() is None:
                     return {
                         "kind": "history",
@@ -173,7 +175,7 @@ def install_companion(app, workspace, voice):
                 store = workspace.model_store()
                 lower = (
                     (datetime.now(UTC) - timedelta(hours=action["hours"])).isoformat()
-                    if action["hours"]
+                    if name == "search_history" and action["hours"]
                     else None
                 )
                 result = yield from history_steps(
@@ -182,13 +184,17 @@ def install_companion(app, workspace, voice):
                     workspace.encoder,
                     workspace.visual_verifier,
                     seen_after=lower,
-                    mode="latest",
-                    semantic_latest=True,
+                    mode="latest" if name == "search_history" else "relevance",
+                    semantic_latest=name == "search_history",
                 )
                 result["scope"]["note"] = (
-                    "Semantic candidates within the selected recent window, checked newest first. This is bounded sampled evidence, not an exhaustive last sighting. Unknown recording dates are excluded."
+                    (
+                        "Semantic candidates within the selected recent window, checked newest first. This is bounded sampled evidence, not an exhaustive last sighting. Unknown recording dates are excluded."
+                    )
+                    if name == "search_history"
+                    else "Best matching sampled candidates, including unknown recording dates. This establishes neither the latest sighting nor the current location."
                 )
-                result["scope"]["hours"] = action["hours"]
+                result["scope"]["hours"] = action.get("hours")
                 result["answer"] = spoken_answer(result)
                 return result
             if name == "remind_on_departure":
@@ -281,7 +287,9 @@ def install_companion(app, workspace, voice):
                     cancelled=cancelled,
                     available={
                         "current_view": image is not None,
-                        "history": workspace.store() is not None,
+                        "history": bool(library),
+                        "dated_history": any(row["recorded_at"] for row in library),
+                        "undated_history": any(not row["recorded_at"] for row in library),
                     },
                 )
                 result["turn_id"] = identifier
@@ -293,6 +301,7 @@ def install_companion(app, workspace, voice):
                     {
                         "mode": "agent",
                         "steps": result["steps"],
+                        "decision_errors": result["decision_errors"],
                         "model": workspace.verifier.fingerprint if workspace.verifier else None,
                         "current_snapshot_at": body.captured_at.isoformat()
                         if body.captured_at

@@ -76,7 +76,12 @@ def spoken_answer(result):
                 else f"{evidence['offset_seconds']:.0f} seconds into a clip with an unknown recording time"
             )
             location = evidence["judgment"].get("location") or "in the recording"
-            return f"The latest sighting I found was {query} {location}, at {when}. I can't confirm it's still there."
+            qualifier = (
+                "A matching moment I found was"
+                if result.get("scope", {}).get("mode") == "relevance"
+                else "The latest sighting I found was"
+            )
+            return f"{qualifier} {query} {location}, at {when}. I can't confirm it's still there."
         return f"I couldn't confirm {query} in the moments I checked. Other footage may still contain it."
     return result["answer"]
 

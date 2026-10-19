@@ -123,7 +123,7 @@ class Workspace:
                 self.scheduled.discard(job_id)
 
     def submit(self, job_id, action):
-        priority = 0 if self.jobs[job_id]["kind"] in {"search", "answer", "agent"} else 1
+        priority = 0 if self.jobs[job_id]["kind"] in {"search", "answer", "agent", "observe"} else 1
         self.queue.put((priority, next(self.order), job_id, action))
 
     def run(self):

@@ -81,7 +81,10 @@ class Intentions:
         with self.connect() as db:
             return [
                 dict(row)
-                for row in db.execute("SELECT * FROM intentions ORDER BY created_at DESC LIMIT 30")
+                for row in db.execute("""SELECT * FROM intentions
+                    WHERE state IN ('armed','pending','delivering') OR id IN
+                    (SELECT id FROM intentions ORDER BY created_at DESC LIMIT 30)
+                    ORDER BY created_at DESC""")
             ]
 
     def cancel(self, identifier):

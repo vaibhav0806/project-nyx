@@ -19,6 +19,7 @@ def validate_action(value):
     fields = {
         "inspect_current": {"query"},
         "search_history": {"query", "hours"},
+        "search_matches": {"query"},
         "remind_on_departure": {"message"},
         "list_reminders": set(),
         "cancel_reminder": {"id"},
@@ -52,6 +53,7 @@ def agent_steps(
         "answer": "I couldn't finish that check. Please try a more specific request.",
         "sources": [],
         "steps": trace,
+        "decision_errors": [],
     }
     state = {
         "message": message,
@@ -68,20 +70,31 @@ def agent_steps(
             break
         try:
             action = validate_action(decide(state))
-        except (ValueError, TypeError, KeyError):
+            if action["action"] == "finish" and action["observation"] >= len(observations):
+                raise ValueError(
+                    "That observation does not exist in this request; use a tool first"
+                )
+        except (ValueError, TypeError, KeyError) as exc:
             result["answer"] = (
                 "I couldn't interpret the next step reliably. Please clarify your request."
             )
+            if not result["decision_errors"]:
+                state["decision_error"] = (
+                    f"Invalid previous decision: {str(exc)[:240]}. Choose a valid next action."
+                )
+                result["decision_errors"].append(state["decision_error"])
+                continue
             break
+        state.pop("decision_error", None)
         if cancelled():
             raise ValueError("Request cancelled")
         if (
             not observations
             and (available or {}).get("current_view")
-            and action["action"] == "search_history"
+            and action["action"] in {"search_history", "search_matches"}
             and re.search(r"\b(where (?:is|are)|find|locate)\b", message, re.IGNORECASE)
             and not re.search(
-                r"\b(last|seen|ago|earlier|history|past|yesterday|before|did|recording|recorded|footage|video)\b",
+                r"\b(last|seen|ago|earlier|history|past|yesterday|before|did|recording|recorded|footage|video|clip|imported)\b",
                 message,
                 re.IGNORECASE,
             )

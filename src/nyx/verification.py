@@ -13,6 +13,20 @@ Return only JSON with exactly these fields:
 {"visibility":"visible|not_visible|uncertain","location":"visible location or empty string","description":"short observation","ambiguous":false}
 Object description: """
 
+DEPARTURE_PROMPT = """These images are consecutive chronological views of ONE fixed room camera over a few seconds.
+Check whether one person is visibly preparing to leave through the main door NOW, early enough for a reminder.
+Require a sequence of clear exit-directed actions (approaching the exit then reaching its handle/opening it or crossing outward).
+Standing near a door, picking up a bag alone, walking past a door, someone entering, opening for a visitor, a door alone, or disappearing out of view do NOT establish departure.
+The SAME visible exit must be approached and interacted with over the sequence. Do not invent a door or movement toward it.
+Do not identify the person. If multiple people or direction/intent is unclear, use uncertain=true and departure=false.
+Return one JSON object with these fields IN THIS ORDER:
+cue: describe actual visible changes first, at most 20 words.
+approached_exit: boolean, person visibly moved toward the SAME visible exit.
+exit_interaction: boolean, person reached its handle, opened it, or crossed outward.
+departure: boolean, true ONLY when both approached_exit and exit_interaction are true.
+uncertain: boolean, true if these actions or direction are unclear.
+Do not copy the instruction text as a description. No markdown."""
+
 
 def parse_judgment(raw):
     uncertain = {
@@ -86,7 +100,7 @@ class LocalVerifier:
             "prompt_version": 1,
             "max_image_side": 768,
             "max_new_tokens": 180,
-            "planner_prompt_version": 3,
+            "planner_prompt_version": 4,
             "departure_prompt_version": 3,
         }
         self.load_seconds = time.perf_counter() - started
@@ -167,6 +181,7 @@ Use tools for all claims about the room or history. Prior answers are NOT fresh 
 Allowed JSON actions (exact keys):
 {"action":"inspect_current","query":"visual object description"}
 {"action":"search_history","query":"visual object description","hours":2}
+{"action":"search_matches","query":"visual object description"}
 {"action":"remind_on_departure","message":"Take your water bottle"}
 {"action":"list_reminders"}
 {"action":"cancel_reminder","id":"exact id from available reminders"}
@@ -175,6 +190,8 @@ Allowed JSON actions (exact keys):
 {"action":"chat","message":"one brief conversational reply, with no visual or memory claims"}
 For 'where is' or 'find' with NO observations, inspect_current first. If not confirmed or unavailable, search_history.
 For 'last seen', start search_history. Prefer hours=2, then 24, then 168, then 0 (all dated history).
+For an imported clip or unknown recording dates, use search_matches. It checks best candidates and cannot establish latest time.
+If dated search is inconclusive, search_matches can check undated footage, explicitly retaining unknown time.
 Never repeat an identical action. If a tool finds a sighting, finish with its zero-based observation index.
 If no further useful search is possible, finish with an uncertain observation. Finish never contains invented answer text.
 Only remind_on_departure creates a NEXT-DEPARTURE reminder. Do not use it for time-based reminders or other triggers.
@@ -210,21 +227,8 @@ Time-based reminders are unsupported: explain that limitation; do not ask the us
     def inspect_departure(self, images):
         from nyx.observation import departure_judgment
 
-        prompt = """These images are consecutive chronological views of ONE fixed room camera over a few seconds.
-Check whether one person is visibly preparing to leave through the main door NOW, early enough for a reminder.
-Require a sequence of clear exit-directed actions (approaching the exit then reaching its handle/opening it or crossing outward).
-Standing near a door, picking up a bag alone, walking past a door, someone entering, opening for a visitor, a door alone, or disappearing out of view do NOT establish departure.
-The SAME visible exit must be approached and interacted with over the sequence. Do not invent a door or movement toward it.
-Do not identify the person. If multiple people or direction/intent is unclear, use uncertain=true and departure=false.
-Return one JSON object with these fields IN THIS ORDER:
-cue: describe actual visible changes first, at most 20 words.
-approached_exit: boolean, person visibly moved toward the SAME visible exit.
-exit_interaction: boolean, person reached its handle, opened it, or crossed outward.
-departure: boolean, true ONLY when both approached_exit and exit_interaction are true.
-uncertain: boolean, true if these actions or direction are unclear.
-Do not copy the instruction text as a description. No markdown."""
         if len(images) > 3:
             images = [images[0], images[len(images) // 2], images[-1]]
         content = [{"type": "image", "image": image} for image in images]
-        content.append({"type": "text", "text": prompt})
+        content.append({"type": "text", "text": DEPARTURE_PROMPT})
         return departure_judgment(self.generate_json([{"role": "user", "content": content}], 140))

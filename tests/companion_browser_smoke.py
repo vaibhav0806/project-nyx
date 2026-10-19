@@ -126,6 +126,28 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                     assert page.evaluate(
                         "window.fakeStream.getTracks().every(t=>t.readyState==='ended')"
                     )
+                    library = [
+                        {
+                            "id": f"{index:032x}",
+                            "name": f"Synthetic saved clip {index}",
+                            "status": "ready",
+                            "frame_count": 1,
+                            "recorded_at": None,
+                        }
+                        for index in range(51)
+                    ]
+                    page.route(url + "/api/videos", lambda route: route.fulfill(json=library))
+                    page.evaluate("refreshLibrary()")
+                    expect(page.locator("#clips .clip-row")).to_have_count(50)
+                    page.get_by_role("button", name="Show older clips", exact=True).click()
+                    expect(page.locator("#clips .clip-row")).to_have_count(51)
+                    expect(
+                        page.locator(".clip-row")
+                        .filter(has_text="Synthetic saved clip 50")
+                        .get_by_role("button", name="Delete clip", exact=True)
+                    ).to_be_enabled()
+                    page.unroute(url + "/api/videos")
+                    page.evaluate("refreshLibrary()")
                     page.screenshot(path=str(args.output / "companion.png"), full_page=True)
                     page.reload()
                     expect(page.locator("#companion-thread")).to_contain_text(
@@ -139,6 +161,7 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                                 "fake_devices": True,
                                 "models": "deterministic boundary fixtures",
                                 "synthetic_speech": args.speech,
+                                "older_library_access": True,
                                 "passed": True,
                             },
                             indent=2,

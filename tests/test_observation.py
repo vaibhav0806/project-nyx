@@ -48,3 +48,38 @@ def test_departure_parser_cannot_promote_ambiguous_or_malformed_judgments():
         '{"cue":"Person stands still by a door","approached_exit":false,"exit_interaction":false,"departure":true,"uncertain":false}',
     ]:
         assert departure_judgment(value)["departure"] is False
+
+
+def test_live_event_inspection_runs_before_a_backlog_of_background_jobs(tmp_path):
+    from threading import Event
+
+    import pytest
+
+    pytest.importorskip("fastapi")
+    from nyx.app import Workspace
+
+    entered, release, inspected = Event(), Event(), Event()
+    order = []
+    workspace = Workspace(tmp_path, None, 1024**3, None)
+
+    def running_batch():
+        entered.set()
+        assert release.wait(5)
+
+    def observe():
+        order.append("live-event")
+        inspected.set()
+
+    workspace.thread.start()
+    try:
+        workspace.submit(workspace.reserve("capture"), running_batch)
+        assert entered.wait(2)
+        for _ in range(3):
+            workspace.submit(workspace.reserve("capture"), lambda: order.append("background"))
+        workspace.submit(workspace.reserve("observe"), observe)
+        release.set()
+        assert inspected.wait(2)
+    finally:
+        release.set()
+        workspace.close()
+    assert order == ["live-event", "background", "background", "background"]

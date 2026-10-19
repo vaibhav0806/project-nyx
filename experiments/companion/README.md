@@ -12,7 +12,7 @@ HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/run.py \
   --output data/runs/companion-new
 ```
 
-The script records local planner decisions, raw generations, a current-view request, recent-history follow-up with older distractor footage, and departure reminder creation/cancellation. Inputs are development cases, not held-out household or language evaluation. An action label match does not establish the correctness of the reply text. The API applies additional policy checks; a bare model may propose unsupported behavior.
+The script records local planner decisions, raw generations, a current-view request, recent-history follow-up with older distractor footage, departure reminder creation/cancellation, and a separate unknown-time import workspace. Inputs are development cases, not held-out household or language evaluation. An action label match does not establish the correctness of the reply text. The API applies additional policy checks; a bare model may propose unsupported behavior.
 
 ## Selected public video
 
@@ -35,6 +35,26 @@ HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/departure.py \
 
 Record failures, prompt changes, inference time and raw output. Reusing cases to revise prompts does not produce held-out accuracy. Run model processes sequentially on this 16 GiB machine; simultaneous Qwen processes caused heavy swapping. Current findings are in [R8](../../docs/research/R8-companion-loop.md).
 
+`video_native.py` compares explicitly time-labelled image inputs with Qwen's native timestamped video preprocessing using the **same** prompt and cases. This isolates an input-representation hypothesis; it is not additional independent evaluation. Run one mode at a time:
+
+```sh
+HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/video_native.py \
+  --manifest data/evaluation/departure-manifest.json --mode video \
+  --output data/runs/departure-native-new
+```
+
+Use `--mode labelled_images` with another fresh output directory for the comparison. Relative timestamps come from the manifest's two-second sampling protocol, not capture clock time.
+
+To exercise the actual request → live-observer → pending-notification API with the local model, replay selected cases two seconds apart:
+
+```sh
+HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/live.py \
+  --manifest data/evaluation/departure-manifest.json --cases 3H0PT BM3UJ \
+  --output data/runs/companion-live-new
+```
+
+This saves raw judgments, request/delivery state and elapsed time from the last frame. It records recognition errors rather than asserting every case passes. No video segment must finish first. It starts no device, uses a replay clock rather than an original capture date, disables the voice provider and makes no speech-delivery claim.
+
 ## Browser wiring
 
 ```sh
@@ -42,3 +62,13 @@ uv run --no-sync python tests/companion_browser_smoke.py --output data/runs/comp
 ```
 
 This check uses generated camera frames and deterministic model boundaries. It validates wiring, not recognition quality. The existing voice/browser checks and longer recording smoke remain separate; see the README for their commands and limitations.
+
+Add `--speech` to exercise generated reminder audio, played state, separate acknowledgement and no repeated claim. After the longer synthetic recording smoke has **stopped its server**, verify the same workspace through a process restart:
+
+```sh
+HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/restart.py \
+  --workspace data/runs/continuous-soak-20261020/workspace \
+  --output data/runs/continuous-restart-new
+```
+
+This checks source persistence, recovered indexing, semantic candidate search and HTTP range playback. It starts no browser or hardware and does not verify that a retrieved object is present.
