@@ -1,6 +1,6 @@
 # Decisions and open choices
 
-Updated: 2026-10-19. This records discussion outcomes and engineering choices. The user explicitly resumed work on 2026-10-19; M1 retrieval and continuous recording/background indexing are authorized. Unmeasured model choices remain experiments.
+Updated: 2026-10-20. This records discussion outcomes and engineering choices. The user explicitly resumed work on 2026-10-19; M1 retrieval and continuous recording/background indexing are authorized. Unmeasured model choices remain experiments.
 
 ## Status vocabulary
 
@@ -132,3 +132,18 @@ Keep tiny.en: a small synthetic comparison did not justify switching to base.en,
 ## Publication authorization
 
 2026-10-19: the user explicitly requested that all current work be pushed to GitHub. Publish the combined history controls, visual answers, hands-free Sarvam v4 voice and voice-feedback improvements on `main`. Earlier local-only entries above record development checkpoints and are superseded by this explicit publication request. Keep credentials, recordings, databases, generated artifacts and model weights outside Git. Publishing does not close the remaining M1–M4 validation gates or implement M5.
+
+
+## Companion and event-request selections — 2026-10-20
+
+The user approved a conversation-aware tool loop, continuous watching, adaptive indexing and a next-departure water-bottle reminder, and requested autonomous implementation/experiments. They subsequently authorized coherent local commits and explicitly prohibited pushing. The new work is on `feat/companion-loop`; earlier publication authorization applies to the older snapshot, not this work.
+
+- Keep one Python process/package and the existing priority worker. A bounded local agent can inspect current evidence, search recent dated semantic candidates, widen history, create/list/cancel departure requests, clarify and converse. Qwen is reused for text decisions; no LangChain, service topology, extra text model or quantization is introduced. Revisit model choice after measured contextual/tool failures, not based on framework availability.
+- Apply explicit product policies around the model: available current evidence first for present-location questions; visual completion cites tool observations; mutations require a corresponding user request; unsupported clock-time conditions cannot silently become unconditional reminders. Context is bounded recent conversation, not all past raw turns.
+- Begin adaptive selection with local block image differences using existing NumPy/Pillow. Preserve initial, pre-change, changed, settled and periodic samples, along with actual offsets and sampling policy. Continuous files each retain an anchor. Source video remains untouched and the 1 GiB stop-without-deletion rule stands. OpenCV comparison remains an option if measurements warrant another dependency.
+- Use fresh bounded live-frame sequences for active departure requests, independently of completed segment indexing. No semantic analysis of every frame, person identification, cloud vision or inference from disappearance alone. The small VLM has measured false positives/misses; keep this an explicitly experimental single-person doorway slice.
+- Save next-departure intentions and notification attempts in `intentions.sqlite3`. Keep armed, pending, delivering, delivered, failed, missed, cancelled, interrupted and acknowledged states distinct. Deduplicate retries, expire stale events, prevent late callbacks after cancellation and never silently replay interrupted speech. Recurrence, scheduled reminders and general fact recall remain outside this slice.
+- Default configured voice retains Sarvam activated STT/TTS but uses the local agent for decisions. Existing cloud-router code remains a compatibility path for tests/older callers. No new provider requests were made during this session.
+- Experiments use synthetic devices and permitted offline/public replay. Public Charades data is evaluation-only under its restrictive license; raw clips/frames/contact sheets stay local and must not become redistributed product/demo assets. Downloads use bounded ranges rather than the entire dataset.
+
+[R8](research/R8-companion-loop.md) records the actual 16 GiB machine, local-model checks and limitations. Running two model processes at once caused swapping; subsequent model tests run sequentially. No milestone accuracy or latency gate is declared met.

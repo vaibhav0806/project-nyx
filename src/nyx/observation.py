@@ -16,11 +16,20 @@ def departure_judgment(raw):
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[1].rsplit("```", 1)[0]
         row = json.loads(raw)
-        if type(row.get("departure")) is not bool or type(row.get("uncertain")) is not bool:
+        if any(
+            type(row.get(key)) is not bool
+            for key in ["departure", "uncertain", "approached_exit", "exit_interaction"]
+        ):
             return uncertain
         if not isinstance(row.get("cue"), str) or not 1 <= len(row["cue"]) <= 400:
             return uncertain
-        return {**row, "departure": row["departure"] and not row["uncertain"]}
+        return {
+            **row,
+            "departure": row["departure"]
+            and not row["uncertain"]
+            and row["approached_exit"]
+            and row["exit_interaction"],
+        }
     except (ValueError, AttributeError, TypeError, IndexError):
         return uncertain
 
@@ -68,7 +77,7 @@ class Observer:
             small = image.copy()
             small.thumbnail((640, 360))
             self.frames.append((at, small))
-            if len(self.frames) < 3 or not decision["selected"]:
+            if len(self.frames) < 3 or (not decision["selected"] and self.last_check is not None):
                 return None
             if self.last_check and (at - self.last_check).total_seconds() < 3:
                 return None

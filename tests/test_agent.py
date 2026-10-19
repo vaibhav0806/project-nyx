@@ -108,3 +108,72 @@ def test_agent_context_keeps_corrections_but_marks_deleted_evidence_unavailable(
 
     result = complete(agent_steps("Find them", context, decide, lambda action: None))
     assert result["status"] == "clarify"
+
+
+def test_present_question_checks_available_current_view_before_archive():
+    from nyx.agent import agent_steps
+
+    decisions = iter(
+        [
+            {"action": "search_history", "query": "reading glasses", "hours": 2},
+            {"action": "finish", "observation": 0},
+        ]
+    )
+
+    def tool(action):
+        assert action["action"] == "inspect_current"
+        return {"kind": "snapshot", "status": "seen", "answer": "Visible beside the book"}
+
+    result = complete(
+        agent_steps(
+            "Where are my reading glasses?",
+            [],
+            lambda state: next(decisions),
+            tool,
+            available={"current_view": True},
+        )
+    )
+    assert result["status"] == "seen"
+
+
+def test_cancellation_stops_between_history_images_not_after_the_entire_tool():
+    from nyx.agent import agent_steps
+
+    stopped = [False]
+
+    def history(action):
+        yield {"checked": 1}
+        pytest.fail("A cancelled request must not inspect another image")
+
+    steps = agent_steps(
+        "Where did you last see glasses?",
+        [],
+        lambda state: {"action": "search_history", "query": "glasses", "hours": 2},
+        history,
+        cancelled=lambda: stopped[0],
+    )
+    assert next(steps) == {"checked": 1}
+    stopped[0] = True
+    with pytest.raises(ValueError, match="cancelled"):
+        next(steps)
+
+
+def test_time_budget_is_checked_between_images_of_a_history_tool(monkeypatch):
+    from nyx.agent import agent_steps
+
+    clock = [0.0]
+    monkeypatch.setattr("nyx.agent.time.monotonic", lambda: clock[0])
+
+    def history(action):
+        yield {"checked": 1}
+        pytest.fail("No further inference should start after the request budget")
+
+    steps = agent_steps(
+        "Last seen glasses",
+        [],
+        lambda state: {"action": "search_history", "query": "glasses", "hours": 2},
+        history,
+    )
+    assert next(steps) == {"checked": 1}
+    clock[0] = 100.0
+    assert complete(steps)["status"] == "uncertain"

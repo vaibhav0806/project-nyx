@@ -13,6 +13,8 @@ from test_nyx import ColorEncoder
 
 from nyx.app import create_app
 
+pytest_plugins = ["test_nyx"]
+
 
 class Planner:
     fingerprint: ClassVar[dict] = {"model": "deterministic-fixture"}
@@ -71,6 +73,9 @@ def test_typed_companion_uses_local_tools_persists_context_and_deletes_source_li
             client.get("/api/companion").json()["conversations"][-1]["transcript"]
             == "Where is the green thing?"
         )
+        plan = client.get("/api/companion").json()["conversations"][-1]["plan"]
+        assert plan["steps"][0]["query"] == "green"
+        assert plan["model"]["model"] == "deterministic-fixture"
 
 
 def test_request_creates_one_next_departure_reminder_and_cancel_works(tmp_path):
@@ -153,3 +158,217 @@ def test_no_active_reminder_means_no_visual_model_load_for_live_observation(tmp_
             },
         )
         assert response.json()["state"] == "quiet"
+
+
+def test_voice_agent_reply_requires_the_authoritative_matching_turn(tmp_path):
+    from nyx.voice import Voice
+
+    class Speech:
+        def speak(self, text):
+            return "fixture-audio"
+
+    speaker = Voice(tmp_path, Speech())
+    with TestClient(
+        create_app(
+            tmp_path,
+            encoder_factory=ColorEncoder,
+            verifier_factory=Planner,
+            voice_factory=lambda root: speaker,
+        )
+    ) as client:
+        token = client.post("/api/voice/session").json()["token"]
+        identifier = speaker.conversations.begin("Where is green?", {"mode": "agent"})
+        speaker.turn = {
+            "id": identifier,
+            "at": datetime.now(UTC).isoformat(),
+            "transcript": "Where is green?",
+            "plan": {"mode": "agent"},
+        }
+        headers = {"x-nyx-voice": token}
+        job = client.post(
+            "/api/agent",
+            headers=headers,
+            json={
+                "message": "Where is green?",
+                "voice_turn_id": identifier,
+                "request_id": identifier,
+                "snapshot": snapshot(),
+                "captured_at": datetime.now(UTC).isoformat(),
+            },
+        ).json()
+        wait_for_job(client, job["id"])
+        reply = client.post(
+            "/api/voice/reply", headers=headers, json={"turn_id": identifier, "job_id": job["id"]}
+        )
+        assert reply.status_code == 200, reply.text
+        assert reply.json()["answer"].startswith("I can see green")
+        assert reply.json()["audio"] == "fixture-audio"
+
+
+def test_agent_falls_back_to_recent_verified_history_instead_of_an_old_match(tmp_path, video):
+    import numpy as np
+
+    class FindingPlanner(Planner):
+        def decide(self, state):
+            if not state["observations"]:
+                return {"action": "inspect_current", "query": "green"}
+            if len(state["observations"]) == 1:
+                return {"action": "search_history", "query": "green", "hours": 2}
+            return {"action": "finish", "observation": 1}
+
+        def inspect(self, image, query):
+            green = np.asarray(image).mean(axis=(0, 1))[1] > 100
+            return {
+                "visibility": "visible" if green else "not_visible",
+                "location": "center" if green else None,
+                "description": "Color fixture",
+                "ambiguous": False,
+            }
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=FindingPlanner)
+    ) as client:
+        ids = []
+        for hours in [240, 1]:
+            job = client.post(
+                "/api/import",
+                params={
+                    "name": "scene.mp4",
+                    "recorded_at": (datetime.now(UTC) - timedelta(hours=hours)).isoformat(),
+                },
+                content=video.read_bytes(),
+            ).json()
+            ids.append(wait_for_job(client, job["id"])["result"]["video_id"])
+        job = client.post(
+            "/api/agent",
+            json={
+                "message": "Where is green?",
+                "request_id": "find-green",
+                "snapshot": snapshot("red"),
+                "captured_at": datetime.now(UTC).isoformat(),
+            },
+        ).json()
+        result = wait_for_job(client, job["id"])["result"]
+        assert result["status"] == "seen"
+        assert result["visual"]["evidence"]["video_id"] == ids[1]
+        assert ids[0] not in result["sources"]
+        client.delete(f"/api/videos/{ids[1]}")
+        assert client.get("/api/jobs/" + job["id"]).json()["status"] == "failed"
+        assert (
+            client.get("/api/companion").json()["conversations"][-1]["sources_available"] is False
+        )
+
+
+def test_misrouted_model_cannot_cancel_a_reminder_without_user_request(tmp_path):
+    from nyx.intentions import Intentions
+
+    tasks = Intentions(tmp_path)
+    reminder = tasks.create("water-request", "Take water")
+
+    class BadPlanner(Planner):
+        def decide(self, state):
+            return {"action": "cancel_reminder", "id": reminder["id"]}
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=BadPlanner)
+    ) as client:
+        job = client.post(
+            "/api/agent",
+            json={"message": "Where is my water bottle?", "request_id": "lookup-request"},
+        ).json()
+        assert wait_for_job(client, job["id"])["status"] == "succeeded"
+        assert tasks.get(reminder["id"])["state"] == "armed"
+
+
+def test_timed_departure_cannot_be_silently_saved_as_an_unconditional_reminder(tmp_path):
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Planner)
+    ) as client:
+        job = client.post(
+            "/api/agent",
+            json={
+                "message": "Remind me to take water when I leave at six",
+                "request_id": "timed-exit",
+            },
+        ).json()
+        result = wait_for_job(client, job["id"])["result"]
+        assert result["status"] == "clarify"
+        assert client.get("/api/companion").json()["reminders"] == []
+
+
+def test_agent_cannot_present_a_snapshot_that_ages_out_during_final_planning(tmp_path, monkeypatch):
+    clock = [datetime.now(UTC)]
+
+    class Clock:
+        @staticmethod
+        def now(zone):
+            return clock[0]
+
+    class SlowFinish(Planner):
+        def decide(self, state):
+            result = super().decide(state)
+            if state["observations"]:
+                clock[0] += timedelta(seconds=20)
+            return result
+
+    monkeypatch.setattr("nyx.companion.datetime", Clock)
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=SlowFinish)
+    ) as client:
+        job = client.post(
+            "/api/agent",
+            json={
+                "message": "Where is green?",
+                "request_id": "aging-snapshot",
+                "snapshot": snapshot(),
+                "captured_at": clock[0].isoformat(),
+            },
+        ).json()
+        result = wait_for_job(client, job["id"])
+        assert result["status"] == "failed"
+        assert "stale" in result["error"]
+
+
+def test_replayed_request_after_restart_does_not_claim_a_cancelled_reminder_is_armed(tmp_path):
+    body = {"message": "Remind me about water when I leave", "request_id": "stable-request"}
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Planner)
+    ) as client:
+        job = client.post("/api/agent", json=body).json()
+        wait_for_job(client, job["id"])
+        item = client.get("/api/companion").json()["reminders"][0]
+        client.delete("/api/reminders/" + item["id"])
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Planner)
+    ) as client:
+        job = client.post("/api/agent", json=body).json()
+        result = wait_for_job(client, job["id"])["result"]
+        assert result["status"] == "cancelled"
+        assert len(client.get("/api/companion").json()["reminders"]) == 1
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Do not remind me about water when I leave",
+        "Cancel the reminder about water when I leave",
+        "Remind me about water when I leave tomorrow",
+    ],
+)
+def test_model_cannot_drop_negation_or_a_future_day_from_departure_request(tmp_path, message):
+    class Misroute(Planner):
+        def decide(self, state):
+            return (
+                {"action": "finish", "observation": 0}
+                if state["observations"]
+                else {"action": "remind_on_departure", "message": "Take water"}
+            )
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Misroute)
+    ) as client:
+        job = client.post(
+            "/api/agent", json={"message": message, "request_id": "constrained-request"}
+        ).json()
+        wait_for_job(client, job["id"])
+        assert client.get("/api/companion").json()["reminders"] == []

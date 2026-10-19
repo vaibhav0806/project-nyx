@@ -65,3 +65,28 @@ def test_playback_and_acknowledgement_are_distinct(tmp_path):
     assert tasks.get(item["id"])["state"] == "delivered"
     tasks.acknowledge(item["id"])
     assert tasks.get(item["id"])["state"] == "acknowledged"
+
+
+def test_expired_unclaimed_delivery_becomes_missed_without_replaying(tmp_path):
+    from nyx.intentions import Intentions
+
+    tasks = Intentions(tmp_path)
+    item = tasks.create("turn-1", "Take water")
+    tasks.trigger("event-1", datetime.now(UTC).isoformat(), {})
+    old = (datetime.now(UTC) - timedelta(minutes=2)).isoformat()
+    with tasks.connect() as db:
+        db.execute("UPDATE deliveries SET observed_at=?", (old,))
+    assert tasks.pending() == []
+    assert tasks.get(item["id"])["state"] == "missed"
+    assert tasks.trigger("event-2", datetime.now(UTC).isoformat(), {}) == []
+
+
+def test_restart_marks_unclaimed_notification_missed_instead_of_replaying(tmp_path):
+    from nyx.intentions import Intentions
+
+    tasks = Intentions(tmp_path)
+    item = tasks.create("turn-1", "Take water")
+    tasks.trigger("event-1", datetime.now(UTC).isoformat(), {})
+    reopened = Intentions(tmp_path)
+    assert reopened.pending() == []
+    assert reopened.get(item["id"])["state"] == "missed"

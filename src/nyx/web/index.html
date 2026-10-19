@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
   <script src="/voice.js" defer></script>
+  <script src="/companion.js" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -18,6 +19,15 @@
   </header>
   <main>
     <div class="intro"><h1>Keep a little history.<br>Find a moment.</h1><p>Record your surroundings while Nyx indexes in the background.<br>Search saved moments while the camera keeps running.</p></div>
+    <section class="voice-panel" aria-label="Nyx companion">
+      <h2>Talk to Nyx</h2>
+      <p class="help">Ask naturally, refine a search, or say “Remind me to take my water bottle when I leave.” Nyx checks the current view and recent history locally. Departure reminders need a running camera with the main door visible.</p>
+      <form id="companion-form"><label for="companion-message">Your request</label><div class="search-row"><input id="companion-message" maxlength="1500" placeholder="Where did you last see my reading glasses?" required><button id="companion-send" class="primary">Ask Nyx</button><button id="companion-stop" type="button" hidden>Stop</button></div></form>
+      <p id="companion-status" role="status" aria-live="polite">Ready. Camera and microphone have separate controls.</p>
+      <div id="companion-thread" aria-live="polite"></div>
+      <details><summary>What Nyx checked</summary><div id="companion-steps"></div></details>
+      <details open><summary>Departure reminders</summary><p id="observation-state" class="help">No departure monitoring while the camera is off.</p><div id="reminders"></div><p class="help">Experimental, single-person doorway demo. A model may miss or misread departure. Playback and acknowledgement are tracked separately.</p></details>
+    </section>
     <section id="voice-panel" class="voice-panel" aria-label="Hands-free voice" hidden>
       <h2>Hey Nyx</h2>
       <p id="voice-state" role="status" aria-live="polite">Starting local wake listening…</p>

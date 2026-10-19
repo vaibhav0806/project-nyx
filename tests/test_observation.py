@@ -39,11 +39,12 @@ def test_departure_parser_cannot_promote_ambiguous_or_malformed_judgments():
     from nyx.observation import departure_judgment
 
     assert departure_judgment(
-        '{"departure":true,"uncertain":false,"cue":"Person approaches exit and reaches for door handle"}'
+        '{"cue":"Person approaches exit and reaches for door handle","approached_exit":true,"exit_interaction":true,"departure":true,"uncertain":false}'
     )["departure"]
     for value in [
         "yes",
         '{"departure":"true","uncertain":false,"cue":"door"}',
         '{"departure":true,"uncertain":true,"cue":"Person is near a doorway"}',
+        '{"cue":"Person stands still by a door","approached_exit":false,"exit_interaction":false,"departure":true,"uncertain":false}',
     ]:
         assert departure_judgment(value)["departure"] is False

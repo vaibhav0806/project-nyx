@@ -41,7 +41,9 @@ def decode_image(value, max_pixels=1920 * 1080):
         with Image.open(BytesIO(raw)) as source:
             if source.format not in {"JPEG", "PNG"} or source.width * source.height > max_pixels:
                 raise ValueError("Use a bounded JPEG/PNG image")
-            return source.convert("RGB")
+            image = source.convert("RGB")
+            image.info["nyx_mime"] = "image/png" if source.format == "PNG" else "image/jpeg"
+            return image
     except (UnidentifiedImageError, OSError) as exc:
         raise ValueError("Image is not readable") from exc
 
@@ -82,6 +84,10 @@ def install_companion(app, workspace, voice):
 
     @app.get("/api/companion")
     def status():
+        with workspace.lock:
+            job = workspace.jobs.get(last_observation.get("job_id"), {})
+            if job.get("status") == "failed":
+                last_observation.update(state="interrupted", error=job.get("error"))
         return {
             "conversations": conversations.recent(),
             "reminders": tasks.recent(),
@@ -152,7 +158,7 @@ def install_companion(app, workspace, voice):
                     "scope": {
                         "note": "One fresh model-checked snapshot; the scene may change and the model can be wrong."
                     },
-                    "snapshot_url": f"data:image/jpeg;base64,{body.snapshot}",
+                    "snapshot_url": f"data:{image.info['nyx_mime']};base64,{body.snapshot}",
                 }
                 result["answer"] = spoken_answer(result)
                 return result
@@ -187,8 +193,18 @@ def install_companion(app, workspace, voice):
                 return result
             if name == "remind_on_departure":
                 # The model may not turn content in observed footage into an instruction.
+                if re.search(
+                    r"\b(?:do not|don't|dont|never|cancel|stop)\b.{0,35}\bremind(?:er)?\b",
+                    body.message,
+                    re.IGNORECASE,
+                ):
+                    raise ValueError(
+                        "I won't create a reminder from a negated or cancellation request"
+                    )
                 if not re.search(r"\bremind\b", body.message, re.IGNORECASE) or not re.search(
-                    r"\b(leave|leaving|out|depart|exit)\b", body.message, re.IGNORECASE
+                    r"\b(leave|leaving|out|outside|depart|departing|exit|exiting)\b",
+                    body.message,
+                    re.IGNORECASE,
                 ):
                     raise ValueError("Please explicitly ask for a reminder when you leave")
                 if re.search(r"\b(every|whenever|always|daily)\b", body.message, re.IGNORECASE):
@@ -198,9 +214,11 @@ def install_companion(app, workspace, voice):
                 item = tasks.create(body.request_id, action["message"])
                 return {
                     "kind": "reminder",
-                    "status": "armed",
+                    "status": item["state"],
                     "reminder": item,
-                    "answer": f"For your next departure: {item['message']}. Keep the camera running with the main door visible; departure detection is experimental.",
+                    "answer": f"For your next departure: {item['message']}. Keep the camera running with the main door visible; departure detection is experimental."
+                    if item["state"] == "armed"
+                    else f"That departure request already exists and is {item['state']}.",
                 }
             if name == "list_reminders":
                 rows = tasks.recent()
@@ -212,6 +230,8 @@ def install_companion(app, workspace, voice):
                     "reminders": rows,
                 }
             if name == "cancel_reminder":
+                if not re.search(r"\b(cancel|forget|remove|stop)\b", body.message, re.IGNORECASE):
+                    raise ValueError("Please explicitly ask to cancel a departure reminder")
                 tasks.cancel(action["id"])
                 return {
                     "kind": "reminder",
@@ -222,6 +242,31 @@ def install_companion(app, workspace, voice):
 
         def run():
             try:
+                if re.search(r"\bremind\b", body.message, re.IGNORECASE) and (
+                    re.search(
+                        r"\b(?:at|by)\s+(?:\d|one\b|two\b|three\b|four\b|five\b|six\b|seven\b|eight\b|nine\b|ten\b|eleven\b|twelve\b|noon\b|midnight\b)",
+                        body.message,
+                        re.IGNORECASE,
+                    )
+                    or re.search(
+                        r"\b(?:tomorrow|tonight|next week|on monday|on tuesday|on wednesday|on thursday|on friday|on saturday|on sunday|in \d+ (?:minutes?|hours?|days?))\b",
+                        body.message,
+                        re.IGNORECASE,
+                    )
+                ):
+                    result = {
+                        "kind": "agent",
+                        "status": "clarify",
+                        "answer": "Timed reminders aren't available in this demo yet. I can remind you on your next departure, without a clock-time condition.",
+                        "steps": [],
+                        "sources": [],
+                        "checked": [],
+                        "turn_id": identifier,
+                        "voice_turn_id": body.voice_turn_id,
+                    }
+                    if not body.voice_turn_id:
+                        conversations.finish(identifier, result["answer"])
+                    return result
 
                 def decide(state):
                     return workspace.visual_verifier().decide(
@@ -229,10 +274,31 @@ def install_companion(app, workspace, voice):
                     )
 
                 result = yield from agent_steps(
-                    body.message, context, decide, tool, cancelled=cancelled
+                    body.message,
+                    context,
+                    decide,
+                    tool,
+                    cancelled=cancelled,
+                    available={
+                        "current_view": image is not None,
+                        "history": workspace.store() is not None,
+                    },
                 )
                 result["turn_id"] = identifier
                 result["voice_turn_id"] = body.voice_turn_id
+                if (result.get("visual") or {}).get("kind") == "snapshot":
+                    result["visual"]["age_seconds"] = fresh(result["visual"]["captured_at"])
+                conversations.update_plan(
+                    identifier,
+                    {
+                        "mode": "agent",
+                        "steps": result["steps"],
+                        "model": workspace.verifier.fingerprint if workspace.verifier else None,
+                        "current_snapshot_at": body.captured_at.isoformat()
+                        if body.captured_at
+                        else None,
+                    },
+                )
                 if not body.voice_turn_id:
                     conversations.finish(identifier, result["answer"], result["sources"])
                 return result
@@ -289,6 +355,8 @@ def install_companion(app, workspace, voice):
             ):
                 return {"state": "busy"}
         job_id = workspace.reserve("observe")
+        last_observation.pop("error", None)
+        last_observation["job_id"] = job_id
 
         def check():
             if not observer.valid(burst):
@@ -351,6 +419,11 @@ def install_companion(app, workspace, voice):
                 audio = voice.provider.speak(item["message"])
             except ValueError as exc:
                 warning = str(exc)
+        try:
+            fresh(item["observed_at"])
+        except ValueError as exc:
+            tasks.finish(identifier, "interrupted")
+            raise HTTPException(409, "Departure evidence expired before speech was ready") from exc
         # Cancellation during a provider request must prevent late speech.
         if tasks.get(item["intention_id"])["state"] != "delivering":
             raise HTTPException(409, "Reminder cancelled")

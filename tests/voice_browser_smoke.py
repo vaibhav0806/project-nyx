@@ -55,12 +55,19 @@ def serve(root, port, conversation=False):
                 "ambiguous": False,
             }
 
+        def decide(self, state):
+            return (
+                {"action": "finish", "observation": 0}
+                if state["observations"]
+                else {"action": "inspect_current", "query": "glasses"}
+            )
+
     uvicorn.run(
         create_app(
             root,
             encoder_factory=ColorEncoder,
             verifier_factory=Verifier,
-            voice_factory=lambda root: Voice(root, Provider(), WakeRecognizer()),
+            voice_factory=lambda root: Voice(root, Provider(), WakeRecognizer(), agent_mode=True),
         ),
         host="127.0.0.1",
         port=port,

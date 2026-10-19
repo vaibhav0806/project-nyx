@@ -53,6 +53,15 @@ def audio():
     return (np.sin(np.arange(16000) / 20) * 3000).astype("<i2").tobytes()
 
 
+def test_local_agent_voice_mode_does_not_call_cloud_intent_router(tmp_path):
+    provider = Provider()
+    voice = Voice(tmp_path, provider, lambda pcm: "Hey Nyx where are my glasses?", agent_mode=True)
+    token = voice.start()["token"]
+    turn = voice.utterance(token, audio())
+    assert turn["plan"]["mode"] == "agent"
+    assert provider.calls == ["stt"]
+
+
 def test_idle_stays_local_wake_only_and_next_question(tmp_path):
     provider = Provider()
     heard = iter(["hello there", "Hey Nyx", "where are my glasses?"])

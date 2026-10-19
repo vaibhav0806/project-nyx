@@ -1,6 +1,6 @@
 # Milestones
 
-Updated: 2026-10-19. **M1 household validation is pending; M2 continuous recording and background indexing are implemented locally. User authorized this expansion after successful manual retrieval.**
+Updated: 2026-10-20. **M1 household validation is pending; M2 continuous recording and background indexing are implemented locally. User authorized this expansion after successful manual retrieval.**
 
 This is the single project progress tracker. Detailed implementation tasks are written for the approved next milestone when the user asks to build. Research can inform the plan without silently changing scope.
 
@@ -13,7 +13,7 @@ This is the single project progress tracker. Detailed implementation tasks are w
 | M2 | Build an inspectable recording/search slice | In progress | M1; manual capture enables its evaluation | [Continuous implementation](superpowers/plans/2026-10-19-continuous-recording.md): durable rolling capture, prioritized search, budget and restart recovery; [History controls](superpowers/plans/2026-10-19-history-controls.md): explicit deletion, 54 tests and 75-second synthetic check; hardware soak remains |
 | M3 | Add verified visual answers and fresh inspection | In progress | M2; user explicitly requested M3 | [R4](research/R4-local-verification.md): local Qwen model checks, bounded temporal history and snapshot inspection; independent household/uncertainty evaluation pending |
 | M4 | Connect natural voice and durable transcripts | In progress | M3; user selected Sarvam and hands-free startup | [Hands-free plan](superpowers/plans/2026-10-19-handsfree-voice.md), [R6 findings](research/R6-handsfree-voice.md): local wake + Sarvam + existing visual tools + transcripts; real-room, language, spoken barge-in and latency gates pending |
-| M5 | Add personal recall and reminders | Not started | M4 | No personal-memory/action implementation yet |
+| M5 | Add personal recall and reminders | In progress | M4; bounded event slice authorized 2026-10-20 | [R8](research/R8-companion-loop.md): next-departure request/delivery prototype; event accuracy, general recall and timed reminders remain open |
 | M6 | Evaluate the integrated laptop demo with intended users | Not started | M2–M5 + R1/R2 findings | No evaluation yet |
 | M7 | Select and validate standalone hardware | Later | M6 + hardware decision | No hardware selected |
 
@@ -115,3 +115,10 @@ Choose hardware only after measuring the laptop workload. Verify camera/audio, e
 ## Updating progress
 
 Use `Not started`, `In progress`, `Blocked`, `Ready for review`, or `Complete`. A blocked entry names the dependency and next useful action. A complete entry links a result, check, or demonstration and records material limitations. Never mark application milestones complete because a plan, draft test, package file, or download exists.
+
+
+## Companion/event progress — 2026-10-20
+
+The user authorized implementation and local experiments, then local commits with no push. The working branch adds a local tool loop for typed/spoken questions, contextual correction and recent-history selection, inexpensive adaptive frame selection, live observation independent of segment indexing, and durable next-departure requests with cancel/replay/expiry/playback/acknowledgement controls. [R8](research/R8-companion-loop.md) records measured evidence and failures; [the execution plan](superpowers/plans/2026-10-20-agent-observation.md) records scope and checks.
+
+M3/M4 remain in progress: local-model development examples exercise tool selection and contextual follow-up, but household quality and latency targets are not met. M5 is now in progress for the bounded event-conditioned request only. Public-video departure checks have false positives, misses and potential late notification; deterministic wiring success does not close recognition acceptance. General saved-fact/assistant recall, timed/recurring reminders and overdue scheduled delivery remain unimplemented. M2's longer synthetic soak is running; actual-camera validation remains open regardless of that outcome.

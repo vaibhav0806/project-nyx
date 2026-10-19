@@ -1,6 +1,7 @@
 """A bounded observe/act loop. Visual claims come from tool results, never final prose."""
 
 import json
+import re
 import time
 from datetime import UTC, datetime
 from types import GeneratorType
@@ -39,7 +40,9 @@ def validate_action(value):
     return value
 
 
-def agent_steps(message, context, decide, tool, *, cancelled=lambda: False, max_steps=6):
+def agent_steps(
+    message, context, decide, tool, *, cancelled=lambda: False, max_steps=6, available=None
+):
     started = time.monotonic()
     observations = []
     trace = []
@@ -54,6 +57,8 @@ def agent_steps(message, context, decide, tool, *, cancelled=lambda: False, max_
         "message": message,
         "conversation": context[-12:],
         "observations": observations,
+        "actions": trace,
+        "available": available or {},
         "now": datetime.now(UTC).isoformat(),
     }
     for _ in range(max_steps):
@@ -70,6 +75,19 @@ def agent_steps(message, context, decide, tool, *, cancelled=lambda: False, max_
             break
         if cancelled():
             raise ValueError("Request cancelled")
+        if (
+            not observations
+            and (available or {}).get("current_view")
+            and action["action"] == "search_history"
+            and re.search(r"\b(where (?:is|are)|find|locate)\b", message, re.IGNORECASE)
+            and not re.search(
+                r"\b(last|seen|ago|earlier|history|past|yesterday|before|did|recording|recorded|footage|video)\b",
+                message,
+                re.IGNORECASE,
+            )
+        ):
+            # Product policy: present location starts with available fresh evidence.
+            action = {"action": "inspect_current", "query": action["query"]}
         if action in trace:
             result["answer"] = (
                 "I couldn't find more evidence with that search. Try describing the object or time more precisely."
@@ -95,8 +113,24 @@ def agent_steps(message, context, decide, tool, *, cancelled=lambda: False, max_
         try:
             observation = tool(action)
             if isinstance(observation, GeneratorType):
-                observation = yield from observation
+                steps = observation
+                try:
+                    while True:
+                        if cancelled():
+                            raise ValueError("Request cancelled")
+                        if time.monotonic() - started > 90:
+                            raise ValueError("Request time budget exceeded")
+                        try:
+                            progress = next(steps)
+                        except StopIteration as done:
+                            observation = done.value
+                            break
+                        yield progress
+                finally:
+                    steps.close()
         except ValueError as exc:
+            if cancelled():
+                raise
             observation = {"status": "uncertain", "answer": str(exc)}
         observations.append(observation)
         # Only compact evidence summaries are sent back to the deciding model.

@@ -1,6 +1,6 @@
 # Scope
 
-Status: working scope. The user explicitly resumed implementation on 2026-10-19. The first retrieval slice exists; continuous local capture/background retrieval is authorized and implemented. The user has also explicitly authorized M3 temporal retrieval and visual answers; M4 hands-free Sarvam voice is now authorized and implemented as an initial slice; actions remain planned.
+Status: working scope. The user explicitly resumed implementation on 2026-10-19. The first retrieval slice exists; continuous local capture/background retrieval is authorized and implemented. The user has also explicitly authorized M3 temporal retrieval and visual answers; M4 hands-free Sarvam voice is now authorized and implemented as an initial slice; a bounded next-departure action slice was authorized on 2026-10-20.
 
 ## First engineering slice
 
@@ -10,7 +10,7 @@ This slice establishes retrieval quality and laptop resource use. Results must b
 
 The current follow-up adds explicitly enabled continuous browser video-only recording, approximately ten-second independently playable segments, automatic local indexing, pause/resume, candidate search during capture and separate source playback. Saved work recovers after server restart. The 1 GiB original-video budget stops capture without deleting existing clips; thumbnails/model cache are additional. Upload failures retain retry/download options while the page remains open. Capture time is unknown for imported media and uncertain interrupted tails. Explicit per-source deletion includes thumbnails/vectors, confirmation and interrupted-cleanup recovery. Automatic expiry remains disabled; retention duration and the thirty-minute real-camera check remain pending.
 
-The current M3 slice adds model-checked historical answers, explicit time bounds/latest ordering, source replay/context and fresh snapshot inspection from an already-enabled camera. Latest answers are bounded to inspected samples with a small older semantic fallback; unknown dates, gaps and unindexed footage remain explicit. Model checks are not guaranteed truth. Snapshots are ephemeral and age-labelled; personal reminders remain later work.
+The current M3 slice adds model-checked historical answers, explicit time bounds/latest ordering, source replay/context and fresh snapshot inspection from an already-enabled camera. Latest answers are bounded to inspected samples with a small older semantic fallback; unknown dates, gaps and unindexed footage remain explicit. Model checks are not guaranteed truth. Snapshots are ephemeral and age-labelled; scheduled reminders and general personal recall remain later work.
 
 ## Laptop demo
 
@@ -45,7 +45,7 @@ The proposed development setting is one fixed room/view with five described test
 
 The user explicitly requires automatic camera/microphone startup and activation by “Hey Nyx” or “Nyx,” both in the laptop app and a possible future device. This supersedes the earlier manual-start product choice. The configured page starts capture/listening after browser permissions; loading the server alone does not open browser devices. Tests must use synthetic camera/audio, which is a developer-testing rule, not a product limitation.
 
-The first implementation uses local English ASR-based name detection, bounded ephemeral audio and Sarvam STT/tool routing/TTS after activation. Conversations persist as attributed text and source references. Replies use existing local visual tools, not router-generated facts. Microphone mute and response stop are available. Wake-based playback interruption and a ten-second active follow-up window are implemented with synthetic checks. One speech turn can wait during processing; in-flight inference is not preempted. Robust keyword spotting, actual echo and intended-language/noise evaluation remain open M4 work. Simple greetings and brief conversation bypass vision; visual replies still require local evidence. No reminder/action tool is exposed.
+The first implementation uses local English ASR-based name detection, bounded ephemeral audio and Sarvam STT/tool routing/TTS after activation. Conversations persist as attributed text and source references. Replies use existing local visual tools, not router-generated facts. Microphone mute and response stop are available. Wake-based playback interruption and a ten-second active follow-up window are implemented with synthetic checks. One speech turn can wait during processing; in-flight inference is not preempted. Robust keyword spotting, actual echo and intended-language/noise evaluation remain open M4 work. Simple greetings and brief conversation bypass vision; visual replies still require local evidence. A next-departure reminder tool is now exposed through the companion loop; timed/recurring reminders remain unsupported.
 
 ## Later work
 
@@ -63,3 +63,10 @@ JEPA research is allowed to inform future temporal features and prediction. It d
 - The laptop demo is not standalone hardware or a deployed product.
 
 Track these states in [Milestones](milestones.md) with evidence.
+
+
+## Companion/event slice — current authorization
+
+On 2026-10-20 the user authorized conversational tool selection, continuous inexpensive attention and an event-conditioned next-departure reminder. The current local prototype supports typed and spoken requests, contextual query construction, fresh-view checks, bounded recent/history search, correction, cancellation and durable departure requests. Live observation shares the already-running camera and nominates short sequences for local inspection only while a departure request is armed. It does not wait for video segment indexing. A configured page remains necessary; the server cannot open browser hardware.
+
+This is a single-person, fixed-view/main-door experiment. No identity is inferred. A model-positive condition is a fallible inference, not verified departure. Actual public-video checks have misses and false positives; speaking before departure is not established. Show explicit monitoring and delivery states, support cancel/stop, and keep playback separate from acknowledgement. A missed/interrupted event is not automatically replayed after restart. Broader recall, timed/recurring reminders, arbitrary event triggers, interviews, purchases and hardware deployment remain later work. See [R8](research/R8-companion-loop.md).

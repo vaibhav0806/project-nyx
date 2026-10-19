@@ -115,7 +115,7 @@ def validate_plan(plan):
         raise VoiceError(
             "Could not interpret that question. Please name an object and say now or last seen."
         )
-    if plan.get("mode") not in {"current", "latest", "relevance", "clarify", "chat"}:
+    if plan.get("mode") not in {"current", "latest", "relevance", "clarify", "chat", "agent"}:
         raise VoiceError(
             "That request is outside the visual demo. Ask where an object is or was last seen."
         )
@@ -132,7 +132,7 @@ def validate_plan(plan):
     ):
         raise VoiceError("Conversation replies cannot contain visual lookup fields.")
     query = plan.get("object_query")
-    if plan["mode"] not in {"clarify", "chat"} and (
+    if plan["mode"] not in {"clarify", "chat", "agent"} and (
         not isinstance(query, str) or not 1 <= len(query.strip()) <= 200
     ):
         raise VoiceError("Please name the object you want me to look for.")
@@ -225,7 +225,7 @@ class Sarvam:
             "properties": {
                 "mode": {
                     "type": "string",
-                    "enum": ["current", "latest", "relevance", "clarify", "chat"],
+                    "enum": ["current", "latest", "relevance", "clarify", "chat", "agent"],
                 },
                 "object_query": {"type": "string"},
                 "reply": {"type": "string"},
@@ -244,7 +244,9 @@ class Sarvam:
             "For visual modes, reply MUST be an empty string; a local visual tool supplies all observations. "
             "For chat/clarify, object_query and time bounds MUST be empty strings. "
             "No unsupported claims about seeing, hearing, remembering, people or the room in chat replies. "
-            "No reminders or saving facts yet: explain that briefly when requested. "
+            "agent = requests to remind on departure, list/cancel departure reminders, or refine an ongoing search. "
+            "For agent, reply/object_query/time bounds are empty strings; the local agent chooses tools. "
+            "Time-based reminders and general saved-fact recall are not available yet. "
             "For clarify, ask one brief useful question. Don't invent an object. "
             "Object descriptions are in English. Resolve them using prior object queries only. "
             "Dates must be explicit aware ISO times or empty strings; clarify ambiguous dates. "
@@ -361,6 +363,10 @@ class Conversations:
                 (answer, json.dumps(list(sources)), status, identifier),
             )
 
+    def update_plan(self, identifier, plan):
+        with self.connect() as db:
+            db.execute("UPDATE turns SET plan=? WHERE id=?", (json.dumps(plan), identifier))
+
     def recent(self):
         with self.connect() as db:
             rows = db.execute("SELECT * FROM turns ORDER BY rowid DESC LIMIT 20").fetchall()
@@ -384,9 +390,10 @@ class Conversations:
 
 
 class Voice:
-    def __init__(self, root, provider, recognizer=None):
+    def __init__(self, root, provider, recognizer=None, *, agent_mode=False):
         self.provider = provider
         self.recognizer = recognizer
+        self.agent_mode = agent_mode
         self.conversations = Conversations(root)
         self.lock = Lock()
         self.gate = Lock()
@@ -545,7 +552,12 @@ class Voice:
             ]
             started = time.perf_counter()
             plan = validate_plan(
-                conversational_plan(transcript) or self.provider.route(transcript, context)
+                conversational_plan(transcript)
+                or (
+                    {"mode": "agent"}
+                    if self.agent_mode
+                    else self.provider.route(transcript, context)
+                )
             )
             timings["intent_ms"] = round((time.perf_counter() - started) * 1000)
             with self.lock:

@@ -272,7 +272,13 @@ def create_app(
     from nyx.voice import MAX_PCM, Conversations, Sarvam, Voice, VoiceError
 
     key = os.environ.get("SARVAM_API_KEY")
-    voice = voice_factory(root) if voice_factory else Voice(root, Sarvam(key)) if key else None
+    voice = (
+        voice_factory(root)
+        if voice_factory
+        else Voice(root, Sarvam(key), agent_mode=True)
+        if key
+        else None
+    )
     workspace.conversations = (
         voice.conversations
         if voice
@@ -426,14 +432,19 @@ def create_app(
         else:
             with workspace.lock:
                 job = workspace.jobs.get(body.get("job_id"), {})
-                if job.get("kind") != "answer" or job.get("status") != "succeeded":
+                if job.get("kind") not in {"answer", "agent"} or job.get("status") != "succeeded":
                     raise VoiceError("The visual check has not completed. Try again.")
                 if job["created_at"] < turn["at"]:
                     raise VoiceError("Capture new evidence for this voice question.")
                 result = job["result"]
-                if result.get("object_query") != plan["object_query"]:
+                if job["kind"] == "agent":
+                    if result.get("voice_turn_id") != turn["id"] or job.get("cancelled"):
+                        raise VoiceError(
+                            "That companion result belongs to another or cancelled turn"
+                        )
+                elif result.get("object_query") != plan["object_query"]:
                     raise VoiceError("That visual check belongs to a different question.")
-                if (plan["mode"] == "current") != (result["kind"] == "snapshot"):
+                elif (plan["mode"] == "current") != (result["kind"] == "snapshot"):
                     raise VoiceError("The visual check has the wrong evidence type.")
                 if result["kind"] == "history" and any(
                     result["scope"].get(field) != plan.get(field)

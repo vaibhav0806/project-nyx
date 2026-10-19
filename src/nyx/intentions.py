@@ -28,6 +28,8 @@ class Intentions:
             """)
             db.execute("UPDATE intentions SET state='interrupted' WHERE state='delivering'")
             db.execute("UPDATE deliveries SET state='interrupted' WHERE state='delivering'")
+            db.execute("UPDATE intentions SET state='missed' WHERE state='pending'")
+            db.execute("UPDATE deliveries SET state='missed' WHERE state='pending'")
 
     @contextmanager
     def connect(self):
@@ -65,6 +67,7 @@ class Intentions:
         return dict(row)
 
     def active(self):
+        self.expire()
         with self.connect() as db:
             return [
                 dict(row)
@@ -74,6 +77,7 @@ class Intentions:
             ]
 
     def recent(self):
+        self.expire()
         with self.connect() as db:
             return [
                 dict(row)
@@ -132,12 +136,33 @@ class Intentions:
         return rows
 
     def pending(self):
+        self.expire()
         with self.connect() as db:
             return [
                 dict(row)
                 for row in db.execute("""SELECT d.*,i.message FROM deliveries d
                 JOIN intentions i ON i.id=d.intention_id WHERE d.state='pending' AND i.state='pending'""")
             ]
+
+    def expire(self):
+        now = datetime.now(UTC)
+        with self.connect() as db:
+            for row in db.execute(
+                "SELECT * FROM deliveries WHERE state IN ('pending','delivering')"
+            ).fetchall():
+                age = (now - aware_time(row["observed_at"])).total_seconds()
+                if (row["state"] == "pending" and age > 15) or (
+                    row["state"] == "delivering" and age > 45
+                ):
+                    outcome = "missed" if row["state"] == "pending" else "interrupted"
+                    db.execute(
+                        "UPDATE deliveries SET state=? WHERE id=? AND state=?",
+                        (outcome, row["id"], row["state"]),
+                    )
+                    db.execute(
+                        "UPDATE intentions SET state=?,updated_at=? WHERE id=? AND state=?",
+                        (outcome, now.isoformat(), row["intention_id"], row["state"]),
+                    )
 
     def deliver(self, identifier):
         with self.connect() as db:

@@ -8,24 +8,32 @@ Nyx is intended to connect live surroundings, recorded history, conversations, a
 
 ## Project state
 
-**Continuous visual memory, local visual answers and a first hands-free Sarvam voice slice are available; household and voice evaluation remain in progress.**
+**A local conversational agent now connects current inspection, recent visual history and experimental departure reminders. Continuous recording and hands-free voice remain available; household, event and voice evaluation are still in progress.**
 
 With Sarvam configured, the page starts camera recording and microphone wake listening automatically after browser permission. Without voice configuration, camera startup stays manual. Completed video-only segments save and index automatically while candidate search and separate source playback remain available. Existing clips remain compatible. The user demonstrated cookie-packet, phone, keys and raised-hand retrieval; this is useful developer evidence, not an independent accuracy benchmark.
 
-A pinned SigLIP 2 encoder runs on this Mac's MPS GPU. Search results remain unverified visual candidates. M3 adds local model checks with source/time attribution and explicitly captured snapshots; these checks can be wrong. Reminders and intended-user evaluation remain later work; voice limitations are described below. See [measured retrieval results](docs/research/R3-local-retrieval.md), [continuous indexing implementation](docs/superpowers/plans/2026-10-19-continuous-recording.md) and [local verification findings](docs/research/R4-local-verification.md).
+A pinned SigLIP 2 encoder runs on this Mac's MPS GPU. Search results remain unverified visual candidates. M3 adds local model checks with source/time attribution and explicitly captured snapshots; these checks can be wrong. Scheduled reminders, general personal recall and intended-user evaluation remain later work; see [companion/event findings](docs/research/R8-companion-loop.md). See [measured retrieval results](docs/research/R3-local-retrieval.md), [continuous indexing implementation](docs/superpowers/plans/2026-10-19-continuous-recording.md) and [local verification findings](docs/research/R4-local-verification.md).
 
 ## Run the local demo
+
+The **Talk to Nyx** field works without an API key. Ask “Where are my reading glasses?”, refine the description, or ask “Where did you last see them?” The local agent chooses tools over a bounded conversation and tool-result loop. Present-location requests inspect an available fresh view first; historical tools can search recent dated windows before widening. Answers retain current/historical attribution. The details show what was checked. Stop cancels subsequent steps; in-flight inference can finish. Direct candidate search and explicit visual checks remain available below.
+
+“Remind me to take my water bottle when I leave” saves a **next-departure** request. With recording running and the main door visible, a separate live observer checks local changes and selected short image sequences without waiting for saved-segment indexing. The reminder list shows actual state; Cancel removes an active request and **Got it** acknowledges played speech. Requests survive restart, but old events are not silently replayed. Spoken delivery requires Sarvam configuration and browser playback permission; display-only output is not counted as speech.
+
+**Departure recognition is experimental and currently unreliable.** Public-video diagnostics found misses, false positives and delay. This is a single-person doorway prototype, without identity recognition or a guarantee of speaking before departure. Timed/recurring reminders and arbitrary event triggers are unsupported. A running browser page is required for live observation. [R8](docs/research/R8-companion-loop.md) records actual successes and failures.
+
+The agent reuses local Qwen for text decisions, so first use loads/downloads it. No new inference framework or quantization was added. This checkout's measured machine has 16 GiB memory, unlike the earlier 24 GiB benchmark machine. Run model experiments sequentially and preserve disk headroom.
 
 Requires Python 3.12, uv, FFmpeg on PATH, and a browser with MediaRecorder support (Chrome was tested).
 
 ```bash
-uv sync --python 3.12 --extra vision --extra web
+uv sync --python 3.12 --managed-python --extra vision --extra web
 uv run --no-sync nyx --data-dir data/manual-demo serve
 ```
 
 Open **http://127.0.0.1:8000** and press **Start recording**. Approximately every ten seconds, a completed segment saves and starts indexing automatically. Search can run while the camera stays on; select a candidate to replay its source in a separate player. **Pause recording** releases the camera; **Resume recording** reopens it explicitly. **Stop recording** saves the final segment. **Import video** still indexes a local file without inventing its recording time.
 
-Capture is video-only. The page shows latest saved and searchable sample times separately, a backlog, and pause/interruption history; these timestamps do not guarantee gap-free coverage. Search starts seeing each segment only after indexing completes. The first model load or current decoding/inference batch can delay search; queued search takes priority between small indexing batches.
+Capture is video-only. Continuous segments now select initial, changed, pre-change, settled and periodic samples using cheap local image differences before embedding. Each ten-second segment retains an anchor. Fewer similar samples do not establish unchanged object presence. Original video still saves in full; manual imports and CLI indexing keep periodic sampling. The page shows latest saved and searchable sample times separately, a backlog, and pause/interruption history; these timestamps do not guarantee gap-free coverage. Search starts seeing each segment only after indexing completes. The first model load or current decoding/inference batch can delay search; queued search takes priority between small indexing batches.
 
 The saved original-video budget is **1 GiB**, including existing clips. Recording stops on a full backlog, upload failure, quota or low disk space; existing clips are preserved. Thumbnails and the model cache use additional space. Failed uploads stay available for retry/download while the page remains open. A browser exit can lose the unsaved tail. Camera loss or detected suspension stops capture with an interruption warning; merely hiding the tab does not deliberately stop it. Browser/OS recording behavior and clock accuracy still need real hardware testing.
 
@@ -33,10 +41,10 @@ On server restart, saved interrupted work is requeued and live sessions are mark
 
 ## Hands-free voice
 
-The intended product starts with the app or future device and wakes when called, like Alexa or Siri. There is no push-to-talk. The browser demo requests camera and microphone permissions on page load when Sarvam is configured. Browser/OS permissions and audio autoplay rules still apply; **Enable listening** recovers a blocked audio context or denied startup.
+The intended product starts with the app or future device and wakes when called, like Alexa or Siri. There is no push-to-talk. Activated STT and response TTS use Sarvam; tool decisions now use the same local agent as typed requests. The browser demo requests camera and microphone permissions on page load when Sarvam is configured. Browser/OS permissions and audio autoplay rules still apply; **Enable listening** recovers a blocked audio context or denied startup.
 
 ```bash
-uv sync --python 3.12 --extra vision --extra web --extra voice
+uv sync --python 3.12 --managed-python --extra vision --extra web --extra voice
 uv run --no-sync python -c 'from huggingface_hub import snapshot_download; snapshot_download("Systran/faster-whisper-tiny.en", revision="0d3d19a32d3338f10357c0889762bd8d64bbdeba", allow_patterns=["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"])'
 uv run --env-file .env --no-sync nyx --data-dir data/manual-demo serve
 ```
@@ -45,7 +53,7 @@ Set your `SARVAM_API_KEY` in ignored `.env` (permissions `0600`). Never commit i
 
 Current Sarvam models are **Saaras v4 (`saaras:v4`)** for transcription and **Bulbul v4 Flash (`bulbul:v4-flash`)** with `shubh_enhi_companion` for speech.
 
-A pinned **faster-whisper tiny.en** recognizer runs locally on CPU/int8, with local wake probes during speech and completed turns after about 0.55 seconds of silence. This is experimental ASR-based wake recognition, not a custom keyword detector; it can miss the name or activate incorrectly. It accepts Nyx/Nix/Nicks at the start, plus “Hey Nick” as a restricted pronunciation alias; a bare “Nick” or “next” does not activate it. Questions are limited to 24 seconds in the browser. The browser sends microphone samples only to localhost; idle speech is discarded after local checking. Sarvam receives audio only after activation, including speech during the ten-second active follow-up window (and the wake name if spoken in the same utterance), question/context text for routing, and grounded answer text for speech. No room-audio archive is created; video segments remain video-only.
+A pinned **faster-whisper tiny.en** recognizer runs locally on CPU/int8, with local wake probes during speech and completed turns after about 0.55 seconds of silence. This is experimental ASR-based wake recognition, not a custom keyword detector; it can miss the name or activate incorrectly. It accepts Nyx/Nix/Nicks at the start, plus “Hey Nick” as a restricted pronunciation alias; a bare “Nick” or “next” does not activate it. Questions are limited to 24 seconds in the browser. The browser sends microphone samples only to localhost; idle speech is discarded after local checking. Sarvam receives audio only after activation, including speech during the ten-second active follow-up window (and the wake name if spoken in the same utterance), and answer/reminder text for speech. Default agent tool decisions are local. No room-audio archive is created; video segments remain video-only.
 
 **Mute microphone** releases audio tracks while recording continues. **Stop recording** stops the microphone too. **Stop response** discards pending callbacks/audio; in-flight local inference or provider requests may finish. Local wake checks remain available during playback; saying “Hey Nyx” can stop the current response. This has synthetic verification only; actual speaker echo still needs testing. During processing, one bounded utterance is retained rather than silently discarded; in-flight inference is not preempted. Transcripts, tool context, produced answers and source IDs persist in `conversations.sqlite3`; this is conversation history, not visual evidence. Deleting a source marks dependent transcripts as source-unavailable. “Complete” means an answer was produced, not confirmed heard. Transcripts currently remain until manually managed; there is no conversation-deletion UI yet.
 
@@ -66,7 +74,7 @@ Two local models serve different jobs: **SigLIP 2 Base** embeds/searches frames;
 Requires Python 3.12 (uv can select it), uv, and FFmpeg on PATH.
 
 ```bash
-uv sync --python 3.12 --extra vision
+uv sync --python 3.12 --managed-python --extra vision
 uv run --no-sync nyx doctor
 uv run --no-sync nyx index /absolute/path/to/clip.mp4 --interval 2
 uv run --no-sync nyx search "a television remote control" --html data/runs/search.html
@@ -92,7 +100,7 @@ uv run --no-sync python experiments/image-text-retrieval/run.py \
   --download-samples --output data/runs/siglip-baseline
 ```
 
-The test suite uses deterministic local fixtures and FFmpeg, with no model download or provider calls. Use `uv sync --python 3.12 --extra web` for the full API suite without model dependencies. Without the web extra, API tests are skipped. The real-model experiment is separate; use a fresh output directory for each run. See [experiment method](experiments/image-text-retrieval/README.md), including the optional crop comparison and household-clip protocol.
+The test suite uses deterministic local fixtures and FFmpeg, with no model download or provider calls. Use `uv sync --python 3.12 --managed-python --extra web` for the full API suite without model dependencies. Without the web extra, API tests are skipped. The real-model experiment is separate; use a fresh output directory for each run. See [experiment method](experiments/image-text-retrieval/README.md), including the optional crop comparison and household-clip protocol.
 
 An opt-in browser smoke check starts its own temporary localhost server and isolated headless Chrome, using generated camera frames instead of a real webcam. It requires the vision/web extras, installed Chrome and the cached model. Generate the benchmark clip first, then use a fresh output directory:
 

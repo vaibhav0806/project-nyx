@@ -97,6 +97,7 @@ const voice = {
 
   async cancel() {
     this.epoch++;
+    if (typeof companion !== "undefined" && companion.working) await companion.cancel();
     this.stopPlayback();
     this.pending = null;
     this.wakeUntil = 0;
@@ -147,6 +148,7 @@ const voice = {
     this.probePromise = api("/api/voice/probe", { method: "POST", headers: this.headers(), body: pcm.buffer, signal: AbortSignal.timeout(5000) })
       .then((reply) => {
         if (epoch !== this.epoch || !this.token || reply.state !== "activated") return;
+        if (typeof companion !== "undefined") companion.player?.pause();
         if (this.playing) { this.stopPlayback(); this.epoch++; }
         this.wakeUntil = performance.now() + 10000;
         this.state("I'm listening…");
@@ -233,12 +235,12 @@ const voice = {
       let visualStarted = performance.now();
       let visualMs = 0;
       if (!["clarify", "chat"].includes(plan.mode)) {
-        $("object-query").value = plan.object_query;
-        const output = plan.mode === "current"
-          ? await inspectView(plan.object_query, (id) => { jobId = id; })
-          : await task("/api/answer", json({ object_query: plan.object_query, mode: plan.mode, seen_after: plan.seen_after, seen_before: plan.seen_before }), (id) => { jobId = id; });
+        if (plan.object_query) $("object-query").value = plan.object_query;
+        const response = await companion.request(turn.transcript, turn);
+        jobId = response.jobId;
+        const output = response.result.visual;
         if (!active()) return;
-        showAnswer(output);
+        if (output?.scope) showAnswer(output);
         visualMs = Math.round(performance.now() - visualStarted);
       }
       this.state("Preparing speech…");
