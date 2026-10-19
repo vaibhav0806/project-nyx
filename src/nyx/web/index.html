@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Nyx — Local visual memory</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="wordmark" href="/" aria-label="Nyx home">nyx<span aria-hidden="true">✳</span></a>
+    <span class="prototype">Local visual memory</span>
+    <span id="camera-state" role="status"><i aria-hidden="true"></i>Camera off</span>
+  </header>
+  <main>
+    <div class="intro"><h1>Record a moment.<br>Find it again.</h1><p>Start with a short clip of your surroundings.<br>Then search for something you remember seeing.</p></div>
+    <div class="workspace">
+      <section class="capture" aria-labelledby="capture-heading">
+        <h2 id="capture-heading">Your view</h2>
+        <div class="stage">
+          <div id="empty-preview"><span class="viewfinder" aria-hidden="true"></span><p>Your camera is off.</p><small>Start recording, or import a video below.</small></div>
+          <video id="viewer" playsinline controls hidden aria-label="Clip preview"></video>
+          <span id="recording-badge" hidden>Recording <time id="elapsed">00:00</time></span>
+        </div>
+        <p id="preview-caption" class="caption">Video only. Nothing is recorded until you press Start.</p>
+        <div class="controls">
+          <button id="start" class="primary">Start recording</button>
+          <button id="stop" class="danger" hidden>Stop recording</button>
+          <button id="save" class="primary" hidden>Index clip</button>
+          <button id="discard" hidden>Discard clip</button>
+          <label class="file-button" id="import-label" for="file">Import video<input id="file" type="file" accept="video/*,.mkv,.avi"></label>
+        </div>
+        <p class="help">Record up to 2 minutes. Clips you index stay on this laptop.</p>
+        <div id="task" role="status" aria-live="polite" hidden></div>
+        <p id="error" role="alert" hidden></p>
+        <details class="recording-tip"><summary>Make a useful first clip</summary><p>Keep the camera still. Show your glasses, keys or wallet for a few seconds, move one beside a landmark, then take it out of view. Search for each object and check the returned moments.</p></details>
+      </section>
+      <section class="memory" aria-labelledby="search-heading">
+        <h2 id="search-heading">Look through your clips</h2>
+        <form id="search-form">
+          <label for="query">What are you looking for?</label>
+          <div class="search-row"><input id="query" name="query" type="search" placeholder="A pair of glasses" maxlength="1000" required><button id="search" class="primary" type="submit">Search</button></div>
+          <label class="scope-label" for="scope">Search in<select id="scope"><option value="">All clips</option></select></label>
+        </form>
+        <div class="section-heading"><h3>Clip library</h3><span id="clip-count">0 clips</span></div>
+        <div id="clips"><p class="empty-library">Your indexed clips will appear here.</p></div>
+        <section id="search-results" hidden aria-labelledby="results-heading">
+          <div class="section-heading"><h3 id="results-heading">Candidate moments</h3><span id="result-count"></span></div>
+          <p class="help">These moments are ranked by visual similarity and haven’t been verified. A missing match doesn’t prove an object wasn’t there.</p>
+          <div id="results"></div>
+        </section>
+      </section>
+    </div>
+  </main>
+  <footer>Nyx laptop prototype <span>Recorded moments, with their sources.</span></footer>
+</body>
+</html>

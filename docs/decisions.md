@@ -1,0 +1,79 @@
+# Decisions and open choices
+
+Updated: 2026-10-19. This records discussion outcomes and engineering choices. The user explicitly resumed work on 2026-10-19; M1 local retrieval is authorized. Unmeasured model choices remain experiments.
+
+## Status vocabulary
+
+- **Established:** explicitly supplied or accepted in the discussion.
+- **Proposed:** recommendation awaiting review or measurement.
+- **Open:** an answer is still needed; record what will resolve it.
+- **Superseded:** retained for traceability; no longer the working direction.
+
+## Established direction
+
+| ID | Decision | Basis |
+| --- | --- | --- |
+| D1 | Mission: extend agency, dignity, and independence as people age; start with older adults at home. | User clarification and approved pitch. |
+| D2 | First target is a good laptop demo; standalone hardware follows. | Explicit user direction. |
+| D3 | Product includes enabled continuous video recording, live inspection, searchable history, conversation/fact recall, and reminders. | User's feature notes and subsequent scope discussion. |
+| D4 | Cloud voice is acceptable; explore local vision. Full offline operation is not required for this prototype. | Explicit user answer. |
+| D5 | Investigate a light background perception/retrieval path and on-demand interpretation; keep JEPA research distinct from the retrieval baseline. | Working direction discussed with the user and teammate; exact model remains open. |
+| D6 | Resume M1 local visual retrieval after the documentation review. | User explicitly requested “continue working now” on 2026-10-19; supersedes the earlier pause. |
+| D7 | Work inline; no subagents without explicit user request. | User's personal rules. |
+
+## Proposed technical choices
+
+| ID | Proposal | Why / what must be checked |
+| --- | --- | --- |
+| P1 | One Python package in `src/nyx/`, with a small browser interface. | Running baseline: packaged plain browser assets; continuous recording experience remains open. |
+| P2 | Python 3.12, uv, FastAPI. | Dependencies installed/locked and validated for the bounded manual interface. |
+| P3 | SQLite plus `sqlite-vec`, with original media on disk. | Keep timestamps, sources, vectors, facts and actions local; verify extension support and retrieval behavior. |
+| P4 | Small aligned image/text encoder for the first retrieval baseline. | Enables descriptive-query retrieval; compare real small-object scenes before selecting a checkpoint. |
+| P5 | Local small VLM for on-demand inspection/verification. | Keep heavier analysis selective; measure quality, latency and working memory. |
+| P6 | Fixed-camera, one-room development setting with five described test objects. | Makes evaluation repeatable; final form and coverage need review. |
+| P7 | Start with explicit memories and transcript retrieval; introduce a framework or extra indexing only when needed. | Avoid untested memory behavior and additional infrastructure. |
+
+## Open choices
+
+| ID | Question | Resolve through |
+| --- | --- | --- |
+| O1 | Which three daily-life workflows matter most to intended users? | R1 interviews and role-play. |
+| O2 | Preferred language, interaction style, and installation/maintenance needs? | R1/R2 research. |
+| O3 | Camera placement, acceptable recording coverage, retention duration, disk cap, and identity handling? | Product review plus R2 findings. |
+| O4 | Encoder checkpoint, preprocessing, sampling/crop strategy, and retrieval thresholds? | R3 measured baseline. |
+| O5 | VLM checkpoint/runtime and verification quality on retrieved candidates? | R4 measured comparison. |
+| O6 | JEPA's useful contribution, Mac compatibility, and prediction task/data requirements? | R5 experiment. |
+| O7 | Cloud voice provider, target-language performance, interruptions, and tool latency? | R6 trial. |
+| O8 | Continuous capture/playback UX and retention controls beyond the manual interface? | M2 follow-up; current manual stack is selected below. |
+| O9 | Dedicated hardware and standalone operating budget? | Measured laptop workload, then M7. |
+
+## Superseded assumptions
+
+- Desk object-finding as the full product: the desk is now a development setting within a broader independence mission.
+- Cloud vision as the default: the current preference is local vision exploration and cloud voice. Cloud image processing needs its own decision.
+- Voice-first implementation order: the next proposed technical experiment proves visual retrieval before voice integration.
+- Snapshot-only history and no raw video: the user's scope explicitly includes recording while enabled, with selective indexing.
+- Seven-day retention as a settled default: retention and capacity remain open.
+- An implementation-ready API/file layout from the earlier generated plans: those details were drafts and must not dictate the design review.
+
+## Recording a new decision
+
+Add a row or short entry with: ID, date, status, decision owner, choice, alternatives considered, supporting evidence, tradeoff, and trigger for revisiting it. Update affected documents and link the relevant research finding. Only mark a proposal established when the user actually accepts it; only mark benchmark claims measured when a result exists.
+
+## M1 implementation selections
+
+- Python 3.12/uv and `src/nyx/` are the running baseline. Vision dependencies are optional; no API/UI framework is needed for the CLI slice.
+- SigLIP 2 base at checkpoint `75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2` through PyTorch/Transformers is the first measured encoder. MPS inference works on this machine. This does not close the model-selection question.
+- SQLite plus `sqlite-vec` cosine distance provides exact candidate ranking with metadata filters. No ANN scalability claim is made.
+- A generated HTML candidate gallery is sufficient for M1 inspection. Live capture, browser interaction, VLM verification and voice remain separate work.
+- Only permitted public reference images and synthetic fixtures were used. No live camera, household-media upload, cloud voice, interviews, or purchases were performed.
+
+## Manual interface implementation selections
+
+2026-10-19, engineering calls following the user's request to continue and confirmation that no existing clip is available:
+
+- Start the bounded M2 manual interface to enable M1 household evaluation; both milestones remain in progress. This does not waive the independent-evaluation gate for continuous recording.
+- Use optional FastAPI/Uvicorn with packaged plain browser assets. A single local process and inference worker are sufficient; no React/build system or provider abstraction is needed. This refines the proposed root `web/` layout to `src/nyx/web/` so installed packages include the UI. Revisit when actual frontend complexity warrants it.
+- Browser capture is video-only, opt-in, maximum two minutes, followed by explicit index/discard. Imported wall-clock time remains unknown; browser capture time uses the browser clock. Stop on track interruption or tab hiding instead of claiming continuous coverage.
+- Keep the existing full-frame encoder default: the five-view crop experiment adds work without improving recall@3/@5 on the correlated smoke fixture. Revisit with independent household labels.
+- Serve only localhost; source IDs resolve registered evidence and support range playback. Job status is ephemeral and does not imply durable restart recovery. No cloud-media fallback is introduced.

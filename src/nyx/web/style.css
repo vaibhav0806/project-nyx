@@ -1,0 +1,69 @@
+:root { font-family: "Avenir Next", "Segoe UI", sans-serif; color: #1e3048; background: #eff3f8; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, input, select { font: inherit; }
+button, .file-button { border: 1px solid #c6d0df; border-radius: 7px; padding: 11px 16px; background: white; color: #243a57; cursor: pointer; font-weight: 600; font-size: 15px; }
+button:hover, .file-button:hover { background: #e8eef8; }
+button:disabled { opacity: .5; cursor: wait; }
+button.primary { background: #335d9e; border-color: #335d9e; color: white; }
+button.primary:hover { background: #294c81; }
+button.danger { background: #ad3434; border-color: #ad3434; color: white; }
+:focus-visible { outline: 3px solid #648cbe; outline-offset: 4px; }
+[hidden] { display: none !important; }
+.topbar { display: flex; align-items: center; gap: 25px; padding: 24px max(30px, calc((100vw - 1240px)/2)); border-bottom: 1px solid #d9e1ed; }
+.wordmark { text-decoration: none; color: inherit; font-size: 34px; font-weight: 700; line-height: 1; letter-spacing: -2px; }
+.wordmark span { margin-left: 7px; font-size: 27px; color: #335d9e; }
+.prototype, .help, .caption, footer, .scope-label { color: #5c6b7d; font-size: 14px; line-height: 1.6; }
+#camera-state { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 14px; }
+#camera-state i { width: 8px; height: 8px; background: #8190a1; border-radius: 50%; }
+#camera-state.active { color: #9f2929; }
+#camera-state.active i { background: #ad3434; }
+main { max-width: 1240px; margin: auto; padding: 34px 30px 64px; }
+.intro { display: flex; align-items: center; justify-content: space-between; gap: 32px; margin-bottom: 32px; }
+h1 { font-size: clamp(34px, 4vw, 48px); line-height: 1.12; letter-spacing: -1.5px; font-weight: 600; margin: 0; }
+.intro p { font-size: 16px; line-height: 1.7; color: #5c6b7d; }
+.workspace { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+.workspace > section { min-width: 0; }
+h2 { margin: 0 0 17px; font-size: 21px; font-weight: 600; }
+.stage { aspect-ratio: 16/10; border-radius: 13px; background: #182b45; position: relative; overflow: hidden; display: grid; place-items: center; }
+#empty-preview { color: #f5f8ff; text-align: center; padding: 24px; }
+#empty-preview p { font-size: 22px; margin: 22px 0 7px; }
+#empty-preview small { color: #bbc9dc; font-size: 14px; }
+.viewfinder { display: block; width: 58px; height: 44px; margin: auto; border: 2px solid #7e9abe; border-radius: 11px; position: relative; }
+.viewfinder::after { content: ""; position: absolute; inset: 11px 18px; border: 2px solid #a0b6d3; border-radius: 50%; }
+#viewer { width: 100%; height: 100%; max-height: 460px; object-fit: contain; }
+#recording-badge { position: absolute; top: 14px; left: 14px; background: #ad3434; color: white; padding: 5px 10px; border-radius: 5px; font-size: 14px; }
+.caption { margin: 12px 0 18px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.file-button { display: inline-flex; align-items: center; }
+.file-button input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.file-button:focus-within { outline: 3px solid #648cbe; outline-offset: 4px; }
+.file-button:has(input:disabled) { opacity: .5; pointer-events: none; }
+.help { margin: 12px 0; }
+#task, #error { font-size: 14px; line-height: 1.5; padding: 12px 14px; margin: 18px 0; border-radius: 7px; overflow-wrap: anywhere; }
+#task { background: #dfe9f6; color: #2a4c7b; }
+#error { background: #f6e4e4; color: #942c2c; }
+.recording-tip { margin-top: 22px; font-size: 14px; color: #5c6b7d; line-height: 1.6; }
+summary { cursor: pointer; color: #335d9e; }
+.memory { background: white; padding: 26px; border-radius: 13px; min-height: 420px; }
+form > label { display: block; margin: 0 0 8px; font-size: 14px; }
+.search-row { display: flex; gap: 8px; }
+input[type="search"] { width: 100%; min-width: 0; padding: 11px 12px; border: 1px solid #c6d0df; border-radius: 7px; background: #fbfcfe; color: #1e3048; }
+input::placeholder { color: #738096; }
+.scope-label { display: flex; gap: 10px; align-items: center; margin: 14px 0 26px; }
+select { min-width: 0; max-width: 75%; padding: 5px 8px; border: 1px solid #d3dce8; border-radius: 5px; background: white; color: #1e3048; }
+.section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 22px 0 12px; }
+h3 { font-size: 16px; margin: 0; font-weight: 600; }
+.section-heading > span { font-size: 13px; color: #5c6b7d; }
+.empty-library { color: #5c6b7d; font-size: 14px; border-top: 1px solid #e1e6ee; padding-top: 18px; }
+.clip { display: block; width: 100%; text-align: left; background: transparent; border: 0; border-radius: 0; border-top: 1px solid #e1e6ee; padding: 13px 0; font-weight: 500; }
+.clip strong { display: block; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.clip small { color: #5c6b7d; display: block; font-size: 12px; margin-top: 3px; }
+.clip.failed { cursor: default; color: #942c2c; }
+.candidate { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 14px; align-items: center; width: 100%; text-align: left; border: 0; border-top: 1px solid #e1e6ee; border-radius: 0; padding: 15px 0; background: transparent; }
+.candidate img { width: 120px; height: 80px; object-fit: contain; border-radius: 5px; background: #eff3f8; }
+.candidate strong { display: block; font-size: 15px; }
+.candidate span, .candidate small { display: block; font-weight: 400; font-size: 12px; color: #5c6b7d; margin-top: 3px; overflow-wrap: anywhere; }
+footer { max-width: 1240px; padding: 22px 30px; border-top: 1px solid #d9e1ed; margin: auto; display: flex; justify-content: space-between; gap: 20px; font-size: 12px; }
+@media(max-width:850px) { .workspace { gap: 25px; } .memory { padding: 20px; } .intro p { max-width: 32ch; } }
+@media(max-width:680px) { .topbar { padding: 20px; gap: 15px; } .prototype { display: none; } main { padding: 28px 20px 44px; } .intro { display: block; margin-bottom: 26px; } .intro p { max-width: none; } .workspace { grid-template-columns: 1fr; } footer { padding: 20px; } footer span { display: none; } }

@@ -1,0 +1,57 @@
+# Scope
+
+Status: working scope. The user explicitly resumed implementation on 2026-10-19. The first retrieval slice exists; a bounded manual interface enables collecting its missing household evaluation clips. Later laptop-demo components remain planned.
+
+## First engineering slice
+
+Import a short local video, sample timestamped frames, embed them with a small image/text encoder, store searchable vectors and metadata in SQLite, and display ranked candidate frames with source offsets.
+
+This slice establishes retrieval quality and laptop resource use. Results must be labelled as unverified candidates. It does not yet establish “last seen,” absence, a correct location, or spoken assistance. No live recording or model download is required to review this design.
+
+The current follow-up adds manual, explicitly started browser video-only clips capped at two minutes, preview/index/discard, local file import, search and source playback. Model inference and saved media stay on the laptop. This is a portion of M2 to enable M1 evaluation; it does not imply continuous recording, retention/deletion controls or restart recovery are complete.
+
+## Laptop demo
+
+| Area | Included |
+| --- | --- |
+| Capture | One camera/view, explicitly enabled continuous local video recording, timestamped segments, pause, gaps, and replay |
+| Retrieval | Selected frames/clips indexed for search, candidate ranking, and links to source evidence |
+| Interpretation | Fresh inspection and on-demand verification of retrieved candidates; supported landmark guidance |
+| Voice | Cloud voice, natural follow-ups, interruptions, microphone controls, and visible conversation state |
+| Memory | Durable assistant transcripts, explicitly saved facts, corrections, and source attribution |
+| Actions | Simple notes and reminders with interpreted due time, cancellation, and delivery/acknowledgement state |
+| Events | Supported scene changes and visits within coverage; user-supplied or confirmed names |
+| Controls | Recording indicator, independent microphone mute, history inspection, deletion, retention, and disk cap |
+| Evaluation | Real scene tests, uncertain/absent cases, restart recovery, resource measurements, and small intended-user trials |
+
+The proposed development setting is one fixed room/view with five described test objects. This limits evaluation complexity; it does not redefine the long-term product as a desk-object finder. Exact object set and final physical form remain open.
+
+## Recording and memory boundaries
+
+- Video is continuous while recording is enabled. Model analysis is selective and may miss events.
+- Store interactions directed to Nyx by default. Archiving all room audio is a separate product decision.
+- Keep original recording time separate from import time. An imported clip with unknown capture time has clip offsets and an explicitly unknown wall-clock time.
+- Current answers require fresh evidence. Historical answers identify their source time.
+- Keep user statements, visual observations, and model inferences distinguishable.
+- A failed capture, missing index match, or hidden object does not prove absence or movement.
+- Visitor detection alone does not establish identity or intent.
+- Source expiry/deletion must propagate to derived thumbnails, vectors, and history entries. Display the actual searchable range.
+- Retention duration and disk cap are open decisions; do not silently adopt the previous draft's seven-day proposal.
+- Cloud voice is acceptable for the prototype. Cloud image processing and raw-media upload are separate choices; do not enable them as an implicit fallback.
+
+## Later work
+
+Dedicated hardware follows a working laptop demo and measured resource requirements. Portable capture, multiple cameras, motorized movement, whole-home spatial mapping, smart-home integrations, automatic person identification, and emergency/medical assistance need separate scope and validation.
+
+JEPA research is allowed to inform future temporal features and prediction. It does not block the initial image/text retrieval baseline or imply that arbitrary household next-action prediction already works.
+
+## Completion boundaries
+
+- Documentation prepared is not design approved.
+- Design approved is not implementation started.
+- Code and deterministic tests are not a real-model benchmark.
+- Candidate retrieval is not a verified answer.
+- A developer demonstration is not an intended-user trial.
+- The laptop demo is not standalone hardware or a deployed product.
+
+Track these states in [Milestones](milestones.md) with evidence.
