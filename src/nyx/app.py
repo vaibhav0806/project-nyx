@@ -123,7 +123,7 @@ class Workspace:
                 self.scheduled.discard(job_id)
 
     def submit(self, job_id, action):
-        priority = 0 if self.jobs[job_id]["kind"] in {"search", "answer"} else 1
+        priority = 0 if self.jobs[job_id]["kind"] in {"search", "answer", "agent"} else 1
         self.queue.put((priority, next(self.order), job_id, action))
 
     def run(self):
@@ -162,6 +162,7 @@ class Workspace:
                     recorded_at=None if segment["timing_uncertain"] else segment["recorded_at"],
                     video_id=segment["id"],
                     name=f"Recording {segment['recorded_at']} · part {segment['sequence'] + 1}",
+                    adaptive=True,
                 )
             except Exception as exc:
                 self.capture.mark(segment["id"], "failed", str(exc))
@@ -300,6 +301,9 @@ def create_app(
     app.add_middleware(
         TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"]
     )
+    from nyx.companion import install_companion
+
+    install_companion(app, workspace, voice)
 
     @app.exception_handler(ValueError)
     async def bad_input(request, exc):
@@ -495,6 +499,8 @@ def create_app(
 
     @app.post("/api/capture/{session_id}/state")
     def capture_state(session_id: str, body: CaptureState):
+        if body.state != "recording":
+            workspace.observer.reset()
         return workspace.capture.transition(
             session_id, body.state, body.at.isoformat(), body.reason
         )

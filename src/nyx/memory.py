@@ -72,6 +72,11 @@ class Store:
                 );
                 CREATE INDEX IF NOT EXISTS frames_video ON frames(video_id);
             """)
+            columns = {row[1] for row in db.execute("PRAGMA table_info(videos)")}
+            if "sampling_policy" not in columns:
+                db.execute(
+                    "ALTER TABLE videos ADD COLUMN sampling_policy TEXT NOT NULL DEFAULT 'periodic'"
+                )
 
     @contextmanager
     def connection(self):

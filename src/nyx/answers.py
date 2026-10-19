@@ -20,6 +20,7 @@ def history_steps(
     video_id=None,
     seen_after=None,
     seen_before=None,
+    semantic_latest=False,
 ):
     if mode not in {"latest", "relevance"}:
         raise ValueError("Choose latest or relevance history")
@@ -32,8 +33,11 @@ def history_steps(
         video_id=video_id,
         seen_after=seen_after,
         seen_before=seen_before,
-        order=mode,
+        order="relevance" if semantic_latest and mode == "latest" else mode,
+        known_time_only=semantic_latest,
     )
+    if semantic_latest and mode == "latest":
+        candidates.sort(key=lambda row: row["observed_at"], reverse=True)
     recent_count = len(candidates)
     if mode == "latest":
         known_ids = {row["id"] for row in candidates}

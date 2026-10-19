@@ -1,0 +1,362 @@
+"""Companion API: local agent tools, live observation, and event-delivery lifecycle."""
+
+import base64
+import re
+import time
+from datetime import UTC, datetime, timedelta
+from io import BytesIO
+from pathlib import Path
+
+from fastapi import HTTPException, Request
+from PIL import Image, UnidentifiedImageError
+from pydantic import AwareDatetime, BaseModel, Field
+
+from nyx.agent import agent_steps
+from nyx.answers import history_steps
+from nyx.intentions import Intentions
+from nyx.memory import aware_time
+from nyx.observation import Observer
+from nyx.voice import Conversations, spoken_answer
+
+
+class AgentRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=1500, pattern=r"\S")
+    request_id: str = Field(min_length=1, max_length=100)
+    snapshot: str | None = Field(default=None, max_length=2_800_000)
+    captured_at: AwareDatetime | None = None
+    voice_turn_id: str | None = None
+
+
+class ObservationRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=100)
+    captured_at: AwareDatetime
+    image: str = Field(min_length=1, max_length=400_000)
+
+
+def decode_image(value, max_pixels=1920 * 1080):
+    try:
+        raw = base64.b64decode(value, validate=True)
+        if len(raw) > 2 * 1024**2:
+            raise ValueError("Image must be at most 2 MiB")
+        with Image.open(BytesIO(raw)) as source:
+            if source.format not in {"JPEG", "PNG"} or source.width * source.height > max_pixels:
+                raise ValueError("Use a bounded JPEG/PNG image")
+            return source.convert("RGB")
+    except (UnidentifiedImageError, OSError) as exc:
+        raise ValueError("Image is not readable") from exc
+
+
+def fresh(captured_at, limit=15):
+    age = (datetime.now(UTC) - aware_time(captured_at)).total_seconds()
+    if age < -2 or age > limit:
+        raise ValueError("Current evidence is stale; capture a fresh view")
+    return age
+
+
+def install_companion(app, workspace, voice):
+    tasks = Intentions(workspace.root)
+    observer = Observer()
+    conversations = workspace.conversations or Conversations(workspace.root)
+    workspace.conversations = conversations
+    workspace.observer = observer
+    requests = {}
+    last_observation = {"state": "idle", "note": "Camera off; no departure monitoring"}
+
+    @app.get("/companion.js")
+    def companion_javascript():
+        from fastapi.responses import FileResponse
+
+        return FileResponse(
+            Path(__file__).with_name("web") / "companion.js", media_type="text/javascript"
+        )
+
+    @app.post("/api/companion/warmup", status_code=202)
+    def warmup():
+        with workspace.lock:
+            for identifier, job in workspace.jobs.items():
+                if job["kind"] == "warmup" and job["status"] not in {"failed"}:
+                    return {"id": identifier}
+        job_id = workspace.reserve("warmup")
+        workspace.submit(job_id, lambda: {"ready": workspace.visual_verifier() is not None})
+        return {"id": job_id}
+
+    @app.get("/api/companion")
+    def status():
+        return {
+            "conversations": conversations.recent(),
+            "reminders": tasks.recent(),
+            "observation": last_observation,
+            "pending": tasks.pending(),
+        }
+
+    @app.post("/api/agent", status_code=202)
+    def ask(body: AgentRequest, request: Request):
+        if body.voice_turn_id:
+            if voice is None:
+                raise HTTPException(409, "Voice session is unavailable")
+            with voice.lock:
+                voice.check(request.headers.get("x-nyx-voice"))
+                if (
+                    not voice.turn
+                    or voice.turn["id"] != body.voice_turn_id
+                    or voice.turn["transcript"] != body.message
+                ):
+                    raise HTTPException(409, "Voice question is no longer active")
+        if body.request_id in requests:
+            old_message, job_id = requests[body.request_id]
+            if old_message != body.message:
+                raise ValueError("Request ID belongs to a different question")
+            if job_id in workspace.jobs:
+                return {"id": job_id}
+        image = decode_image(body.snapshot) if body.snapshot else None
+        if image is not None and body.captured_at is None:
+            raise ValueError("Current view needs a capture time")
+        job_id = workspace.reserve("agent")
+        requests[body.request_id] = (body.message, job_id)
+        for key in list(requests):
+            if len(requests) > 30:
+                del requests[key]
+        context = [row for row in conversations.recent() if row["status"] == "complete"][-12:]
+        identifier = body.voice_turn_id or conversations.begin(body.message, {"mode": "agent"})
+
+        def cancelled():
+            if workspace.jobs[job_id].get("cancelled"):
+                return True
+            if body.voice_turn_id:
+                with voice.lock:
+                    return voice.turn is None or voice.turn["id"] != body.voice_turn_id
+            return False
+
+        def tool(action):
+            name = action["action"]
+            if name == "inspect_current":
+                if image is None:
+                    return {
+                        "kind": "unavailable",
+                        "status": "uncertain",
+                        "answer": "No current camera view is available. Search dated history or ask to enable the camera.",
+                    }
+                fresh(body.captured_at.isoformat())
+                verifier = workspace.visual_verifier()
+                fresh(body.captured_at.isoformat())
+                judgment = verifier.inspect(image, action["query"])
+                result = {
+                    "kind": "snapshot",
+                    "object_query": action["query"],
+                    "status": "seen" if judgment["visibility"] == "visible" else "uncertain",
+                    "judgment": judgment,
+                    "captured_at": body.captured_at.isoformat(),
+                    "age_seconds": fresh(body.captured_at.isoformat()),
+                    "verifier": verifier.fingerprint,
+                    "checked": [],
+                    "scope": {
+                        "note": "One fresh model-checked snapshot; the scene may change and the model can be wrong."
+                    },
+                    "snapshot_url": f"data:image/jpeg;base64,{body.snapshot}",
+                }
+                result["answer"] = spoken_answer(result)
+                return result
+            if name == "search_history":
+                if workspace.store() is None:
+                    return {
+                        "kind": "history",
+                        "status": "uncertain",
+                        "answer": "No indexed recording history is available.",
+                        "checked": [],
+                    }
+                store = workspace.model_store()
+                lower = (
+                    (datetime.now(UTC) - timedelta(hours=action["hours"])).isoformat()
+                    if action["hours"]
+                    else None
+                )
+                result = yield from history_steps(
+                    action["query"],
+                    store,
+                    workspace.encoder,
+                    workspace.visual_verifier,
+                    seen_after=lower,
+                    mode="latest",
+                    semantic_latest=True,
+                )
+                result["scope"]["note"] = (
+                    "Semantic candidates within the selected recent window, checked newest first. This is bounded sampled evidence, not an exhaustive last sighting. Unknown recording dates are excluded."
+                )
+                result["scope"]["hours"] = action["hours"]
+                result["answer"] = spoken_answer(result)
+                return result
+            if name == "remind_on_departure":
+                # The model may not turn content in observed footage into an instruction.
+                if not re.search(r"\bremind\b", body.message, re.IGNORECASE) or not re.search(
+                    r"\b(leave|leaving|out|depart|exit)\b", body.message, re.IGNORECASE
+                ):
+                    raise ValueError("Please explicitly ask for a reminder when you leave")
+                if re.search(r"\b(every|whenever|always|daily)\b", body.message, re.IGNORECASE):
+                    raise ValueError(
+                        "This demo supports the next departure only; ask for a next-departure reminder"
+                    )
+                item = tasks.create(body.request_id, action["message"])
+                return {
+                    "kind": "reminder",
+                    "status": "armed",
+                    "reminder": item,
+                    "answer": f"For your next departure: {item['message']}. Keep the camera running with the main door visible; departure detection is experimental.",
+                }
+            if name == "list_reminders":
+                rows = tasks.recent()
+                return {
+                    "kind": "reminder",
+                    "status": "complete",
+                    "answer": "; ".join(f"{row['message']} ({row['state']})" for row in rows)
+                    or "You have no departure reminders.",
+                    "reminders": rows,
+                }
+            if name == "cancel_reminder":
+                tasks.cancel(action["id"])
+                return {
+                    "kind": "reminder",
+                    "status": "cancelled",
+                    "answer": "That departure reminder is cancelled.",
+                }
+            raise ValueError("Unsupported companion tool")
+
+        def run():
+            try:
+
+                def decide(state):
+                    return workspace.visual_verifier().decide(
+                        {**state, "reminders": tasks.active()}
+                    )
+
+                result = yield from agent_steps(
+                    body.message, context, decide, tool, cancelled=cancelled
+                )
+                result["turn_id"] = identifier
+                result["voice_turn_id"] = body.voice_turn_id
+                if not body.voice_turn_id:
+                    conversations.finish(identifier, result["answer"], result["sources"])
+                return result
+            except Exception:
+                conversations.finish(identifier, status="interrupted")
+                raise
+
+        workspace.submit(job_id, run)
+        return {"id": job_id}
+
+    @app.post("/api/agent/{job_id}/cancel")
+    def cancel(job_id: str):
+        with workspace.lock:
+            job = workspace.jobs.get(job_id)
+            if job is None or job["kind"] != "agent":
+                raise HTTPException(404, "Companion request not found")
+            job["cancelled"] = True
+        return {"cancelled": True}
+
+    @app.delete("/api/reminders/{identifier}")
+    def cancel_reminder(identifier: str):
+        tasks.cancel(identifier)
+        return {"cancelled": True}
+
+    @app.post("/api/reminders/{identifier}/acknowledge")
+    def acknowledge(identifier: str):
+        tasks.acknowledge(identifier)
+        return tasks.get(identifier)
+
+    @app.post("/api/observe")
+    def observe(body: ObservationRequest):
+        session = workspace.capture.snapshot()["session"]
+        if not session or session["id"] != body.session_id or session["state"] != "recording":
+            observer.reset()
+            raise HTTPException(409, "Live observation needs the active recording session")
+        image = decode_image(body.image, 640 * 360)
+        if not any(row["state"] == "armed" for row in tasks.active()):
+            last_observation.update(
+                state="quiet", note="Camera active; no armed departure reminder"
+            )
+            return {"state": "quiet"}
+        burst = observer.feed(body.session_id, image, body.captured_at.isoformat())
+        last_observation.update(
+            state="watching",
+            at=body.captured_at.isoformat(),
+            note="Checking local visual changes for an active departure request",
+        )
+        if burst is None:
+            return {"state": "watching"}
+        with workspace.lock:
+            if any(
+                job["kind"] == "observe" and job["status"] not in {"succeeded", "failed"}
+                for job in workspace.jobs.values()
+            ):
+                return {"state": "busy"}
+        job_id = workspace.reserve("observe")
+
+        def check():
+            if not observer.valid(burst):
+                return {"state": "interrupted", "deliveries": []}
+            fresh(burst["times"][-1], 8)
+            model = workspace.visual_verifier()
+            fresh(burst["times"][-1], 8)
+            started = time.perf_counter()
+            judgment = model.inspect_departure(burst["images"])
+            session = workspace.capture.snapshot()["session"]
+            if (
+                not observer.valid(burst)
+                or not session
+                or session["id"] != burst["session"]
+                or session["state"] != "recording"
+            ):
+                return {"state": "interrupted", "deliveries": []}
+            fresh(burst["times"][-1])
+            evidence = {
+                "judgment": judgment,
+                "model": model.fingerprint,
+                "frame_times": burst["times"],
+                "inference_seconds": time.perf_counter() - started,
+                "kind": "model_inference",
+            }
+            deliveries = (
+                tasks.trigger(job_id, burst["times"][-1], evidence)
+                if judgment["departure"] and not judgment["uncertain"]
+                else []
+            )
+            last_observation.update(
+                state="triggered" if deliveries else "watching",
+                judgment=judgment,
+                seconds=evidence["inference_seconds"],
+            )
+            return {
+                "state": last_observation["state"],
+                "judgment": judgment,
+                "deliveries": deliveries,
+            }
+
+        workspace.submit(job_id, check)
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse({"id": job_id}, status_code=202)
+
+    @app.post("/api/deliveries/{identifier}/claim")
+    def claim_delivery(identifier: str):
+        item = tasks.deliver(identifier)
+        if item is None:
+            raise HTTPException(409, "Reminder expired, cancelled, or already claimed")
+        session = workspace.capture.snapshot()["session"]
+        if not session or session["state"] != "recording":
+            tasks.finish(identifier, "interrupted")
+            raise HTTPException(409, "Camera stopped; this departure reminder was interrupted")
+        audio = None
+        warning = None
+        if voice:
+            try:
+                audio = voice.provider.speak(item["message"])
+            except ValueError as exc:
+                warning = str(exc)
+        # Cancellation during a provider request must prevent late speech.
+        if tasks.get(item["intention_id"])["state"] != "delivering":
+            raise HTTPException(409, "Reminder cancelled")
+        return {**item, "audio": audio, "warning": warning}
+
+    @app.post("/api/deliveries/{identifier}/outcome")
+    def delivery_outcome(identifier: str, body: dict):
+        tasks.finish(identifier, body.get("outcome"))
+        return {"recorded": True}

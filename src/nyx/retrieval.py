@@ -24,9 +24,18 @@ def index_video(
     *,
     video_id=None,
     name=None,
+    adaptive=False,
 ):
     steps = index_video_batches(
-        video, store, encoder, interval, batch_size, recorded_at, video_id=video_id, name=name
+        video,
+        store,
+        encoder,
+        interval,
+        batch_size,
+        recorded_at,
+        video_id=video_id,
+        name=name,
+        adaptive=adaptive,
     )
     while True:
         try:
@@ -45,6 +54,7 @@ def index_video_batches(
     *,
     video_id=None,
     name=None,
+    adaptive=False,
 ):
     _check_encoder(store, encoder)
     if not math.isfinite(interval) or interval <= 0:
@@ -88,6 +98,21 @@ def index_video_batches(
         if not managed_source:
             shutil.copyfile(video, copied_video)
         frames = extract_frames(copied_video, frame_dir, interval)
+        decoded_samples = len(frames)
+        if adaptive:
+            from nyx.attention import select_frames
+
+            selected = select_frames(frames)
+            keep = {path for _, path in selected}
+            for _, path in frames:
+                if path not in keep:
+                    path.unlink()
+            frames = selected
+        with store.connection() as db:
+            db.execute(
+                "UPDATE videos SET sampling_policy=? WHERE id=?",
+                (f"change-v1/{interval:g}s/30s" if adaptive else "periodic", video_id),
+            )
         for offset in range(0, len(frames), batch_size):
             batch = frames[offset : offset + batch_size]
             images = []
@@ -115,6 +140,7 @@ def index_video_batches(
     return {
         "video_id": video_id,
         "frame_count": len(frames),
+        "decoded_samples": decoded_samples,
         "last_sample_seconds": frames[-1][0],
         "index_seconds": time.perf_counter() - started,
         "device": encoder.device,
