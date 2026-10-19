@@ -335,3 +335,39 @@ def test_occurrence_scoring_counts_misses_beyond_top_k_and_latest_label(benchmar
     assert absent["average_precision"] is None
     assert absent["latest_labelled_scene_rank"] is None
     assert absent["relevant_scene_ranks"] == []
+
+
+def test_temporal_retrieval_uses_capture_time_plus_offset_and_not_similarity(store):
+    older = store.add_video("older.mp4", "recordings/older.mp4", "2026-10-19T10:00:00Z", 2)
+    newer = store.add_video("newer.mp4", "recordings/newer.mp4", "2026-10-19T15:31:00+05:30", 2)
+    store.add_frames(older, [(0, "older.jpg")], [[1, 0, 0]])
+    store.add_frames(newer, [(2, "newer.jpg")], [[0, 1, 0]])
+    store.finish_video(older)
+    store.finish_video(newer)
+    results = store.search([1, 0, 0], order="latest", limit=1)
+    assert results[0]["video_id"] == newer
+    assert results[0]["observed_at"] == "2026-10-19T10:01:02+00:00"
+    assert store.search([1, 0, 0], seen_before="2026-10-19T10:01:01Z")[0]["video_id"] == older
+    assert store.search([1, 0, 0], seen_after="2026-10-19T15:31:02+05:30")[0]["video_id"] == newer
+
+
+def test_temporal_retrieval_excludes_unknown_clock_without_using_import_time(store):
+    source = store.add_video("unknown.mp4", "unknown.mp4", None, 2)
+    store.add_frames(source, [(10, "unknown.jpg")], [[1, 0, 0]])
+    store.finish_video(source)
+    assert store.search([1, 0, 0])[0]["observed_at"] is None
+    assert store.search([1, 0, 0], order="latest") == []
+    assert store.search([1, 0, 0], seen_after="2026-10-18T00:00:00Z") == []
+
+
+@pytest.mark.parametrize(
+    "filters",
+    [
+        {"seen_after": "2026-10-19T10:00:00"},
+        {"seen_after": "2026-10-19T12:00:00Z", "seen_before": "2026-10-19T10:00:00Z"},
+        {"order": "invented"},
+    ],
+)
+def test_temporal_retrieval_rejects_ambiguous_or_reversed_time_filters(store, filters):
+    with pytest.raises(ValueError):
+        store.search([1, 0, 0], **filters)

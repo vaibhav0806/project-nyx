@@ -1,6 +1,6 @@
 # Scope
 
-Status: working scope. The user explicitly resumed implementation on 2026-10-19. The first retrieval slice exists; continuous local capture/background retrieval is authorized and implemented. Later laptop-demo components remain planned.
+Status: working scope. The user explicitly resumed implementation on 2026-10-19. The first retrieval slice exists; continuous local capture/background retrieval is authorized and implemented. The user has also explicitly authorized M3 temporal retrieval and visual answers; M4 hands-free Sarvam voice is now authorized and implemented as an initial slice; actions remain planned.
 
 ## First engineering slice
 
@@ -8,7 +8,9 @@ Import a short local video, sample timestamped frames, embed them with a small i
 
 This slice establishes retrieval quality and laptop resource use. Results must be labelled as unverified candidates. It does not yet establish “last seen,” absence, a correct location, or spoken assistance. No live recording or model download is required to review this design.
 
-The current follow-up adds explicitly enabled continuous browser video-only recording, approximately ten-second independently playable segments, automatic local indexing, pause/resume, candidate search during capture and separate source playback. Saved work recovers after server restart. The 1 GiB original-video budget stops capture without deleting existing clips; thumbnails/model cache are additional. Upload failures retain retry/download options while the page remains open. Capture time is unknown for imported media and uncertain interrupted tails. Retention/deletion controls and the thirty-minute real-camera check remain pending.
+The current follow-up adds explicitly enabled continuous browser video-only recording, approximately ten-second independently playable segments, automatic local indexing, pause/resume, candidate search during capture and separate source playback. Saved work recovers after server restart. The 1 GiB original-video budget stops capture without deleting existing clips; thumbnails/model cache are additional. Upload failures retain retry/download options while the page remains open. Capture time is unknown for imported media and uncertain interrupted tails. Explicit per-source deletion includes thumbnails/vectors, confirmation and interrupted-cleanup recovery. Automatic expiry remains disabled; retention duration and the thirty-minute real-camera check remain pending.
+
+The current M3 slice adds model-checked historical answers, explicit time bounds/latest ordering, source replay/context and fresh snapshot inspection from an already-enabled camera. Latest answers are bounded to inspected samples with a small older semantic fallback; unknown dates, gaps and unindexed footage remain explicit. Model checks are not guaranteed truth. Snapshots are ephemeral and age-labelled; personal reminders remain later work.
 
 ## Laptop demo
 
@@ -36,8 +38,14 @@ The proposed development setting is one fixed room/view with five described test
 - A failed capture, missing index match, or hidden object does not prove absence or movement.
 - Visitor detection alone does not establish identity or intent.
 - Source expiry/deletion must propagate to derived thumbnails, vectors, and history entries. Display the actual searchable range.
-- The demo has a user-selected 1 GiB original-video budget, stopping without deletion. Retention duration and source-aware deletion remain open; do not adopt the previous seven-day proposal.
-- Cloud voice is acceptable for the prototype. Cloud image processing and raw-media upload are separate choices; do not enable them as an implicit fallback.
+- The demo has a user-selected 1 GiB original-video budget, stopping without deletion. Manual source-aware deletion is available; retention duration remains open; do not adopt the previous seven-day proposal.
+- Cloud voice is acceptable for the prototype. Activated question audio may be sent to Sarvam under the explicit M4 authorization. Idle room audio, images and video remain local; no cloud visual fallback is authorized.
+
+## Hands-free startup and voice boundary
+
+The user explicitly requires automatic camera/microphone startup and activation by “Hey Nyx” or “Nyx,” both in the laptop app and a possible future device. This supersedes the earlier manual-start product choice. The configured page starts capture/listening after browser permissions; loading the server alone does not open browser devices. Tests must use synthetic camera/audio, which is a developer-testing rule, not a product limitation.
+
+The first implementation uses local English ASR-based name detection, bounded ephemeral audio and Sarvam STT/tool routing/TTS after activation. Conversations persist as attributed text and source references. Replies use existing local visual tools, not router-generated facts. Microphone mute and response stop are available. Wake-based playback interruption and a ten-second active follow-up window are implemented with synthetic checks. One speech turn can wait during processing; in-flight inference is not preempted. Robust keyword spotting, actual echo and intended-language/noise evaluation remain open M4 work. Simple greetings and brief conversation bypass vision; visual replies still require local evidence. No reminder/action tool is exposed.
 
 ## Later work
 

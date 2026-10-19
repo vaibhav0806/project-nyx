@@ -48,3 +48,38 @@ def extract_frames(video: Path, destination: Path, interval=2.0):
     if not paths or len(paths) != len(offsets):
         raise ValueError("Video produced no frames or frame timestamps could not be matched")
     return list(zip(offsets, paths, strict=True))
+
+
+def frame_image(video, offset):
+    from io import BytesIO
+
+    from PIL import Image
+
+    result = subprocess.run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-v",
+            "error",
+            "-ss",
+            str(offset),
+            "-i",
+            str(video),
+            "-frames:v",
+            "1",
+            "-vf",
+            "scale=w='min(1280,iw)':h='min(1280,ih)':force_original_aspect_ratio=decrease",
+            "-f",
+            "image2pipe",
+            "-vcodec",
+            "png",
+            "pipe:1",
+        ],
+        check=False,
+        capture_output=True,
+        timeout=30,
+    )
+    if result.returncode or not result.stdout:
+        raise ValueError("Could not read the original source frame")
+    with Image.open(BytesIO(result.stdout)) as image:
+        return image.convert("RGB")

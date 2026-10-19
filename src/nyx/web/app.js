@@ -31,13 +31,16 @@ function message(text, error = false) {
 
 function controls() {
   $("start").hidden = enabled || paused || Boolean(remoteSession);
-  $("start").disabled = requestingCamera || uploads.length > 0 || finalizing > 0;
+  $("start").disabled = busy || requestingCamera || uploads.length > 0 || finalizing > 0;
   $("stop").hidden = !(enabled || paused || requestingCamera || remoteSession);
   $("pause").hidden = !enabled;
   $("resume").hidden = !paused;
   $("resume").disabled = requestingCamera || uploadFailed || finalizing > 0;
   $("file").disabled = busy || enabled || paused || requestingCamera;
   $("search").disabled = busy;
+  $("ask-history").disabled = busy;
+  $("inspect-now").disabled = busy || !enabled || !stream;
+  document.querySelectorAll(".delete-clip").forEach((button) => { button.disabled = busy || enabled || paused || requestingCamera || Boolean(remoteSession) || uploads.length > 0 || finalizing > 0; });
   $("recording-badge").hidden = !enabled;
   $("camera-state").classList.toggle("active", enabled);
   $("camera-state").lastChild.textContent = enabled ? "Recording video" : paused ? "Recording paused" : "Camera off";
@@ -66,17 +69,18 @@ function json(body) {
   return { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
 }
 
-async function task(path, options) {
+async function task(path, options, onJob = () => {}) {
   busy = true;
   controls();
   message("", true);
   try {
     const job = await api(path, options);
+    onJob(job.id);
     while (true) {
       const state = await api(`/api/jobs/${job.id}`);
       if (state.status === "succeeded") return state.result;
       if (state.status === "failed") throw new Error(state.error);
-      message(state.kind === "index" ? "Indexing your imported clip locally…" : "Searching saved moments…");
+      message(state.kind === "index" ? "Indexing your imported clip locally…" : state.kind === "answer" ? `Checking visual evidence locally${state.progress?.checked ? ` · ${state.progress.checked} frames checked` : " · first use loads the visual model"}…` : "Searching saved moments…");
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
   } finally {
@@ -95,12 +99,21 @@ function play(source, offset, caption) {
 
 async function refreshLibrary() {
   const videos = await api("/api/videos");
+  const capture = await api("/api/capture");
+  const registered = new Set(videos.map((video) => video.id));
+  for (const segment of capture.segments) {
+    if (!registered.has(segment.id) && segment.size > 0 && ["failed", "deleting"].includes(segment.state)) {
+      videos.push({ id: segment.id, name: `Recording ${segment.recorded_at} · part ${segment.sequence + 1}`, status: segment.state, frame_count: 0, recorded_at: segment.timing_uncertain ? null : segment.recorded_at, media_url: `/api/capture/segments/${segment.id}/media` });
+    }
+  }
   const scope = $("scope").value;
   $("scope").replaceChildren(new Option("All clips", ""));
   $("clips").replaceChildren();
   const ready = videos.filter((video) => video.status === "ready");
   $("clip-count").textContent = `${ready.length} ${ready.length === 1 ? "clip" : "clips"}`;
   for (const video of videos.slice(0, 50)) {
+    const row = document.createElement("div");
+    row.className = "clip-row";
     const button = document.createElement("button");
     button.className = `clip ${video.status}`;
     const title = document.createElement("strong");
@@ -108,14 +121,23 @@ async function refreshLibrary() {
     const detail = document.createElement("small");
     detail.textContent = video.status === "ready"
       ? `${video.frame_count} sampled moments · ${video.recorded_at ? new Date(video.recorded_at).toLocaleString() : "Capture time unknown"}`
-      : video.status === "failed" ? "Indexing failed; excluded from search." : "Indexing; excluded until complete.";
+      : video.status === "deleting" ? "Deletion incomplete; retry to finish cleanup." : video.status === "failed" ? "Indexing failed; excluded from search." : "Indexing; excluded until complete.";
     button.append(title, detail);
-    if (video.status === "ready") {
-      button.onclick = () => play(`/api/videos/${video.id}/media`, 0, `${video.name} · Source clip`);
+    if (video.status === "ready" || (video.media_url && video.status === "failed")) {
+      button.onclick = () => play(video.media_url || `/api/videos/${video.id}/media`, 0, `${video.name} · Source clip`);
     } else {
       button.disabled = true;
     }
-    $("clips").append(button);
+    row.append(button);
+    if (["ready", "failed", "deleting"].includes(video.status)) {
+      const remove = document.createElement("button");
+      remove.className = "delete-clip";
+      remove.textContent = video.status === "deleting" ? "Retry deletion" : "Delete clip";
+      remove.setAttribute("aria-label", remove.textContent);
+      remove.onclick = () => deleteClip(video);
+      row.append(remove);
+    }
+    $("clips").append(row);
   }
   for (const video of ready) $("scope").add(new Option(video.name, video.id));
   if (!videos.length) {
@@ -125,6 +147,40 @@ async function refreshLibrary() {
     $("clips").append(empty);
   }
   if (ready.some((video) => video.id === scope)) $("scope").value = scope;
+  controls();
+}
+
+async function deleteClip(video) {
+  if (!window.confirm(`Permanently delete “${video.name}”? Its saved video, thumbnails and search vectors will be removed. This cannot be undone.`)) return;
+  busy = true;
+  controls();
+  message("", true);
+  message("Deleting clip and its search data…");
+  try {
+    await api(`/api/videos/${video.id}`, { method: "DELETE" });
+    window.dispatchEvent(new Event("nyx-source-deleted"));
+    $("search-results").hidden = true;
+    $("answer-panel").hidden = true;
+    $("answer-evidence").replaceChildren();
+    $("answer-checks").replaceChildren();
+    $("snapshot-evidence").removeAttribute("src");
+    $("results").replaceChildren();
+    $("replay").pause();
+    $("replay").removeAttribute("src");
+    $("replay").load();
+    $("replay-panel").hidden = true;
+    $("scope").value = "";
+    await refreshLibrary();
+    await refreshCoverage();
+    message("Clip deleted, including its thumbnails and search vectors.");
+  } catch (error) {
+    message("");
+    message(error.message, true);
+    await refreshLibrary().catch(() => {});
+  } finally {
+    busy = false;
+    controls();
+  }
 }
 
 async function refreshCoverage() {
@@ -200,6 +256,7 @@ async function stopCapture(reason = "Stopped by user", state = "stopped") {
     catch (error) { message(`Camera stopped. Could not confirm session state: ${error.message}`, true); }
   }
   remoteSession = null;
+  if (!paused) window.dispatchEvent(new Event("nyx-camera-stopped"));
   refreshCoverage().catch(() => {});
 }
 
@@ -429,6 +486,88 @@ $("search-form").onsubmit = async (event) => {
       $("results").append(button);
     }
     message(output.results.length ? "Select a candidate to replay it. Recording can keep running." : "No searchable frames yet for these filters. Recording and indexing can keep running.");
+  } catch (error) { message(""); message(error.message, true); }
+};
+
+function answerEvidence(row, label) {
+  const button = document.createElement("button");
+  button.className = "candidate";
+  const image = document.createElement("img");
+  image.src = row.thumbnail_url;
+  image.alt = `${label} at ${timestamp(row.offset_seconds)}`;
+  const text = document.createElement("span");
+  text.textContent = `${label} · ${timestamp(row.offset_seconds)} · ${row.observed_at ? new Date(row.observed_at).toLocaleString() : "Capture clock time unknown"}`;
+  button.append(image, text);
+  button.onclick = () => play(row.media_url, row.offset_seconds, `${row.name || "Source"} · ${label} at ${timestamp(row.offset_seconds)}`);
+  return button;
+}
+
+function showAnswer(output) {
+  $("answer-panel").hidden = false;
+  const observed = output.captured_at || output.evidence?.observed_at;
+  $("answer-text").textContent = observed ? output.answer.replace(observed, new Date(observed).toLocaleString()) : output.answer;
+  $("answer-note").textContent = output.kind === "snapshot"
+    ? `Snapshot age when answered: ${Math.max(0, output.age_seconds).toFixed(1)}s. The view may have changed. This snapshot is not saved to permanent history.`
+    : `Checked ${output.scope.checked_count} sampled moments. This may miss sightings in other footage or recording gaps.${output.scope.known_time_only ? " Unknown capture dates were excluded." : ""}`;
+  $("answer-evidence").replaceChildren();
+  $("answer-checks").replaceChildren();
+  $("snapshot-evidence").hidden = !output.snapshot_url;
+  if (output.snapshot_url) $("snapshot-evidence").src = output.snapshot_url;
+  else $("snapshot-evidence").removeAttribute("src");
+  if (output.evidence) $("answer-evidence").append(answerEvidence(output.evidence, "Model-confirmed sighting"));
+  for (const row of output.checked || []) {
+    const line = document.createElement("p");
+    line.textContent = `${row.observed_at ? new Date(row.observed_at).toLocaleString() : `Clock unknown, offset ${timestamp(row.offset_seconds)}`} · ${row.judgment.visibility}: ${row.judgment.description}`;
+    $("answer-checks").append(line);
+  }
+  for (const row of output.evidence?.context || []) $("answer-checks").append(answerEvidence(row, "Nearby sample · unverified context"));
+  const scope = document.createElement("p");
+  scope.textContent = output.scope.note;
+  $("answer-checks").append(scope);
+  if (output.verifier) {
+    const model = document.createElement("p");
+    model.className = "help";
+    model.textContent = `Local model: ${output.verifier.model}`;
+    $("answer-checks").append(model);
+  }
+}
+
+$("answer-form").onsubmit = async (event) => {
+  event.preventDefault();
+  const objectQuery = $("object-query").value.trim();
+  if (!objectQuery || busy) return;
+  $("answer-panel").hidden = true;
+  try {
+    const after = $("seen-after").value ? new Date($("seen-after").value).toISOString() : null;
+    const before = $("seen-before").value ? new Date($("seen-before").value).toISOString() : null;
+    if (after && before && after > before) throw new Error("From must be earlier than Until.");
+    const output = await task("/api/answer", json({ object_query: objectQuery, mode: $("history-mode").value, video_id: $("scope").value || null, seen_after: after, seen_before: before }));
+    showAnswer(output);
+    message("Visual check complete. Review the source and the checked time range.");
+  } catch (error) { message(""); message(error.message, true); }
+};
+
+async function inspectView(objectQuery, onJob) {
+  const viewer = $("viewer");
+  if (!enabled || !stream || !viewer.videoWidth) throw new Error("Start the camera before checking the current view.");
+  const capturedAt = new Date().toISOString();
+  const canvas = document.createElement("canvas");
+  const scale = Math.min(1, 1280 / viewer.videoWidth, 720 / viewer.videoHeight);
+  canvas.width = Math.floor(viewer.videoWidth * scale);
+  canvas.height = Math.floor(viewer.videoHeight * scale);
+  canvas.getContext("2d").drawImage(viewer, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+  if (!blob) throw new Error("Could not capture a snapshot; try again.");
+  return task(`/api/inspect?${new URLSearchParams({ object_query: objectQuery, captured_at: capturedAt })}`, { method: "POST", body: blob }, onJob);
+}
+
+$("inspect-now").onclick = async () => {
+  const objectQuery = $("object-query").value.trim();
+  if (busy || !objectQuery || !$("answer-form").reportValidity()) return;
+  $("answer-panel").hidden = true;
+  try {
+    showAnswer(await inspectView(objectQuery));
+    message("Snapshot checked locally. Its capture time is shown with the answer.");
   } catch (error) { message(""); message(error.message, true); }
 };
 

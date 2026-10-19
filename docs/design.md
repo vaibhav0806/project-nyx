@@ -10,7 +10,7 @@ We’re building a personal AI companion that sees, listens, and remembers, so p
 
 ## Experience
 
-The person speaks naturally to Nyx about their surroundings, past events, earlier conversations, or something they want to remember or do. Nyx uses the relevant evidence and responds aloud. Follow-up questions carry context across a conversation; durable memory carries useful information across sessions.
+Nyx starts with the app or future device, listens locally for “Hey Nyx” or its name, and activates hands-free, like Alexa or Siri. Camera and microphone startup are automatic after required permissions, with visible controls. The person speaks naturally to Nyx about their surroundings, past events, earlier conversations, or something they want to remember or do. Nyx uses the relevant evidence and responds aloud. Follow-up questions carry context across a conversation; durable memory carries useful information across sessions.
 
 | Situation | Intended behavior |
 | --- | --- |
@@ -21,7 +21,7 @@ The person speaks naturally to Nyx about their surroundings, past events, earlie
 | “Remember that the documents are in the blue drawer.” | Save an attributed fact, allow correction, and retrieve it in a later session. |
 | “Remind me to call my daughter at six.” | Resolve the intended time, read it back, save the reminder, and report its actual delivery state. |
 
-These are full-product design scenarios. The current repository demonstrates recorded-frame candidate retrieval only. Final workflow priorities and preferred language need research with intended users.
+These are full-product design scenarios. The current repository demonstrates continuous candidate retrieval, bounded local model checks and an initial hands-free voice slice; full-product workflows remain staged. Final workflow priorities and preferred language need research with intended users.
 
 ## Product principles
 
@@ -33,7 +33,7 @@ These are full-product design scenarios. The current repository demonstrates rec
 
 **Continuity:** persist useful history, conversations, saved facts, and reminders across sessions and restarts. Show actual retained coverage and gaps.
 
-**Control:** recording is explicitly enabled and visibly indicated. Provide microphone mute, recording pause, inspection, deletion, and storage limits as part of the experience.
+**Control:** camera recording and wake listening start with the configured app and are visibly indicated; provide a way to stop them. Provide microphone mute, recording pause, inspection, deletion, and storage limits as part of the experience.
 
 ## First demonstration
 

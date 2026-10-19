@@ -118,3 +118,25 @@ def test_interrupted_segment_does_not_extend_known_time_coverage(tmp_path):
     assert status["recorded_through"] is None
     assert status["searchable_through"] is None
     assert status["timing_uncertain_count"] == 1
+
+
+def test_storage_scan_tolerates_a_source_deleted_during_counting(tmp_path, monkeypatch):
+    journal = CaptureJournal(tmp_path)
+    folder = tmp_path / "recordings"
+    folder.mkdir()
+    removed, kept = folder / "removed.mp4", folder / "kept.mp4"
+    removed.write_bytes(b"removed")
+    kept.write_bytes(b"keep")
+    original_stat = Path.stat
+    seen = False
+
+    def disappearing(path, *args, **kwargs):
+        nonlocal seen
+        if path == removed:
+            if seen:
+                removed.unlink(missing_ok=True)
+            seen = True
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", disappearing)
+    assert journal.video_bytes() == 4

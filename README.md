@@ -8,11 +8,11 @@ Nyx is intended to connect live surroundings, recorded history, conversations, a
 
 ## Project state
 
-**Continuous local recording and background indexing are available; household evaluation remains in progress.**
+**Continuous visual memory, local visual answers and a first hands-free Sarvam voice slice are available; household and voice evaluation remain in progress.**
 
-The camera stays off until explicitly enabled. Completed video-only segments save and index automatically while candidate search and separate source playback remain available. Existing clips remain compatible. The user demonstrated cookie-packet, phone, keys and raised-hand retrieval; this is useful developer evidence, not an independent accuracy benchmark.
+With Sarvam configured, the page starts camera recording and microphone wake listening automatically after browser permission. Without voice configuration, camera startup stays manual. Completed video-only segments save and index automatically while candidate search and separate source playback remain available. Existing clips remain compatible. The user demonstrated cookie-packet, phone, keys and raised-hand retrieval; this is useful developer evidence, not an independent accuracy benchmark.
 
-A pinned SigLIP 2 encoder runs on this Mac's MPS GPU. Results remain unverified visual candidates. VLM verification, voice, reminders and intended-user evaluation are later milestones. See [measured retrieval results](docs/research/R3-local-retrieval.md) and [continuous indexing implementation](docs/superpowers/plans/2026-10-19-continuous-recording.md).
+A pinned SigLIP 2 encoder runs on this Mac's MPS GPU. Search results remain unverified visual candidates. M3 adds local model checks with source/time attribution and explicitly captured snapshots; these checks can be wrong. Reminders and intended-user evaluation remain later work; voice limitations are described below. See [measured retrieval results](docs/research/R3-local-retrieval.md), [continuous indexing implementation](docs/superpowers/plans/2026-10-19-continuous-recording.md) and [local verification findings](docs/research/R4-local-verification.md).
 
 ## Run the local demo
 
@@ -29,7 +29,37 @@ Capture is video-only. The page shows latest saved and searchable sample times s
 
 The saved original-video budget is **1 GiB**, including existing clips. Recording stops on a full backlog, upload failure, quota or low disk space; existing clips are preserved. Thumbnails and the model cache use additional space. Failed uploads stay available for retry/download while the page remains open. A browser exit can lose the unsaved tail. Camera loss or detected suspension stops capture with an interruption warning; merely hiding the tab does not deliberately stop it. Browser/OS recording behavior and clock accuracy still need real hardware testing.
 
-On server restart, saved interrupted work is requeued and live sessions are marked interrupted. A camera never reopens automatically. Interrupted tails retain searchable clip offsets but no asserted wall-clock time. Original media and inference stay on this laptop; the server binds to localhost. `Ctrl+C` stops it; `serve --port 8001` selects another port. Retention policy, source-aware deletion and the thirty-minute real-camera soak remain open M2 work.
+On server restart, saved interrupted work is requeued and live sessions are marked interrupted. The backend alone never opens hardware. A configured voice page starts a new capture/listening session when loaded; the old interrupted session remains in history. Interrupted tails retain searchable clip offsets but no asserted wall-clock time. Original media and inference stay on this laptop; the server binds to localhost. `Ctrl+C` stops it; `serve --port 8001` selects another port. Stop recording and wait for indexing/search to finish to use **Delete clip** beside a source. Confirmation removes its original video, thumbnails and search vectors; unrelated clips remain. Interrupted cleanup stays hidden and can be retried or finished on restart. Nothing expires automatically. Retention duration and the thirty-minute real-camera soak remain open M2 work.
+
+## Hands-free voice
+
+The intended product starts with the app or future device and wakes when called, like Alexa or Siri. There is no push-to-talk. The browser demo requests camera and microphone permissions on page load when Sarvam is configured. Browser/OS permissions and audio autoplay rules still apply; **Enable listening** recovers a blocked audio context or denied startup.
+
+```bash
+uv sync --python 3.12 --extra vision --extra web --extra voice
+uv run --no-sync python -c 'from huggingface_hub import snapshot_download; snapshot_download("Systran/faster-whisper-tiny.en", revision="0d3d19a32d3338f10357c0889762bd8d64bbdeba", allow_patterns=["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"])'
+uv run --env-file .env --no-sync nyx --data-dir data/manual-demo serve
+```
+
+Set your `SARVAM_API_KEY` in ignored `.env` (permissions `0600`). Never commit it. Open the page, allow permissions, and say **“Hey Nyx, where are my glasses?”** or **“Nyx”**, wait for the short tone, then ask within ten seconds. After an answer, a ten-second active follow-up window lets you ask **“Where did you last see them?”** without repeating the name. After that, say “Hey Nyx” again. The listening indicator shows the active window. Current-view and history tools remain local. Speech replies are English in this first slice; ambiguous dates or unsupported actions trigger clarification.
+
+Current Sarvam models are **Saaras v4 (`saaras:v4`)** for transcription and **Bulbul v4 Flash (`bulbul:v4-flash`)** with `shubh_enhi_companion` for speech.
+
+A pinned **faster-whisper tiny.en** recognizer runs locally on CPU/int8, with local wake probes during speech and completed turns after about 0.55 seconds of silence. This is experimental ASR-based wake recognition, not a custom keyword detector; it can miss the name or activate incorrectly. It accepts Nyx/Nix/Nicks at the start, plus “Hey Nick” as a restricted pronunciation alias; a bare “Nick” or “next” does not activate it. Questions are limited to 24 seconds in the browser. The browser sends microphone samples only to localhost; idle speech is discarded after local checking. Sarvam receives audio only after activation, including speech during the ten-second active follow-up window (and the wake name if spoken in the same utterance), question/context text for routing, and grounded answer text for speech. No room-audio archive is created; video segments remain video-only.
+
+**Mute microphone** releases audio tracks while recording continues. **Stop recording** stops the microphone too. **Stop response** discards pending callbacks/audio; in-flight local inference or provider requests may finish. Local wake checks remain available during playback; saying “Hey Nyx” can stop the current response. This has synthetic verification only; actual speaker echo still needs testing. During processing, one bounded utterance is retained rather than silently discarded; in-flight inference is not preempted. Transcripts, tool context, produced answers and source IDs persist in `conversations.sqlite3`; this is conversation history, not visual evidence. Deleting a source marks dependent transcripts as source-unavailable. “Complete” means an answer was produced, not confirmed heard. Transcripts currently remain until manually managed; there is no conversation-deletion UI yet.
+
+[Voice findings](docs/research/R6-handsfree-voice.md) separate provider checks, synthetic browser checks and untested room behavior. The original cold integrated check took about 21 seconds including VLM startup. Voice-configured startup now preloads the visual checker; simple greetings bypass it entirely, and spoken answers are brief while the detailed evidence remains on screen. **Response timing** separates wake/STT/intent/visual/TTS and end-of-speech-to-playback measurements. The M4 p95 target is not met or evaluated statistically. Real pronunciation/noise, echo, repeated wake calls and target-language trials remain open.
+
+## Check visual evidence
+
+Under **Ask about an object**, enter a description such as “black glasses.” Select **Latest sighting** or **Best matching moments**, optionally expand **Limit history by time**, then press **Check history**. It uses the clip selected above; date inputs use this laptop’s timezone. Evidence links replay the original source moment. “Checks and temporal context” shows individual judgments, nearby unverified samples and the actual bounded scope.
+
+Latest mode checks twelve newest dated samples, then up to five semantic fallback candidates if needed. It reports the latest positive within the checked set, not an exhaustive last sighting across all footage. Unknown capture dates are excluded from latest/time-filtered queries. Best-match mode can check an imported clip while keeping its clock time unknown. Empty or uncertain checks never establish absence.
+
+With recording explicitly enabled, **Check current view** captures a fresh video-only snapshot for local inspection. Its time and age are shown; snapshots that become stale in the queue/model load must be retaken. Snapshot answers are ephemeral, not permanently added to history. This button never opens a camera by itself.
+
+Two local models serve different jobs: **SigLIP 2 Base** embeds/searches frames; **Qwen3-VL-2B-Instruct** loads lazily to inspect images. Vision uses existing PyTorch/Transformers on MPS; MLX, JEPA and cloud vision are not runtime dependencies. First VLM use downloads approximately 4 GiB of weights to the external model cache, outside the saved-video budget. One worker yields between inspected images; in-flight model work can still delay search. See [R4](docs/research/R4-local-verification.md) for the two-model smoke comparison and measured limits.
 
 ## Try the baseline
 
@@ -56,6 +86,8 @@ uv run --no-sync pytest -q
 uv run --no-sync ruff check src tests experiments
 uv run --no-sync ruff format --check src tests experiments
 node --check src/nyx/web/app.js
+node --check src/nyx/web/voice.js
+node --check src/nyx/web/audio-worklet.js
 uv run --no-sync python experiments/image-text-retrieval/run.py \
   --download-samples --output data/runs/siglip-baseline
 ```
@@ -66,10 +98,10 @@ An opt-in browser smoke check starts its own temporary localhost server and isol
 
 ```bash
 HF_HUB_OFFLINE=1 uv run --no-sync python tests/browser_smoke.py \
-  --video data/runs/siglip-baseline/scenes.mp4 --output data/runs/web-smoke
+  --video data/runs/siglip-baseline/scenes.mp4 --visual-answers --output data/runs/web-m3-smoke
 ```
 
-It checks file import, real-model search, playback offsets, automatic multi-segment indexing, search/replay while recording, pause/resume, denied/interrupted camera behavior, navigation/reload and mobile overflow. It writes screenshots and results under the output directory; this does not validate actual camera hardware or intended-user usability.
+With `--visual-answers`, it also checks the cached local VLM, dated/unknown-time history, source replay and explicitly requested synthetic snapshots. It checks file import, real-model search, playback offsets, automatic multi-segment indexing, search/replay while recording, pause/resume, denied/interrupted camera behavior, navigation/reload, cancelled/confirmed source deletion and mobile overflow. `--record-seconds 1800` exercises thirty minutes of synthetic capture with periodic search and server RSS/backlog samples; the browser and FFmpeg are excluded from that RSS, and this does not replace a real-camera test. It writes screenshots and results under the output directory; this does not validate actual camera hardware or intended-user usability.
 
 ## Read these first
 

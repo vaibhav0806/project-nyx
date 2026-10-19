@@ -8,6 +8,7 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
+  <script src="/voice.js" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -17,6 +18,16 @@
   </header>
   <main>
     <div class="intro"><h1>Keep a little history.<br>Find a moment.</h1><p>Record your surroundings while Nyx indexes in the background.<br>Search saved moments while the camera keeps running.</p></div>
+    <section id="voice-panel" class="voice-panel" aria-label="Hands-free voice" hidden>
+      <h2>Hey Nyx</h2>
+      <p id="voice-state" role="status" aria-live="polite">Starting local wake listening…</p>
+      <p class="help">Say “Hey Nyx, where are my glasses?” or call its name, then ask. Idle speech stays on this laptop. Activated questions and the ten-second follow-up window use Sarvam. Say “Hey Nyx” to interrupt playback. English wake name and replies for this first demo.</p>
+      <div class="controls"><button id="voice-enable">Enable listening</button><button id="voice-mute" hidden>Mute microphone</button><button id="voice-cancel" hidden>Stop response</button><button id="voice-play" hidden>Play answer</button></div>
+      <label class="help" for="voice-level">Microphone level <meter id="voice-level" min="0" max="1" value="0"></meter></label>
+      <p id="voice-question"></p><p id="voice-answer"></p>
+      <details><summary>Response timing</summary><p id="voice-timing" class="help"></p></details>
+      <details><summary>Conversation history · saved on this laptop</summary><div id="voice-history"></div></details>
+    </section>
     <div class="workspace">
       <section class="capture" aria-labelledby="capture-heading">
         <h2 id="capture-heading">Your view</h2>
@@ -54,6 +65,26 @@
           <div class="search-row"><input id="query" name="query" type="search" placeholder="A pair of glasses" maxlength="1000" required><button id="search" class="primary" type="submit">Search</button></div>
           <label class="scope-label" for="scope">Search in<select id="scope"><option value="">All clips</option></select></label>
         </form>
+        <section class="ask" aria-labelledby="ask-heading">
+          <h3 id="ask-heading">Ask about an object</h3>
+          <p class="help">Check visual evidence in your history, or inspect the current camera view.</p>
+          <form id="answer-form">
+            <label for="object-query">Object description</label>
+            <input id="object-query" type="text" maxlength="200" placeholder="My black glasses" required>
+            <label class="scope-label" for="history-mode">History order<select id="history-mode"><option value="latest">Latest sighting</option><option value="relevance">Best matching moments</option></select></label>
+            <details><summary>Limit history by time</summary><p class="help">Uses this laptop’s timezone and the clip selected above. Unknown capture times are excluded when filtering by time.</p><label for="seen-after">From<input id="seen-after" type="datetime-local" step="1"></label><label for="seen-before">Until<input id="seen-before" type="datetime-local" step="1"></label></details>
+            <div class="controls"><button id="ask-history" type="submit" class="primary">Check history</button><button id="inspect-now" type="button" disabled>Check current view</button></div>
+          </form>
+          <p class="help">Current view uses the active camera. Visual model checks can be wrong.</p>
+        </section>
+        <section id="answer-panel" class="answer" aria-label="Visual answer" hidden>
+          <h3>Visual answer <span class="model-label">Model checked</span></h3>
+          <p id="answer-text" role="status" aria-live="polite"></p>
+          <p id="answer-note" class="help"></p>
+          <div id="answer-evidence"></div>
+          <img id="snapshot-evidence" alt="Exact snapshot inspected by Nyx" hidden>
+          <details><summary>Checks and temporal context</summary><div id="answer-checks"></div></details>
+        </section>
         <div class="section-heading"><h3>Saved clips and segments</h3><span id="clip-count">0 clips</span></div>
         <div id="clips"><p class="empty-library">Your indexed clips will appear here.</p></div>
         <section id="search-results" hidden aria-labelledby="results-heading">

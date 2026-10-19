@@ -10,9 +10,9 @@ This is the single project progress tracker. Detailed implementation tasks are w
 | --- | --- | --- | --- | --- |
 | M0 | Agree on design, scope, repo layout, and research plan | Complete | — | User reviewed in Zed and requested implementation to resume |
 | M1 | Prove local visual retrieval feasibility | In progress | M0 + implementation instruction | [Measured public-image smoke baseline](research/R3-local-retrieval.md); independent household clips still needed |
-| M2 | Build an inspectable recording/search slice | In progress | M1; manual capture enables its evaluation | [Continuous implementation](superpowers/plans/2026-10-19-continuous-recording.md): durable rolling capture, prioritized search, budget and restart recovery; retention/deletion and hardware soak remain |
-| M3 | Add verified visual answers and fresh inspection | Not started | M2 | No verifier yet |
-| M4 | Connect natural voice and durable transcripts | Not started | M3 | No voice integration yet |
+| M2 | Build an inspectable recording/search slice | In progress | M1; manual capture enables its evaluation | [Continuous implementation](superpowers/plans/2026-10-19-continuous-recording.md): durable rolling capture, prioritized search, budget and restart recovery; [History controls](superpowers/plans/2026-10-19-history-controls.md): explicit deletion, 54 tests and 75-second synthetic check; hardware soak remains |
+| M3 | Add verified visual answers and fresh inspection | In progress | M2; user explicitly requested M3 | [R4](research/R4-local-verification.md): local Qwen model checks, bounded temporal history and snapshot inspection; independent household/uncertainty evaluation pending |
+| M4 | Connect natural voice and durable transcripts | In progress | M3; user selected Sarvam and hands-free startup | [Hands-free plan](superpowers/plans/2026-10-19-handsfree-voice.md), [R6 findings](research/R6-handsfree-voice.md): local wake + Sarvam + existing visual tools + transcripts; real-room, language, spoken barge-in and latency gates pending |
 | M5 | Add personal recall and reminders | Not started | M4 | No personal-memory/action implementation yet |
 | M6 | Evaluate the integrated laptop demo with intended users | Not started | M2–M5 + R1/R2 findings | No evaluation yet |
 | M7 | Select and validate standalone hardware | Later | M6 + hardware decision | No hardware selected |
@@ -58,7 +58,9 @@ Current delivery: explicitly enabled continuous video-only capture in approximat
 
 User-reported check: automatic indexing worked during a 2–3 minute trial on 2026-10-19. This does not replace the thirty-minute resource/restart evaluation.
 
-Remaining: retention policy/source-aware deletion, independent household labels and the thirty-minute actual-camera/resource/restart evaluation. Synthetic browser capture does not close those gates. Interrupted browser-exit tails may be lost and uncertain segments do not assert wall-clock coverage. Model cache/thumbnails are outside the original-video cap.
+Explicit source-aware deletion and repeatable longer synthetic checks are implemented locally: 54 tests pass, and a 75.68-second real-model synthetic-camera run checked concurrent search, nine automatically indexed segments, confirmed/cancelled deletion and reload. See the [history controls plan](superpowers/plans/2026-10-19-history-controls.md) for measurements and limitations.
+
+Remaining: retention duration, independent household labels and the thirty-minute actual-camera/resource/restart evaluation. Synthetic browser capture does not close those gates. Interrupted browser-exit tails may be lost and uncertain segments do not assert wall-clock coverage. Model cache/thumbnails are outside the original-video cap.
 
 ## M3 — Answer from visual evidence
 
@@ -70,6 +72,10 @@ Remaining: retention policy/source-aware deletion, independent household labels 
 
 Done when: each current/historical answer links to the appropriate evidence and can state uncertainty. Proposed evaluation targets to review after M1: 27 useful correct answers in 30 current-location trials and zero invented current locations in 20 deliberate uncertainty cases. These are targets, not measured performance.
 
+Current M3 slice: explicit aware time bounds and capture-plus-offset observation times; newest-first checking with bounded older semantic fallback; on-demand Qwen source-frame verification; source-linked answer/replay and nearby unverified context; explicitly requested snapshots with freshness checks. The UI describes the checked scope and never guarantees a complete last sighting or current location. [R4](research/R4-local-verification.md) records the small two-model comparison; [implementation plan](superpowers/plans/2026-10-19-visual-answers.md) records checks.
+
+Remaining M3 acceptance work: labelled household current/history/uncertainty trials; independent landmark and duplicate-object checks; small/occluded objects, actual camera movement and complete temporal recall. Unrestricted natural-language time/event interpretation remains beyond this explicit-mode developer interface. No acceptance target above has been claimed met.
+
 ## M4 — Speak and retain conversations
 
 1. Trial cloud voice in the intended language and choose a provider based on measured behavior.
@@ -79,6 +85,8 @@ Done when: each current/historical answer links to the appropriate evidence and 
 5. Measure end-of-speech to first useful answer with retrieval/verification included.
 
 Done when: spoken questions, follow-ups and interruptions work end to end; the app does not confuse transcripts with visual evidence. Proposed current-location latency target: p95 below five seconds across 30 trials; report history queries separately and revise transparently if evidence demands it.
+
+Current M4 slice starts camera and microphone with the configured page, detects the name locally, sends activated questions to Sarvam, invokes local current/history checks and speaks grounded answers. Independent mute, response stop and persisted attributed conversation text are available. This is the intended automatic product behavior, also for possible hardware; tests use fake devices. The feedback follow-up adds local wake checks during playback, brief conversational replies without vision, a ten-second active follow-up window and one pending utterance during processing. Playback interruption is synthetically verified; actual echo and full-duplex reliability remain open. No target-language/noise cohort or p95 claim is made. The original cold smoke took about 21 seconds; the feedback iteration measured two preloaded visual questions at 4.68/3.14 seconds after recorded-audio submission, excluding browser endpoint/playback time. See [R6](research/R6-handsfree-voice.md).
 
 ## M5 — Recall and follow through
 

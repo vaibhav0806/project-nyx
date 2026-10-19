@@ -28,7 +28,9 @@ project-nyx/
 │       ├── app.py            # API and application lifecycle
 │       ├── capture.py        # Frame extraction and decoded source offsets
 │       ├── recording.py      # Durable capture sessions, uploads, budget and recovery
-│       ├── perception.py     # Actual encoder / verifier integration
+│       ├── perception.py     # Background image/text encoder
+│       ├── verification.py   # On-demand local VLM and strict judgment parsing
+│       ├── answers.py        # Temporal history checks and evidence-linked answers
 │       ├── retrieval.py      # Search, temporal filters and evidence selection
 │       ├── memory.py         # SQLite schema, persistence and source lifecycle
 │       ├── voice.py          # Cloud conversation and tool exchange
@@ -78,6 +80,6 @@ An experiment should not be imported by production code. When its approach is se
 
 The interrupted dependency/test drafts have been reconciled with `src/nyx/`. The package now contains `capture.py`, `perception.py`, `memory.py`, `retrieval.py`, `report.py`, and `cli.py`. `tests/test_nyx.py` exercises the real storage/import/search boundaries and uses a deterministic encoder double only at the external inference boundary.
 
-`experiments/image-text-retrieval/` runs the real pinned model and optional crop comparison separately. `app.py` and packaged `src/nyx/web/` implement continuous local recording, automatic indexing and interactive candidate search. `recording.py` owns the durable capture journal; `tests/test_recording.py` covers admission, storage and recovery. Packaging the plain assets avoids a separate frontend build or source-tree dependency; move to a separate frontend only if actual complexity warrants it. `tests/test_app.py` covers API behavior; opt-in `tests/browser_smoke.py` checks the real model and browser with synthetic camera frames. Cloud voice, visual verification and reminders have not been implemented. The HTML gallery remains a separate generated artifact.
+`experiments/image-text-retrieval/` runs the real pinned model and optional crop comparison separately. `app.py` and packaged `src/nyx/web/` implement continuous local recording, automatic indexing and interactive candidate search. `recording.py` owns the durable capture journal; `tests/test_recording.py` covers admission, storage and recovery. Packaging the plain assets avoids a separate frontend build or source-tree dependency; move to a separate frontend only if actual complexity warrants it. `tests/test_app.py` covers API behavior; opt-in `tests/browser_smoke.py` checks the real model and browser with synthetic camera frames. M3 uses `verification.py` and `answers.py` for local model-checked temporal answers; `voice.py` owns local wake recognition, Sarvam and conversation storage; `web/voice.js` and `web/audio-worklet.js` own hands-free audio. Reminders have not been implemented. The HTML gallery remains a separate generated artifact.
 
 Earlier files under `docs/superpowers/` now point to the canonical documents above. New project documentation belongs in the named `docs/` locations; avoid competing designs or milestone lists.

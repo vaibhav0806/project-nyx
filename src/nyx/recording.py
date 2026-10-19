@@ -38,6 +38,9 @@ class CaptureJournal:
                     id INTEGER PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id),
                     at TEXT NOT NULL, reason TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS deletions (
+                    id TEXT PRIMARY KEY, path TEXT NOT NULL, state TEXT NOT NULL
+                );
             """)
             if "timing_uncertain" not in {
                 row[1] for row in db.execute("PRAGMA table_info(segments)")
@@ -58,12 +61,15 @@ class CaptureJournal:
             db.close()
 
     def video_bytes(self):
-        return sum(
-            path.stat().st_size
-            for folder in ["recordings", "incoming"]
-            for path in (self.root / folder).rglob("*")
-            if path.is_file()
-        )
+        total = 0
+        for folder in ["recordings", "incoming"]:
+            for path in (self.root / folder).rglob("*"):
+                try:
+                    if path.is_file():
+                        total += path.stat().st_size
+                except FileNotFoundError:
+                    continue
+        return total
 
     def start(self, at):
         at = capture_time(at).isoformat()
@@ -178,6 +184,33 @@ class CaptureJournal:
     def partial_path(self, segment_id):
         return self.root / "incoming" / f"capture-{segment_id}.part"
 
+    def deletion(self, video_id):
+        with self.connection() as db:
+            row = db.execute("SELECT * FROM deletions WHERE id = ?", (video_id,)).fetchone()
+        return dict(row) if row else None
+
+    def deletions(self):
+        with self.connection() as db:
+            return [
+                dict(row) for row in db.execute("SELECT * FROM deletions WHERE state = 'pending'")
+            ]
+
+    def request_deletion(self, video_id, path):
+        with self.connection() as db:
+            db.execute("INSERT OR IGNORE INTO deletions VALUES (?, ?, 'pending')", (video_id, path))
+            db.execute(
+                "UPDATE segments SET state = 'deleting' WHERE id = ? AND state != 'deleted'",
+                (video_id,),
+            )
+
+    def finish_deletion(self, video_id):
+        with self.connection() as db:
+            db.execute("UPDATE deletions SET state = 'deleted' WHERE id = ?", (video_id,))
+            db.execute(
+                "UPDATE segments SET state = 'deleted', size = 0, last_sample_seconds = NULL, error = NULL WHERE id = ?",
+                (video_id,),
+            )
+
     def finish_upload(self, segment_id, size):
         partial = self.partial_path(segment_id)
         if size <= 0 or partial.stat().st_size != size:
@@ -270,7 +303,12 @@ class CaptureJournal:
                 row[0]: row[1]
                 for row in db.execute("SELECT state, COUNT(*) FROM segments GROUP BY state")
             }
-            coverage = [dict(row) for row in db.execute("SELECT * FROM segments WHERE size > 0")]
+            coverage = [
+                dict(row)
+                for row in db.execute(
+                    "SELECT * FROM segments WHERE size > 0 AND state NOT IN ('deleting','deleted')"
+                )
+            ]
         saved = [row for row in coverage if (self.root / row["path"]).exists()]
         known = [row for row in saved if not row["timing_uncertain"]]
         ready = [

@@ -44,7 +44,7 @@ Updated: 2026-10-19. This records discussion outcomes and engineering choices. T
 | O4 | Encoder checkpoint, preprocessing, sampling/crop strategy, and retrieval thresholds? | R3 measured baseline. |
 | O5 | VLM checkpoint/runtime and verification quality on retrieved candidates? | R4 measured comparison. |
 | O6 | JEPA's useful contribution, Mac compatibility, and prediction task/data requirements? | R5 experiment. |
-| O7 | Cloud voice provider, target-language performance, interruptions, and tool latency? | R6 trial. |
+| O7 | Sarvam selected; target-language performance, interruptions, and tool latency remain open. | R6 trial. |
 | O8 | Long-run capture reliability and retention/deletion controls beyond the current continuous slice? | M2 hardware soak and product review; current stack is selected below. |
 | O9 | Dedicated hardware and standalone operating budget? | Measured laptop workload, then M7. |
 
@@ -87,6 +87,48 @@ Add a row or short entry with: ID, date, status, decision owner, choice, alterna
 - Persist capture sessions/segments/events in `capture.sqlite3` separately from the embedding index. Stable segment IDs and staged atomic saves permit idempotent retries and recovery. Preserve saved sources even if a model fails.
 - Advance one inference worker in two-image batches; prioritize queued search between them. This bounds contention without introducing another model copy or service. Long model load/decode calls remain nonpreemptible.
 - Bound server pending segments to eight; stop browser capture on backpressure or save failure. Keep pending blobs for retry/download only while the page survives. Saved/searchable times and interruptions remain separate from camera-on state.
-- Stop at 1 GiB original-video storage without deleting clips. Existing imports count; model cache/thumbnails are additional. Retention duration and deletion remain pending. Revisit sampling/segmentation/limits after a thirty-minute real-camera run and independent household evaluation.
+- Stop at 1 GiB original-video storage without deleting clips. Existing imports count; model cache/thumbnails are additional. Retention duration remains pending; explicit source-aware deletion is implemented in the follow-up below. Revisit sampling/segmentation/limits after a thirty-minute real-camera run and independent household evaluation.
 - Do not auto-resume capture after restart. Interrupted tails have unknown wall-clock time while clip offsets remain searchable; hidden-tab recording and real sleep behavior still require hardware evaluation.
 - The user requested the pre-automatic-indexing snapshot on GitHub: manual baseline `67fcaf5` is pushed to `main`. The user subsequently tested automatic indexing for 2–3 minutes and explicitly requested this continuous slice be pushed to `main`.
+
+## History control implementation selections
+
+2026-10-19, following the user's request to publish automatic indexing and proceed with next milestone work:
+
+- Publish the tested continuous-indexing slice as `8356aa8` on `main`. Work on the next slice stays on `feat/history-controls` until separately published.
+- Add explicit deletion of one source and its derived thumbnails/vectors, with confirmation. Require capture stopped and active inference/upload work finished; this simpler conflict boundary avoids introducing cancellation into the current worker.
+- Keep durable deletion intent and ID tombstones in the existing capture journal. Finish interrupted cleanup before requeueing saved work; a retried deleted segment must never reappear. Do not load a vision model to delete footage. Preserve unrelated recordings.
+- Preserve increasing frame IDs in SQLite metadata so old thumbnail URLs cannot alias new evidence, including for preexisting indexes. Database free pages/previous downloads are not securely erased.
+- Add optional synthetic recording duration with backlog, server-process RSS and periodic search timings. These measurements exclude the browser/FFmpeg and do not close actual-camera or household-accuracy gates. Retention duration remains open and no automatic deletion is enabled.
+
+## M3 implementation selections
+
+2026-10-19, user explicitly requested M3 after discussing retrieval with temporal context:
+
+- Keep the existing Python/MPS stack. Use Qwen3-VL-2B-Instruct at revision `89644892e4d85e24eaac8bacfd4f463576704203` as the initial on-demand checker after the [R4](research/R4-local-verification.md) smoke comparison. Keep SigLIP 2 for retrieval. SmolVLM-500M was benchmarked, not enabled as a fallback; its prompt/schema result does not establish general visual incapability.
+- Require Transformers >=4.57.1 for the native Qwen3-VL path; the lock retains tested 4.57.6. No new inference framework or provider abstraction is added.
+- Use explicit object/mode/date controls first. Date ordering uses capture start plus decoded offset, never import time. Latest answers cover checked samples only: twelve recent dated frames, with up to five semantic fallback candidates if needed. Full archive recall and natural-language temporal/event reasoning remain open.
+- Keep source-linked neighbors as unverified context inside the selected time bounds. Inspect original source frames with the VLM; keep ambiguous/invalid responses uncertain. Landmark text is fallible model output, not independently validated guidance.
+- Inspect current view only from an explicit snapshot of an already-enabled camera. Validate time at input, queue exit and model-load completion; display capture time and age. Retain snapshot evidence only in bounded ephemeral job results. Source deletion invalidates affected historical answer jobs.
+- Preserve pending M2 history-control changes alongside M3 locally; the GitHub `main` publication remains the authorized continuous-indexing snapshot `8356aa8`. Neither this M3 work nor the history-controls follow-up is implicitly published.
+
+## M4 hands-free voice selections
+
+2026-10-19, user chose Sarvam, supplied credentials and explicitly rejected push-to-talk:
+
+- The product starts camera/microphone with the app or future device and wakes to its name, like Alexa/Siri. This supersedes the previous manual-start/no-auto-resume browser choice. Browser permission/autoplay restrictions are visible recovery states. Automated developer tests use synthetic inputs only; that rule does not change product operation.
+- The user subsequently explicitly selected v4 for both speech models. Use existing local visual tools, Sarvam STT (`saaras:v4`), constrained tool routing (`sarvam-105b`, reasoning disabled) and TTS (`bulbul:v4-flash`, now the companion persona). No cloud vision or ambient cloud stream. Credentials are loaded from ignored private `.env` by uv.
+- Start with pinned faster-whisper tiny.en CPU/int8 for local utterance-based wake recognition. This can miss or falsely hear the name; it is not a production custom keyword model. Revisit after actual pronunciation/noise measurements. Keep raw audio bounded and ephemeral; video remains video-only.
+- Keep plain browser audio and local HTTP transport. One microphone lease, bounded requests, generation cancellation, independent mute and visible transcripts are sufficient for this slice. The initial version paused listening during answers; the feedback follow-up below supersedes that behavior.
+- Persist conversation text/tool context/source references in a separate SQLite file. Source deletion marks dependent references unavailable. Conversations are never asserted as fresh visual evidence; raw audio is not retained. Transcript deletion UI remains open.
+- [R6](research/R6-handsfree-voice.md) records synthetic/provider evidence and cold integrated latency. The M4 latency and intended-language/user gates remain open. M2/M3/M4 changes remain local until separately published.
+
+### M4 response to voice validation feedback
+
+The user reported missed wake calls, slow reactions and “what’s up?” being treated as an object. Inspection confirmed a visual-only router, fixed speech threshold and unconditional audio discarding while busy/playback. The authorized fix adds a separate conversational intent, a fast common-greeting path after STT, concise evidence-derived spoken answers, Shubh's companion persona, local wake probing during speech/playback, bounded pending audio during processing, and a visible ten-second follow-up window. Idle audio outside activation stays local; activated follow-up speech may reach Sarvam. Existing evidence details remain on screen. Low-priority visual model preload moves cold loading to configured startup. Actual-room wake/echo and p95 latency remain unvalidated.
+
+Keep tiny.en: a small synthetic comparison did not justify switching to base.en, which missed more wake prefixes and was slower on these clips. This is an experiment result, not proof of real-room reliability. The wire routing schema uses strings (empty for absent fields), normalized to internal nulls: live probes with nullable fields returned empty/clarification plans for valid questions, while the revised schema routed the exercised questions correctly. See [R6](research/R6-handsfree-voice.md).
+
+## Publication authorization
+
+2026-10-19: the user explicitly requested that all current work be pushed to GitHub. Publish the combined history controls, visual answers, hands-free Sarvam v4 voice and voice-feedback improvements on `main`. Earlier local-only entries above record development checkpoints and are superseded by this explicit publication request. Keep credentials, recordings, databases, generated artifacts and model weights outside Git. Publishing does not close the remaining M1–M4 validation gates or implement M5.
