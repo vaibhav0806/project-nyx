@@ -1,6 +1,6 @@
 # Research board
 
-Status: R3 has a measured local baseline and crop comparison, with independent household evaluation pending. Other entries are proposed briefs; no interviews or competitor findings are claimed. Research assignments are prepared for people to accept; no external messages have been sent.
+Status: R3/R4/R6/R8 contain local prototype findings, with independent household/user evaluation pending. R7 has an initial public-source Instinct review; its broader comparison remains open. No interviews were conducted or external messages sent. Research assignments are prepared for people to accept.
 
 Research should answer a bounded question that changes a decision. Keep product evidence, source-reported capabilities, local measurements, and interpretation separate.
 
@@ -14,7 +14,7 @@ Research should answer a bounded question that changes a decision. Keep product 
 | R4 | How reliably can a VLM verify candidates and give grounded guidance? | Compare a small number of local VLMs on identical retrieved/fresh frames; score correct, wrong and uncertain answers. | Quality/resource comparison and evidence-grounding failures | [First local findings](R4-local-verification.md) / in progress |
 | R5 | What useful role can JEPA play, including prediction? | Start with pretrained feature extraction and Mac compatibility. Compare event selection to motion detection; define any prediction task, required head/alignment/data, and evaluation separately. | Runnable experiment, measured event recall/false triggers/resource use, and an explicit integrate/defer recommendation | Unassigned / proposed; teammate expressed interest |
 | R6 | Which cloud voice path works for the chosen user/language? | Trial comprehension, follow-ups, interruptions, echo and backend tool calls. | Short recordings where permitted, latency breakdown, observed limitations and usage | [Initial hands-free findings](R6-handsfree-voice.md) / in progress |
-| R7 | What alternatives and adoption constraints matter? | Compare about five relevant products/current workarounds from primary sources and actual user evidence. Explore who chooses, installs, maintains and pays. | Dated capability/pricing matrix, user objections, buyer/adoption hypothesis and gaps | Unassigned / proposed |
+| R7 | What alternatives and adoption constraints matter? | Compare about five relevant products/current workarounds from primary sources and actual user evidence. Explore who chooses, installs, maintains and pays. | Dated capability/pricing matrix, user objections, buyer/adoption hypothesis and gaps | [Initial Instinct UX findings](R7-instinct-ux.md); broader comparison/adoption work open |
 | R8 | Can conversation-aware local tools and continuous observation support useful next-departure assistance? | Exercise contextual query construction, adaptive selection, local sequence judgments and durable event delivery. | [Measured prototype findings](R8-companion-loop.md), failures and remaining gates | In progress / inline implementation |
 
 R1/R2 can run alongside early technical feasibility work once separately authorized. R5 does not block the initial R3 retrieval baseline. Do not assign a person or deadline without their agreement.
