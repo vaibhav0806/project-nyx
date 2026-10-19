@@ -8,11 +8,11 @@ Nyx is intended to connect live surroundings, recorded history, conversations, a
 
 ## Project state
 
-**Local recording/import/search interface is available; intended household-scene validation remains open.**
+**Continuous local recording and background indexing are available; household evaluation remains in progress.**
 
-The user reviewed the design package and explicitly resumed implementation on 2026-10-19. The current slice imports a local clip, extracts timestamped frames, creates local image/text embeddings, searches them in SQLite, and provides browser playback plus an optional HTML candidate gallery.
+The camera stays off until explicitly enabled. Completed video-only segments save and index automatically while candidate search and separate source playback remain available. Existing clips remain compatible. The user demonstrated cookie-packet, phone, keys and raised-hand retrieval; this is useful developer evidence, not an independent accuracy benchmark.
 
-A pinned SigLIP 2 encoder has run on this Mac's MPS GPU. Deterministic tests and a separate public-image semantic smoke benchmark are available. The browser can manually record a short video-only clip. This is candidate retrieval: continuous recording, VLM verification, voice, reminders, and intended-user evaluation remain later work. See [actual results and limitations](docs/research/R3-local-retrieval.md).
+A pinned SigLIP 2 encoder runs on this Mac's MPS GPU. Results remain unverified visual candidates. VLM verification, voice, reminders and intended-user evaluation are later milestones. See [measured retrieval results](docs/research/R3-local-retrieval.md) and [continuous indexing implementation](docs/superpowers/plans/2026-10-19-continuous-recording.md).
 
 ## Run the local demo
 
@@ -23,11 +23,13 @@ uv sync --python 3.12 --extra vision --extra web
 uv run --no-sync nyx --data-dir data/manual-demo serve
 ```
 
-Open **http://127.0.0.1:8000**. The camera stays off until you press **Start recording**. Stop after a useful scene, review the preview, then choose **Index clip** or **Discard clip**. Search descriptively and select a candidate to replay its source moment. **Import video** indexes a file from your laptop without inventing its recording time.
+Open **http://127.0.0.1:8000** and press **Start recording**. Approximately every ten seconds, a completed segment saves and starts indexing automatically. Search can run while the camera stays on; select a candidate to replay its source in a separate player. **Pause recording** releases the camera; **Resume recording** reopens it explicitly. **Stop recording** saves the final segment. **Import video** still indexes a local file without inventing its recording time.
 
-Recording is video-only and capped at two minutes; camera loss or hiding the tab stops recording and displays a warning. The camera is released on stop or navigation. Browser capture time uses the browser clock. Indexing sends the clip to the server on this laptop, with a 256 MiB upload limit. Model loading and inference are local and run in a single background worker; controls and task status remain available. The server caches the model after first use and accepts one inference/import task at a time.
+Capture is video-only. The page shows latest saved and searchable sample times separately, a backlog, and pause/interruption history; these timestamps do not guarantee gap-free coverage. Search starts seeing each segment only after indexing completes. The first model load or current decoding/inference batch can delay search; queued search takes priority between small indexing batches.
 
-This is a manual test interface. Continuous segments, retention/disk caps, source-aware deletion and interrupted-job recovery are still open M2 work. It binds to localhost; there is no hosted deployment or cloud image fallback. `Ctrl+C` stops the server. Use `serve --port 8001` if needed.
+The saved original-video budget is **1 GiB**, including existing clips. Recording stops on a full backlog, upload failure, quota or low disk space; existing clips are preserved. Thumbnails and the model cache use additional space. Failed uploads stay available for retry/download while the page remains open. A browser exit can lose the unsaved tail. Camera loss or detected suspension stops capture with an interruption warning; merely hiding the tab does not deliberately stop it. Browser/OS recording behavior and clock accuracy still need real hardware testing.
+
+On server restart, saved interrupted work is requeued and live sessions are marked interrupted. A camera never reopens automatically. Interrupted tails retain searchable clip offsets but no asserted wall-clock time. Original media and inference stay on this laptop; the server binds to localhost. `Ctrl+C` stops it; `serve --port 8001` selects another port. Retention policy, source-aware deletion and the thirty-minute real-camera soak remain open M2 work.
 
 ## Try the baseline
 
@@ -67,7 +69,7 @@ HF_HUB_OFFLINE=1 uv run --no-sync python tests/browser_smoke.py \
   --video data/runs/siglip-baseline/scenes.mp4 --output data/runs/web-smoke
 ```
 
-It checks file import, real-model search, playback offsets, denied/interrupted camera behavior, video-only synthetic recording/indexing, discard, reload and mobile overflow. It writes screenshots and results under the output directory; this does not validate actual camera hardware or intended-user usability.
+It checks file import, real-model search, playback offsets, automatic multi-segment indexing, search/replay while recording, pause/resume, denied/interrupted camera behavior, navigation/reload and mobile overflow. It writes screenshots and results under the output directory; this does not validate actual camera hardware or intended-user usability.
 
 ## Read these first
 
@@ -91,7 +93,7 @@ It checks file import, real-model search, playback offsets, denied/interrupted c
 - Cloud voice connected to narrow backend tools.
 - JEPA as a separate experiment in temporal features, event selection, and prediction.
 
-SigLIP 2 through PyTorch/Transformers is the initial measured baseline, not a final production model choice. FastAPI with packaged plain HTML/CSS/JavaScript powers the manual interface. Other runtimes and sampling policies remain subject to experiments and review. See [Decisions](docs/decisions.md).
+SigLIP 2 through PyTorch/Transformers is the initial measured baseline, not a final production model choice. FastAPI with packaged plain HTML/CSS/JavaScript powers the recording/search interface. Other runtimes and sampling policies remain subject to experiments and review. See [Decisions](docs/decisions.md).
 
 ## Development and research
 

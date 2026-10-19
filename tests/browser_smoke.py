@@ -13,6 +13,16 @@ from urllib.request import urlopen
 from playwright.sync_api import expect, sync_playwright
 
 
+def wait_capture(page, predicate, timeout=45):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        status = page.request.get(page.url.rstrip("/") + "/api/capture").json()
+        if predicate(status):
+            return status
+        page.wait_for_timeout(200)
+    raise AssertionError(f"Capture condition not reached: {status}")
+
+
 def run(url, video, output):
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(channel="chrome", headless=True)
@@ -27,7 +37,7 @@ def run(url, video, output):
                 };""")
             page.goto(url)
             expect(
-                page.get_by_role("heading", name="Record a moment. Find it again.")
+                page.get_by_role("heading", name="Keep a little history. Find a moment.")
             ).to_be_visible()
             assert page.evaluate("window.cameraCalls") == 0
             page.screenshot(path=str(output / "desktop-empty.png"), full_page=True)
@@ -44,8 +54,8 @@ def run(url, video, output):
             page.get_by_role("button", name="Search", exact=True).click()
             expect(page.locator(".candidate")).to_have_count(5, timeout=30000)
             page.locator(".candidate").first.click()
-            page.wait_for_function("document.querySelector('#viewer').currentTime >= 13.5")
-            assert page.locator("#viewer").get_attribute("src").endswith("#t=14")
+            page.wait_for_function("document.querySelector('#replay').currentTime >= 13.5")
+            assert page.locator("#replay").get_attribute("src").endswith("#t=14")
             expect(page.locator(".candidate").first).to_contain_text("Unverified")
             page.screenshot(path=str(output / "desktop-results.png"), full_page=True)
 
@@ -67,54 +77,94 @@ def run(url, video, output):
             }; }""")
             page.get_by_role("button", name="Start recording").click()
             expect(page.locator("#camera-state")).to_have_text("Recording video")
-            page.wait_for_timeout(2200)
-            page.get_by_role("button", name="Stop recording").click()
-            expect(page.get_by_role("button", name="Index clip")).to_be_visible()
+            wait_capture(page, lambda status: status["counts"].get("ready", 0) >= 2)
+            expect(page.get_by_role("button", name="Search", exact=True)).to_be_enabled()
+            page.get_by_label("What are you looking for?").fill("a television remote control")
+            page.get_by_role("button", name="Search", exact=True).click()
+            expect(page.get_by_role("button", name="Search", exact=True)).to_be_enabled(
+                timeout=10000
+            )
+            expect(page.locator("#task")).to_contain_text("Select a candidate")
+            expect(page.get_by_role("alert")).not_to_be_visible()
+            expect(page.locator(".candidate")).to_have_count(5)
+            page.locator(".candidate").first.click()
+            expect(page.locator("#replay-panel")).to_be_visible()
+            expect(page.locator("#camera-state")).to_have_text("Recording video")
+            assert page.evaluate("window.testStream.getVideoTracks()[0].readyState") == "live"
+            expect(page.locator("#searchable-through")).to_contain_text("Searchable through")
+            page.screenshot(path=str(output / "desktop-continuous.png"), full_page=True)
+
+            page.get_by_role("button", name="Pause recording").click()
+            expect(page.locator("#camera-state")).to_have_text("Recording paused")
             assert page.evaluate(
                 "window.testStream.getTracks().every(t => t.readyState === 'ended')"
             )
-            page.get_by_role("button", name="Index clip").click()
-            expect(page.locator("#task")).to_contain_text("Clip indexed", timeout=30000)
-            expect(page.locator("#clip-count")).to_have_text("2 clips")
-            assert "Capture time unknown" not in page.locator(".clip").first.inner_text()
             page.evaluate("clearInterval(window.drawTimer)")
-
-            page.get_by_role("button", name="Start recording").click()
+            page.get_by_role("button", name="Resume recording").click()
             expect(page.locator("#camera-state")).to_have_text("Recording video")
-            page.wait_for_timeout(1200)
-            page.evaluate("window.testStream.getVideoTracks()[0].dispatchEvent(new Event('ended'))")
-            expect(page.get_by_role("alert")).to_contain_text("camera stopped unexpectedly")
-            expect(page.get_by_role("button", name="Discard clip")).to_be_visible()
-            assert page.evaluate(
-                "window.testStream.getTracks().every(t => t.readyState === 'ended')"
-            )
-            page.get_by_role("button", name="Discard clip").click()
-            expect(page.get_by_role("button", name="Start recording")).to_be_visible()
-            expect(page.locator("#clip-count")).to_have_text("2 clips")
-            page.evaluate("clearInterval(window.drawTimer)")
-
-            page.get_by_role("button", name="Start recording").click()
-            expect(page.locator("#camera-state")).to_have_text("Recording video")
-            page.wait_for_timeout(1200)
+            page.wait_for_timeout(1400)
             page.evaluate("""() => {
                 Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
                 document.dispatchEvent(new Event('visibilitychange'));
             }""")
-            expect(page.get_by_role("alert")).to_contain_text("tab was hidden")
-            expect(page.get_by_role("button", name="Discard clip")).to_be_visible()
+            expect(page.locator("#camera-state")).to_have_text("Recording video")
+            page.evaluate("delete document.hidden")
+            page.evaluate("window.testStream.getVideoTracks()[0].dispatchEvent(new Event('ended'))")
+            expect(page.get_by_role("alert")).to_contain_text("camera was interrupted")
+            expect(page.locator("#camera-state")).to_have_text("Camera off")
             assert page.evaluate(
                 "window.testStream.getTracks().every(t => t.readyState === 'ended')"
             )
-            page.get_by_role("button", name="Discard clip").click()
-            page.evaluate("delete document.hidden; clearInterval(window.drawTimer)")
+            wait_capture(
+                page,
+                lambda status: (
+                    status["session"]["state"] == "interrupted"
+                    and not any(
+                        status["counts"].get(state, 0)
+                        for state in ["uploading", "staged", "queued", "indexing"]
+                    )
+                ),
+            )
+            page.evaluate("clearInterval(window.drawTimer)")
+            status = page.evaluate("fetch('/api/capture').then(r => r.json())")
+            assert status["counts"]["ready"] >= 3
+            assert any("Paused by user" in event["reason"] for event in status["events"])
+            assert any("Resumed by user" in event["reason"] for event in status["events"])
+            sources = page.evaluate("fetch('/api/videos').then(r => r.json())")
+            indexed_count = sum(video["status"] == "ready" for video in sources)
+            captured = [video for video in sources if video["name"].startswith("Recording ")]
+            assert sum(bool(video["recorded_at"]) for video in captured) >= 2
+            assert any(video["recorded_at"] is None for video in captured)
+            assert status["timing_uncertain_count"] >= 1
+
+            page.evaluate("""() => {
+                window.immediateCamera = navigator.mediaDevices.getUserMedia;
+                navigator.mediaDevices.getUserMedia = () => new Promise(resolve => {
+                    window.resolveCamera = async () => resolve(await window.immediateCamera({audio: false}));
+                });
+            }""")
+            page.get_by_role("button", name="Start recording").click()
+            page.wait_for_function("Boolean(window.resolveCamera)")
+            page.get_by_role("button", name="Stop recording").click()
+            page.evaluate("window.resolveCamera()")
+            page.wait_for_function(
+                "window.testStream.getTracks().every(t => t.readyState === 'ended')"
+            )
+            expect(page.locator("#camera-state")).to_have_text("Camera off")
+            page.evaluate(
+                "navigator.mediaDevices.getUserMedia = window.immediateCamera; clearInterval(window.drawTimer)"
+            )
+            wait_capture(page, lambda status: status["session"]["state"] == "stopped")
+            expect(page.get_by_role("button", name="Start recording")).to_be_visible()
 
             page.get_by_role("button", name="Start recording").click()
             expect(page.locator("#camera-state")).to_have_text("Recording video")
+            page.wait_for_timeout(1400)
             page.evaluate("""window.addEventListener('pagehide', () => {
                 sessionStorage.setItem('tracksReleased', String(window.testStream.getTracks().every(t => t.readyState === 'ended')));
             });""")
             page.reload()
-            expect(page.locator("#clip-count")).to_have_text("2 clips")
+            expect(page.locator("#clip-count")).to_contain_text("clips")
             assert page.evaluate("sessionStorage.getItem('tracksReleased')") == "true"
             assert page.evaluate("window.cameraCalls") == 0
             mobile = browser.new_page(viewport={"width": 390, "height": 844})
@@ -123,19 +173,22 @@ def run(url, video, output):
             )
             mobile.on("pageerror", lambda error: errors.append(str(error)))
             mobile.goto(url)
-            expect(mobile.locator("#clip-count")).to_have_text("2 clips")
+            expect(mobile.locator("#clip-count")).to_contain_text("clips")
             mobile.screenshot(path=str(output / "mobile.png"), full_page=True)
             assert mobile.evaluate("document.documentElement.scrollWidth <= innerWidth")
             assert errors == [], errors
             result = {
                 "browser": browser.version,
+                "capture_status_before_reload": status,
+                "indexed_count_before_reload": indexed_count,
                 "checks": [
-                    "No camera request on initial load or reload",
+                    "No camera request on initial load or reload; late permission resolution after Stop releases tracks",
                     "Denied camera displays recovery action",
                     "Real-model file import/search and source replay at 14 seconds",
-                    "Synthetic video-only capture, stop releases tracks, index preserves capture time",
-                    "Camera interruption stops and labels incomplete clip; discard leaves library unchanged",
-                    "Tab hiding stops recording; navigation releases camera tracks",
+                    "Two independently decoded segments indexed automatically while capture stays live",
+                    "Search and separate source replay work while recording",
+                    "Pause/resume releases and reacquires video-only tracks; capture times preserved",
+                    "Camera interruption stops capture, tab hiding does not; navigation releases tracks",
                     "Library survives page reload; mobile layout has no horizontal overflow",
                     "No uncaught browser errors",
                 ],

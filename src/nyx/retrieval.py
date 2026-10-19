@@ -14,7 +14,38 @@ def _check_encoder(store, encoder):
         raise ValueError("The index uses a different encoder")
 
 
-def index_video(video: Path, store, encoder, interval=2.0, batch_size=8, recorded_at=None):
+def index_video(
+    video: Path,
+    store,
+    encoder,
+    interval=2.0,
+    batch_size=8,
+    recorded_at=None,
+    *,
+    video_id=None,
+    name=None,
+):
+    steps = index_video_batches(
+        video, store, encoder, interval, batch_size, recorded_at, video_id=video_id, name=name
+    )
+    while True:
+        try:
+            next(steps)
+        except StopIteration as done:
+            return done.value
+
+
+def index_video_batches(
+    video: Path,
+    store,
+    encoder,
+    interval=2.0,
+    batch_size=2,
+    recorded_at=None,
+    *,
+    video_id=None,
+    name=None,
+):
     _check_encoder(store, encoder)
     if not math.isfinite(interval) or interval <= 0:
         raise ValueError("Sampling interval must be finite and positive")
@@ -23,15 +54,39 @@ def index_video(video: Path, store, encoder, interval=2.0, batch_size=8, recorde
     video = Path(video).resolve()
     if not video.is_file():
         raise ValueError(f"Video does not exist: {video}")
-    name = uuid.uuid4().hex
-    relative_video = Path("recordings") / f"{name}{video.suffix}"
-    frame_dir = store.root / "frames" / name
+    video_id = video_id or uuid.uuid4().hex
+    if len(video_id) != 32 or any(char not in "0123456789abcdef" for char in video_id):
+        raise ValueError("Video ID must be a hexadecimal UUID")
+    relative_video = Path("recordings") / f"{video_id}{video.suffix}"
+    frame_dir = store.root / "frames" / video_id
     copied_video = store.root / relative_video
     copied_video.parent.mkdir(exist_ok=True)
-    video_id = store.add_video(video.name, str(relative_video), recorded_at, interval)
+    existing = store.video(video_id)
+    if existing:
+        if (
+            existing["path"] != str(relative_video)
+            or existing["recorded_at"] != recorded_at
+            or existing["interval_seconds"] != interval
+        ):
+            raise ValueError("Recording ID metadata differs from the saved source")
+        if existing["status"] == "ready":
+            return {
+                "video_id": video_id,
+                "frame_count": existing["frame_count"],
+                "last_sample_seconds": existing["last_sample_seconds"],
+                "index_seconds": 0,
+                "device": encoder.device,
+                "encoder": encoder.fingerprint,
+            }
+        store.restart_video(video_id)
+        shutil.rmtree(frame_dir, ignore_errors=True)
+    else:
+        store.add_video(name or video.name, str(relative_video), recorded_at, interval, video_id)
+    managed_source = video == copied_video
     started = time.perf_counter()
     try:
-        shutil.copyfile(video, copied_video)
+        if not managed_source:
+            shutil.copyfile(video, copied_video)
         frames = extract_frames(copied_video, frame_dir, interval)
         for offset in range(0, len(frames), batch_size):
             batch = frames[offset : offset + batch_size]
@@ -45,11 +100,17 @@ def index_video(video: Path, store, encoder, interval=2.0, batch_size=8, recorde
                 [(seconds, str(path.relative_to(store.root))) for seconds, path in batch],
                 vectors,
             )
+            yield {
+                "video_id": video_id,
+                "indexed_frames": offset + len(batch),
+                "total_frames": len(frames),
+            }
         store.finish_video(video_id)
     except Exception as exc:
         store.fail_video(video_id, str(exc))
         shutil.rmtree(frame_dir, ignore_errors=True)
-        copied_video.unlink(missing_ok=True)
+        if not managed_source:
+            copied_video.unlink(missing_ok=True)
         raise
     return {
         "video_id": video_id,

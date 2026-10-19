@@ -32,6 +32,14 @@ h2 { margin: 0 0 17px; font-size: 21px; font-weight: 600; }
 .viewfinder { display: block; width: 58px; height: 44px; margin: auto; border: 2px solid #7e9abe; border-radius: 11px; position: relative; }
 .viewfinder::after { content: ""; position: absolute; inset: 11px 18px; border: 2px solid #a0b6d3; border-radius: 50%; }
 #viewer { width: 100%; height: 100%; max-height: 460px; object-fit: contain; }
+#replay-panel { margin-top: 26px; }
+#replay { width: 100%; background: #182b45; border-radius: 8px; }
+.coverage { margin: 20px 0; padding: 14px 16px; background: #e2eaf5; border-radius: 8px; font-size: 13px; line-height: 1.6; }
+.coverage p { margin: 3px 0; }
+.coverage details { margin-top: 10px; }
+#capture-events p { overflow-wrap: anywhere; }
+#unsaved { padding: 14px; background: #f6e4e4; color: #942c2c; border-radius: 8px; font-size: 14px; line-height: 1.6; }
+#download-segment { color: inherit; }
 #recording-badge { position: absolute; top: 14px; left: 14px; background: #ad3434; color: white; padding: 5px 10px; border-radius: 5px; font-size: 14px; }
 .caption { margin: 12px 0 18px; }
 .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
@@ -55,6 +63,7 @@ select { min-width: 0; max-width: 75%; padding: 5px 8px; border: 1px solid #d3dc
 .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 22px 0 12px; }
 h3 { font-size: 16px; margin: 0; font-weight: 600; }
 .section-heading > span { font-size: 13px; color: #5c6b7d; }
+#clips { max-height: 290px; overflow-y: auto; }
 .empty-library { color: #5c6b7d; font-size: 14px; border-top: 1px solid #e1e6ee; padding-top: 18px; }
 .clip { display: block; width: 100%; text-align: left; background: transparent; border: 0; border-radius: 0; border-top: 1px solid #e1e6ee; padding: 13px 0; font-weight: 500; }
 .clip strong { display: block; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }

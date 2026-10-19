@@ -1,6 +1,6 @@
 # Milestones
 
-Updated: 2026-10-19. **M1 household validation is pending; a bounded M2 manual interface enables collecting the missing clips. User explicitly requested continuation.**
+Updated: 2026-10-19. **M1 household validation is pending; M2 continuous recording and background indexing are implemented locally. User authorized this expansion after successful manual retrieval.**
 
 This is the single project progress tracker. Detailed implementation tasks are written for the approved next milestone when the user asks to build. Research can inform the plan without silently changing scope.
 
@@ -10,7 +10,7 @@ This is the single project progress tracker. Detailed implementation tasks are w
 | --- | --- | --- | --- | --- |
 | M0 | Agree on design, scope, repo layout, and research plan | Complete | — | User reviewed in Zed and requested implementation to resume |
 | M1 | Prove local visual retrieval feasibility | In progress | M0 + implementation instruction | [Measured public-image smoke baseline](research/R3-local-retrieval.md); independent household clips still needed |
-| M2 | Build an inspectable recording/search slice | In progress | M1; manual capture enables its evaluation | [Validated manual interface](superpowers/plans/2026-10-19-local-demo.md): 29 tests and offline real-model browser check; continuous/retention/recovery work remains |
+| M2 | Build an inspectable recording/search slice | In progress | M1; manual capture enables its evaluation | [Continuous implementation](superpowers/plans/2026-10-19-continuous-recording.md): durable rolling capture, prioritized search, budget and restart recovery; retention/deletion and hardware soak remain |
 | M3 | Add verified visual answers and fresh inspection | Not started | M2 | No verifier yet |
 | M4 | Connect natural voice and durable transcripts | Not started | M3 | No voice integration yet |
 | M5 | Add personal recall and reminders | Not started | M4 | No personal-memory/action implementation yet |
@@ -42,7 +42,7 @@ Use an explicitly provided or permitted short video/image set before making the 
 
 Done when: a reproducible run retrieves labelled moments, stores source-linked vectors in SQLite, and reports actual quality/resource results. Fixed gates should be agreed from these results before expanding the pipeline. A synthetic colored-frame test is not a semantic retrieval benchmark.
 
-Evidence: [R3](research/R3-local-retrieval.md) records the baseline and crop comparison. Five-view crops did not improve occurrence recall@3/@5 on the public fixture; full-frame indexing remains the default. No household clip was available when asked. Manual clip capture enables this evaluation; this does not close M1 or approve continuous background expansion.
+Evidence: [R3](research/R3-local-retrieval.md) records the baseline and crop comparison. Five-view crops did not improve occurrence recall@3/@5 on the public fixture; full-frame indexing remains the default. No household clip was available when asked. The user demonstrated matching cookie-packet, phone, keys and raised-hand results and then authorized continuous expansion. This developer demonstration does not close independent M1 evaluation.
 
 ## M2 — Make recordings and search inspectable
 
@@ -54,7 +54,11 @@ Evidence: [R3](research/R3-local-retrieval.md) records the baseline and crop com
 
 Done when: a thirty-minute controlled recording can be searched and replayed at correct moments after restart, controls work, and incomplete/failed indexing cannot masquerade as verified history. Results remain labelled candidates.
 
-Bounded current delivery: localhost manual video-only clips (up to two minutes), explicit index/discard, file import, cached serialized inference, clip library, candidate search and HTTP range playback. Continuous segments, pause/gap history, bounded background indexing, retention/disk limits, deletion and interrupted-job recovery remain open. Manual capture controls are verified with synthetic browser camera frames; actual room-camera/30-minute verification remains pending.
+Current delivery: explicitly enabled continuous video-only capture in approximately ten-second independently playable segments; automatic background indexing; interactive search and separate source replay; pause/resume; saved/searchable sample times and interruption history; bounded backlog; 1 GiB original-video cap without deletion; idempotent delivery and saved-work restart recovery. Existing manual imports remain compatible. Deterministic/API and real-model synthetic-camera checks are recorded in the [implementation plan](superpowers/plans/2026-10-19-continuous-recording.md).
+
+User-reported check: automatic indexing worked during a 2–3 minute trial on 2026-10-19. This does not replace the thirty-minute resource/restart evaluation.
+
+Remaining: retention policy/source-aware deletion, independent household labels and the thirty-minute actual-camera/resource/restart evaluation. Synthetic browser capture does not close those gates. Interrupted browser-exit tails may be lost and uncertain segments do not assert wall-clock coverage. Model cache/thumbnails are outside the original-video cap.
 
 ## M3 — Answer from visual evidence
 

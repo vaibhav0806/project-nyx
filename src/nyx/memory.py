@@ -74,8 +74,8 @@ class Store:
         finally:
             db.close()
 
-    def add_video(self, name, path, recorded_at, interval):
-        video_id = uuid.uuid4().hex
+    def add_video(self, name, path, recorded_at, interval, video_id=None):
+        video_id = video_id or uuid.uuid4().hex
         with self.connection() as db:
             db.execute(
                 """INSERT INTO videos
@@ -84,6 +84,24 @@ class Store:
                 (video_id, name, path, recorded_at, datetime.now(UTC).isoformat(), interval),
             )
         return video_id
+
+    def video(self, video_id):
+        with self.connection() as db:
+            row = db.execute(
+                """SELECT videos.*, COUNT(frames.id) AS frame_count,
+                MAX(frames.offset_seconds) AS last_sample_seconds
+                FROM videos LEFT JOIN frames ON frames.video_id = videos.id
+                WHERE videos.id = ? GROUP BY videos.id""",
+                (video_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def restart_video(self, video_id):
+        with self.connection() as db:
+            db.execute("DELETE FROM frames WHERE video_id = ?", (video_id,))
+            db.execute(
+                "UPDATE videos SET status = 'indexing', error = NULL WHERE id = ?", (video_id,)
+            )
 
     def add_frames(self, video_id, frames, vectors):
         if len(frames) != len(vectors):

@@ -2,7 +2,7 @@
 
 ## Current authorization
 
-The user reviewed the documentation and explicitly asked to continue working on 2026-10-19. **Implementation is authorized for M1 local retrieval and, following continuation, the manual recording/import/search interface needed to collect test clips (bounded M2).** Necessary setup, local model download/inference, permitted sample-media evaluation, source-linked SQLite retrieval and a localhost interface are in scope. Implement camera controls but do not activate a real room camera automatically or during agent verification. Live capture of people, cloud-media upload, outreach, purchases, and later product milestones remain separately scoped. See the [bounded interface plan](docs/superpowers/plans/2026-10-19-local-demo.md).
+The user reviewed the documentation and explicitly asked to continue working on 2026-10-19. **M1 retrieval, the manual interface and continuous recording/background indexing with search are authorized.** The user selected a 1 GiB saved-video budget: stop at the limit, preserve existing clips, never automatically delete them. Implement camera controls but do not activate a real room camera automatically or during agent verification. Cloud-media upload, outreach, purchases, and later product milestones remain separately scoped. See the [continuous recording plan](docs/superpowers/plans/2026-10-19-continuous-recording.md); it supersedes the earlier manual-only implementation boundary.
 
 Design approval and implementation authorization are separate. Once the user authorizes an approved milestone, complete its necessary work without asking for permission at every reversible step.
 

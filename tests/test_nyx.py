@@ -129,6 +129,39 @@ def test_index_copies_source_and_search_finds_later_scene(store, video):
     assert (store.root / results[0]["video_path"]).read_bytes() == video.read_bytes()
 
 
+def test_batch_indexing_recovers_stable_id_without_duplicate_frames(store, video):
+    from nyx.retrieval import index_video_batches
+
+    video_id = "a" * 32
+    steps = index_video_batches(video, store, ColorEncoder(), batch_size=1, video_id=video_id)
+    next(steps)
+    assert store.search([1, 0, 0]) == []
+    steps.close()
+    result = index_video(video, store, ColorEncoder(), batch_size=1, video_id=video_id)
+    assert result["video_id"] == video_id
+    assert result["frame_count"] == 2
+    again = index_video(video, store, ColorEncoder(), video_id=video_id)
+    assert again["frame_count"] == 2
+    assert len(store.list_videos()) == 1
+    assert len(store.search([1, 0, 0], limit=100)) == 2
+
+
+def test_failed_indexing_preserves_an_already_saved_recording(store, video):
+    video_id = "b" * 32
+    saved = store.root / "recordings" / f"{video_id}.mp4"
+    saved.parent.mkdir()
+    saved.write_bytes(video.read_bytes())
+
+    class BrokenEncoder(ColorEncoder):
+        def encode_images(self, images):
+            raise RuntimeError("model failed")
+
+    with pytest.raises(RuntimeError, match="model failed"):
+        index_video(saved, store, BrokenEncoder(), video_id=video_id)
+    assert saved.read_bytes() == video.read_bytes()
+    assert store.search([1, 0, 0]) == []
+
+
 def test_encoding_failure_cleans_up_partial_evidence(store, video):
     class BrokenEncoder(ColorEncoder):
         def encode_images(self, images):

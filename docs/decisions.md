@@ -1,6 +1,6 @@
 # Decisions and open choices
 
-Updated: 2026-10-19. This records discussion outcomes and engineering choices. The user explicitly resumed work on 2026-10-19; M1 local retrieval is authorized. Unmeasured model choices remain experiments.
+Updated: 2026-10-19. This records discussion outcomes and engineering choices. The user explicitly resumed work on 2026-10-19; M1 retrieval and continuous recording/background indexing are authorized. Unmeasured model choices remain experiments.
 
 ## Status vocabulary
 
@@ -19,13 +19,14 @@ Updated: 2026-10-19. This records discussion outcomes and engineering choices. T
 | D4 | Cloud voice is acceptable; explore local vision. Full offline operation is not required for this prototype. | Explicit user answer. |
 | D5 | Investigate a light background perception/retrieval path and on-demand interpretation; keep JEPA research distinct from the retrieval baseline. | Working direction discussed with the user and teammate; exact model remains open. |
 | D6 | Resume M1 local visual retrieval after the documentation review. | User explicitly requested “continue working now” on 2026-10-19; supersedes the earlier pause. |
+| D8 | Stop continuous recording at a 1 GiB saved original-video budget; preserve existing clips. | Explicit user selection on 2026-10-19. |
 | D7 | Work inline; no subagents without explicit user request. | User's personal rules. |
 
 ## Proposed technical choices
 
 | ID | Proposal | Why / what must be checked |
 | --- | --- | --- |
-| P1 | One Python package in `src/nyx/`, with a small browser interface. | Running baseline: packaged plain browser assets; continuous recording experience remains open. |
+| P1 | One Python package in `src/nyx/`, with a small browser interface. | Running baseline: packaged plain browser assets; continuous capture now uses the same packaged browser stack. |
 | P2 | Python 3.12, uv, FastAPI. | Dependencies installed/locked and validated for the bounded manual interface. |
 | P3 | SQLite plus `sqlite-vec`, with original media on disk. | Keep timestamps, sources, vectors, facts and actions local; verify extension support and retrieval behavior. |
 | P4 | Small aligned image/text encoder for the first retrieval baseline. | Enables descriptive-query retrieval; compare real small-object scenes before selecting a checkpoint. |
@@ -39,12 +40,12 @@ Updated: 2026-10-19. This records discussion outcomes and engineering choices. T
 | --- | --- | --- |
 | O1 | Which three daily-life workflows matter most to intended users? | R1 interviews and role-play. |
 | O2 | Preferred language, interaction style, and installation/maintenance needs? | R1/R2 research. |
-| O3 | Camera placement, acceptable recording coverage, retention duration, disk cap, and identity handling? | Product review plus R2 findings. |
+| O3 | Camera placement, acceptable recording coverage, retention duration and identity handling? (Demo video budget: D8.) | Product review plus R2 findings. |
 | O4 | Encoder checkpoint, preprocessing, sampling/crop strategy, and retrieval thresholds? | R3 measured baseline. |
 | O5 | VLM checkpoint/runtime and verification quality on retrieved candidates? | R4 measured comparison. |
 | O6 | JEPA's useful contribution, Mac compatibility, and prediction task/data requirements? | R5 experiment. |
 | O7 | Cloud voice provider, target-language performance, interruptions, and tool latency? | R6 trial. |
-| O8 | Continuous capture/playback UX and retention controls beyond the manual interface? | M2 follow-up; current manual stack is selected below. |
+| O8 | Long-run capture reliability and retention/deletion controls beyond the current continuous slice? | M2 hardware soak and product review; current stack is selected below. |
 | O9 | Dedicated hardware and standalone operating budget? | Measured laptop workload, then M7. |
 
 ## Superseded assumptions
@@ -68,7 +69,7 @@ Add a row or short entry with: ID, date, status, decision owner, choice, alterna
 - A generated HTML candidate gallery is sufficient for M1 inspection. Live capture, browser interaction, VLM verification and voice remain separate work.
 - Only permitted public reference images and synthetic fixtures were used. No live camera, household-media upload, cloud voice, interviews, or purchases were performed.
 
-## Manual interface implementation selections
+## Earlier manual interface implementation selections
 
 2026-10-19, engineering calls following the user's request to continue and confirmation that no existing clip is available:
 
@@ -77,3 +78,15 @@ Add a row or short entry with: ID, date, status, decision owner, choice, alterna
 - Browser capture is video-only, opt-in, maximum two minutes, followed by explicit index/discard. Imported wall-clock time remains unknown; browser capture time uses the browser clock. Stop on track interruption or tab hiding instead of claiming continuous coverage.
 - Keep the existing full-frame encoder default: the five-view crop experiment adds work without improving recall@3/@5 on the correlated smoke fixture. Revisit with independent household labels.
 - Serve only localhost; source IDs resolve registered evidence and support range playback. Job status is ephemeral and does not imply durable restart recovery. No cloud-media fallback is introduced.
+
+## Continuous recording implementation selections
+
+2026-10-19, following the user's successful manual retrieval demonstration, explicit request to start and 1 GiB budget selection. This supersedes the manual-only boundary above; household accuracy evaluation remains open.
+
+- Keep FastAPI, packaged plain browser assets and the pinned local encoder. Record independent approximately ten-second files and automatically save/index them; do not treat arbitrary MediaRecorder timeslices as playable files.
+- Persist capture sessions/segments/events in `capture.sqlite3` separately from the embedding index. Stable segment IDs and staged atomic saves permit idempotent retries and recovery. Preserve saved sources even if a model fails.
+- Advance one inference worker in two-image batches; prioritize queued search between them. This bounds contention without introducing another model copy or service. Long model load/decode calls remain nonpreemptible.
+- Bound server pending segments to eight; stop browser capture on backpressure or save failure. Keep pending blobs for retry/download only while the page survives. Saved/searchable times and interruptions remain separate from camera-on state.
+- Stop at 1 GiB original-video storage without deleting clips. Existing imports count; model cache/thumbnails are additional. Retention duration and deletion remain pending. Revisit sampling/segmentation/limits after a thirty-minute real-camera run and independent household evaluation.
+- Do not auto-resume capture after restart. Interrupted tails have unknown wall-clock time while clip offsets remain searchable; hidden-tab recording and real sleep behavior still require hardware evaluation.
+- The user requested the pre-automatic-indexing snapshot on GitHub: manual baseline `67fcaf5` is pushed to `main`. The user subsequently tested automatic indexing for 2–3 minutes and explicitly requested this continuous slice be pushed to `main`.

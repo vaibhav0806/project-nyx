@@ -1,6 +1,6 @@
 # Technical architecture
 
-Status: working architecture, 2026-10-19. M1 has local clip import/sampling, encoder inference, SQLite retrieval, a CLI and an HTML gallery. A bounded M2 localhost interface adds manual clip recording/import/search and source playback. Continuous capture, verification, cloud voice and actions remain planned. [Decisions](decisions.md) distinguishes established preferences from open selections.
+Status: working architecture, 2026-10-19. M1 has local clip import/sampling, encoder inference, SQLite retrieval, a CLI and an HTML gallery. The M2 localhost interface adds enabled rolling recording, automatic background indexing, interactive search and separate source playback. Verification, cloud voice and actions remain planned. [Decisions](decisions.md) distinguishes established preferences from open selections.
 
 ## Shape of the system
 
@@ -104,10 +104,16 @@ These are source pointers, not endorsed performance results. Recheck exact versi
 
 `capture.py` extracts frames and preserves actual selected decoded offsets. `memory.py` uses ordinary SQLite rows plus `sqlite-vec` cosine-distance functions; this is an exact scan with metadata filters, not an ANN index. Its small-corpus performance does not establish large-archive scalability. `retrieval.py` excludes indexing/failed clips and cleans up failed imports. `perception.py` loads a pinned, safetensors-only checkpoint without remote code. `report.py` produces an escaped, self-contained HTML gallery. No live camera or cloud session starts automatically.
 
-## Manual interface implementation
+## Recording/search implementation
 
-`nyx serve` binds FastAPI/Uvicorn to `127.0.0.1`. `app.py` serves packaged plain browser assets under `src/nyx/web/`, streams uploads into temporary incoming directories with a 256 MiB cap, and gives completed uploads to one inference worker. A task reservation covers upload and inference; extra tasks receive a busy response. The encoder loads lazily once and stays cached. Jobs are session-local status records, not durable workflow state. Library/evidence requests use short SQLite connections without loading the model.
+`nyx serve` binds FastAPI/Uvicorn to `127.0.0.1` and serves packaged browser assets from `src/nyx/web/`. MediaRecorder produces independent approximately ten-second video-only files; the next recorder starts on the same camera stream before the previous one stops. Segment boundaries can overlap slightly. Each completed segment uploads automatically with session/sequence identity and browser-clock metadata. Camera access requires explicit Start/Resume. Pause/Stop releases tracks, and source replay uses a separate player.
 
-MediaRecorder captures video only after Start and releases camera tracks on stop/navigation. Clips stop at two minutes, camera interruption or tab hiding. Review then Index explicitly transfers the clip to the same laptop server. Camera start time comes from the browser's clock; imports retain unknown capture time. This is short manual capture, not continuous coverage. Media is served by registered video/frame IDs with range responses for source seeking; arbitrary data-directory files are not exposed. Host and mutation-origin checks restrict browser access to the local app.
+`recording.py` owns a durable `capture.sqlite3` journal of sessions, segments and interruption events. A stable segment UUID makes duplicate delivery/indexing idempotent. Uploads are staged and atomically renamed into managed recordings, then queued. Original media survives indexing failure; incomplete uploads never become searchable. Startup marks active sessions interrupted, recovers staged files and requeues saved interrupted indexing without opening a camera. Ephemeral job-status polling remains separate from this durable capture journal.
 
-The M1 crop comparison lives only in the experiment: full-frame plus four overlapping crops, max score per distinct source frame. It did not improve recall@3/@5 on the existing public fixture, so the application retains full-frame indexing. See R3 for the full occurrence-rank results and limits.
+One cached inference worker advances index generators in two-image batches. Searches take priority between batches; current model loading, FFmpeg decoding or inference cannot be preempted. Admission allows at most eight pending capture segments, one manual import and one interactive search. The browser stops capture if saving cannot keep up; a small bounded queue plus the finalizing recorder tail retains pending uploads for retry/download. Browser-exit delivery is best effort.
+
+The 1 GiB budget counts original videos in recordings/incoming, including existing imports. Uploads are bounded by remaining budget, a 256 MiB request limit and a 256 MiB free-disk guard; originals are never automatically deleted. Model cache and derived thumbnails are outside this video budget. Retention/source-aware deletion remain pending.
+
+Coverage displays latest saved and searchable sampled times alongside interruption history; it does not assert continuous observed coverage. Uncertain interrupted segments remain searchable by clip offset with unknown wall-clock time. Imports also retain unknown capture time unless explicitly supplied. Browser/OS suspension can affect actual capture and needs hardware evaluation. Media endpoints expose registered sources with HTTP range support; host/origin checks remain in place. No cloud media fallback is configured.
+
+The M1 crop comparison remains experimental: full-frame plus four overlapping crops did not improve recall@3/@5 on the existing public fixture, so application indexing remains full-frame. See R3 for results and limitations.

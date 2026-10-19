@@ -1,6 +1,6 @@
 # Scope
 
-Status: working scope. The user explicitly resumed implementation on 2026-10-19. The first retrieval slice exists; a bounded manual interface enables collecting its missing household evaluation clips. Later laptop-demo components remain planned.
+Status: working scope. The user explicitly resumed implementation on 2026-10-19. The first retrieval slice exists; continuous local capture/background retrieval is authorized and implemented. Later laptop-demo components remain planned.
 
 ## First engineering slice
 
@@ -8,7 +8,7 @@ Import a short local video, sample timestamped frames, embed them with a small i
 
 This slice establishes retrieval quality and laptop resource use. Results must be labelled as unverified candidates. It does not yet establish “last seen,” absence, a correct location, or spoken assistance. No live recording or model download is required to review this design.
 
-The current follow-up adds manual, explicitly started browser video-only clips capped at two minutes, preview/index/discard, local file import, search and source playback. Model inference and saved media stay on the laptop. This is a portion of M2 to enable M1 evaluation; it does not imply continuous recording, retention/deletion controls or restart recovery are complete.
+The current follow-up adds explicitly enabled continuous browser video-only recording, approximately ten-second independently playable segments, automatic local indexing, pause/resume, candidate search during capture and separate source playback. Saved work recovers after server restart. The 1 GiB original-video budget stops capture without deleting existing clips; thumbnails/model cache are additional. Upload failures retain retry/download options while the page remains open. Capture time is unknown for imported media and uncertain interrupted tails. Retention/deletion controls and the thirty-minute real-camera check remain pending.
 
 ## Laptop demo
 
@@ -36,7 +36,7 @@ The proposed development setting is one fixed room/view with five described test
 - A failed capture, missing index match, or hidden object does not prove absence or movement.
 - Visitor detection alone does not establish identity or intent.
 - Source expiry/deletion must propagate to derived thumbnails, vectors, and history entries. Display the actual searchable range.
-- Retention duration and disk cap are open decisions; do not silently adopt the previous draft's seven-day proposal.
+- The demo has a user-selected 1 GiB original-video budget, stopping without deletion. Retention duration and source-aware deletion remain open; do not adopt the previous seven-day proposal.
 - Cloud voice is acceptable for the prototype. Cloud image processing and raw-media upload are separate choices; do not enable them as an implicit fallback.
 
 ## Later work
