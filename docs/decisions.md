@@ -298,3 +298,26 @@ No broad accuracy claim follows from the synthetic smoke. Existing Qwen3-VL fail
 remain the baseline; full new-model evaluation is deferred. The user authorized
 removal of obsolete model weights after the replacement loads successfully. Keep
 SigLIP retrieval, speech and detector assets; raw recordings are never cache cleanup.
+
+### Conversation repair without model inference — 2026-10-20
+
+The user authorized reminder/conversation reliability work while keeping real-model
+inference paused. Validate mutation eligibility during bounded decision validation,
+then recheck at the tool boundary. An unauthorized cancellation now returns a decision
+repair signal before creating any tool observation or changing a reminder. Two repair
+attempts still share the six-decision budget. Prior conversation cannot authorize a
+mutation on the current turn.
+
+Cancellation requires a direct supported cancellation request, no negation or embedded
+"remind me to cancel" instruction, an exact active ID, and a reminder referent. When
+several reminders are active, require one uniquely matched full reminder message or
+clarify. Duplicate messages remain ambiguous; UI cancellation by ID remains available.
+This conservative text guard is not general language understanding and may clarify
+valid paraphrases. Existing request-ID idempotency is unchanged; distinct requests
+with identical messages can still create separate reminders.
+
+Planner prompt v9 prioritizes the latest correction, preserves compatible user-given
+attributes, and separates prior answers from current evidence. Remaining search
+windows/tools are computed per resolved query, rather than globally across different
+objects. Query changes can revisit a recent window. Deterministic fixtures validate
+context/arguments/repair behavior; actual Qwen understanding remains unmeasured.

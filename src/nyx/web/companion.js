@@ -159,8 +159,10 @@ const companion = {
       const phases = { quiet: "Waiting for activity", collecting: "Watching whether the change persists", active: "Following activity", settling: "Following activity", settled: "Activity settled" };
       const decisions = { superseded_evidence: "Scene changed or evidence expired; waiting for a fresh check", uncertain: "Departure unclear; continuing to watch", no_departure: "No departure indicated", missing_exit_cues: "Exit movement not established", unresolved_exit: "Cannot identify the home exit from this view", inconsistent_exit: "Exit location changed; waiting for consistent evidence", unconfirmed_approach: "Person movement does not confirm approaching the exit", no_matching_request: "Waiting for evidence after the request" };
       const phase = phases[state.observation.phase] || "Watching locally for departure cues";
-      const decision = decisions[state.observation.decision?.reason];
-      $("observation-state").textContent = !enabled ? "Camera off; departure reminders are waiting for observation." : state.observation.error ? `Observation interrupted: ${state.observation.error}` : `${this.armed ? phase : "No armed departure reminder"}${this.armed && decision ? ` · ${decision}` : ""}${state.observation.judgment ? ` · ${state.observation.judgment.cue}` : ""}`;
+      const continuity = { capture_stale: "Camera updates stopped; waiting for fresh evidence", evidence_window_lost: "The checked images are too old; waiting for a fresh check", scene_changed: "The scene changed while checking; watching again", scene_unsettled: "A new change is still settling; watching again" };
+      const checking = state.observation.state === "checking";
+      const decision = checking ? "Checking the recent activity" : continuity[state.observation.delivery_continuity?.reason] || decisions[state.observation.decision?.reason];
+      $("observation-state").textContent = !enabled ? "Camera off; departure reminders are waiting for observation." : state.observation.error ? `Observation interrupted: ${state.observation.error}` : `${this.armed ? phase : "No armed departure reminder"}${this.armed && decision ? ` · ${decision}` : ""}${!checking && state.observation.judgment ? ` · ${state.observation.judgment.cue}` : ""}`;
       if (state.pending.length) this.deliver(state.pending[0]);
     } finally { this.refreshBusy = false; }
   },

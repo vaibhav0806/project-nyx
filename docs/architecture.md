@@ -264,3 +264,13 @@ images are passed separately to generation in the same order, bounded to 768 pix
 Text-only turns pass no images. Thinking is disabled and existing token limits and
 JSON/evidence validation remain. The legacy Transformers backend is retained for
 explicit diagnostics and non-Apple systems, with no automatic error fallback.
+
+The agent accepts an application `validate_tool` callback inside its existing bounded
+decision-repair loop. Companion reminder authorization runs there and again immediately
+before tool execution. Rejected choices consume repair/decision budget but create no
+tool observation, so a misrouted cancellation can be corrected without pretending it
+was executed. Active-state and target checks remain authoritative at execution.
+
+Planner continuation exposes `remaining_query` with its remaining search windows;
+checks for a different description do not exhaust this query's windows. Prompt v9
+prioritizes the current message/correction over past tasks and location answers.

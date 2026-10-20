@@ -374,6 +374,7 @@ def test_inflight_departure_cannot_act_after_cancellation_camera_stop_or_expiry(
                 assert outcome["result"]["decision"]["reason"] == "superseded_evidence"
                 assert outcome["result"]["delivery_continuity"]["reason"] == "scene_changed"
             status = client.get("/api/companion").json()
+            assert status["observation"]["state"] != "checking"
             assert status["pending"] == []
             assert status["reminders"][0]["state"] == (
                 "cancelled" if interruption == "cancel" else "armed"
@@ -632,3 +633,100 @@ def test_imported_unknown_time_media_can_be_checked_without_claiming_latest(tmp_
         assert output["visual"]["evidence"]["observed_at"] is None
         assert "unknown recording time" in output["answer"]
         assert "latest" not in output["answer"].lower()
+
+
+def test_wrong_cancellation_is_repaired_before_tools_and_preserves_existing_request(tmp_path):
+    class Repair(Planner):
+        def decide(self, state):
+            if state["observations"]:
+                return {"action": "finish", "observation": 0}
+            if state["reminders"] and not state.get("decision_error"):
+                return {"action": "cancel_reminder", "id": state["reminders"][0]["id"]}
+            if state["reminders"]:
+                assert "cancel" in state["decision_error"]
+                assert state["actions"] == []
+            return {"action": "remind_on_departure", "message": "Take your water bottle"}
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Repair)
+    ) as client:
+        for request_id in ["first", "second"]:
+            job = client.post(
+                "/api/agent",
+                json={
+                    "message": "Remind me to take my water bottle when I leave",
+                    "request_id": request_id,
+                },
+            ).json()
+            result = wait_for_job(client, job["id"])["result"]
+            assert result["status"] == "armed"
+        assert len(result["decision_errors"]) == 1
+        rows = client.get("/api/companion").json()["reminders"]
+        assert len(rows) == 2 and all(r["state"] == "armed" for r in rows)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Do not cancel my reminder",
+        "Don't forget my reminder",
+        "Remind me to cancel my appointment when I leave",
+        "Where is the sign saying cancel reminder?",
+    ],
+)
+def test_negated_or_embedded_cancellation_cannot_change_reminders(tmp_path, message):
+    class Cancel(Planner):
+        def decide(self, state):
+            return {"action": "cancel_reminder", "id": state["reminders"][0]["id"]}
+
+    from nyx.intentions import Intentions
+
+    tasks = Intentions(tmp_path)
+    item = tasks.create("existing", "Take water")
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Cancel)
+    ) as client:
+        job = client.post("/api/agent", json={"message": message, "request_id": "negated"}).json()
+        result = wait_for_job(client, job["id"])["result"]
+        assert result["status"] == "uncertain"
+        assert result["steps"] == []
+        assert tasks.get(item["id"])["state"] == "armed"
+
+
+@pytest.mark.parametrize(
+    "message,extra,expected",
+    [
+        ("Cancel that reminder", False, "cancelled"),
+        ("Cancel that reminder", True, "clarify"),
+        ("Cancel my appointment", False, "clarify"),
+        ("Cancel Take water reminder", "duplicate", "clarify"),
+        ("Cancel Take water reminder", True, "cancelled"),
+    ],
+)
+def test_cancellation_requires_unambiguous_reminder_target(tmp_path, message, extra, expected):
+    from nyx.intentions import Intentions
+
+    tasks = Intentions(tmp_path)
+    first = tasks.create("one", "Take water")
+    if extra:
+        tasks.create("two", "Take water" if extra == "duplicate" else "Take keys")
+
+    class Select(Planner):
+        def decide(self, state):
+            if state.get("decision_error"):
+                return {"action": "clarify", "message": "Which departure reminder should I cancel?"}
+            if state["observations"]:
+                return {"action": "finish", "observation": 0}
+            return {"action": "cancel_reminder", "id": first["id"]}
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Select)
+    ) as client:
+        job = client.post(
+            "/api/agent", json={"message": message, "request_id": "cancel-specific"}
+        ).json()
+        result = wait_for_job(client, job["id"])["result"]
+        assert result["status"] == expected
+        assert tasks.get(first["id"])["state"] == (
+            "cancelled" if expected == "cancelled" else "armed"
+        )

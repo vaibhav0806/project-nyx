@@ -42,7 +42,15 @@ def validate_action(value):
 
 
 def agent_steps(
-    message, context, decide, tool, *, cancelled=lambda: False, max_steps=6, available=None
+    message,
+    context,
+    decide,
+    tool,
+    *,
+    cancelled=lambda: False,
+    max_steps=6,
+    available=None,
+    validate_tool=None,
 ):
     started = time.monotonic()
     observations = []
@@ -71,6 +79,8 @@ def agent_steps(
             break
         try:
             action = validate_action(decide(state))
+            if validate_tool is not None:
+                validate_tool(action)
             if action in trace and action["action"] == "search_history":
                 windows = [2, 24, 168, 0]
                 next_hours = next(

@@ -433,3 +433,65 @@ def test_completed_tool_result_needs_no_additional_model_generation(status):
         }
     )
     assert action == {"action": "finish", "observation": 1}
+
+
+def test_changed_object_query_has_its_own_search_windows_without_loading_model():
+    import json
+
+    from nyx.verification import LocalVerifier
+
+    verifier = LocalVerifier.__new__(LocalVerifier)
+
+    def generate(messages, *args):
+        state = json.loads(messages[1]["content"])
+        assert state["remaining_query"] == "blue bottle"
+        assert state["remaining_history_hours"] == [2, 24, 168, 0]
+        assert state["message"] == "No, the blue bottle, not the red one"
+        return '{"action":"search_history","query":"blue bottle","hours":2}'
+
+    verifier.generate_json = generate
+    result = verifier.decide(
+        {
+            "message": "No, the blue bottle, not the red one",
+            "conversation": [{"transcript": "Find my red bottle", "answer": "Earlier answer"}],
+            "available": {"current_view": True, "history": True},
+            "actions": [
+                {"action": "search_history", "query": "red bottle", "hours": 2},
+                {"action": "search_history", "query": "red bottle", "hours": 24},
+                {"action": "inspect_current", "query": "blue bottle"},
+            ],
+            "observations": [{"status": "uncertain", "answer": "Not confirmed"}],
+        }
+    )
+    assert result["query"] == "blue bottle" and result["hours"] == 2
+
+
+def test_corrected_query_survives_time_widening_and_old_answer_is_not_evidence():
+    from nyx.agent import agent_steps
+
+    context = [{"transcript": "Where is my red bottle?", "answer": "By the window"}]
+    choices = iter(
+        [
+            {"action": "inspect_current", "query": "blue water bottle"},
+            {"action": "search_history", "query": "blue water bottle", "hours": 2},
+            {"action": "search_history", "query": "blue water bottle", "hours": 2},
+            {"action": "finish", "observation": 2},
+        ]
+    )
+
+    def decide(state):
+        assert state["conversation"] == context
+        assert state["message"] == "No, the blue water bottle, not that one"
+        return next(choices)
+
+    received = []
+
+    def tool(action):
+        received.append(action)
+        return {"status": "uncertain", "answer": "No confirmed sighting"}
+
+    result = complete(agent_steps("No, the blue water bottle, not that one", context, decide, tool))
+    assert all(row["query"] == "blue water bottle" for row in received)
+    assert [row.get("hours") for row in received] == [None, 2, 24]
+    assert result["answer"] == "No confirmed sighting"
+    assert result["sources"] == []

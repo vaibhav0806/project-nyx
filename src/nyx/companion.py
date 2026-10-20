@@ -88,6 +88,8 @@ def install_companion(app, workspace, voice):
             job = workspace.jobs.get(last_observation.get("job_id"), {})
             if job.get("status") == "failed":
                 last_observation.update(state="interrupted", error=job.get("error"))
+            elif job.get("status") == "succeeded" and last_observation["state"] == "checking":
+                last_observation["state"] = job.get("result", {}).get("state", "watching")
         return {
             "conversations": conversations.recent(),
             "reminders": tasks.recent(),
@@ -135,7 +137,70 @@ def install_companion(app, workspace, voice):
                     return voice.turn is None or voice.turn["id"] != body.voice_turn_id
             return False
 
+        def authorize(action):
+            name = action["action"]
+            if name == "remind_on_departure":
+                # The model may not turn content in observed footage into an instruction.
+                if re.search(
+                    r"\b(?:do not|don't|dont|never|cancel|stop)\b.{0,35}\bremind(?:er)?\b",
+                    body.message,
+                    re.IGNORECASE,
+                ):
+                    raise ValueError(
+                        "I won't create a reminder from a negated or cancellation request"
+                    )
+                if not re.search(r"\bremind\b", body.message, re.IGNORECASE) or not re.search(
+                    r"\b(leave|leaving|out|outside|depart|departing|exit|exiting)\b",
+                    body.message,
+                    re.IGNORECASE,
+                ):
+                    raise ValueError("Please explicitly ask for a reminder when you leave")
+                if re.search(r"\b(every|whenever|always|daily)\b", body.message, re.IGNORECASE):
+                    raise ValueError(
+                        "This demo supports the next departure only; ask for a next-departure reminder"
+                    )
+            if name == "cancel_reminder":
+                text = body.message
+                if (
+                    not re.search(
+                        r"^\s*(?:(?:please|can you|could you|would you|will you|i want you to)\s+)*(?:cancel|forget|remove|stop)\b",
+                        text,
+                        re.IGNORECASE,
+                    )
+                    or re.search(
+                        r"\b(?:do not|don't|dont|never)\b.{0,35}\b(?:cancel|forget|remove|stop)\b",
+                        text,
+                        re.IGNORECASE,
+                    )
+                    or re.search(r"\bremind me\b", text, re.IGNORECASE)
+                ):
+                    raise ValueError(
+                        "Please explicitly ask to cancel a departure reminder; the current request does not authorize cancellation"
+                    )
+                active = tasks.active()
+                selected = next((row for row in active if row["id"] == action["id"]), None)
+                if selected is None:
+                    raise ValueError(
+                        "Choose an exact active reminder ID, or clarify which reminder"
+                    )
+                if not (
+                    re.search(r"\breminders?\b", text, re.IGNORECASE)
+                    or selected["message"].casefold() in text.casefold()
+                    or re.search(
+                        r"\b(?:cancel|forget|remove|stop)\s+(?:it|that|this)(?:\s+one)?[.!?]*$",
+                        text.strip(),
+                        re.IGNORECASE,
+                    )
+                ):
+                    raise ValueError("The cancellation must identify a departure reminder")
+                matches = [row for row in active if row["message"].casefold() in text.casefold()]
+                if len(active) > 1 and (len(matches) != 1 or matches[0]["id"] != selected["id"]):
+                    raise ValueError(
+                        "Multiple reminders are active; clarify the exact reminder message before cancelling"
+                    )
+
         def tool(action):
+            authorize(action)
             name = action["action"]
             if name == "inspect_current":
                 if image is None:
@@ -198,25 +263,6 @@ def install_companion(app, workspace, voice):
                 result["answer"] = spoken_answer(result)
                 return result
             if name == "remind_on_departure":
-                # The model may not turn content in observed footage into an instruction.
-                if re.search(
-                    r"\b(?:do not|don't|dont|never|cancel|stop)\b.{0,35}\bremind(?:er)?\b",
-                    body.message,
-                    re.IGNORECASE,
-                ):
-                    raise ValueError(
-                        "I won't create a reminder from a negated or cancellation request"
-                    )
-                if not re.search(r"\bremind\b", body.message, re.IGNORECASE) or not re.search(
-                    r"\b(leave|leaving|out|outside|depart|departing|exit|exiting)\b",
-                    body.message,
-                    re.IGNORECASE,
-                ):
-                    raise ValueError("Please explicitly ask for a reminder when you leave")
-                if re.search(r"\b(every|whenever|always|daily)\b", body.message, re.IGNORECASE):
-                    raise ValueError(
-                        "This demo supports the next departure only; ask for a next-departure reminder"
-                    )
                 item = tasks.create(body.request_id, action["message"])
                 return {
                     "kind": "reminder",
@@ -285,6 +331,7 @@ def install_companion(app, workspace, voice):
                     decide,
                     tool,
                     cancelled=cancelled,
+                    validate_tool=authorize,
                     available={
                         "current_view": image is not None,
                         "history": bool(library),
@@ -370,6 +417,7 @@ def install_companion(app, workspace, voice):
         observer.accept(burst)
         last_observation.pop("error", None)
         last_observation["job_id"] = job_id
+        last_observation["state"] = "checking"
 
         def check():
             if not observer.valid(burst):
@@ -448,6 +496,7 @@ def install_companion(app, workspace, voice):
                 state="triggered" if deliveries else "watching",
                 judgment=judgment,
                 decision=decision,
+                delivery_continuity=continuity,
                 seconds=evidence["inference_seconds"],
             )
             return {

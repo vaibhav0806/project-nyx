@@ -201,3 +201,21 @@ request armed. Its real-video regression was interrupted during the resource pau
 new-model recognition, multi-image semantics and conversation evaluation remain open.
 Heavy inference stays paused beyond the completed smoke. No M1–M5 acceptance gate
 is closed. Details and limitations are in [R8](research/R8-companion-loop.md).
+
+### Conversation reliability wiring — 2026-10-20
+
+Mutation validation now participates in bounded agent repair before executing a tool,
+with a second authorization check at execution. Tests cover misrouted cancellation
+recovery, negation, ambiguous targets and preservation of existing reminders. Search
+continuation is scoped to the resolved query; corrected descriptions can revisit
+recent windows, and time widening retains their attributes. Prompt v9 strengthens
+current-turn/correction precedence. Observation status text separates checking from
+stale/changed/uncertain evidence.
+
+All verification in this continuation uses deterministic boundaries. The real-model
+reminder/correction scenarios remain pending while inference is paused. No recognition,
+conversation quality or M1–M5 acceptance gate is declared met.
+
+Verification: 246 deterministic tests; final companion status regression 34/34;
+lint/format/JS and offline wheel checks pass. Browser and real-model validation remain
+separate pending work.

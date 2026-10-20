@@ -628,3 +628,34 @@ The small rejected detector comparison cache remains outside this model replacem
 [mlx-vlm 0.4.1](https://pypi.org/project/mlx-vlm/0.4.1/) (checked 2026-10-20).
 The config and published runtime source were inspected before integration. The
 selected path supports vision; published broad quality claims are not Nyx results.
+
+## Conversation repair and correction wiring — 2026-10-20
+
+**Implemented:** the previously observed mistaken cancellation on a new reminder
+request is now rejected during decision validation, allowing bounded repair before
+any tool executes. Authorization is rechecked immediately at execution. Negated
+cancellation, cancellation mentioned inside another request, nonexistent/inactive IDs,
+non-reminder targets and ambiguous multiple/duplicate reminder messages cannot mutate
+an intention through this route. Direct UI controls remain available by exact ID.
+
+Remaining planner search windows are scoped to the last resolved object query;
+searching one object no longer excludes recent windows for a different object.
+Prompt v9 instructs the model to prioritize the newest correction, retain compatible
+user attributes and avoid copying old location answers into the object description.
+The frontend distinguishes checking, stopped camera updates, expired evidence,
+changed scene and an unsettled new change, while hiding an old cue during a new check.
+
+**Method/limitation:** only deterministic scripted planners and fake inference
+boundaries were exercised. Regression cases force a wrong cancellation followed by
+repair, explicit/negated/ambiguous cancellation, a corrected object query revisiting
+recent history and unchanged query attributes during time widening. These tests prove
+control flow and context/argument retention, not Qwen's natural-language understanding.
+The original shared-conversation real-model failure has not been rerun. No inference,
+model download or browser launch was performed in this continuation. Reminder-message
+semantic deduplication and general long-term memory are not added.
+
+Verification: **246 deterministic tests pass**; after the final interrupted-status
+adjustment, all 34 companion API tests pass again. Ruff, formatting and JavaScript
+syntax pass. The offline `conversation-repair-package-001` wheel contains the current
+agent, verifier, companion and UI files. Browser interaction was not rerun during
+the memory-constrained pause. No new model accuracy measurement is claimed.
