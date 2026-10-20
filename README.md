@@ -51,16 +51,22 @@ next-departure action; they do not establish arbitrary automatic event understan
 Successive exit estimates are checked for consistency within a camera session.
 Detector misses, uncertain exit grounding and slow inference still cause missed events.
 Full-sequence replay caught one of three staged exit proxies, with a late notification,
-and produced one false action on indoor activity. Useful advance warning remains unproven.
+and produced one false action on indoor activity. Useful advance warning remains unproven. A post-inference continuity guard now
+withholds positive results if capture goes stale, the checked image leaves the
+retained window, or the scene changes during generation; this can also suppress
+correct but slow results.
 
 **Departure recognition is experimental and currently unreliable.** Public-video diagnostics found misses, false positives and delay. This is a single-person doorway prototype, without identity recognition or a guarantee of speaking before departure. Timed/recurring reminders and arbitrary event triggers are unsupported. A running browser page is required for live observation. [R8](docs/research/R8-companion-loop.md) records actual successes and failures.
 
-The agent reuses local Qwen for text decisions, so first use loads/downloads it. No new inference framework or quantization was added. This checkout's measured machine has 16 GiB memory, unlike the earlier 24 GiB benchmark machine. Run model experiments sequentially and preserve disk headroom.
+On Apple Silicon, the selected model is now Qwen3.5-2B in MLX 8-bit format, shared
+by visual checks and text decisions. First use loads/downloads its pinned checkpoint.
+This replaces the earlier BF16 Qwen3-VL path; historical results below remain results
+of that older model. Recognition quality with the new checkpoint is not yet measured. This checkout's measured machine has 16 GiB memory, unlike the earlier 24 GiB benchmark machine. Run model experiments sequentially and preserve disk headroom.
 
 Requires Python 3.12, uv, FFmpeg on PATH, and a browser with MediaRecorder support (Chrome was tested).
 
 ```bash
-uv sync --python 3.12 --managed-python --extra vision --extra web
+uv sync --python 3.12 --managed-python --extra vision --extra mlx --extra web
 uv run --no-sync nyx --data-dir data/manual-demo serve
 ```
 
@@ -79,7 +85,7 @@ The saved library initially shows fifty sources. **Show older clips** reveals ad
 The intended product starts with the app or future device and wakes when called, like Alexa or Siri. There is no push-to-talk. Activated STT and response TTS use Sarvam; tool decisions now use the same local agent as typed requests. The browser demo requests camera and microphone permissions on page load when Sarvam is configured. Browser/OS permissions and audio autoplay rules still apply; **Enable listening** recovers a blocked audio context or denied startup.
 
 ```bash
-uv sync --python 3.12 --managed-python --extra vision --extra web --extra voice
+uv sync --python 3.12 --managed-python --extra vision --extra mlx --extra web --extra voice
 uv run --no-sync python -c 'from huggingface_hub import snapshot_download; snapshot_download("Systran/faster-whisper-tiny.en", revision="0d3d19a32d3338f10357c0889762bd8d64bbdeba", allow_patterns=["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"])'
 uv run --env-file .env --no-sync nyx --data-dir data/manual-demo serve
 ```
@@ -102,7 +108,7 @@ Latest mode checks twelve newest dated samples, then up to five semantic fallbac
 
 With recording explicitly enabled, **Check current view** captures a fresh video-only snapshot for local inspection. Its time and age are shown; snapshots that become stale in the queue/model load must be retaken. Snapshot answers are ephemeral, not permanently added to history. This button never opens a camera by itself.
 
-Local models serve different jobs: **SigLIP 2 Base** embeds/searches frames; **Qwen3-VL-2B-Instruct** loads lazily to inspect images. A lazy **SSDLite MobileNet V3** CPU detector adds independent entity positions for event checks (about 13.4 MB of cached weights). Vision uses existing PyTorch/Transformers/Torchvision; MLX, JEPA and cloud vision are not runtime dependencies. First VLM use downloads approximately 4 GiB of weights to the external model cache, outside the saved-video budget. One worker yields between inspected images; in-flight model work can still delay search. See [R4](docs/research/R4-local-verification.md) for the earlier VLM comparison and [R8](docs/research/R8-companion-loop.md) for event-detector findings.
+Local models serve different jobs: **SigLIP 2 Base** embeds/searches frames; on Apple Silicon, **Qwen3.5-2B MLX 8-bit** loads lazily for visual checks and agent decisions. A lazy **SSDLite MobileNet V3** CPU detector adds independent entity positions (about 13.4 MB of cached weights). Retrieval/detection retain PyTorch/Transformers/Torchvision; generation adds the optional `mlx` extra. The quantized checkpoint uses about 2.7 GB on disk, outside the saved-video budget. The one small-image smoke measured 2.70 GiB peak MLX allocation, not total system memory or a bound for larger inputs. Old Qwen3-VL weights were removed locally; explicit legacy diagnostics would download them again. One worker still serializes model work. See [R8](docs/research/R8-companion-loop.md) for the smoke and unmeasured quality/latency gates.
 
 ## Try the baseline
 

@@ -117,6 +117,29 @@ class Observer:
                 self.pending = None
             return True
 
+    def delivery_continuity(self, burst, inspected_at):
+        """Reject superseded evidence; unchanged pixels do not verify departure."""
+        result = {"supported": False, "policy": "delivery-continuity-v1"}
+        at = aware_time(inspected_at)
+        with self.lock:
+            if burst["epoch"] != self.epoch or burst["session"] != self.session:
+                return {**result, "reason": "interrupted"}
+            samples = list(self.frames)
+        if not samples or (datetime.now(UTC) - samples[-1][0]).total_seconds() > 0.5:
+            return {**result, "reason": "capture_stale"}
+        start = next((i for i, row in enumerate(samples) if row[0] == at), None)
+        if start is None:
+            return {**result, "reason": "evidence_window_lost"}
+        result["checked_through"] = samples[-1][0].isoformat()
+        window = ActivityWindow()
+        for timestamp, image in samples[start:]:
+            activity = window.observe(image, timestamp.timestamp())
+            if activity["qualified"]:
+                return {**result, "reason": "scene_changed"}
+        if activity["state"] == "collecting":
+            return {**result, "reason": "scene_unsettled"}
+        return {**result, "supported": True, "reason": "scene_continuous"}
+
     def feed(self, session, image, captured_at):
         at = aware_time(captured_at)
         age = (datetime.now(UTC) - at).total_seconds()

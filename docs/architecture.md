@@ -246,3 +246,21 @@ sequence straddling a new request can serve an older armed request while leaving
 new one armed for subsequent evidence.
 
 `companion.py` owns the API/tool integration and `web/companion.js` shares existing camera/voice controls. Typed and default voice requests use the same local loop; configured Sarvam supplies activated STT and reply/reminder TTS. UI evidence links and conversations keep their existing source-deletion rules. Interactive work, background indexing and event inspection share a single model worker. Fresh event checks receive interactive priority ahead of queued background indexing; running inference is not preempted, so stale event checks can still be missed. See [R8](research/R8-companion-loop.md) for resources, actual checks and failures.
+
+
+Before creating a positive live notification, `Observer.delivery_continuity` replays
+cheap ActivityWindow comparisons from the exact last inspected image to the newest
+retained image. It requires the same epoch, that original image still in the buffer,
+and capture updated within 0.5 s. Persistent or currently unsettled new change
+rejects the old result; a completed brief flash alone does not. The request stays
+armed for subsequent activity. `delivery_continuity` stores the checked-through time
+and reason separately from semantic image timestamps. It is a conservative freshness
+veto, not proof that a person remains present, and cannot fix slow inference. Normal
+cancellation/camera-state and durable request checks still apply.
+
+On Apple Silicon, `LocalVerifier` now delegates generation to the lazy MLX runtime
+for pinned Qwen3.5-2B 8-bit weights. The processor receives ordered multimodal parts;
+images are passed separately to generation in the same order, bounded to 768 pixels.
+Text-only turns pass no images. Thinking is disabled and existing token limits and
+JSON/evidence validation remain. The legacy Transformers backend is retained for
+explicit diagnostics and non-Apple systems, with no automatic error fallback.

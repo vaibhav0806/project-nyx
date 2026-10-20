@@ -279,3 +279,59 @@ def test_live_event_inspection_runs_before_a_backlog_of_background_jobs(tmp_path
         release.set()
         workspace.close()
     assert order == ["live-event", "background", "background", "background"]
+
+
+def test_delivery_continuity_allows_stable_scene_and_completed_flash(live):
+    observer, feed, _ = live
+    feed(0)
+    for tick in range(1, 7):
+        burst = feed(tick / 10, 200)
+    for tick in range(7, 14):
+        feed(tick / 10, 100 if tick == 8 else 200)
+    result = observer.delivery_continuity(burst, burst["times"][-1])
+    assert result["supported"]
+    assert result["checked_through"] > burst["times"][-1]
+
+
+def test_delivery_continuity_rejects_persistent_change_even_after_return(live):
+    observer, feed, _ = live
+    feed(0)
+    for tick in range(1, 7):
+        burst = feed(tick / 10, 200)
+    for tick in range(7, 15):
+        feed(tick / 10, 100)
+    feed(1.5, 200)
+    result = observer.delivery_continuity(burst, burst["times"][-1])
+    assert not result["supported"]
+    assert result["reason"] == "scene_changed"
+
+
+def test_delivery_continuity_rejects_pending_change_lost_window_and_epoch(live):
+    observer, feed, _ = live
+    feed(0)
+    for tick in range(1, 7):
+        burst = feed(tick / 10, 200)
+    feed(0.7, 100)
+    assert observer.delivery_continuity(burst, burst["times"][-1])["reason"] == "scene_unsettled"
+    for tick in range(8, 75):
+        feed(tick / 10, 200)
+    assert (
+        observer.delivery_continuity(burst, burst["times"][-1])["reason"] == "evidence_window_lost"
+    )
+    observer.reset()
+    assert observer.delivery_continuity(burst, burst["times"][-1])["reason"] == "interrupted"
+
+
+def test_delivery_continuity_rejects_silent_capture_without_a_stop_event(live, monkeypatch):
+    observer, feed, base = live
+    feed(0)
+    for tick in range(1, 7):
+        burst = feed(tick / 10, 200)
+
+    class Clock:
+        @staticmethod
+        def now(zone):
+            return base + timedelta(seconds=2)
+
+    monkeypatch.setattr("nyx.observation.datetime", Clock)
+    assert observer.delivery_continuity(burst, burst["times"][-1])["reason"] == "capture_stale"

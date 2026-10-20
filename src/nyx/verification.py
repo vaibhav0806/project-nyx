@@ -1,4 +1,5 @@
 import json
+import platform
 import time
 from itertools import pairwise
 
@@ -72,7 +73,37 @@ def parse_judgment(raw):
 
 
 class LocalVerifier:
-    def __init__(self, device="auto", model="qwen"):
+    def __init__(self, device="auto", model=None):
+        if model is None:
+            model = (
+                "qwen35"
+                if platform.system() == "Darwin" and platform.machine() == "arm64"
+                else "qwen"
+            )
+        if model == "qwen35":
+            from nyx.mlx_runtime import MODEL, REVISION, MlxRuntime
+
+            if device not in {"auto", "mps", "mlx"}:
+                raise ValueError("Qwen3.5 8-bit uses MLX on Apple Silicon")
+            started = time.perf_counter()
+            self.runtime = MlxRuntime()
+            self.device = "mlx"
+            self.fingerprint = {
+                "model": MODEL,
+                "revision": REVISION,
+                "runtime": "mlx-vlm",
+                "quantization": "8-bit affine/group64",
+                "thinking": False,
+                "prompt_version": 1,
+                "max_image_side": 768,
+                "max_new_tokens": 180,
+                "planner_prompt_version": 8,
+                "departure_prompt_version": 4,
+                "event_tracking_policy": "single-trajectory-v1/5Hz/6s/0.8s-gap",
+            }
+            self.load_seconds = time.perf_counter() - started
+            return
+
         import torch
         from transformers import AutoModelForImageTextToText, AutoProcessor
 
@@ -115,8 +146,6 @@ class LocalVerifier:
         self.load_seconds = time.perf_counter() - started
 
     def inspect(self, image, object_query):
-        import torch
-
         image = image.convert("RGB")
         image.thumbnail((768, 768))
         messages = [
@@ -128,21 +157,11 @@ class LocalVerifier:
                 ],
             }
         ]
-        inputs = self.processor.apply_chat_template(
-            messages,
-            add_generation_prompt=True,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
-        ).to(self.device)
-        with torch.inference_mode():
-            generated = self.model.generate(**inputs, max_new_tokens=180, do_sample=False)
-        raw = self.processor.decode(
-            generated[0][inputs["input_ids"].shape[-1] :], skip_special_tokens=True
-        )
-        return parse_judgment(raw)
+        return parse_judgment(self.generate_json(messages, 180))
 
     def generate_json(self, messages, max_tokens=240):
+        if hasattr(self, "runtime"):
+            return self.runtime.generate(messages, max_tokens)
         import torch
 
         messages = [

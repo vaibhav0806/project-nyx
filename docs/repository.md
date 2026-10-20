@@ -102,3 +102,8 @@ predefined room layout. `tests/test_events.py` covers its evidence boundaries;
 and `detectors.py` compares two small detector candidates independently of Qwen.
 
 `tests/test_agent.py`, `test_attention.py`, `test_observation.py`, `test_tracking.py`, `test_intentions.py` and `test_companion.py` exercise behavior with deterministic inference boundaries. `tests/companion_browser_smoke.py` uses generated media; real local experiments live in `experiments/companion/`. Follow [its README](../experiments/companion/README.md) for source/license and storage limits. Local databases now also include `intentions.sqlite3`; raw media and model outputs remain ignored.
+
+`mlx_runtime.py` is the small lazy Apple Silicon generation boundary for the pinned
+Qwen3.5 8-bit model. `verification.py` retains shared prompts, parsing, evidence and
+legacy diagnostics. `test_mlx_runtime.py` checks ordered media, text-only routing and
+load parameters without loading real weights.

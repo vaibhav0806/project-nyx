@@ -188,3 +188,16 @@ also exposed a repeated-reminder conversation failure; isolated evaluation does 
 fix that product weakness. M1–M5 remain in progress. See
 [R8](research/R8-companion-loop.md) and the
 [tracking plan](superpowers/plans/2026-10-20-continuous-trajectories.md).
+
+### Resource-aware runtime replacement — 2026-10-20
+
+The user selected Qwen3.5-2B MLX 8-bit on Apple Silicon. One authorized synthetic
+image smoke passed: 5.62 s load, 2.91 s generation, 2.70 GiB reported peak MLX
+allocation. The process exited and the obsolete Qwen3-VL cache was removed (4.3 GB).
+**234 deterministic tests pass**, with lint/JS and offline packaging checks.
+
+A post-inference continuity veto now withholds superseded positives and keeps the
+request armed. Its real-video regression was interrupted during the resource pause;
+new-model recognition, multi-image semantics and conversation evaluation remain open.
+Heavy inference stays paused beyond the completed smoke. No M1–M5 acceptance gate
+is closed. Details and limitations are in [R8](research/R8-companion-loop.md).

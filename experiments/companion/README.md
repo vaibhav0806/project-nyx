@@ -185,3 +185,17 @@ The `trajectory-full-api-001` attempt is invalid for aggregate evaluation: it wa
 aborted after shared-conversation reminder setup failed. Inactive cases do not count
 as negative passes. `trajectory-full-api-002` uses isolated setup and full tracking
 context; R8 records the outcomes and remaining planner/recognition failures.
+
+## Selected quantized runtime smoke
+
+On Apple Silicon, install the `mlx` extra alongside `vision` and `web`. The current
+application selects pinned Qwen3.5-2B 8-bit through mlx-vlm; explicit old-model
+experiments may redownload the deleted Qwen3-VL cache. Avoid them while storage and
+inference are constrained.
+
+`uv run --no-sync python experiments/companion/model_smoke.py --output data/runs/qwen35-smoke-new`
+runs exactly one generated-image color question, caps output at 32 tokens, and
+records loading/generation time and MLX/process memory counters. It starts no device.
+The script sets a 6 GiB MLX allocation limit and 128 MiB cache; these are not whole-
+process limits. The recorded run additionally used a parent subprocess with a
+120-second timeout. Do not run another smoke or video suite while inference is paused.

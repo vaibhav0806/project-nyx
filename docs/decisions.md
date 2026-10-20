@@ -261,3 +261,40 @@ conversation weakness as open work. Latest results retain misses, late action an
 false indoor grounding; no household accuracy or advance-warning gate is closed.
 See [R8](research/R8-companion-loop.md) and the
 [tracking plan](superpowers/plans/2026-10-20-continuous-trajectories.md).
+
+### Reject superseded results before notification — 2026-10-20
+
+The latest continuation adds a cheap post-inference guard before a positive result
+creates a notification. Reuse the existing ActivityWindow over frames since the exact
+last semantic image, within the same camera epoch. Missing retained history, capture
+older than 0.5 s, a persistent new change or a still-unsettled change withholds action
+and leaves the request armed. A completed brief flash alone may pass. Preserve the
+checked-through time separately; do not relabel newer uninspected images as semantic
+evidence. This rejects old decisions, without claiming to recognize the new scene.
+
+The six-second buffer is also the maximum available continuity history. An eight-
+second generation can therefore be withheld even with a correct positive. This is
+an intentional conservative boundary, not a latency improvement or a fix for false
+exterior-door labels. Model latency and automatic scene grounding remain open.
+
+### Qwen3.5 2B 8-bit selection — 2026-10-20
+
+The user selected the vision-enabled Qwen3.5-2B MLX 8-bit checkpoint and authorized
+one short image inference to verify loading, while keeping video/model benchmarks
+paused for memory pressure. Pin revision 562fb8ea19bbe7565a3ddf5b7d49899ea2c88d2b
+of `mlx-community/Qwen3.5-2B-8bit`. The config declares qwen3_5 with a vision encoder
+and affine 8-bit group-size-64 quantization. Disk weights are about 2.66 GB; this is
+not an estimate of peak process or system memory.
+
+Use a small lazy `mlx_runtime.py` generation boundary, preserving ordered text/image
+parts and disabling thinking in both chat formatting and generation. All existing
+inspection, bounded agent decisions and departure checks share it. Apple Silicon
+selects this path by default; other systems retain the older Transformers path.
+Explicit `model="qwen"` remains a diagnostic baseline, without automatic fallback
+on MLX errors. The `mlx` dependency extra pins mlx-vlm 0.4.1; its Qwen3.5 support
+requires Transformers 5, so the locked environment changes as part of this switch.
+
+No broad accuracy claim follows from the synthetic smoke. Existing Qwen3-VL failures
+remain the baseline; full new-model evaluation is deferred. The user authorized
+removal of obsolete model weights after the replacement loads successfully. Keep
+SigLIP retrieval, speech and detector assets; raw recordings are never cache cleanup.

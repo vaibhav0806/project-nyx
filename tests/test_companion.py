@@ -298,7 +298,7 @@ def test_semantic_departure_without_grounded_motion_preserves_armed_request(tmp_
         assert not state["pending"]
 
 
-@pytest.mark.parametrize("interruption", ["cancel", "stop", "expired"])
+@pytest.mark.parametrize("interruption", ["cancel", "stop", "expired", "changed"])
 def test_inflight_departure_cannot_act_after_cancellation_camera_stop_or_expiry(
     tmp_path, monkeypatch, interruption
 ):
@@ -355,11 +355,24 @@ def test_inflight_departure_cannot_act_after_cancellation_camera_stop_or_expiry(
                         "reason": "Test stop",
                     },
                 )
+            elif interruption == "changed":
+                for tick in range(7, 15):
+                    client.post(
+                        "/api/observe",
+                        json={
+                            "session_id": session["id"],
+                            "captured_at": (now + timedelta(seconds=tick / 10)).isoformat(),
+                            "image": snapshot("black"),
+                        },
+                    )
             else:
                 clock[0] += timedelta(seconds=20)
             release.set()
             outcome = wait_for_job(client, response.json()["id"])
             assert outcome["status"] == ("failed" if interruption == "expired" else "succeeded")
+            if interruption == "changed":
+                assert outcome["result"]["decision"]["reason"] == "superseded_evidence"
+                assert outcome["result"]["delivery_continuity"]["reason"] == "scene_changed"
             status = client.get("/api/companion").json()
             assert status["pending"] == []
             assert status["reminders"][0]["state"] == (

@@ -410,6 +410,15 @@ def install_companion(app, workspace, voice):
                 return {"state": "interrupted", "deliveries": []}
             fresh(checked["times"][-1])
             decision = departure_action(checked, judgment, tasks.active())
+            continuity = None
+            if decision["act"]:
+                continuity = observer.delivery_continuity(burst, checked["times"][-1])
+                if not continuity["supported"]:
+                    decision = {
+                        "act": False,
+                        "request_ids": [],
+                        "reason": "superseded_evidence",
+                    }
             semantic_times = (
                 checked["times"] if judgment.get("semantic_checked") is not False else []
             )
@@ -423,6 +432,7 @@ def install_companion(app, workspace, voice):
                 "event_id": burst["event_id"],
                 "activity": burst["activity"],
                 "decision": decision,
+                "delivery_continuity": continuity,
             }
             deliveries = (
                 tasks.trigger(
@@ -449,6 +459,7 @@ def install_companion(app, workspace, voice):
                 "activity": burst["activity"],
                 "frame_times": checked["times"],
                 "semantic_frame_times": semantic_times,
+                "delivery_continuity": continuity,
             }
 
         workspace.submit(job_id, check)

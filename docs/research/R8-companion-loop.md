@@ -571,3 +571,60 @@ multiple-person and turnback coverage is deterministic, not complete real-video
 validation. General memory and arbitrary action types remain deferred. No M1–M5
 acceptance gate is closed. Raw clips, contact sheets, generations, hashes and results
 remain ignored locally; restrictive Charades media is not redistributed.
+
+## Resource pause, continuity veto and Qwen3.5 smoke — 2026-10-20
+
+The user paused heavy inference after laptop memory pressure, then selected the
+vision-enabled Qwen3.5-2B 8-bit build and authorized **one short loading/image test**.
+Video replays and broad real-model evaluation remain paused. The first continuity
+replay timed out during loading; the second was explicitly terminated with the
+running test process. Neither supplies completed recognition results.
+
+The post-inference continuity veto is implemented: before creating a notification,
+require the exact last semantic image still in the same epoch's retained buffer,
+latest capture within 0.5 s, and no persistent or currently unsettled new activity.
+Stable scenes and completed brief flashes remain eligible. A persistent change
+followed by return still invalidates the old judgment. Tests exercise this during
+blocked API inference. This can suppress slow true positives; it fixes neither
+latency nor the interior-door misclassification. New evidence must earn a new result.
+
+### Measured single-image smoke
+
+`qwen35-8bit-smoke-001` used a generated 224×224 white image with one red square,
+requesting a JSON color response with a 32-token maximum. It used the actual Nyx
+`LocalVerifier` and the MLX adapter, offline after the checkpoint download. Thinking
+was disabled. A parent subprocess enforced a 120-second timeout; MLX allocation was
+limited to 6 GiB with a 128 MiB cache during this test. These limits apply to MLX,
+not all process/system RAM. No camera, microphone, video replay or hosted inference.
+
+- Checkpoint: `mlx-community/Qwen3.5-2B-8bit`, revision
+  `562fb8ea19bbe7565a3ddf5b7d49899ea2c88d2b`.
+- Config: qwen3_5 vision encoder; affine 8-bit group-size-64 quantization.
+- Runtime: mlx-vlm 0.4.1, MLX 0.32.4, Transformers 5.20.2, Python 3.12.11;
+  same M4/16 GiB machine.
+- Load: **5.620 s**. Generation: **2.909 s**. Output: `{"color": "red"}`.
+- Reported MLX peak: **2,895,864,550 bytes (2.70 GiB)**. Process max RSS:
+  1,286,471,680 bytes. These counters cover different memory accounting; neither
+  alone is total system memory. Larger images/context/multiple images can cost more.
+- The model process exited after this one test. No text-agent or multi-image real
+  inference was run. These paths have adapter boundary tests only.
+
+**234 deterministic tests pass** in the updated locked environment. This includes
+ordered image/text conversion, text-only input routing, pinned loading, disabled
+thinking, shared generation and continuity-veto integration. The offline wheel
+includes the new runtime. Full new-model recognition, multi-image semantics,
+conversation quality and latency benchmarks remain unmeasured. Do not apply earlier
+Qwen3-VL metrics to this checkpoint or treat this smoke as a comparative benchmark.
+The browser was not relaunched during the resource pause; JavaScript syntax passes.
+
+The user requested cache cleanup when switching. After successful smoke, the HF
+cache tool removed only `model/Qwen/Qwen3-VL-2B-Instruct`, reporting **4.3 GB freed**.
+The new checkpoint remains cached; retrieval/speech/detector assets and recordings
+were preserved. Explicit legacy diagnostic use would download the old weights again.
+The small rejected detector comparison cache remains outside this model replacement.
+
+**Source-reported:** [official Qwen3.5-2B](https://huggingface.co/Qwen/Qwen3.5-2B),
+[MLX conversion](https://huggingface.co/mlx-community/Qwen3.5-2B-8bit), and
+[mlx-vlm 0.4.1](https://pypi.org/project/mlx-vlm/0.4.1/) (checked 2026-10-20).
+The config and published runtime source were inspected before integration. The
+selected path supports vision; published broad quality claims are not Nyx results.
