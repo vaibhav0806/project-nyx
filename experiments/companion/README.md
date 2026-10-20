@@ -163,3 +163,25 @@ HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/restart.py \
 This checks source persistence, recovered indexing, semantic candidate search and HTTP range playback. It starts no browser or hardware and does not verify that a retrieved object is present.
 
 For an existing **synthetic** recording-smoke workspace, add `--check-library-deletion` to exercise multi-page library access, cancelled/confirmed deletion of its `scenes.mp4` fixture, preservation of other clips, reload and mobile layout in isolated Chrome with hardware requests disabled. This flag actually deletes that synthetic import. Do not use it on a personal workspace. Long recording measurements are saved separately before subsequent lifecycle checks, so a later harness failure does not erase the completed phase's evidence.
+
+## Complete-sequence tracking protocol
+
+`live.py --full-clips` replays every decoded source offset instead of a selected
+excerpt. Freeze event/onset/crossing brackets in the manifest before inference.
+`protocol.json` records that manifest, source hashes and runtime before model loading.
+Each case uses an isolated workspace/conversation and must successfully arm its
+request before replay. The model instance is reused; camera epochs isolate caches.
+
+Use `--hold-final-seconds 6` to append a labelled synthetic repeat of the final
+image while queued work drains. This is not additional source footage. Completed
+jobs are collected throughout replay before bounded runtime history can evict them.
+Count all created notifications, including ones already expired at clip end.
+`available_source_offset` is the replay-clock position when completion was observed;
+it may extend past the clip. Compare it with the frozen crossing interval, and also
+report the actual selected evidence offsets. Notification creation is not audible
+speech or a useful advance warning. This harness disables voice and hardware.
+
+The `trajectory-full-api-001` attempt is invalid for aggregate evaluation: it was
+aborted after shared-conversation reminder setup failed. Inactive cases do not count
+as negative passes. `trajectory-full-api-002` uses isolated setup and full tracking
+context; R8 records the outcomes and remaining planner/recognition failures.

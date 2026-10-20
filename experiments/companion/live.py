@@ -2,9 +2,12 @@
 
 import argparse
 import base64
+import hashlib
 import json
+import platform
 import time
 from datetime import UTC, datetime
+from importlib.metadata import version
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -33,6 +36,11 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cases", nargs="+", required=True)
     parser.add_argument(
+        "--full-clips",
+        action="store_true",
+        help="Replay complete sources, without selecting labelled excerpts",
+    )
+    parser.add_argument(
         "--hold-final-seconds",
         type=float,
         default=0,
@@ -41,16 +49,39 @@ def main():
     args = parser.parse_args()
     if not 0 <= args.hold_final_seconds <= 20:
         parser.error("Final-image hold must be between zero and twenty seconds")
-    cases = json.loads(args.manifest.read_text())["cases"]
+    manifest = json.loads(args.manifest.read_text())
+    cases = manifest["cases"]
     selected = [row for row in cases if row["name"] in args.cases]
     if len(selected) != len(set(args.cases)):
         parser.error("Every case name must exist in the manifest")
     args.output.mkdir(parents=True, exist_ok=False)
+    protocol = {
+        "manifest": manifest,
+        "manifest_sha256": hashlib.sha256(args.manifest.read_bytes()).hexdigest(),
+        "full_clips": args.full_clips,
+        "synthetic_final_image_hold_seconds": args.hold_final_seconds,
+        "platform": platform.platform(),
+        "runtime": {
+            name: version(name) for name in ["torch", "torchvision", "transformers", "pillow"]
+        },
+        "sources": [
+            {
+                "name": case["name"],
+                "sha256": hashlib.sha256(
+                    (Path(case["frames"]).parent / f"{case['name']}.mp4").read_bytes()
+                ).hexdigest(),
+            }
+            for case in selected
+        ],
+    }
+    (args.output / "protocol.json").write_text(json.dumps(protocol, indent=2))
     model = None
     generations = []
 
     def factory():
         nonlocal model
+        if model is not None:
+            return model
         model = LocalVerifier()
         original = model.generate_json
 
@@ -65,18 +96,23 @@ def main():
     results = {
         "cases": [],
         "protocol": "Actual API clock; dense 0.1s requested decode, replay at actual decoded offsets",
-        "scope": "Nominal two-second manifest indices locate development excerpts; replay clock is not original capture time",
         "synthetic_final_image_hold_seconds": args.hold_final_seconds,
+        "full_clips": args.full_clips,
+        "scope": "Actual decoded source offsets, complete clips"
+        if args.full_clips
+        else "Nominal two-second manifest indices locate development excerpts; replay clock is not original capture time",
     }
-    with TestClient(
-        create_app(
-            args.output / "workspace", verifier_factory=factory, voice_factory=lambda root: None
-        )
-    ) as client:
-        warm = client.post("/api/companion/warmup").json()
-        assert wait(client, warm["id"])["status"] == "succeeded"
-        results["model"] = model.fingerprint
-        for case in selected:
+    for case in selected:
+        with TestClient(
+            create_app(
+                args.output / "workspaces" / case["name"],
+                verifier_factory=factory,
+                voice_factory=lambda root: None,
+            )
+        ) as client:
+            warm = client.post("/api/companion/warmup").json()
+            assert wait(client, warm["id"])["status"] == "succeeded"
+            results["model"] = model.fingerprint
             start_generation = len(generations)
             request = client.post(
                 "/api/agent",
@@ -87,13 +123,18 @@ def main():
             ).json()
             request_job = wait(client, request["id"])
             assert request_job["status"] == "succeeded", request_job
+            assert request_job["result"]["status"] == "armed", request_job
+            assert any(
+                row["state"] == "armed" for row in client.get("/api/companion").json()["reminders"]
+            ), "Scenario needs an armed request"
             session = client.post(
                 "/api/capture/start", json={"at": datetime.now(UTC).isoformat()}
             ).json()
             source = Path(case["frames"]).parent / f"{case['name']}.mp4"
-            lower = max(0, min(case["indices"]) * 2 - 1)
-            upper = max(case["indices"]) * 2 + 3
+            lower = 0 if args.full_clips else max(0, min(case["indices"]) * 2 - 1)
+            upper = float("inf") if args.full_clips else max(case["indices"]) * 2 + 3
             jobs = []
+            completed = {}
             gaps = []
             with TemporaryDirectory(prefix="nyx-live-replay-") as folder:
                 frames = [
@@ -145,8 +186,36 @@ def main():
                                 "synthetic_repetition": repeated,
                             }
                         )
-            outcomes = [wait(client, identifier) for identifier in jobs]
+                    # Preserve completed jobs before the bounded runtime job list evicts them.
+                    for identifier in jobs:
+                        if identifier in completed:
+                            continue
+                        job = client.get("/api/jobs/" + identifier).json()
+                        if job["status"] in {"succeeded", "failed"}:
+                            completed[identifier] = {
+                                **job,
+                                "completion_observed_at": datetime.now(UTC).isoformat(),
+                            }
+            outcomes = [
+                completed.get(identifier)
+                or {
+                    **wait(client, identifier),
+                    "completion_observed_at": datetime.now(UTC).isoformat(),
+                }
+                for identifier in jobs
+            ]
             status = client.get("/api/companion").json()
+            notifications = [
+                {
+                    **delivery,
+                    "available_source_offset": frames[0][0]
+                    + (
+                        datetime.fromisoformat(job["completion_observed_at"]) - replay_started_at
+                    ).total_seconds(),
+                }
+                for job in outcomes
+                for delivery in job.get("result", {}).get("deliveries", [])
+            ]
             row = {
                 **case,
                 "request": request_job,
@@ -158,6 +227,7 @@ def main():
                 "seconds_since_final_frame": (datetime.now(UTC) - observed_at).total_seconds(),
                 "reminders": status["reminders"],
                 "pending": status["pending"],
+                "notifications": notifications,
                 "generations": generations[start_generation:],
             }
             results["cases"].append(row)
@@ -170,6 +240,7 @@ def main():
                         "statuses": [job["status"] for job in outcomes],
                         "judgments": [job.get("result", {}).get("judgment") for job in outcomes],
                         "pending_notifications": len(status["pending"]),
+                        "total_notifications": len(notifications),
                         "maximum_replay_gap_seconds": row["maximum_replay_gap_seconds"],
                     }
                 ),

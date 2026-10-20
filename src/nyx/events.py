@@ -93,7 +93,7 @@ def valid_box(box):
 def entity_motion(observations):
     """Whether one entity has supported translation; no direction/intent inference."""
     result = {"relation": "unknown", "points": [], "policy": "entity-motion-v1"}
-    if len(observations) != 3 or any(len(rows) != 1 for rows in observations):
+    if not 3 <= len(observations) <= 64 or any(len(rows) != 1 for rows in observations):
         return {**result, "reason": "ambiguous_or_missing_entity"}
     boxes = [rows[0].get("box") for rows in observations]
     if not all(valid_box(box) for box in boxes):
@@ -125,9 +125,10 @@ def region_motion(region, observations):
     points = trajectory["points"]
     x1, y1, x2, y2 = region
     distances = [math.hypot(max(x1 - x, 0, x - x2), max(y1 - y, 0, y - y2)) for x, y in points]
-    changes = [right - left for left, right in pairwise(distances)]
+    decreasing = max(left - right for i, left in enumerate(distances) for right in distances[i:])
+    increasing = max(right - left for i, left in enumerate(distances) for right in distances[i:])
     # Global image-relative starting policies, deliberately independent of clip/event.
-    if any(step < -0.03 for step in changes) and any(step > 0.03 for step in changes):
+    if decreasing > 0.03 and increasing > 0.03:
         relation = "reversed"
     elif distances[0] - distances[-1] >= 0.08:
         relation = "approaching" if distances[-1] <= 0.06 else "toward"
@@ -142,3 +143,79 @@ def region_motion(region, observations):
         "points": points,
         "distances": distances,
     }
+
+
+def track_detections(times, observations):
+    """Associate an ephemeral single entity; retain gaps without invented positions."""
+    if len(times) != len(observations) or not times or any(not math.isfinite(t) for t in times):
+        raise ValueError("Track samples need matching finite times")
+    if any(right <= left for left, right in pairwise(times)):
+        raise ValueError("Track times must be strictly ordered")
+    indices, gaps, breaks = [], [], []
+    state = "lost"
+    for index, (at, rows) in enumerate(zip(times, observations, strict=True)):
+        if indices and at - times[indices[-1]] > 0.8 + 1e-6:
+            breaks.append({"at": at, "reason": "long_gap"})
+            indices, gaps = [], []
+        if not rows:
+            state = "gap" if indices else "lost"
+            if indices:
+                if not gaps or gaps[-1]["before"] is not None:
+                    gaps.append({"after": times[indices[-1]], "before": None, "missing_times": []})
+                gaps[-1]["missing_times"].append(at)
+            continue
+        if len(rows) != 1 or not isinstance(rows[0], dict) or not valid_box(rows[0].get("box")):
+            breaks.append({"at": at, "reason": "ambiguous_or_invalid"})
+            indices, gaps, state = [], [], "ambiguous"
+            continue
+        box = rows[0]["box"]
+        if indices:
+            old = observations[indices[-1]][0]["box"]
+            distance = math.dist([(old[0] + old[2]) / 2, old[3]], [(box[0] + box[2]) / 2, box[3]])
+            if distance > max(0.08, at - times[indices[-1]]):
+                breaks.append({"at": at, "reason": "position_jump"})
+                indices, gaps = [], []
+        if gaps and gaps[-1]["before"] is None:
+            gaps[-1]["before"] = at
+        indices.append(index)
+        state = "observed"
+    return {
+        "state": state,
+        "indices": indices,
+        "selected_indices": [indices[0], indices[len(indices) // 2], indices[-1]]
+        if len(indices) >= 3
+        else [],
+        "last_observed_at": times[indices[-1]] if indices else None,
+        "gaps": gaps,
+        "breaks": breaks,
+        "policy": "single-trajectory-v1/0.8s-gap/1-unit-per-second",
+    }
+
+
+class RegionHistory:
+    """Check inferred bounds within a camera epoch; consistency is not semantic truth."""
+
+    def __init__(self):
+        self.view = None
+        self.region = None
+
+    def check(self, view, region):
+        previous = self.region if view is not None and view == self.view else None
+        self.view = view
+        self.region = region
+        if region is None:
+            return {"state": "uncertain"}
+        if previous is None:
+            return {"state": "initial"}
+        a, b = previous["box"], region["box"]
+        intersection = max(0, min(a[2], b[2]) - max(a[0], b[0])) * max(
+            0, min(a[3], b[3]) - max(a[1], b[1])
+        )
+        union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - intersection
+        overlap = intersection / union if union else 0
+        consistent = overlap >= 0.5 and previous["kind"] == region["kind"]
+        return {
+            "state": "consistent" if consistent else "changed",
+            "iou": overlap,
+            "previous_box": a,
+        }

@@ -480,3 +480,94 @@ Sources (checked 2026-10-20): [official SSDLite model/weights](https://docs.pyto
 [official Faster R-CNN MobileNet V3 FPN model/weights](https://docs.pytorch.org/vision/main/models/generated/torchvision.models.detection.fasterrcnn_mobilenet_v3_large_fpn.html).
 Raw generations, hashes, SQLite state and protocol files remain local in the named
 `data/runs/` directories; restrictive Charades source material is not redistributed.
+
+## R8 continuation: buffered chronological tracking — 2026-10-20
+
+**Question/decision:** can bounded dense observations, explicit short misses and
+consistent region estimates improve the live path without a larger model or a
+scenario-specific rule? Keep reusable evidence if the integration is sound; judge
+recognition and timing separately. Do not promote a reliability claim from plumbing.
+
+**Method:** same M4/16 GiB, macOS 15.7.3, Python 3.12.11; Torch 2.14.1,
+Torchvision 0.29.1, Transformers 4.57.6, Pillow 12.3.0. Same pinned Qwen3-VL-2B
+on MPS and CPU SSDLite COCO_V1 at 0.6. No new weights, framework, quantization or
+cloud call. Up to six seconds of observations, roughly 5 Hz detector sampling,
+explicit 0.8 s association gaps, three actual semantic images, full associated
+motion for direction. Changed exit estimates reject the current action; initial
+estimates remain provisional. One worker still serializes model work.
+
+Contact sheets for all nine reused Charades clips were inspected before freezing
+`full-trajectory-protocol-001.json`. Its SHA256 is
+`60ecba608e3992b0106cdd37a31dd16c9058f44e8f2bb0fc0eb18c244adb3be1`.
+The protocol includes coarse approach/crossing brackets from adjacent roughly
+2-second contact-sheet samples. These are staged room-exit proxies, not verified
+home departures or held-out household data. Full clips replay at actual decoded
+offsets through the actual API; clocks are explicitly replay clocks. Six seconds
+of labelled synthetic final-image repetition allow pending work to drain. Source
+hashes and runtime were frozen before model inference. Voice and hardware are off.
+
+The first attempt, `trajectory-full-api-001`, was aborted. Episode boundaries still
+trimmed tracking context, and repeated setup in one conversation eventually caused
+the real planner to choose cancellation instead of arming the requested reminder.
+Some later clips therefore had no active request and no checks. They are invalid
+negative trials, not passes. Full-window retention now has a regression test. The
+harness isolates conversations/workspaces and asserts an armed request per case.
+**The product's repeated reminder/cancellation conversation weakness is still open.**
+Scenario isolation fixes evaluation validity, not that model behavior.
+
+### Measured complete-sequence results
+
+`trajectory-full-api-002` completed all nine clips with armed requests. All 79
+admitted jobs succeeded; 19 invoked semantic inference. Maximum replay sample gaps
+per clip ranged from 0.105 to 0.218 s, below the 0.5 s capture continuity boundary.
+Every notification was counted even if it expired before the final status read.
+
+| Clip | Frozen interpretation | Jobs / semantic checks | Created notifications | Outcome |
+| --- | --- | --- | --- | --- |
+| 3H0PT | Exit proxy; crossing 14.15–16.17 s | 7 / 1 | 0 | Miss; translation/region direction not established |
+| CUCBN | Exit proxy; crossing 12.01–14.01 s | 9 / 0 | 0 | Miss; detector continuity insufficient |
+| BM3UJ | Entry, then indoor activity | 13 / 2 | 0 | No false action; away motion and changed region reject semantic checks |
+| MZ3X9 | Indoor negative through 24 s, later ambiguous interior exit | 9 / 2 | 1 | False action on indoor evidence at 18.74–19.74 s |
+| VXJS4 | Stationary doorway activity | 11 / 3 | 0 | No false action |
+| LZ07A | Bag activity, no visible exit | 5 / 3 | 0 | Abstains on ambiguous scene |
+| YF6FL | Exit proxy; crossing 26.03–28.03 s | 11 / 3 | 1 | Evidence at 22.13–26.23 s; notification available at 36.14 s |
+| W86WR | Disappears offscreen, no supported crossing | 8 / 1 | 0 | Abstains on ambiguous scene |
+| FPJ9D | Indoor activity with camera movement | 6 / 4 | 0 | Control only; not valid fixed-camera tracking accuracy |
+
+One of three exit proxies produced a notification, two were missed. The positive
+notification became available about **8.11 s after the end of the crossing bracket**;
+this is not useful advance warning. The MZ3X9 false action was available at 29.74 s,
+but its inspected evidence was from the earlier negative interval. The model called
+an interior doorway an exterior exit. Delayed availability must not relabel that
+negative evidence as the later ambiguous event. No audible delivery was measured.
+
+**Inferred limitations:** dense tracking recovers more chronology, but detector
+misses and clipped/jittering boxes still prevent reliable association. Region
+consistency does not prove exterior status, and a first wrong estimate can qualify.
+The full-window geometry can also reject genuine approaches when jitter creates a
+reversal. Slow semantic checks occupy the worker while new activity occurs; buffered
+capture is not continuously processed motion and latest movement is not rechecked
+at notification creation. This run does not establish an overall recall improvement
+over selected-frame experiments, which used a different protocol.
+
+### Verification and next decision
+
+**227 deterministic tests pass.** New checks cover brief gaps without invented
+positions, long gaps, multiple subjects/jumps, ordered timestamps, cumulative
+turnbacks, cache isolation, exact semantic image attribution, changing/unknown
+regions and full retained context across activity episodes. Existing request,
+freshness, camera-stop, cancellation and delivery lifecycle checks remain green.
+`trajectory-browser-002` passes generated 4:3 camera, brief flash suppression,
+sustained activity, synthetic speech, cancellation, acknowledgement, denied playback
+and older-library access with no browser errors. Lint, formatting, JavaScript syntax
+and offline wheel build pass; packaged runtime files byte-match the source.
+
+**Recommendation:** retain the bounded evidence plumbing but keep recognition
+experimental. Next work should target automatic exterior/scene grounding and
+response latency, with current movement checked before committing a late action.
+Use independently labelled fixed-camera sequences, including actual approaching,
+entry, visitor and turnback cases, before adjusting geometric policies. Current
+multiple-person and turnback coverage is deterministic, not complete real-video
+validation. General memory and arbitrary action types remain deferred. No M1–M5
+acceptance gate is closed. Raw clips, contact sheets, generations, hashes and results
+remain ignored locally; restrictive Charades media is not redistributed.

@@ -54,7 +54,13 @@ def departure_action(burst, judgment, requests):
         or region.get("kind") != "exterior_exit"
     ):
         return {**decision, "reason": "unresolved_exit"}
-    motion = region_motion(region.get("box"), judgment.get("entities", []))
+    if judgment.get("region_consistency", {}).get("state") in {"changed", "uncertain"}:
+        return {**decision, "reason": "inconsistent_exit"}
+    tracking = judgment.get("tracking")
+    observations = (
+        tracking["observations"] if tracking is not None else judgment.get("entities", [])
+    )
+    motion = region_motion(region.get("box"), observations)
     # The semantic checker owns interaction; image-plane foot/door distance cannot
     # establish physical proximity. Independently corroborate direction only.
     if motion["relation"] not in {"toward", "approaching"}:
@@ -146,12 +152,18 @@ class Observer:
             ready = activity["qualified"] and (
                 activity["event_id"] != self.last_event
                 or (
-                    (at - self.last_check).total_seconds() >= 3
+                    (at - self.last_check).total_seconds() >= 1
                     and pixels_changed(frame_pixels(small), self.last_pixels)
                 )
             )
             if ready and len(self.frames) >= 3:
                 samples = list(self.frames)
+                dense = [samples[0]]
+                for sample in samples[1:]:
+                    if (sample[0] - dense[-1][0]).total_seconds() >= 0.2 - 1e-6:
+                        dense.append(sample)
+                if dense[-1][0] != samples[-1][0]:
+                    dense.append(samples[-1])
                 start = next(
                     (
                         i
@@ -168,6 +180,8 @@ class Observer:
                     "event_id": activity["event_id"],
                     "images": [row[1] for row in samples],
                     "times": [row[0].isoformat() for row in samples],
+                    "tracking_images": [row[1] for row in dense],
+                    "tracking_times": [row[0].isoformat() for row in dense],
                     "activity": {
                         **activity,
                         "started_at": datetime.fromtimestamp(

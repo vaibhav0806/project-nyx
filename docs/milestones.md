@@ -171,3 +171,20 @@ labels and sparse trajectories remain fallible. This does not establish dependab
 household recognition, arbitrary automatic conditions or useful advance warning.
 M1–M5 remain in progress. See [R8](research/R8-companion-loop.md) and the
 [grounded event plan](superpowers/plans/2026-10-20-grounded-events.md).
+
+### Buffered trajectory follow-up — 2026-10-20
+
+**227 deterministic tests pass.** Bounded dense detector observations now retain
+explicit gaps, reset ambiguous associations, check full-track direction and attribute
+the exact three semantic images. Successive region estimates are checked within a
+camera epoch. Full context survives activity-episode boundaries. Generated-camera
+browser checks, lint/format/JS and the byte-matched offline wheel pass.
+
+All nine full-sequence replays ran with armed requests: 79 jobs, 19 semantic checks.
+One of three staged exit proxies created a notification, about eight seconds after
+the crossing bracket; two were missed. Indoor evidence produced one false action.
+No advance-warning or household recognition gate is met. The first aborted replay
+also exposed a repeated-reminder conversation failure; isolated evaluation does not
+fix that product weakness. M1–M5 remain in progress. See
+[R8](research/R8-companion-loop.md) and the
+[tracking plan](superpowers/plans/2026-10-20-continuous-trajectories.md).

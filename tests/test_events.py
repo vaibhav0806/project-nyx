@@ -127,12 +127,14 @@ def test_local_inspection_retains_independent_geometry_even_when_semantics_disag
                 "uncertain": False,
             },
             "motion": {"relation": "approaching"},  # Model cannot supply measured geometry.
+            "tracking": {"observations": observations([(0.2, 0.6), (0.5, 0.6), (0.82, 0.6)])},
         }
     )
     result = verifier.inspect_departure([Image.new("RGB", (160, 96)) for _ in range(3)])
     assert result["motion"]["relation"] == "away"
     assert result["region"]["box"] == [0.8, 0.1, 0.95, 0.8]
     assert result["detector"] == Detector.fingerprint
+    assert result["tracking"] is None
 
 
 def test_missing_entity_does_not_spend_a_semantic_inference_or_establish_absence():

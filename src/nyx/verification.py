@@ -1,5 +1,6 @@
 import json
 import time
+from itertools import pairwise
 
 MODELS = {
     "qwen": ("Qwen/Qwen3-VL-2B-Instruct", "89644892e4d85e24eaac8bacfd4f463576704203"),
@@ -109,6 +110,7 @@ class LocalVerifier:
             "max_new_tokens": 180,
             "planner_prompt_version": 8,
             "departure_prompt_version": 4,
+            "event_tracking_policy": "single-trajectory-v1/5Hz/6s/0.8s-gap",
         }
         self.load_seconds = time.perf_counter() - started
 
@@ -280,20 +282,69 @@ If no useful choices remain, finish with an uncertain observation or clarify."""
             )
         return action
 
-    def inspect_departure(self, images):
-        from nyx.events import ObjectDetector, entity_motion, parse_region, region_motion
+    def inspect_departure(self, images, *, times=None, view_id=None):
+        from nyx.events import (
+            ObjectDetector,
+            RegionHistory,
+            entity_motion,
+            parse_region,
+            region_motion,
+            track_detections,
+        )
+        from nyx.memory import aware_time
         from nyx.observation import departure_judgment
 
-        if len(images) > 3:
+        if times is None and len(images) > 3:
             images = [images[0], images[len(images) // 2], images[-1]]
         if not hasattr(self, "detector"):
             self.detector = ObjectDetector()
-        entities = self.detector.detect(images)
-        evidence = {"entities": entities, "detector": self.detector.fingerprint}
-        trajectory = entity_motion(entities)
+        if times is not None:
+            if len(images) != len(times) or not 1 <= len(images) <= 32:
+                raise ValueError("Tracking needs one timestamp per image, at most 32")
+            stamps = [aware_time(at).timestamp() for at in times]
+            if any(right <= left for left, right in pairwise(stamps)):
+                raise ValueError("Tracking times must be strictly ordered")
+            cache = (
+                getattr(self, "event_detections", {})
+                if view_id is not None and view_id == getattr(self, "event_view", None)
+                else {}
+            )
+            missing = [i for i, at in enumerate(stamps) if at not in cache]
+            if missing:
+                new = self.detector.detect([images[i] for i in missing])
+                cache.update({stamps[i]: rows for i, rows in zip(missing, new, strict=True)})
+            entities = [cache[at] for at in stamps]
+            self.event_view = view_id
+            self.event_detections = dict(zip(stamps, entities, strict=True))
+            track = track_detections(stamps, entities)
+            selected = track["selected_indices"]
+            observed = [entities[i] for i in track["indices"]]
+            evidence = {
+                "tracking": {
+                    **track,
+                    "time_basis": "unix_seconds",
+                    "times": [times[i] for i in track["indices"]],
+                    "observations": observed,
+                },
+                "frame_indices": selected,
+                "entities": [entities[i] for i in selected],
+                "detector": self.detector.fingerprint,
+            }
+            trajectory = entity_motion(observed)
+            images = [images[i] for i in selected]
+        else:
+            entities = self.detector.detect(images)
+            evidence = {
+                "entities": entities,
+                "detector": self.detector.fingerprint,
+                "tracking": None,
+            }
+            observed = entities
+            trajectory = entity_motion(entities)
         if trajectory["relation"] != "moving":
             return {
                 **evidence,
+                "semantic_checked": False,
                 "departure": False,
                 "uncertain": True,
                 "cue": "No supported single-entity translation; detector misses do not establish absence.",
@@ -313,9 +364,13 @@ If no useful choices remain, finish with an uncertain observation or clarify."""
             self.generate_json([{"role": "user", "content": content}], 280)
         )
         region = parse_region(judgment.get("region"))
+        if not hasattr(self, "region_history"):
+            self.region_history = RegionHistory()
         return {
             **judgment,
             **evidence,
+            "semantic_checked": True,
             "region": region,
-            "motion": region_motion(region["box"] if region else None, entities),
+            "region_consistency": self.region_history.check(view_id, region),
+            "motion": region_motion(region["box"] if region else None, observed),
         }

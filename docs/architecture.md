@@ -188,7 +188,7 @@ to six seconds (each at most 640×360). The browser targets 100 ms observations 
 a departure request is armed. Session/sample gaps invalidate the epoch. The shared
 window nominates a qualified episode before settling; first/middle/last selection
 keeps exact image/time attribution. Meaningful continued activity can be rechecked
-after three seconds. `Observer.accept` consumes a nomination only after job admission;
+after one second. `Observer.accept` consumes a nomination only after job admission;
 an unaccepted recent nomination survives a busy worker, with an eight-second expiry.
 This is independent of saved segment indexing and cannot preempt running inference.
 
@@ -205,9 +205,13 @@ entering failures and the subsequent direction rejection.
 
 `events.py` contains reusable image-plane evidence, without reminder contents or
 room coordinates. A lazy Torchvision SSDLite320 MobileNet V3 Large COCO_V1 detector
-runs on CPU over the three nominated images. Scores below 0.6 are excluded. One
-entity must be detected in every image; missing/multiple observations abstain rather
-than assuming identity or absence. Maximum bottom-center displacement below 0.08
+runs on CPU over a roughly 5 Hz sample of the entire retained six-second window
+(at most 32 images), including context before the latest activity episode. Scores
+below 0.6 are excluded. Timestamped detections are reused only within the same
+camera session/epoch. One unambiguous entity is associated through actual observations;
+misses up to 0.8 s remain explicit gaps, without interpolation. Longer gaps, multiple
+entities and implausible position jumps start a new trajectory. Association is a
+fallible image-plane continuity rule, not identity recognition. Maximum bottom-center displacement below 0.08
 of normalized image coordinates skips semantic inference. This is position change,
 not a test for all body/hand motion.
 
@@ -219,10 +223,19 @@ separate semantic interaction; receding, reversal and stationary evidence cannot
 Distance contraction needs 0.08; a 0.03 tolerance detects conflicting direction;
 0.06 labels image-plane proximity only. These global starting policies do not
 measure 3D distance or intent. The action gate recomputes motion from detector boxes;
-the VLM cannot supply its own passing motion result. Boxes, detector fingerprint,
+the VLM cannot supply its own passing motion result. Direction uses every associated
+observation, so an intermediate cumulative reversal cannot be hidden by the three
+semantic images. The first/middle/last actual associated observations go to Qwen;
+their exact times are retained separately as `semantic_frame_times`. CPU-only
+abstentions have no semantic image times. Boxes, detector fingerprint,
 region, exact inspected times, relation and rejection reason accompany evidence.
-No scene calibration UI, dense person tracker, automatic identity, model provider
-registry or arbitrary-condition action engine is added. Detector misses and weak
+Successive inferred regions in one camera epoch need matching kinds and at least
+0.5 overlap IoU to count as consistent. A changed/unknown region blocks the current
+action; an initial estimate is provisional and can still qualify with other evidence.
+This checks consistency, not exterior-door truth. Region history resets across views.
+No scene calibration UI, automatic identity, model provider registry or arbitrary-
+condition action engine is added. Buffered detection and VLM work share the existing
+worker: this is not uninterrupted CPU tracking during a long semantic generation. Detector misses and weak
 region inference still limit recognition; an exterior label remains fallible.
 
 `intentions.py` owns durable next-departure requests and separate notification attempts in `intentions.sqlite3`. Atomic claims prevent concurrent replay. Expired unclaimed attempts become missed; lost or restarted playback remains interrupted. User acknowledgement is separate. An armed request survives restart, but an old detected event is not fresh evidence after restart. No cron job establishes departure and no general action registry is added.

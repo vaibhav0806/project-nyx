@@ -1,4 +1,5 @@
 import base64
+import json
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from typing import ClassVar
@@ -36,7 +37,7 @@ class Planner:
             "ambiguous": False,
         }
 
-    def inspect_departure(self, images):
+    def inspect_departure(self, images, **context):
         return {
             "departure": True,
             "uncertain": False,
@@ -59,6 +60,45 @@ def snapshot(color="green"):
     out = BytesIO()
     Image.new("RGB", (160, 96), color).save(out, format="JPEG")
     return base64.b64encode(out.getvalue()).decode()
+
+
+def test_live_dense_selection_keeps_exact_semantic_times_in_delivery_evidence(tmp_path):
+    class Dense(Planner):
+        def inspect_departure(self, images, *, times, view_id):
+            assert len(images) == len(times) == 4
+            assert view_id
+            return {
+                **super().inspect_departure(images),
+                "frame_indices": [1, 2, 3],
+                "semantic_checked": True,
+            }
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Dense)
+    ) as client:
+        request = client.post(
+            "/api/agent",
+            json={"message": "Remind me about water when I leave", "request_id": "dense-evidence"},
+        ).json()
+        wait_for_job(client, request["id"])
+        now = datetime.now(UTC)
+        session = client.post("/api/capture/start", json={"at": now.isoformat()}).json()
+        for i in range(7):
+            response = client.post(
+                "/api/observe",
+                json={
+                    "session_id": session["id"],
+                    "captured_at": (now + timedelta(seconds=i / 10)).isoformat(),
+                    "image": snapshot("gray" if i == 0 else "white"),
+                },
+            )
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "succeeded", job
+        expected = [(now + timedelta(seconds=x)).isoformat() for x in [0.2, 0.4, 0.6]]
+        assert job["result"]["frame_times"] == expected
+        evidence = json.loads(client.get("/api/companion").json()["pending"][0]["evidence"])
+        assert evidence["frame_times"] == expected
+        assert evidence["semantic_frame_times"] == expected
 
 
 def test_typed_companion_uses_local_tools_persists_context_and_deletes_source_links(tmp_path):
@@ -159,7 +199,7 @@ def test_live_observer_does_not_wait_for_recording_segment_and_requires_owner(tm
 
 def test_brief_live_flash_keeps_requested_reminder_armed_without_inspection(tmp_path):
     class NoInspection(Planner):
-        def inspect_departure(self, images):
+        def inspect_departure(self, images, **context):
             pytest.fail("A short returned-to-baseline flash must not invoke vision")
 
     with TestClient(
@@ -212,8 +252,8 @@ def test_no_active_reminder_means_no_visual_model_load_for_live_observation(tmp_
 @pytest.mark.parametrize("relation", ["entering", "standing", "turnback", "unknown_exit"])
 def test_semantic_departure_without_grounded_motion_preserves_armed_request(tmp_path, relation):
     class Contradictory(Planner):
-        def inspect_departure(self, images):
-            result = super().inspect_departure(images)
+        def inspect_departure(self, images, **context):
+            result = super().inspect_departure(images, **context)
             points = {
                 "entering": [0.82, 0.5, 0.2],
                 "standing": [0.82] * 3,
@@ -273,10 +313,10 @@ def test_inflight_departure_cannot_act_after_cancellation_camera_stop_or_expiry(
             return clock[0]
 
     class Waiting(Planner):
-        def inspect_departure(self, images):
+        def inspect_departure(self, images, **context):
             entered.set()
             assert release.wait(5)
-            return super().inspect_departure(images)
+            return super().inspect_departure(images, **context)
 
     monkeypatch.setattr("nyx.companion.datetime", Clock)
     with TestClient(

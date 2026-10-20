@@ -90,6 +90,9 @@ the one supported action. Exit regions are inferred automatically from the image
 without a fixed doorway rectangle. An independent small object detector supplies
 entity positions; generic geometry corroborates direction and can reject standing,
 entry or turnback despite a semantic positive. Missing/ambiguous detections abstain.
-This is three-frame image-plane evidence, not dense identity tracking, a home map
-or arbitrary automatic event understanding. Actual live replay still misses an exit;
-the successful direction rejection does not close recognition or useful-warning gates.
+The authorized continuation uses bounded chronological image-plane tracking with
+explicit brief gaps and three observed semantic images. It adds neither identity
+recognition nor a home map or arbitrary automatic event understanding. Successive
+automatic region estimates are checked for consistency, but an interior doorway can
+still be mislabeled. Complete-sequence replay retains misses, a false indoor action
+and late notification; recognition and useful-warning gates remain open.

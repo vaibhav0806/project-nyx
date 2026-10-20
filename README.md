@@ -38,14 +38,20 @@ are prototype thresholds, not household-validated settings. The action gate sepa
 checks the model's exit cues against an active request. The whole checked sequence
 must follow the request, and evidence names the three images actually inspected.
 
-Nominated sequences now pass a separate small CPU object detector. A single subject
-must have supported position change before the VLM runs. Qwen attempts to locate
+Nominated sequences now pass a separate small CPU object detector over up to six
+seconds of buffered observations, sampled at roughly 5 Hz. A short missed detection
+remains an explicit gap; long gaps, multiple subjects and position jumps reset the
+trajectory. A single subject must have supported position change before three
+actual observed images go to the VLM. Qwen attempts to locate
 the exit from the actual images; region-relative geometry must corroborate approach
 before a reminder can act. Entry, standing and turnback evidence can reject a
 confident semantic departure claim. Door position and reminder contents are not
 predefined. These reusable evidence components currently feed only the supported
 next-departure action; they do not establish arbitrary automatic event understanding.
+Successive exit estimates are checked for consistency within a camera session.
 Detector misses, uncertain exit grounding and slow inference still cause missed events.
+Full-sequence replay caught one of three staged exit proxies, with a late notification,
+and produced one false action on indoor activity. Useful advance warning remains unproven.
 
 **Departure recognition is experimental and currently unreliable.** Public-video diagnostics found misses, false positives and delay. This is a single-person doorway prototype, without identity recognition or a guarantee of speaking before departure. Timed/recurring reminders and arbitrary event triggers are unsupported. A running browser page is required for live observation. [R8](docs/research/R8-companion-loop.md) records actual successes and failures.
 

@@ -72,9 +72,9 @@ def test_continuing_activity_rechecks_only_with_new_evidence_in_the_same_episode
         if burst:
             assert observer.accept(burst)
             admitted.append((tick / 10, burst))
-    assert len(admitted) == 3
+    assert len(admitted) == 7
     assert len({burst["event_id"] for _, burst in admitted}) == 1
-    assert all(right[0] - left[0] >= 2.99 for left, right in pairwise(admitted))
+    assert all(right[0] - left[0] >= 0.99 for left, right in pairwise(admitted))
     assert len(observer.frames) <= 64
 
 
@@ -90,6 +90,29 @@ def test_camera_reset_or_sample_gap_invalidates_old_event_evidence(live):
     assert feed(1.4, 200, session="different") is None
     observer.reset()
     assert feed(1.5, 200) is None
+
+
+def test_live_burst_keeps_bounded_dense_tracking_samples_before_semantic_selection(live):
+    observer, feed, _ = live
+    feed(0)
+    for tick in range(1, 61):
+        burst = feed(tick / 10, 150 + (tick % 3) * 40)
+    assert len(burst["images"]) == 3
+    assert 25 <= len(burst["tracking_images"]) <= 32
+    assert len(burst["tracking_images"]) == len(burst["tracking_times"])
+    assert burst["tracking_times"][0] == burst["times"][0]
+    assert burst["tracking_times"][-1] == burst["times"][-1]
+    assert len(observer.frames) <= 64
+
+
+def test_new_activity_episode_keeps_recent_track_context_from_before_its_boundary(live):
+    _, feed, _ = live
+    feed(0)
+    for tick in range(1, 18):
+        feed(tick / 10, 200)
+    for tick in range(18, 25):
+        burst = feed(tick / 10, 150 + (tick % 3) * 40)
+    assert burst["tracking_times"][0] < burst["times"][0]
 
 
 def test_old_out_of_order_or_interrupted_sequences_cannot_trigger_departure():
@@ -151,6 +174,15 @@ def test_action_gate_matches_visual_and_temporal_evidence_to_current_requests(li
     result = departure_action(burst, judgment, [older, newer, cancelled])
     assert result["act"]
     assert result["request_ids"] == ["old"]
+    assert not departure_action(
+        burst, {**judgment, "region_consistency": {"state": "changed"}}, [older]
+    )["act"]
+    # Intermediate reversal is retained even when the three semantic images look positive.
+    xs = [0.2, 0.3, 0.4, 0.5, 0.6, 0.58, 0.56, 0.54, 0.52, 0.5]
+    full_track = {
+        "observations": [[{"box": [x - 0.04, 0.4, x + 0.04, 0.6], "score": 0.9}] for x in xs]
+    }
+    assert not departure_action(burst, {**judgment, "tracking": full_track}, [older])["act"]
     # 2D door-box proximity is not physical distance. Consistent direction can
     # corroborate separately checked handle interaction before the feet reach it.
     toward = {

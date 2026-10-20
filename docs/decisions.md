@@ -236,3 +236,28 @@ zero actions on four negatives and zero on two ambiguous cases. It is reused
 development evidence, not independent accuracy. Live entry replay independently
 exercises a confident VLM positive rejected by movement away from the door.
 [R8](research/R8-companion-loop.md) contains results, failures and rejected alternatives.
+
+### Buffered chronological trajectories — 2026-10-20
+
+The user approved the next tracking slice. Keep the same small detector, Qwen and
+single worker. Retain the full six-second context across activity episodes, sample
+at roughly 5 Hz (at most 32 images), and permit meaningful changed activity checks
+at one-second intervals. Cache detections by timestamp only within the same view.
+Bridge at most 0.8 s of missing detections with explicit gaps; never invent a box.
+Multiple subjects, longer gaps and implausible jumps split the association. Full
+associated motion determines direction; three actual images determine semantic cues.
+
+Compare successive automatically inferred exit bounds within one view (same kind,
+IoU at least 0.5). Disagreement blocks that check; initial grounding remains provisional.
+These are common geometric policies, without per-clip coordinates or reminder content.
+Buffered tracking does not run continuously during the worker's slow VLM generation.
+
+Complete-sequence evaluation is required before claiming recognition improvement.
+The nine-clip protocol was frozen before inference, with coarse event brackets and
+separate ambiguous/moving-camera cases. Each replay now asserts an armed request in
+an isolated conversation: the first attempted shared-conversation run exposed a real
+planner failure and cannot count inactive clips as negative passes. Preserve that
+conversation weakness as open work. Latest results retain misses, late action and
+false indoor grounding; no household accuracy or advance-warning gate is closed.
+See [R8](research/R8-companion-loop.md) and the
+[tracking plan](superpowers/plans/2026-10-20-continuous-trajectories.md).

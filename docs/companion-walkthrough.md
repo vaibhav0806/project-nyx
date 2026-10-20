@@ -45,7 +45,7 @@ Unchanged or isolated short disturbances skip the model. The first-pass policy n
 at least three observations spanning 0.5 seconds of persistent change; 0.8 seconds of
 quiet closes an episode, and a gap over 0.5 seconds resets continuity. Live sampling
 targets ten observations per second. Qualified activity can be inspected before it
-settles. Continuing activity can be rechecked after three seconds with further change;
+settles. Continuing activity can be rechecked after one second with further change;
 a busy worker does not consume a nomination before admission.
 
 For a nominated burst, the first, middle and last frames are the exact images named
@@ -92,7 +92,7 @@ The request survives a restart. Its condition is an observed event, not a clock 
 | --- | --- |
 | Original clips and `capture.sqlite3` | Saved media, segment times, recording interruptions and recovery |
 | `index.sqlite3` and selected thumbnails | Searchable sampled observations, offsets, encoder identity and vectors |
-| Ephemeral live buffer | At most 64 small frames and six seconds of recent context; three frames per model check; no permanent live-frame archive |
+| Ephemeral live buffer | At most 64 small frames and six seconds of recent context; roughly 5 Hz detector samples with explicit gaps, three observed frames per semantic check; no permanent live-frame archive |
 | `conversations.sqlite3` | User/assistant conversation, chosen tools and source references |
 | `intentions.sqlite3` | Requested next-departure tasks, notification attempts and acknowledgement state |
 
@@ -101,3 +101,9 @@ The request survives a restart. Its condition is an observed event, not a clock 
 Visual processing and media stay local. Optional Sarvam handles activated speech transcription and response synthesis. Without a key, typed conversation still works. A running permitted browser page is required for camera/microphone observation; starting the Python process alone opens no hardware.
 
 See [milestones](milestones.md) for actual status, [R8](research/R8-companion-loop.md) for measurements and failures, and [the README](../README.md) for running the demo. General personal recall, timed/recurring reminders, reliable household event recognition and hardware validation remain open.
+
+The trajectory uses all associated positions for direction, including intermediate
+turnbacks. Short missed detections are marked, not filled in. Unknown or contradictory
+exit estimates block action; the first estimate remains provisional. Processing shares
+the model worker, so a notification can arrive too late. The latest complete-video
+check retained missed exits and a false indoor reminder; see [R8](research/R8-companion-loop.md).

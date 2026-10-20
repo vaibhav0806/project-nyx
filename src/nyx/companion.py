@@ -378,7 +378,28 @@ def install_companion(app, workspace, voice):
             model = workspace.visual_verifier()
             fresh(burst["times"][-1], 8)
             started = time.perf_counter()
-            judgment = model.inspect_departure(burst["images"])
+            judgment = model.inspect_departure(
+                burst["tracking_images"],
+                times=burst["tracking_times"],
+                view_id=(burst["session"], burst["epoch"]),
+            )
+            checked = burst
+            selected = judgment.get("frame_indices")
+            if selected:
+                if (
+                    len(selected) != 3
+                    or any(
+                        type(i) is not int or not 0 <= i < len(burst["tracking_times"])
+                        for i in selected
+                    )
+                    or selected != sorted(set(selected))
+                ):
+                    raise ValueError(
+                        "Semantic inspection needs three distinct ordered image indices"
+                    )
+                checked = {**burst, "times": [burst["tracking_times"][i] for i in selected]}
+            elif selected is not None and judgment.get("semantic_checked") is not False:
+                raise ValueError("Missing inspected image indices")
             session = workspace.capture.snapshot()["session"]
             if (
                 not observer.valid(burst)
@@ -387,14 +408,18 @@ def install_companion(app, workspace, voice):
                 or session["state"] != "recording"
             ):
                 return {"state": "interrupted", "deliveries": []}
-            fresh(burst["times"][-1])
-            decision = departure_action(burst, judgment, tasks.active())
+            fresh(checked["times"][-1])
+            decision = departure_action(checked, judgment, tasks.active())
+            semantic_times = (
+                checked["times"] if judgment.get("semantic_checked") is not False else []
+            )
             evidence = {
                 "judgment": judgment,
                 "model": model.fingerprint,
-                "frame_times": burst["times"],
+                "frame_times": checked["times"],
+                "semantic_frame_times": semantic_times,
                 "inference_seconds": time.perf_counter() - started,
-                "kind": "model_inference",
+                "kind": "model_inference" if semantic_times else "detector_observation",
                 "event_id": burst["event_id"],
                 "activity": burst["activity"],
                 "decision": decision,
@@ -402,7 +427,7 @@ def install_companion(app, workspace, voice):
             deliveries = (
                 tasks.trigger(
                     burst["event_id"],
-                    burst["times"][-1],
+                    checked["times"][-1],
                     evidence,
                     request_ids=decision["request_ids"],
                 )
@@ -422,6 +447,8 @@ def install_companion(app, workspace, voice):
                 "decision": decision,
                 "event_id": burst["event_id"],
                 "activity": burst["activity"],
+                "frame_times": checked["times"],
+                "semantic_frame_times": semantic_times,
             }
 
         workspace.submit(job_id, check)
