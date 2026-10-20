@@ -759,3 +759,62 @@ No further inference followed. The next reliability work should address how the
 planner retains user attributes and how visual verification handles multiple
 matches, without adding a hand-coded rule for this image or object. History and
 departure tests remain pending. No application code changed for this measurement.
+
+## Query attributes and clarification handling — 2026-10-20
+
+The user authorized improving query construction, asking about ambiguity, and
+small sequential inference checks. All runs used the pinned Qwen3.5 2B MLX 8-bit
+checkpoint, offline cached assets, no devices/cloud/voice, and a parent watchdog
+with the approved 10% cutoff, three-second sampling and 180-second timeout.
+
+**Implemented:** planner instructions explicitly preserve spatial/appearance
+attributes, use the latest request before older context, and prefer inspection
+of a usable description. Planner v12 sends only prior transcripts, answers and
+source-availability flags, with the latest message last; stored plans remain
+in the database. Visual prompt v5 inventories candidates and reports an integer
+`matching_count`. A visible answer requires exactly one match. Multiple matches
+or an ambiguity flag produce uncertain visual evidence with an ambiguity marker.
+Missing/invalid counts cannot confirm a location. This is consistency checking of
+model output, not an independent detector or a guarantee that the count is right.
+
+Current inspection and historical verification now return a clarification question
+for ambiguity. History stops before selecting another, possibly older match. The
+agent finishes that tool result without another generation or automatic wider
+search. The direct snapshot API and voice formatting retain the question. No new
+agent framework, model, object-specific rewrite or long-term memory was added.
+
+**Real planner check:** `planner-v10-001` exercised five cases with real decisions
+and controlled successful tool results, not real visual search. All five passed
+concept/path checks: right-hand remote, backpack underneath a desk, switching
+from blue bottle to red mug, thin silver reading glasses, and a historical pronoun
+for a blue bottle. Queries were manually inspected. Total process time 18.05 s;
+lowest sampled memory metric 21%. These are development cases, and this five-case
+set was not rerun after the later v11/v12 input changes.
+
+**Integrated image checks:** all reused the two-remotes public image. The follow-up
+was changed to the RIGHT remote, so repeating a left-hand answer would not pass.
+Each run used fresh isolated conversation state and no history imports.
+
+| Run | Visual/planner prompt | Process time | Observed behavior |
+| --- | --- | --- | --- |
+| mvp-current-005 | v3/v10 | 12.09 s | First answer chose left; follow-up asked which right remote instead of inspecting. |
+| mvp-current-006 | v4/v11 | 15.05 s | Described two remotes yet claimed a visible unambiguous location; follow-up asked another question. |
+| mvp-current-007 | v5/v11 | 15.05 s | Generic request correctly produced a clarification; spatial follow-up still asked again. |
+| mvp-current-008 | v5/v12 | 12.30 s | Generic request clarified; right-hand follow-up repeated the clarification without an inspection. |
+
+The final run's first turn took 9.14 s including model load; the correction took
+2.22 s. Reported MLX peak was 3,973,347,408 bytes (3.70 GiB), not total process or
+system RAM. Lowest sampled free-memory metric was 29%. All four processes exited
+normally; no watchdog triggered. Differences between runs are not a controlled
+memory comparison. No more inference followed.
+
+**Conclusion:** ambiguity-to-question wiring now works on this development image.
+The multi-turn correction flow is still failing: an answer to a clarification
+must become a refined inspection query, but the model currently repeats the
+question. The earlier isolated five-case pass does not establish integrated
+conversation reliability. Next evaluation should explicitly include assistant
+clarification → user attribute → tool use, with other objects and images. Do not
+mark object finding, historical retrieval or departure MVP acceptance complete.
+
+Verification: **261 deterministic tests pass**; lint, format, local document
+links and byte-matched offline wheel pass. Browser interaction was not rerun.

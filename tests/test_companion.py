@@ -730,3 +730,36 @@ def test_cancellation_requires_unambiguous_reminder_target(tmp_path, message, ex
         assert tasks.get(first["id"])["state"] == (
             "cancelled" if expected == "cancelled" else "armed"
         )
+
+
+def test_ambiguous_current_view_asks_user_without_searching_history(tmp_path):
+    from nyx.verification import LocalVerifier
+
+    class Ambiguous(Planner):
+        def decide(self, state):
+            if state["observations"]:
+                return LocalVerifier.decide(self, state)
+            return {"action": "inspect_current", "query": "mug"}
+
+        def inspect(self, image, query):
+            return {"visibility": "uncertain", "location": None, "ambiguous": True}
+
+        def generate_json(self, *args):
+            pytest.fail("A clarification result needs no additional model call")
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Ambiguous)
+    ) as client:
+        response = client.post(
+            "/api/agent",
+            json={
+                "message": "Find my mug",
+                "request_id": "ambiguous-current",
+                "snapshot": snapshot("green"),
+                "captured_at": datetime.now(UTC).isoformat(),
+            },
+        )
+        result = wait_for_job(client, response.json()["id"])["result"]
+        assert result["status"] == "clarify"
+        assert "Which one" in result["answer"]
+        assert [step["action"] for step in result["steps"]] == ["inspect_current", "finish"]

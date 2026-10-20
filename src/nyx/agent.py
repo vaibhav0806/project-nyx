@@ -231,6 +231,7 @@ def agent_steps(
             "armed",
             "cancelled",
             "complete",
+            "clarify",
         }:
             selected = observations[-1]
             result.update(

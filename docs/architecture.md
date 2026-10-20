@@ -274,3 +274,13 @@ was executed. Active-state and target checks remain authoritative at execution.
 Planner continuation exposes `remaining_query` with its remaining search windows;
 checks for a different description do not exhaust this query's windows. Prompt v9
 prioritizes the current message/correction over past tasks and location answers.
+
+### Object clarification boundary
+
+Visual verification reports a matching-object count and ambiguity. Only a valid
+single-match visible judgment can support a direct location. Explicit ambiguity
+becomes a `clarify` tool result; the bounded agent returns its question without
+further search. History stops at ambiguous evidence rather than selecting an
+older candidate. Voice preserves the question. These are model-output consistency
+checks, not guarantees of correct recognition. The next user message remains an
+ordinary agent request with recent conversation context.

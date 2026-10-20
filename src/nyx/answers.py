@@ -71,10 +71,15 @@ def history_steps(
         item = {**evidence_links(candidate), "judgment": judgment, "model_checked": True}
         checked.append(item)
         yield {"checked": len(checked), "candidate_limit": limit}
+        if judgment.get("ambiguous"):
+            break
         if judgment["visibility"] == "visible":
             selected = item
             break
     answer = f"I couldn't confirm {object_query} in the sampled frames checked. This does not prove it wasn't there."
+    ambiguous = bool(checked and checked[-1]["judgment"].get("ambiguous"))
+    if ambiguous:
+        answer = "Which one do you mean? Please describe its color, position, or another distinguishing detail."
     if selected:
         when = (
             selected["observed_at"]
@@ -96,7 +101,7 @@ def history_steps(
     return {
         "kind": "history",
         "object_query": object_query,
-        "status": "seen" if selected else "uncertain",
+        "status": "clarify" if ambiguous else "seen" if selected else "uncertain",
         "answer": answer,
         "evidence": selected,
         "checked": checked,

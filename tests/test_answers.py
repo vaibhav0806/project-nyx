@@ -7,7 +7,7 @@ from nyx.verification import parse_judgment
 
 def test_verifier_accepts_a_specific_visible_observation():
     result = parse_judgment(
-        '{"visibility":"visible","location":"beside the laptop","description":"A pair of glasses is visible.","ambiguous":false}'
+        '{"visibility":"visible","location":"beside the laptop","description":"A pair of glasses is visible.","matching_count":1,"ambiguous":false}'
     )
     assert result["visibility"] == "visible"
     assert result["location"] == "beside the laptop"
@@ -31,7 +31,7 @@ def test_unparseable_or_ambiguous_model_output_cannot_confirm_presence(raw):
 
 def test_negative_model_output_cannot_attach_a_location():
     result = parse_judgment(
-        '{"visibility":"not_visible","location":"in a drawer","description":"Not visible.","ambiguous":false}'
+        '{"visibility":"not_visible","location":"in a drawer","description":"Not visible.","matching_count":0,"ambiguous":false}'
     )
     assert result["location"] is None
     assert result["visibility"] == "not_visible"
@@ -139,3 +139,67 @@ def test_latest_search_can_reach_an_older_candidate_beyond_the_recent_scan(tmp_p
     assert result["evidence"] is not None
     assert result["evidence"]["video_id"] == older["video_id"]
     assert result["scope"]["fallback_used"] is True
+
+
+def test_valid_ambiguity_is_preserved_without_a_location_claim():
+    result = parse_judgment(
+        '{"visibility":"visible","location":"left","description":"Two matches","matching_count":2,"ambiguous":true}'
+    )
+    assert result["visibility"] == "uncertain"
+    assert result["ambiguous"] is True
+    assert result["location"] is None
+
+
+def test_ambiguous_history_stops_before_an_older_match(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from nyx.answers import history_steps
+
+    candidates = [
+        {"id": str(i), "video_id": "video", "video_path": "fixture.mp4", "offset_seconds": i}
+        for i in range(2)
+    ]
+    monkeypatch.setattr("nyx.answers.search", lambda *args, **kwargs: candidates)
+    monkeypatch.setattr("nyx.answers.frame_image", lambda *args: object())
+    calls = []
+
+    def inspect(image, query):
+        calls.append(query)
+        assert len(calls) == 1, "Must clarify before choosing another historical match"
+        return {"visibility": "uncertain", "ambiguous": True}
+
+    verifier = SimpleNamespace(inspect=inspect, fingerprint={"model": "fixture"})
+    steps = history_steps(
+        "mug", SimpleNamespace(root=tmp_path), None, lambda: verifier, mode="relevance"
+    )
+    while True:
+        try:
+            next(steps)
+        except StopIteration as done:
+            result = done.value
+            break
+    assert result["status"] == "clarify"
+    assert result["evidence"] is None
+    assert len(result["checked"]) == 1
+    assert "Which one" in result["answer"]
+
+
+@pytest.mark.parametrize("count", [0, 2, True, "1", None])
+def test_visible_requires_exactly_one_reported_match(count):
+    import json
+
+    result = parse_judgment(
+        json.dumps(
+            {
+                "visibility": "visible",
+                "location": "left and right",
+                "description": "Candidates",
+                "matching_count": count,
+                "ambiguous": False,
+            }
+        )
+    )
+    assert result["visibility"] == "uncertain"
+    assert result["location"] is None
+    if count == 2:
+        assert result["ambiguous"] is True

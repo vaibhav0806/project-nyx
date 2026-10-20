@@ -224,3 +224,12 @@ both video imports and the history request, so the fresh workspace does not need
 the embedding model. It isolates visual answering and query correction; it cannot
 validate retrieval or temporal ordering. This option has not been run with a real
 model yet. **Further inference requires explicit user approval.**
+
+The current object-flow harness now asks for the **right-hand** remote on its
+second turn. Earlier runs 001–004 used the left-hand correction. This intentional
+change prevents the previous left-hand answer from accidentally satisfying the
+follow-up. Preserve that protocol distinction when comparing R8 results.
+Planner cases `spatial-correction-right`, `spatial-correction-under`,
+`changed-object`, `corrected-attributes`, and `historical-pronoun` isolate query
+construction with controlled tool observations. Passing them does not validate
+responses to a real assistant clarification or real visual ambiguity.

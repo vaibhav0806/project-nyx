@@ -74,7 +74,7 @@ def main():
             assert job["status"] == "succeeded", job
         cases = [
             ("current", "Where is the television remote control?", True),
-            ("correction", "I mean the remote on the left of the picture.", True),
+            ("correction", "I mean the remote on the right of the picture.", True),
             ("history", "Where did you last see it?", False),
         ]
         if args.current_only:

@@ -360,3 +360,19 @@ query-scoped continuation: the agent may refine a description after an uncertain
 result, while the same query remains blocked. The six-step budget is unchanged.
 This fixes a separate control-flow defect; it does not establish that Qwen retains
 spatial corrections. No extra planner or rule for specific object attributes.
+
+### Clarify ambiguous object requests — 2026-10-20
+
+The user prefers a clarification over an unsupported direct answer. Preserve
+visual ambiguity through parsing and current/history tools, stop the search, and
+return a brief question. A model-reported match count must be exactly one before
+a direct visible-location answer; missing/invalid counts fail uncertain. Counts
+are model claims, not independent ground truth. General uncertainty still permits
+search; explicit ambiguity asks the user before choosing another candidate.
+
+Planner v12 preserves distinguishing attributes in its instructions and sends
+compact prior utterances plus the latest request last. Visual prompt v5 reports
+candidates before match count/decision. No regex for object attributes, separate
+query model or new agent framework. Real checks show improved ambiguity handling
+but repeated clarification on a usable spatial follow-up; see R8. The user
+authorized these sequential tests at a 10% watchdog cutoff; all have exited.

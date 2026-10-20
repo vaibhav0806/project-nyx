@@ -15,6 +15,35 @@ from nyx.verification import LocalVerifier
 
 CASES = [
     {
+        "name": "spatial-correction-right",
+        "message": "I mean the remote on the right of the picture.",
+        "context": [
+            {
+                "transcript": "Where is the television remote control?",
+                "answer": "On the left beside a cat",
+            }
+        ],
+        "concepts": ["remote", "right"],
+        "forbidden": ["left"],
+        "path": ["inspect_current", "finish"],
+    },
+    {
+        "name": "spatial-correction-under",
+        "message": "No, the one underneath the desk",
+        "context": [{"transcript": "Find my backpack", "answer": "Beside the door"}],
+        "concepts": ["backpack", "under", "desk"],
+        "forbidden": ["door"],
+        "path": ["inspect_current", "finish"],
+    },
+    {
+        "name": "changed-object",
+        "message": "Actually find my red mug instead",
+        "context": [{"transcript": "Find my blue water bottle", "answer": "Unclear"}],
+        "concepts": ["red", "mug"],
+        "forbidden": ["blue", "bottle"],
+        "path": ["inspect_current", "finish"],
+    },
+    {
         "name": "descriptive-current",
         "message": "Where is my blue water bottle?",
         "concepts": ["blue", "bottle"],

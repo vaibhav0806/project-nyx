@@ -416,7 +416,7 @@ def test_invalid_completion_gets_one_bounded_correction_before_a_real_tool_resul
     assert len(result["decision_errors"]) == 1
 
 
-@pytest.mark.parametrize("status", ["seen", "armed", "cancelled", "complete"])
+@pytest.mark.parametrize("status", ["seen", "armed", "cancelled", "complete", "clarify"])
 def test_completed_tool_result_needs_no_additional_model_generation(status):
     from nyx.verification import LocalVerifier
 

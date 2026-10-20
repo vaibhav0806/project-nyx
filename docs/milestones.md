@@ -269,3 +269,17 @@ left” from its correction query; the initial answer also failed to acknowledge
 two matching remotes. Thus correction/ambiguity acceptance remains unmet. No
 history/departure test or additional inference followed. See [R8](research/R8-companion-loop.md)
 for timings and memory limitations. No code changed; prior 252-test result stands.
+
+### Clarification wiring; follow-up resolution still open — 2026-10-20
+
+Ambiguity now survives parsing and returns a question through current/history,
+direct snapshot and voice paths. Multi-match or invalid-count output cannot
+confirm a single location; history stops before choosing an older match.
+Five isolated real planner cases passed on prompt v10. Subsequent integrated
+checks on final visual v5/planner v12 correctly clarified a generic two-remotes
+request, but repeated the question after a right-hand clarification instead of
+inspecting. All model processes exited; no MVP acceptance gate closed.
+See [R8](research/R8-companion-loop.md) for each iteration and limits.
+
+Verification: **261 deterministic tests pass**; lint, format, local document
+links and byte-matched offline wheel pass. Browser interaction was not rerun.

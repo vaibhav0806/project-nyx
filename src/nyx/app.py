@@ -693,7 +693,8 @@ def create_app(
             verifier = workspace.visual_verifier()
             snapshot_age(captured_at)
             judgment = verifier.inspect(image, object_query)
-            seen = judgment["visibility"] == "visible"
+            ambiguous = bool(judgment.get("ambiguous"))
+            seen = judgment["visibility"] == "visible" and not ambiguous
             description = (
                 f"The model identified {object_query} {judgment['location'] or 'in the image'}."
                 if seen
@@ -702,8 +703,10 @@ def create_app(
             return {
                 "kind": "snapshot",
                 "object_query": object_query,
-                "status": "seen" if seen else "uncertain",
-                "answer": f"In the snapshot captured at {captured_at.astimezone(UTC).isoformat()}: {description} The scene may have changed since capture.",
+                "status": "clarify" if ambiguous else "seen" if seen else "uncertain",
+                "answer": "Which one do you mean? Please describe its color, position, or another distinguishing detail."
+                if ambiguous
+                else f"In the snapshot captured at {captured_at.astimezone(UTC).isoformat()}: {description} The scene may have changed since capture.",
                 "captured_at": captured_at.astimezone(UTC).isoformat(),
                 "age_seconds": (datetime.now(UTC) - captured_at).total_seconds(),
                 "judgment": judgment,

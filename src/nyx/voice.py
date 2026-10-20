@@ -62,6 +62,8 @@ def conversational_plan(text):
 def spoken_answer(result):
     kind = result.get("kind")
     query = result.get("object_query", "that object")
+    if result.get("status") == "clarify":
+        return "Which one do you mean? Please describe its color, position, or another distinguishing detail."
     if kind == "snapshot":
         if result.get("status") == "seen":
             return f"I can see {query} {result['judgment'].get('location') or 'in this view'}."

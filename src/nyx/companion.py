@@ -216,7 +216,11 @@ def install_companion(app, workspace, voice):
                 result = {
                     "kind": "snapshot",
                     "object_query": action["query"],
-                    "status": "seen" if judgment["visibility"] == "visible" else "uncertain",
+                    "status": "clarify"
+                    if judgment.get("ambiguous")
+                    else "seen"
+                    if judgment["visibility"] == "visible"
+                    else "uncertain",
                     "judgment": judgment,
                     "captured_at": body.captured_at.isoformat(),
                     "age_seconds": fresh(body.captured_at.isoformat()),
