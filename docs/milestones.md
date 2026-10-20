@@ -242,3 +242,12 @@ acceptance goal yet; no milestone is newly closed. See [R8](research/R8-companio
 Verification: **251 deterministic tests pass**, Ruff and formatting pass, edited
 document links resolve, and the offline wheel matches the changed runtime files.
 These checks do not substitute for the pending real-model flow validation.
+
+### Correction continuation guard — 2026-10-20
+
+Fixed a guard that rejected current inspection for a changed query after any prior
+current inspection. Same-query repetitions remain rejected. The regression failed
+before the change; all **252 deterministic tests pass** afterwards. No model
+loaded or inference run. The MVP experiment now offers `--current-only` to isolate
+two conversation turns without indexing/history. Further inference requires user
+approval; real correction quality, history and departure acceptance remain open.

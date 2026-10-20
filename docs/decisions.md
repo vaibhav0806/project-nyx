@@ -346,3 +346,17 @@ retain agent ownership of query interpretation. Visual prompt version is now 2.
 Memory pressure stopped the run before history completed; further model runs are
 paused for headroom. New-model departure validation and correction reliability
 remain open. See R8 for the measured failures and exact limitations.
+
+### Model runs require renewed approval — 2026-10-20
+
+The user authorized continued code/lightweight verification and requested approval
+before any further model inference. Do not load models for the next experiment
+until that approval arrives. The next proposed run isolates current inspection
+and correction, without indexing/history, to reduce concurrent model memory.
+
+The planner's repeated-current-check guard now compares the full action rather
+than rejecting all current checks after the first. This aligns enforcement with
+query-scoped continuation: the agent may refine a description after an uncertain
+result, while the same query remains blocked. The six-step budget is unchanged.
+This fixes a separate control-flow defect; it does not establish that Qwen retains
+spatial corrections. No extra planner or rule for specific object attributes.

@@ -495,3 +495,23 @@ def test_corrected_query_survives_time_widening_and_old_answer_is_not_evidence()
     assert [row.get("hours") for row in received] == [None, 2, 24]
     assert result["answer"] == "No confirmed sighting"
     assert result["sources"] == []
+
+
+def test_planner_can_inspect_a_changed_query_after_an_uncertain_current_check():
+    from nyx.verification import LocalVerifier
+
+    verifier = object.__new__(LocalVerifier)
+    verifier.generate_json = lambda *args: (
+        '{"action":"inspect_current","query":"silver reading glasses"}'
+    )
+    action = verifier.decide(
+        {
+            "message": "Find the silver reading glasses",
+            "available": {"current_view": True, "history": True},
+            "actions": [{"action": "inspect_current", "query": "glasses"}],
+            "observations": [
+                {"index": 0, "kind": "snapshot", "status": "uncertain", "answer": "Ambiguous"}
+            ],
+        }
+    )
+    assert action == {"action": "inspect_current", "query": "silver reading glasses"}

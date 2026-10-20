@@ -315,9 +315,7 @@ If no useful choices remain, finish with an uncertain observation or clarify."""
             raise ValueError(
                 "Resolve the query from the user's object description, not the schema placeholder"
             )
-        if action["action"] == "inspect_current" and any(
-            row["action"] == "inspect_current" for row in tried
-        ):
+        if action["action"] == "inspect_current" and action in tried:
             raise ValueError(
                 "Visual action unavailable or already checked; choose an untried available tool/window"
             )

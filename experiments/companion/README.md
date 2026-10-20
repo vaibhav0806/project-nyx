@@ -218,3 +218,9 @@ The script limits MLX to 6 GiB and cache to 128 MiB; these are not process limit
 The recorded run additionally used a parent watchdog (180 s total; check system
 memory every 3 s and terminate the owned child below a 25% free metric). That
 watchdog is not built into this script. R8 records its interrupted result.
+
+Add `--current-only` for only the current-view and correction turns. This skips
+both video imports and the history request, so the fresh workspace does not need
+the embedding model. It isolates visual answering and query correction; it cannot
+validate retrieval or temporal ordering. This option has not been run with a real
+model yet. **Further inference requires explicit user approval.**

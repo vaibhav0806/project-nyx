@@ -28,6 +28,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--fixture", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--current-only",
+        action="store_true",
+        help="Check current view and correction without indexing or historical retrieval",
+    )
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=False)
     mx.set_memory_limit(6 * 1024**3)
@@ -42,6 +47,7 @@ def main():
 
     results = {
         "scope": "Real local API/models, public-image synthetic video, simulated recording dates; no devices or voice",
+        "current_only": args.current_only,
         "cases": [],
     }
     with TestClient(
@@ -52,8 +58,9 @@ def main():
             voice_factory=lambda root: None,
         )
     ) as client:
-        video = (args.fixture / "scenes.mp4").read_bytes()
-        for name, hours in [("old", 240), ("recent", 1)]:
+        imports = [] if args.current_only else [("old", 240), ("recent", 1)]
+        video = (args.fixture / "scenes.mp4").read_bytes() if imports else None
+        for name, hours in imports:
             response = client.post(
                 "/api/import",
                 params={
@@ -70,6 +77,8 @@ def main():
             ("correction", "I mean the remote on the left of the picture.", True),
             ("history", "Where did you last see it?", False),
         ]
+        if args.current_only:
+            cases = cases[:2]
         for name, message, current in cases:
             body = {"message": message, "request_id": name}
             if current:
