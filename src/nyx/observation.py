@@ -5,7 +5,7 @@ from collections import deque
 from datetime import UTC, datetime
 from threading import Lock
 
-from nyx.attention import ChangeDetector
+from nyx.attention import ChangeDetector, sequence_changed
 from nyx.memory import aware_time
 
 
@@ -81,10 +81,15 @@ class Observer:
                 return None
             if self.last_check and (at - self.last_check).total_seconds() < 3:
                 return None
+            samples = list(self.frames)
+            if len(samples) > 3:
+                samples = [samples[0], samples[len(samples) // 2], samples[-1]]
+            if not sequence_changed([row[1] for row in samples]):
+                return None
             self.last_check = at
             return {
                 "epoch": self.epoch,
                 "session": session,
-                "images": [row[1] for row in self.frames],
-                "times": [row[0].isoformat() for row in self.frames],
+                "images": [row[1] for row in samples],
+                "times": [row[0].isoformat() for row in samples],
             }

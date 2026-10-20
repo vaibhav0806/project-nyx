@@ -118,7 +118,7 @@ def test_live_observer_does_not_wait_for_recording_segment_and_requires_owner(tm
                 "/api/observe",
                 json={
                     "session_id": session["id"],
-                    "captured_at": (now + timedelta(seconds=index - 2)).isoformat(),
+                    "captured_at": (now + timedelta(seconds=index * 0.5)).isoformat(),
                     "image": snapshot(color),
                 },
             )

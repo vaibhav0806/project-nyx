@@ -5,10 +5,12 @@ import json
 import platform
 import resource
 import time
+from importlib.metadata import version
 from pathlib import Path
 
 from PIL import Image
 
+from nyx.attention import sequence_changed
 from nyx.verification import LocalVerifier
 
 
@@ -16,15 +18,22 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--reverse-check",
+        action="store_true",
+        help="Diagnose direction sensitivity by also inspecting every sequence backwards",
+    )
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=False)
     manifest = json.loads(args.manifest.read_text())
     model = LocalVerifier()
     results = {
         "platform": platform.platform(),
+        "runtime": {name: version(name) for name in ["torch", "transformers", "pillow"]},
         "model": model.fingerprint,
         "load_seconds": model.load_seconds,
         "manifest": manifest,
+        "reverse_check": args.reverse_check,
         "cases": [],
     }
     original = model.generate_json
@@ -44,7 +53,24 @@ def main():
             image.thumbnail((640, 360))
         started = time.perf_counter()
         judgment = model.inspect_departure(images)
-        row = {**case, "judgment": judgment, "seconds": time.perf_counter() - started}
+        row = {
+            **case,
+            "judgment": judgment,
+            "seconds": time.perf_counter() - started,
+            "motion_selected": sequence_changed(images),
+        }
+        if args.reverse_check:
+            started = time.perf_counter()
+            row["reversed_judgment"] = model.inspect_departure(list(reversed(images)))
+            row["reversed_seconds"] = time.perf_counter() - started
+            # A diagnostic only: a temporal classifier should change its decision on
+            # reversed exits. Do not silently turn this into another runtime call.
+            row["direction_sensitive_positive"] = (
+                judgment["departure"]
+                and not judgment["uncertain"]
+                and not row["reversed_judgment"]["departure"]
+                and not row["reversed_judgment"]["uncertain"]
+            )
         if case["expected"] != "uncertain":
             row["matched"] = judgment["departure"] == (case["expected"] == "departure")
         results["cases"].append(row)

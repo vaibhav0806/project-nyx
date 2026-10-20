@@ -35,6 +35,26 @@ HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/departure.py \
 
 Record failures, prompt changes, inference time and raw output. Reusing cases to revise prompts does not produce held-out accuracy. Run model processes sequentially on this 16 GiB machine; simultaneous Qwen processes caused heavy swapping. Current findings are in [R8](../../docs/research/R8-companion-loop.md).
 
+Add `--reverse-check` to diagnose temporal direction sensitivity on every case. It runs
+the identical prompt/model on the original and reversed image order, records both raw
+outputs and timings, and reports whether a forward positive becomes a clear reversed
+negative. This is an experiment only; it does not add a second inference to the app.
+The follow-up in R8 rejects that gate because it loses two of three departure proxies
+and still retains a stationary-doorway false positive. `motion_selected` separately
+reports the inexpensive scene-change nomination; it does not establish departure.
+
+Run that inexpensive gate alone on the manifest and controlled static/noise/local-change
+inputs, without loading a model:
+
+```sh
+uv run --no-sync python experiments/companion/motion.py \
+  --manifest data/evaluation/departure-manifest.json \
+  --output data/runs/departure-motion-new
+```
+
+All nine current public sequences pass this gate, including the negative cases. Its
+purpose is to skip unchanged scenes; it supplies no semantic/direction accuracy claim.
+
 `video_native.py` compares explicitly time-labelled image inputs with Qwen's native timestamped video preprocessing using the **same** prompt and cases. This isolates an input-representation hypothesis; it is not additional independent evaluation. Run one mode at a time:
 
 ```sh

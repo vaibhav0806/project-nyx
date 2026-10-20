@@ -44,3 +44,13 @@ Execution proceeds inline under the user's explicit instruction to keep working 
 - A delayed claim-response browser check reproduced audio starting after local cancellation had succeeded. Delivery invalidation now covers Cancel, Stop, wake interruption, camera stop and a new question. The repeat passed with no cancelled audio starts; a further simulated playback denial correctly reported failure, with normal playback and acknowledgement still passing. The offline wheel also built and includes the new modules/browser assets.
 
 - Final suite: 152 passed. Removed the redundant generation after completed tool results; local-model run 006 passed all five workflows with unchanged evidence attribution. The 1800.04-second recording phase completed with 179 indexed segments, 112 candidate searches, observed backlog ≤1 and zero indexing failures. Its later harness over-clicked asynchronous pagination; synchronization was corrected, the retained 182-source library passed restart/deletion/reload/mobile checks, and a separate complete short lifecycle scenario passed. The final 151-source delivery/pagination check and generated-speech voice interruption/cleanup scenario also passed. R8 keeps phase success, harness failures and follow-up verification distinct. No actual hardware, hosted-provider or independent household acceptance gate is closed.
+
+### Renewed departure work
+
+- [x] Diagnose direction sensitivity on the nine existing development sequences by reversing frame order; reject a runtime reversal gate because it loses exits and retains a stationary false positive.
+- [x] Reproduce and fix a new request being triggered by a sequence that began before it, preserving older eligible requests and rejecting malformed/contradictory sequence times.
+- [x] Select exactly three images before model inspection so persisted timestamps match inspected evidence; reproduce the six-versus-three mismatch before fixing it.
+- [x] Suppress unchanged live bursts with existing image-difference thresholds; test quiet periodic checks, low noise, local/cumulative change and resumption. Preserve original recording/index selection policy.
+- [x] Run deterministic/browser checks and a separate local-model API replay; record resource/recognition failures rather than counting expired evidence as successful delivery.
+
+The follow-up suite has 163 passing tests; lint/format checks and the isolated speech/reminder browser scenario pass. No model, service, framework, cloud call, hardware capture or large download was added. R8 records experiment limitations and the next recognition question.

@@ -22,6 +22,10 @@ The **Talk to Nyx** field works without an API key. Ask “Where are my reading 
 
 “Remind me to take my water bottle when I leave” saves a **next-departure** request. With recording running and the main door visible, a separate live observer checks local changes and selected short image sequences without waiting for saved-segment indexing. The reminder list shows actual state; Cancel removes an active request and **Got it** acknowledges played speech. Requests survive restart, but old events are not silently replayed. Spoken delivery requires Sarvam configuration and browser playback permission; display-only output is not counted as speech.
 
+Unchanged live sequences do not invoke departure inference. A change only nominates
+inspection; it does not establish departure. The whole checked sequence must follow
+the reminder request, and event evidence lists only the three images actually checked.
+
 **Departure recognition is experimental and currently unreliable.** Public-video diagnostics found misses, false positives and delay. This is a single-person doorway prototype, without identity recognition or a guarantee of speaking before departure. Timed/recurring reminders and arbitrary event triggers are unsupported. A running browser page is required for live observation. [R8](docs/research/R8-companion-loop.md) records actual successes and failures.
 
 The agent reuses local Qwen for text decisions, so first use loads/downloads it. No new inference framework or quantization was added. This checkout's measured machine has 16 GiB memory, unlike the earlier 24 GiB benchmark machine. Run model experiments sequentially and preserve disk headroom.

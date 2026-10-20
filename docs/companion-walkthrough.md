@@ -30,6 +30,12 @@ While recording is enabled, full video segments save locally. Cheap image differ
 
 A separate live observer uses small recent frames from the same camera. It does not wait for a saved segment to finish indexing. It checks departure cues with the heavier local model only when a departure reminder is armed. A camera change, pause or stale sequence invalidates that burst.
 
+Unchanged sequences skip the model entirely. For a nominated burst, the first,
+middle and last frames are the exact images named in event evidence. The complete
+sequence must come after the reminder request; the tail of an older event cannot
+satisfy a newly created reminder. Motion is only a reason to look more closely, not
+proof of departure.
+
 ## Remembering to act
 
 ```mermaid

@@ -151,3 +151,18 @@ The user approved a conversation-aware tool loop, continuous watching, adaptive 
 Follow-up inline checks preserve unknown-date footage through a separate best-match tool, give fresh event checks priority ahead of queued indexing, and permit one invalid-decision correction within the existing six-step budget. Active requests remain visible beyond recent-history limits. Native timestamped video was compared on the same diagnostic sequences but not promoted: it retained false triggers and missed an exit. The longer recording check exposed hidden older sources after fifty clips; explicit **Show older clips** restores their playback/deletion controls without changing retention.
 
 Completed tool results now finish directly under the existing single-task policy, avoiding an unnecessary generation; uncertain results continue through model decisions. Browser delivery generations invalidate late audio on known cancellation/interruption. Recording-phase results, full lifecycle outcomes and harness failures are recorded separately in R8; no actual-camera or departure-quality gate is closed by them.
+
+### Departure follow-up — 2026-10-20
+
+Following the user's renewed implementation request, keep the existing model and
+worker while fixing the event boundary: select the exact three live samples before
+inspection, suppress unchanged bursts with the existing local change thresholds, and
+require the entire inspected sequence to follow the request. The cheap gate retains
+all nine reused public sequences, including their negatives; it does not resolve
+direction or intent. No extra dependency/model download is needed.
+
+A reversal-consistency experiment was rejected as a runtime gate: it retains only
+one of three exit proxies while still accepting a stationary-doorway case, and adds
+another expensive generation. This is diagnostic evidence of weak temporal reasoning,
+not a quality improvement. Next recognition work should test explicit exit geometry
+and chronological person motion on independently labelled fixed-camera views.

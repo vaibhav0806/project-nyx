@@ -122,3 +122,11 @@ Use `Not started`, `In progress`, `Blocked`, `Ready for review`, or `Complete`. 
 The user authorized implementation and local experiments, then local commits with no push. The working branch adds a local tool loop for typed/spoken questions, contextual correction and recent-history selection, inexpensive adaptive frame selection, live observation independent of segment indexing, and durable next-departure requests with cancel/replay/expiry/playback/acknowledgement controls. [R8](research/R8-companion-loop.md) records measured evidence and failures; [the execution plan](superpowers/plans/2026-10-20-agent-observation.md) records scope and checks.
 
 M3/M4 remain in progress: local-model development examples exercise tool selection and contextual follow-up, but household quality and latency targets are not met. M5 is now in progress for the bounded event-conditioned request only. Public-video departure checks have false positives, misses and potential late notification; deterministic wiring success does not close recognition acceptance. General saved-fact/assistant recall, timed/recurring reminders and overdue scheduled delivery remain unimplemented. M2's thirty-minute synthetic recording phase completed with 179 indexed segments and 112 candidate searches. The long harness had later UI-test failures, documented separately from successful large-library restart/deletion and short complete lifecycle follow-ups in R8. Actual-camera validation remains open.
+
+Departure follow-up: **163 deterministic tests pass**, including regressions for a
+sequence straddling a new request, exact inspected-frame attribution and suppression
+of unchanged/low-noise live bursts. A two-minute replay-clock test stays quiet across
+periodic checks and resumes on change. The isolated generated-media reminder browser
+check passes. The nine-case reversal experiment rejects another model-call gate;
+departure accuracy remains open. See R8 for the separate resource-limited live replay;
+no new household, hardware, latency or recognition acceptance gate is closed.

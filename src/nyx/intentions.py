@@ -5,6 +5,7 @@ import sqlite3
 import uuid
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 
 from nyx.memory import aware_time
@@ -101,6 +102,20 @@ class Intentions:
 
     def trigger(self, event_id, observed_at, evidence):
         observed = aware_time(observed_at)
+        started = observed
+        if "frame_times" in evidence:
+            try:
+                times = evidence["frame_times"]
+                if not isinstance(times, list) or len(times) < 2:
+                    raise ValueError("Missing sequence times")
+                times = [aware_time(at) for at in times]
+                if any(left >= right for left, right in pairwise(times)):
+                    raise ValueError("Unordered sequence times")
+                if times[-1] != observed:
+                    raise ValueError("Sequence must end at the event time")
+                started = times[0]
+            except (ValueError, TypeError, AttributeError) as exc:
+                raise ValueError("Event needs a valid chronological sequence") from exc
         age = (datetime.now(UTC) - observed).total_seconds()
         if age < -2:
             raise ValueError("Event clock is ahead")
@@ -110,7 +125,9 @@ class Intentions:
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             for task in db.execute("SELECT * FROM intentions WHERE state='armed'").fetchall():
-                if observed < aware_time(task["created_at"]):
+                # A new intention must not reuse the beginning of an earlier event,
+                # even when its last frame arrived after the request.
+                if started < aware_time(task["created_at"]):
                     continue
                 identifier = uuid.uuid4().hex
                 db.execute(

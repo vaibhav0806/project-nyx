@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from PIL import Image
 
 
@@ -33,6 +34,66 @@ def test_old_out_of_order_or_interrupted_sequences_cannot_trigger_departure():
     observer.feed("session-1", image, now.isoformat())
     with pytest.raises(ValueError, match="order"):
         observer.feed("session-1", image, (now - timedelta(seconds=1)).isoformat())
+
+
+def test_burst_metadata_describes_exactly_the_three_images_checked():
+    from nyx.observation import Observer
+
+    observer = Observer()
+    now = datetime.now(UTC)
+    times = [(now + timedelta(seconds=index - 4.5)).isoformat() for index in range(6)]
+    for index, at in enumerate(times):
+        burst = observer.feed("session", Image.new("RGB", (160, 96), (index * 30,) * 3), at)
+    # The verifier checks first/middle/last; evidence must not name uninspected frames.
+    assert burst["times"] == [times[0], times[3], times[5]]
+    assert [image.getpixel((0, 0))[0] for image in burst["images"]] == [0, 90, 150]
+
+
+@pytest.mark.parametrize("colors", [[100, 100, 100], [100, 101, 100]])
+def test_unchanged_live_sequence_cannot_nominate_a_departure_check(colors):
+    from nyx.observation import Observer
+
+    observer = Observer()
+    now = datetime.now(UTC)
+    for index, gray in enumerate(colors):
+        image = Image.new("RGB", (160, 96), (gray,) * 3)
+        assert (
+            observer.feed("session", image, (now + timedelta(seconds=index - 2)).isoformat())
+            is None
+        )
+
+
+def test_slow_cumulative_change_is_not_lost_by_the_live_motion_gate():
+    from nyx.observation import Observer
+
+    observer = Observer()
+    now = datetime.now(UTC)
+    for index, gray in enumerate([100, 105, 110]):
+        image = Image.new("RGB", (160, 96), (gray,) * 3)
+        burst = observer.feed("session", image, (now + timedelta(seconds=index - 2)).isoformat())
+    assert burst is not None
+
+
+def test_quiet_monitoring_stays_local_across_periodic_checks_and_then_resumes(monkeypatch):
+    from nyx import observation
+
+    now = datetime.now(UTC)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now
+
+    monkeypatch.setattr(observation, "datetime", Clock)
+    observer = observation.Observer()
+    still = Image.new("RGB", (160, 96), "gray")
+    for _ in range(120):
+        now += timedelta(seconds=1)
+        assert observer.feed("session", still, now.isoformat()) is None
+    now += timedelta(seconds=1)
+    burst = observer.feed("session", Image.new("RGB", (160, 96), "white"), now.isoformat())
+    assert burst is not None
+    assert len(burst["images"]) == len(burst["times"]) == 3
 
 
 def test_departure_parser_cannot_promote_ambiguous_or_malformed_judgments():

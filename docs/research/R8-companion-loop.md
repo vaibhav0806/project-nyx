@@ -90,7 +90,7 @@ The event/request/delivery wiring works in deterministic browser scenarios. **Ac
 
 ## Verification and open work
 
-Latest deterministic suite: **152 passed**, with lint, formatting and JavaScript syntax checks passing. The final offline wheel build (`package-check-final-001`) contains the new modules and browser assets, with ten key files byte-checked against current source. `delivery-outcomes-002` also passed a simulated browser playback denial: it reported failed delivery, while normal playback and separate acknowledgement still worked. These checks use provider/model doubles and do not establish actual Sarvam or browser permission behavior.
+Initial completed implementation suite: **152 passed**, with lint, formatting and JavaScript syntax checks passing. The final offline wheel build (`package-check-final-001`) contains the new modules and browser assets, with ten key files byte-checked against current source. `delivery-outcomes-002` also passed a simulated browser playback denial: it reported failed delivery, while normal playback and separate acknowledgement still worked. These checks use provider/model doubles and do not establish actual Sarvam or browser permission behavior. The follow-up below records newer checks.
 
 Deterministic checks cover persistence/replay, cancellation, atomic claims, stale data, source deletion, recent versus older evidence, request limits, explicit unsupported reminders and snapshots aging during final planning. Isolated browser checks use generated camera inputs and model doubles. The proactive-speech check also exercises synthetic audio playback, separate user acknowledgement and no repeated claim after acknowledgement. Existing voice smoke uses real local ASR on generated speech; one native-synthesized “Nyx” phrase lost its wake prefix, while a tested “Nicks” pronunciation variant passed the complete check. This is a fixture/pronunciation limitation, not a room-accuracy result.
 
@@ -109,3 +109,80 @@ Active requests also remain visible even when older than the thirty-entry recent
 A delayed-response browser regression (`late-delivery-before-001`) reproduced cancellation succeeding while an already-produced audio response was still in transit, followed by unwanted playback. The browser now invalidates a pending delivery on local cancellation, Stop, observed cross-tab cancellation, camera stop, new question or wake interruption. `late-delivery-after-001` passed: the cancelled response started no audio, a subsequent request played once, and acknowledgement remained separate. This does not claim instantaneous knowledge of cancellation in another browser before its updated state arrives.
 
 Final `companion-voice-final-001` passed the isolated full voice/browser scenario with real local wake ASR on generated speech, deterministic agent/visual boundaries and mocked Sarvam. It checked wake interruption during playback, a retained utterance while busy, microphone mute/late permission cleanup, recording stop and persisted conversation reload. No real camera/microphone, room echo or hosted provider was exercised.
+
+## Departure follow-up — 2026-10-20
+
+**Question:** Can a small temporal consistency check remove false triggers while
+retaining the existing exit examples? Separately, can event admission avoid old or
+unchanged evidence without adding a model? A successful reversal check would justify
+evaluating a second-stage gate; losing exits or retaining false triggers rejects it.
+
+**Method:** Same nine reused development sequences, chronological images then the
+same images reversed, identical pinned Qwen/checkpoint/prompt and greedy generation.
+No new data, independent labels, hardware or provider calls. Command:
+
+```sh
+HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/departure.py \
+  --manifest data/evaluation/departure-manifest.json --reverse-check \
+  --output data/runs/departure-direction-001
+```
+
+Runtime: same M4/16 GiB/macOS 15.7.3, Python 3.12.11, PyTorch 2.14.1,
+Transformers 4.57.6, Pillow 12.3.0 and NumPy 2.5.4. Inputs/prompt are unchanged from
+`departure-sequences-005`. Raw generations and results remain local. Later cases
+slowed substantially under memory pressure; timings are not a controlled comparison.
+
+| Development label | Cases | Forward positives | Reversed positives | Forward-positive/reversed-clear-negative |
+| --- | --- | --- | --- | --- |
+| Room-exit proxy | 3 | 3 | 2 | 1 |
+| Negative | 4 | 3 | 2 | 1 |
+| Ambiguous | 2 | 1 | 1 | 0 |
+
+**Measured:** The hypothetical reversal gate loses two exit proxies while retaining
+the stationary-doorway false positive. Entry and closet activity are incorrectly
+positive in both directions. **Recommendation:** reject the extra runtime generation;
+scene plausibility and consistent JSON do not establish temporal direction.
+
+### Implemented resource and event-boundary fixes
+
+- An unchanged initial burst previously invoked the model, and periodic nominations
+  could do so again. Live inspection now requires observable change relative to its
+  anchor, using existing block/mean thresholds. This also catches controlled slow
+  cumulative changes that individually fall below the adjacent-frame threshold.
+  Original recording and historical periodic coverage remain unchanged.
+- The live buffer passed up to six images/timestamps while Qwen silently selected
+  three images. Selection now happens in the observer, before inference, so event
+  evidence names exactly the first/middle/last inspected images and times.
+- Checking only the last frame's time let a reminder use an event that started before
+  the request. Full sequence time validation now leaves that request armed; an older
+  eligible request can still trigger. Malformed/unordered times or an event timestamp
+  disagreeing with the final frame cannot claim a delivery. Existing point-event
+  callers without sequence evidence retain their point-time check.
+
+These regressions failed before their fixes. **163 tests pass**, including a
+two-minute simulated quiet sequence spanning periodic nominations and subsequent
+resumption on change. This is a replay-clock test, not two minutes of real hardware.
+`departure-hardening-browser-001` passes generated-camera speech cancellation,
+normal playback, acknowledgement, denied playback, source pagination and controls;
+model/provider boundaries remain deterministic doubles. Lint/format checks pass.
+
+`departure-motion-gate-001/results.json`, generated by the documented `motion.py`
+command, admits all nine public sequences and correctly handles four controlled
+static/noise/cumulative/local-change inputs. Per-sequence gate time was approximately
+0.2–4.6 ms in these individual measurements. It saves quiet-scene inference but removes
+none of the moving public false positives. Thresholds can miss subtle real activity;
+this is not a semantic classifier or a validated event-recall benchmark.
+
+The separate `departure-hardening-live-001` API replay encountered heavy system memory
+pressure. The exit-proxy and entering-person checks finished about 40.0 and 33.3 seconds
+after their final frames. Both model outputs were positive, and both freshness checks
+rejected the stale evidence without creating notifications; each request remained
+armed until experiment cleanup. This is failure/resource evidence, not successful
+anticipatory assistance or a recognition fix. No other applications were stopped and
+no stale-evidence threshold was relaxed. Resource optimization is deferred in favor
+of functionality, following the user's clarification.
+
+**Next recognition question:** compare explicit exit geometry plus chronological
+person motion with the current VLM on independently labelled fixed-camera sequences.
+The present work does not establish departure reliability, lower visual-answer p95,
+real-camera behavior or audible warning before an exit. M3–M5 remain in progress.

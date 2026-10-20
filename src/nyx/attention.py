@@ -43,6 +43,16 @@ class ChangeDetector:
         return {"selected": reason is not None, "reason": reason, "changed": changed}
 
 
+def sequence_changed(images):
+    """Motion nomination only; compare to the anchor to retain slow cumulative changes."""
+    for image in images[1:]:
+        detector = ChangeDetector()
+        detector.observe(images[0], 0)
+        if detector.observe(image, 1)["changed"]:
+            return True
+    return False
+
+
 def select_frames(frames):
     """Return original (offset, image-or-path) rows, preserving actual timestamps."""
     detector = ChangeDetector()

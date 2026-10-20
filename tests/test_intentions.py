@@ -54,6 +54,52 @@ def test_old_or_pre_request_events_never_trigger_a_reminder(tmp_path):
         tasks.trigger("future-event", (datetime.now(UTC) + timedelta(minutes=1)).isoformat(), {})
 
 
+def test_sequence_started_before_request_cannot_trigger_its_next_departure(tmp_path):
+    from nyx.intentions import Intentions
+
+    tasks = Intentions(tmp_path)
+    older = tasks.create("older", "Take keys")
+    before = datetime.now(UTC)
+    newer = tasks.create("newer", "Take water")
+    after = datetime.now(UTC)
+    evidence = {"frame_times": [before.isoformat(), after.isoformat()]}
+    deliveries = tasks.trigger("straddling-sequence", after.isoformat(), evidence)
+    assert [row["intention_id"] for row in deliveries] == [older["id"]]
+    assert tasks.get(newer["id"])["state"] == "armed"
+    # A complete new sequence still works, without recreating the request.
+    start = datetime.now(UTC)
+    end = start + timedelta(milliseconds=1)
+    deliveries = tasks.trigger(
+        "new-sequence", end.isoformat(), {"frame_times": [start.isoformat(), end.isoformat()]}
+    )
+    assert [row["intention_id"] for row in deliveries] == [newer["id"]]
+
+
+@pytest.mark.parametrize("times", [[], ["bad"], [None], "not-a-sequence"])
+def test_malformed_sequence_times_cannot_claim_a_reminder(tmp_path, times):
+    from nyx.intentions import Intentions
+
+    tasks = Intentions(tmp_path)
+    item = tasks.create("request", "Take water")
+    with pytest.raises(ValueError, match="sequence"):
+        tasks.trigger("event", datetime.now(UTC).isoformat(), {"frame_times": times})
+    assert tasks.get(item["id"])["state"] == "armed"
+
+
+def test_sequence_clock_must_be_ordered_and_end_at_event_time(tmp_path):
+    from nyx.intentions import Intentions
+
+    tasks = Intentions(tmp_path)
+    item = tasks.create("request", "Take water")
+    now = datetime.now(UTC)
+    earlier = (now - timedelta(seconds=1)).isoformat()
+    at = now.isoformat()
+    for times in [[at, earlier], [earlier, earlier], [earlier, at, at]]:
+        with pytest.raises(ValueError, match="sequence"):
+            tasks.trigger("event", at, {"frame_times": times})
+    assert tasks.get(item["id"])["state"] == "armed"
+
+
 def test_restart_does_not_silently_repeat_a_partially_delivered_reminder(tmp_path):
     from nyx.intentions import Intentions
 

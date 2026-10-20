@@ -70,3 +70,9 @@ Track these states in [Milestones](milestones.md) with evidence.
 On 2026-10-20 the user authorized conversational tool selection, continuous inexpensive attention and an event-conditioned next-departure reminder. The current local prototype supports typed and spoken requests, contextual query construction, fresh-view checks, bounded recent/history search, correction, cancellation and durable departure requests. Live observation shares the already-running camera and nominates short sequences for local inspection only while a departure request is armed. It does not wait for video segment indexing. A configured page remains necessary; the server cannot open browser hardware.
 
 This is a single-person, fixed-view/main-door experiment. No identity is inferred. A model-positive condition is a fallible inference, not verified departure. Actual public-video checks have misses and false positives; speaking before departure is not established. Show explicit monitoring and delivery states, support cancel/stop, and keep playback separate from acknowledgement. A missed/interrupted event is not automatically replayed after restart. Broader recall, timed/recurring reminders, arbitrary event triggers, interviews, purchases and hardware deployment remain later work. See [R8](research/R8-companion-loop.md).
+
+The departure follow-up skips model calls for unchanged live bursts, aligns the three
+inspected frames with their evidence timestamps, and requires the whole sequence to
+follow the request. These are resource/evidence fixes; moving-person false positives
+and recognition latency remain unresolved. No second reversal-classification call is
+added to the app.
