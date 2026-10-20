@@ -107,3 +107,8 @@ turnbacks. Short missed detections are marked, not filled in. Unknown or contrad
 exit estimates block action; the first estimate remains provisional. Processing shares
 the model worker, so a notification can arrive too late. The latest complete-video
 check retained missed exits and a false indoor reminder; see [R8](research/R8-companion-loop.md).
+
+Reminder rows show the request time and readable delivery status. Repeated reminder
+messages can be distinguished by their request time and cancelled individually with
+the existing row control. A spoken reminder and an acknowledged reminder remain
+separate states. This display does not infer completion of the user's real-world task.

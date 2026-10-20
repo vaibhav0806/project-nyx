@@ -135,12 +135,22 @@ const companion = {
         $("companion-thread").append(row);
       }
       $("reminders").replaceChildren();
+      const reminderStates = { armed: "Waiting for your next departure", pending: "Ready to speak", delivering: "Speaking", delivered: "Spoken; awaiting your acknowledgement", acknowledged: "Acknowledged", cancelled: "Cancelled", missed: "Delivery missed", interrupted: "Delivery interrupted", failed: "Could not speak" };
       for (const item of state.reminders) {
         const row = document.createElement("p");
-        row.append(document.createTextNode(`${item.message} · ${item.state} `));
+        row.append(document.createTextNode(`${item.message} · ${reminderStates[item.state] || item.state} `));
+        const created = new Date(item.created_at);
+        const createdLabel = Number.isNaN(created.getTime()) ? "" : created.toLocaleString();
+        if (createdLabel) {
+          const timestamp = document.createElement("time");
+          timestamp.dateTime = item.created_at;
+          timestamp.textContent = ` · Requested ${createdLabel} `;
+          row.append(timestamp);
+        }
         if (["armed", "pending", "delivering"].includes(item.state)) {
           const cancel = document.createElement("button");
           cancel.textContent = "Cancel";
+          cancel.setAttribute("aria-label", `Cancel reminder: ${item.message}${createdLabel ? `, requested ${createdLabel}` : ""}`);
           cancel.onclick = async () => {
             if (this.deliveryIntention === item.id) this.interruptDelivery();
             await api(`/api/reminders/${item.id}`, { method: "DELETE" });

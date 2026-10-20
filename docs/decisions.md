@@ -321,3 +321,16 @@ attributes, and separates prior answers from current evidence. Remaining search
 windows/tools are computed per resolved query, rather than globally across different
 objects. Query changes can revisit a recent window. Deterministic fixtures validate
 context/arguments/repair behavior; actual Qwen understanding remains unmeasured.
+
+### Keep the agent in control — 2026-10-20
+
+The user reaffirmed broad agent control and asked to avoid overengineering. Prefer
+existing tools and concise decision context over more workflow branches, stored query
+state or new planning infrastructure. The agent owns interpretation, clarification,
+tool selection and continuation; application checks enforce authorized mutations,
+evidence attribution and lifecycle consistency. Existing routing policies remain
+measured workarounds to revisit with model evaluation, not a template for adding more.
+
+This continuation only improves existing reminder controls: readable lifecycle labels,
+request timestamps to distinguish repeated messages, and descriptive cancellation
+button labels. No new planner, backend state, model call or clarification workflow.

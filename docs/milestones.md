@@ -219,3 +219,12 @@ conversation quality or M1–M5 acceptance gate is declared met.
 Verification: 246 deterministic tests; final companion status regression 34/34;
 lint/format/JS and offline wheel checks pass. Browser and real-model validation remain
 separate pending work.
+
+### Reminder display clarification — 2026-10-20
+
+Existing reminder rows now show request timestamps, readable lifecycle states and
+specific accessible cancel-button labels. This distinguishes repeated messages
+without adding backend state or another agent workflow. JavaScript syntax and diff
+checks pass; browser interaction and model inference were not run during this small
+memory-constrained UI update. Prior deterministic suite remains 246 tests; it was not
+rerun for text/DOM-label-only edits.
