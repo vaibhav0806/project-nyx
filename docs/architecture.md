@@ -291,3 +291,20 @@ corrections across current/history requests; it is not an object identity or
 evidence of current presence. First last-sighting requests prefer dated windows
 even if the model proposes an undated-match tool. Subsequent uncertain searches
 can still use unknown-time candidates with explicit attribution.
+
+### Guided historical review
+
+`history_steps` emits `candidate` for a visual hit. The agent treats this as a
+completed tool result, preserving its image/time attribution and review question.
+The main answer omits unverified model location assertions; raw judgments remain
+in evidence details. Current-view inspection still uses its existing statuses.
+
+The review UI sends rejected frame IDs back to `/api/answer`; the next request
+retains query, source and time bounds and skips those frames before inference.
+The existing candidate bound remains, so exhausting it returns uncertainty.
+`POST /api/matches/confirm` accepts an explicit user choice and request UUID.
+It resolves the frame/time from the current index, records a `user_confirmation`
+conversation turn, and returns `confirmed` with `confirmation=user`. It has no
+model call and is not an agent tool. The conversation ID supplies idempotency
+without a new table. Source deletion uses the existing invalidation mechanism.
+No new snapshot retention or automatic cross-time identity mechanism was added.

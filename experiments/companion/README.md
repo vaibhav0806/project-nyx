@@ -248,3 +248,23 @@ embedding search or devices. It does load the model; respect current inference
 authorization and run it sequentially under the documented memory/time watchdog.
 These four cases do not cover physical identity across video or tiny-object
 recognition. R8 records a historical crop failure despite this suite passing.
+
+## Guided historical review and reference diagnostic
+
+`mvp_objects.py --review-history` adds a **simulated reviewer**, using known
+fixture provenance to reject offsets 14/16 (the other remote's crop) and accept
+0/8 (frames containing the selected remote). These labels are test-only; they
+never enter application logic. The script records each candidate and the actual
+confirmation response. This tests the guided workflow, not automatic identity
+accuracy. It cannot be combined with `--current-only`.
+
+`reference_probe.py --fixture PATH --output PATH` compares the original reference
+with the same scene, mirrored scene and other remote's crop using real two-image
+generation. It is research-only: its result determines whether automatic identity
+matching is supportable. Current results reject that assumption; see R8. Both
+scripts load a model and must follow current authorization and resource limits.
+
+The lightweight browser check accepts
+`--review-fixture data/runs/companion-retrieval-fixture/scenes.mp4` to verify the
+review buttons, rejection, confirmation and persistence with fake model/device
+boundaries. Add `--speech` for the existing synthetic speech checks.

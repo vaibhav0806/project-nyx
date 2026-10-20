@@ -307,3 +307,24 @@ Its first attempt failed because it expected obsolete raw state labels and the
 old Cancel accessible name; the harness was updated to existing readable labels
 and rerun successfully. These are fake model/audio/device boundaries, not real
 recognition or Sarvam performance. All owned experiment processes exited.
+
+### Guided object finding implemented — 2026-10-20
+
+One complete reviewable flow is now wired: ask → clarify the object → search
+history → inspect a possible match → reject or explicitly confirm. Confirmation
+is user-attributed and preserves the recording timestamp, including unknown time;
+it survives restart and is invalidated when its source is deleted. Duplicate
+confirmation requests do not create duplicate turns. No automatic identity claim.
+
+The actual-model development run returned the wrong crop at offset 16 s; a
+fixture-provenance-based simulated reviewer rejected it, received offset 8 s
+(containing the intended remote), then confirmed that frame. This verifies the
+review workflow, not autonomous recognition or real user usability. The isolated
+browser check passes rejection, confirmation and reload alongside synthetic
+speech/activity controls. Automatic lookalike identification and departure
+recognition remain open; no broader M1–M5 accuracy gate is declared complete.
+
+Final verification: **269 deterministic tests pass**; lint, formatting, JavaScript
+syntax and offline packaging checks pass. The packaged runtime and web assets
+match the working source. Synthetic browser review coverage is recorded above;
+no additional inference was required for final checks.

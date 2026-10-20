@@ -96,3 +96,14 @@ recognition nor a home map or arbitrary automatic event understanding. Successiv
 automatic region estimates are checked for consistency, but an interior doorway can
 still be mislabeled. Complete-sequence replay retains misses, a false indoor action
 and late notification; recognition and useful-warning gates remain open.
+
+### Guided object-finding MVP
+
+Historical model matches are candidates for user review, not verified identity.
+The laptop UI supports rejecting a candidate or confirming the item in a saved
+frame. Confirmations persist as explicitly user-attributed conversation records
+with source/time links; source deletion invalidates those links. They do not prove
+current location or the latest possible sighting. Voice can ask the review
+question, but confirmation currently uses the UI button. Automated identity
+matching among similar objects and intended-user household validation remain
+open. Camera snapshots remain ephemeral.

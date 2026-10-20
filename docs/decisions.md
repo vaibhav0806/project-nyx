@@ -392,3 +392,24 @@ queries into history. They also demonstrated wrong historical item attribution
 and missed departure proxies. Keep candidate/identity/temporal evidence distinct;
 no identity claim or MVP acceptance follows from successful API jobs. Existing
 movement and continuity checks remain intact despite missed detections.
+
+### Dependable guided finding before automatic identity — 2026-10-20
+
+The user prioritized one complete object-finding experience. A local two-image
+comparison probe did not support automatic identity matching: raw generations
+claimed a lookalike was visible, and all outputs failed the required JSON shape.
+Do not add an automatic reference-matching feature on that evidence.
+
+Historical visual hits now have `candidate` status and ask the user to review the
+image. They do not repeat a model-inferred location as fact. The user can reject
+a candidate and continue within the same query/time/source bounds, or explicitly
+confirm the item in a saved frame. Confirmation is attributed to the user, not the
+model, and says nothing about current location or a later sighting. The agent
+cannot call the confirmation endpoint as a tool. Button confirmation is the MVP
+interaction; voice-only confirmation is not implemented.
+
+Use existing recordings and conversation storage: no reference-image cache, new
+model, entity database or permanent snapshots. Confirmation request IDs are
+idempotent, persist across restart, and conflict on different choices. Deleted
+sources invalidate confirmation replay. Rejection exclusions are request-local;
+they do not delete footage or establish object identity.

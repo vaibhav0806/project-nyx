@@ -235,6 +235,7 @@ def agent_steps(
     else:
         if observations and observations[-1].get("status") in {
             "seen",
+            "candidate",
             "armed",
             "cancelled",
             "complete",

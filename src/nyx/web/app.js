@@ -515,7 +515,9 @@ function showAnswer(output) {
   $("answer-panel").hidden = false;
   const observed = output.captured_at || output.evidence?.observed_at;
   $("answer-text").textContent = observed ? output.answer.replace(observed, new Date(observed).toLocaleString()) : output.answer;
-  $("answer-note").textContent = output.kind === "snapshot"
+  $("answer-note").textContent = output.status === "confirmed"
+    ? "You confirmed this item in a saved frame. This is historical evidence, not its current location."
+    : output.kind === "snapshot"
     ? `Snapshot age when answered: ${Math.max(0, output.age_seconds).toFixed(1)}s. The view may have changed. This snapshot is not saved to permanent history.`
     : `Checked ${output.scope.checked_count} sampled moments. This may miss sightings in other footage or recording gaps.${output.scope.known_time_only ? " Unknown capture dates were excluded." : ""}`;
   $("answer-evidence").replaceChildren();
@@ -523,7 +525,40 @@ function showAnswer(output) {
   $("snapshot-evidence").hidden = !output.snapshot_url;
   if (output.snapshot_url) $("snapshot-evidence").src = output.snapshot_url;
   else $("snapshot-evidence").removeAttribute("src");
-  if (output.evidence) $("answer-evidence").append(answerEvidence(output.evidence, "Model-confirmed sighting"));
+  if (output.evidence) $("answer-evidence").append(answerEvidence(output.evidence,
+    output.status === "confirmed" ? "You confirmed this item" : "Possible match · check the item"));
+  if (!output.evidence) {
+    const ambiguous = (output.checked || []).find(row => row.judgment?.ambiguous);
+    if (ambiguous) $("answer-evidence").append(answerEvidence(ambiguous, "Several possible items · needs clarification"));
+  }
+  if (output.status === "candidate" && output.evidence) {
+    const confirm = document.createElement("button");
+    confirm.textContent = "This is the item";
+    const reject = document.createElement("button");
+    reject.textContent = "Not this item";
+    const requestId = crypto.randomUUID();
+    const review = async (operation) => {
+      confirm.disabled = reject.disabled = true;
+      try {
+        const result = await operation();
+        showAnswer(result);
+        if (typeof companion !== "undefined") await companion.refresh();
+      } catch (error) {
+        message(error.message, true);
+        confirm.disabled = reject.disabled = false;
+      }
+    };
+    confirm.onclick = () => review(() => api("/api/matches/confirm", json({
+      frame_id: output.evidence.id, object_query: output.object_query, request_id: requestId,
+    })));
+    reject.onclick = () => review(() => task("/api/answer", json({
+      object_query: output.object_query, mode: output.scope.mode,
+      video_id: output.scope.video_id || null,
+      seen_after: output.scope.seen_after, seen_before: output.scope.seen_before,
+      excluded_frame_ids: [...(output.scope.excluded_frame_ids || []), output.evidence.id],
+    })));
+    $("answer-evidence").append(confirm, reject);
+  }
   for (const row of output.checked || []) {
     const line = document.createElement("p");
     line.textContent = `${row.observed_at ? new Date(row.observed_at).toLocaleString() : `Clock unknown, offset ${timestamp(row.offset_seconds)}`} · ${row.judgment.visibility}: ${row.judgment.description}`;

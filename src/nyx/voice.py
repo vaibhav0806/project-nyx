@@ -62,6 +62,8 @@ def conversational_plan(text):
 def spoken_answer(result):
     kind = result.get("kind")
     query = result.get("object_query", "that object")
+    if result.get("status") == "confirmed":
+        return result["answer"]
     if result.get("status") == "clarify":
         return "Which one do you mean? Please describe its color, position, or another distinguishing detail."
     if kind == "snapshot":
@@ -77,13 +79,12 @@ def spoken_answer(result):
                 if when
                 else f"{evidence['offset_seconds']:.0f} seconds into a clip with an unknown recording time"
             )
-            location = evidence["judgment"].get("location") or "in the recording"
             qualifier = (
-                "A matching moment I found was"
+                "A possible match I found was"
                 if result.get("scope", {}).get("mode") == "relevance"
-                else "The latest sighting I found was"
+                else "The latest possible match I found was"
             )
-            return f"{qualifier} {query} {location}, at {when}. I can't confirm it's still there."
+            return f"{qualifier} in footage from {when}. Is this the item you mean? Please check the image; I have not verified its identity or current location."
         return f"I couldn't confirm {query} in the moments I checked. Other footage may still contain it."
     return result["answer"]
 
@@ -345,8 +346,8 @@ class Conversations:
         db.row_factory = sqlite3.Row
         return db
 
-    def begin(self, transcript, plan):
-        identifier = uuid.uuid4().hex
+    def begin(self, transcript, plan, identifier=None):
+        identifier = identifier or uuid.uuid4().hex
         with self.connect() as db:
             db.execute(
                 "INSERT INTO turns VALUES (?,?,?,?,?,?,?,?)",

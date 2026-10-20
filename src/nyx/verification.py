@@ -210,7 +210,8 @@ class LocalVerifier:
         completed = [
             index
             for index, row in enumerate(state.get("observations", []))
-            if row.get("status") in {"seen", "armed", "cancelled", "complete", "clarify"}
+            if row.get("status")
+            in {"seen", "candidate", "armed", "cancelled", "complete", "clarify"}
         ]
         if completed:
             # These single-task workflows already have an authoritative tool result.

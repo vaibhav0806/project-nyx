@@ -21,6 +21,7 @@ def history_steps(
     seen_after=None,
     seen_before=None,
     semantic_latest=False,
+    excluded_frame_ids=(),
 ):
     if mode not in {"latest", "relevance"}:
         raise ValueError("Choose latest or relevance history")
@@ -62,6 +63,8 @@ def history_steps(
     selected = None
     verifier = None
     for candidate in candidates:
+        if candidate["id"] in excluded_frame_ids:
+            continue
         verifier = verifier or verifier_factory()
         source = (store.root / candidate["video_path"]).resolve()
         if not source.is_relative_to(store.root):
@@ -85,13 +88,12 @@ def history_steps(
             selected["observed_at"]
             or f"clip offset {selected['offset_seconds']:.2f}s (capture clock time unknown)"
         )
-        location = selected["judgment"]["location"] or "unclear"
         qualifier = (
-            "Latest model-confirmed sighting within the checked frames"
+            "Latest visual candidate within the checked frames"
             if mode == "latest"
-            else "Model-confirmed candidate"
+            else "Visual candidate"
         )
-        answer = f"{qualifier}: {object_query}, at {when}. Reported location: {location.strip()}. I can't confirm it's still there."
+        answer = f"{qualifier}, recorded at {when}. Is this the item you mean? I have not verified its identity or current location."
         selected["context"] = [
             row
             for row in store.frame_context(selected["id"])
@@ -101,13 +103,15 @@ def history_steps(
     return {
         "kind": "history",
         "object_query": object_query,
-        "status": "clarify" if ambiguous else "seen" if selected else "uncertain",
+        "status": "clarify" if ambiguous else "candidate" if selected else "uncertain",
         "answer": answer,
         "evidence": selected,
         "checked": checked,
         "verifier": verifier.fingerprint if verifier else None,
         "scope": {
             "mode": mode,
+            "video_id": video_id,
+            "excluded_frame_ids": list(excluded_frame_ids),
             "candidate_limit": 17 if mode == "latest" else limit,
             "candidates_retrieved": len(candidates),
             "checked_count": len(checked),

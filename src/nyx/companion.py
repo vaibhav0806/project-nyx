@@ -1,11 +1,13 @@
 """Companion API: local agent tools, live observation, and event-delivery lifecycle."""
 
 import base64
+import json
 import re
 import time
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
+from uuid import UUID
 
 from fastapi import HTTPException, Request
 from PIL import Image, UnidentifiedImageError
@@ -17,6 +19,12 @@ from nyx.intentions import Intentions
 from nyx.memory import aware_time
 from nyx.observation import Observer, departure_action
 from nyx.voice import Conversations, spoken_answer
+
+
+class ConfirmMatchRequest(BaseModel):
+    frame_id: int = Field(ge=0)
+    object_query: str = Field(min_length=1, max_length=240, pattern=r"\S")
+    request_id: UUID
 
 
 class AgentRequest(BaseModel):
@@ -96,6 +104,63 @@ def install_companion(app, workspace, voice):
             "observation": last_observation,
             "pending": tasks.pending(),
         }
+
+    @app.post("/api/matches/confirm")
+    def confirm_match(body: ConfirmMatchRequest):
+        # Confirmation belongs to the user, never to the visual model or agent.
+        with workspace.lock:
+            identifier = body.request_id.hex
+            with conversations.connect() as db:
+                existing = db.execute(
+                    "SELECT plan, sources_available FROM turns WHERE id = ?", (identifier,)
+                ).fetchone()
+            if existing:
+                plan = json.loads(existing["plan"])
+                if (
+                    plan.get("mode") != "user_confirmation"
+                    or plan.get("frame_id") != body.frame_id
+                    or plan.get("object_query") != body.object_query
+                ):
+                    raise HTTPException(409, "Confirmation ID belongs to a different choice")
+                if not existing["sources_available"]:
+                    raise HTTPException(404, "That source has been deleted")
+                return plan["result"]
+            store = workspace.store()
+            rows = store.frame_context(body.frame_id) if store else []
+            evidence = next((row for row in rows if row["id"] == body.frame_id), None)
+            if evidence is None:
+                raise HTTPException(404, "That saved frame is no longer available")
+            when = (
+                evidence["observed_at"]
+                or f"clip offset {evidence['offset_seconds']:.2f}s (capture time unknown)"
+            )
+            result = {
+                "kind": "history",
+                "status": "confirmed",
+                "confirmation": "user",
+                "object_query": body.object_query,
+                "turn_id": identifier,
+                "answer": f"You confirmed this item in the recorded frame at {when}. This does not establish its current location or a later sighting.",
+                "evidence": evidence,
+                "checked": [],
+                "scope": {
+                    "checked_count": 0,
+                    "known_time_only": bool(evidence["observed_at"]),
+                    "note": "Item identity confirmed by you in this saved frame, not independently verified by Nyx. Capture time comes from the saved recording metadata.",
+                },
+            }
+            conversations.begin(
+                f"I confirmed the item for my request, {body.object_query}, in saved frame {body.frame_id}.",
+                {
+                    "mode": "user_confirmation",
+                    "frame_id": body.frame_id,
+                    "object_query": body.object_query,
+                    "result": result,
+                },
+                identifier=identifier,
+            )
+            conversations.finish(identifier, result["answer"], [evidence["video_id"]])
+            return result
 
     @app.post("/api/agent", status_code=202)
     def ask(body: AgentRequest, request: Request):

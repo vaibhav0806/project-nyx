@@ -416,9 +416,10 @@ def test_spoken_answer_is_brief_but_keeps_historical_uncertainty():
         },
     }
     text = spoken_answer(result)
-    assert "beside the laptop" in text
+    assert "beside the laptop" not in text
+    assert "possible match" in text
     assert "found" in text
-    assert "still" in text
+    assert "current location" in text
     assert "2026-10-19T" not in text
     assert len(text) < 240
     assert "can't clearly see" in spoken_answer(
@@ -526,7 +527,7 @@ def test_spoken_replies_keep_unknown_clock_and_current_uncertainty():
         },
     }
     assert "unknown recording time" in spoken_answer(result)
-    assert "still" in spoken_answer(result)
+    assert "current location" in spoken_answer(result)
     assert (
         "other footage"
         in spoken_answer(

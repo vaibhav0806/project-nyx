@@ -74,8 +74,8 @@ def test_history_checks_newest_frames_before_similarity_and_returns_evidence(tmp
             break
     assert [row["video_id"] for row in answer["checked"]] == [newer["video_id"], older["video_id"]]
     assert answer["evidence"]["observed_at"] == "2026-10-19T10:00:02+00:00"
-    assert answer["status"] == "seen"
-    assert "still" in answer["answer"]
+    assert answer["status"] == "candidate"
+    assert "current location" in answer["answer"]
     assert answer["scope"]["candidate_limit"] == 17
 
 

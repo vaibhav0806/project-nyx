@@ -472,7 +472,7 @@ def test_agent_falls_back_to_recent_verified_history_instead_of_an_old_match(tmp
             },
         ).json()
         result = wait_for_job(client, job["id"])["result"]
-        assert result["status"] == "seen"
+        assert result["status"] == "candidate"
         assert result["visual"]["evidence"]["video_id"] == ids[1]
         assert ids[0] not in result["sources"]
         client.delete(f"/api/videos/{ids[1]}")
@@ -629,7 +629,7 @@ def test_imported_unknown_time_media_can_be_checked_without_claiming_latest(tmp_
             json={"message": "Find green in my imported clip", "request_id": "undated-query"},
         ).json()
         output = wait_for_job(client, job["id"])["result"]
-        assert output["status"] == "seen"
+        assert output["status"] == "candidate"
         assert output["visual"]["evidence"]["observed_at"] is None
         assert "unknown recording time" in output["answer"]
         assert "latest" not in output["answer"].lower()

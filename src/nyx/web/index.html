@@ -81,7 +81,7 @@
           <form id="answer-form">
             <label for="object-query">Object description</label>
             <input id="object-query" type="text" maxlength="200" placeholder="My black glasses" required>
-            <label class="scope-label" for="history-mode">History order<select id="history-mode"><option value="latest">Latest sighting</option><option value="relevance">Best matching moments</option></select></label>
+            <label class="scope-label" for="history-mode">History order<select id="history-mode"><option value="latest">Latest matching moments</option><option value="relevance">Best matching moments</option></select></label>
             <details><summary>Limit history by time</summary><p class="help">Uses this laptop’s timezone and the clip selected above. Unknown capture times are excluded when filtering by time.</p><label for="seen-after">From<input id="seen-after" type="datetime-local" step="1"></label><label for="seen-before">Until<input id="seen-before" type="datetime-local" step="1"></label></details>
             <div class="controls"><button id="ask-history" type="submit" class="primary">Check history</button><button id="inspect-now" type="button" disabled>Check current view</button></div>
           </form>

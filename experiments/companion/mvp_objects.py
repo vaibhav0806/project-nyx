@@ -6,6 +6,7 @@ import json
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 
 import mlx.core as mx
 from fastapi.testclient import TestClient
@@ -29,11 +30,18 @@ def main():
     parser.add_argument("--fixture", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
+        "--review-history",
+        action="store_true",
+        help="Simulate review using known fixture provenance; not a recognition score",
+    )
+    parser.add_argument(
         "--current-only",
         action="store_true",
         help="Check current view and correction without indexing or historical retrieval",
     )
     args = parser.parse_args()
+    if args.review_history and args.current_only:
+        parser.error("History review requires the history turn")
     args.output.mkdir(parents=True, exist_ok=False)
     mx.set_memory_limit(6 * 1024**3)
     mx.set_cache_limit(128 * 1024**2)
@@ -110,6 +118,56 @@ def main():
                 ),
                 flush=True,
             )
+
+        if args.review_history:
+            candidate = job.get("result", {}).get("visual") or {}
+            review = {
+                "simulated_user": True,
+                "rule": "Fixture offsets 0 and 8 contain the selected right remote; offsets 14/16 are crops of the other remote. This oracle is only for this development fixture.",
+                "attempts": [],
+                "confirmation": None,
+            }
+            for _ in range(4):
+                if candidate.get("status") != "candidate":
+                    break
+                evidence = candidate["evidence"]
+                review["attempts"].append(
+                    {
+                        "frame_id": evidence["id"],
+                        "offset_seconds": evidence["offset_seconds"],
+                        "observed_at": evidence["observed_at"],
+                    }
+                )
+                if evidence["offset_seconds"] in {0, 8}:
+                    response = client.post(
+                        "/api/matches/confirm",
+                        json={
+                            "frame_id": evidence["id"],
+                            "object_query": candidate["object_query"],
+                            "request_id": str(uuid4()),
+                        },
+                    )
+                    response.raise_for_status()
+                    review["confirmation"] = response.json()
+                    break
+                scope = candidate["scope"]
+                response = client.post(
+                    "/api/answer",
+                    json={
+                        "object_query": candidate["object_query"],
+                        "mode": scope["mode"],
+                        "video_id": scope.get("video_id"),
+                        "seen_after": scope["seen_after"],
+                        "seen_before": scope["seen_before"],
+                        "excluded_frame_ids": [*scope["excluded_frame_ids"], evidence["id"]],
+                    },
+                )
+                response.raise_for_status()
+                candidate = wait(client, response.json()["id"]).get("result", {})
+            results["review"] = review
+            results["mlx_peak_bytes"] = mx.get_peak_memory()
+            (args.output / "results.json").write_text(json.dumps(results, indent=2))
+            print(json.dumps(review), flush=True)
 
 
 if __name__ == "__main__":

@@ -40,6 +40,7 @@ class SearchRequest(BaseModel):
 
 
 class AnswerRequest(BaseModel):
+    excluded_frame_ids: list[int] = Field(default_factory=list, max_length=32)
     object_query: str = Field(min_length=1, max_length=200, pattern=r"\S")
     mode: Literal["latest", "relevance"] = "latest"
     video_id: str | None = None
@@ -644,6 +645,7 @@ def create_app(
                 video_id=body.video_id,
                 seen_after=body.seen_after.isoformat() if body.seen_after else None,
                 seen_before=body.seen_before.isoformat() if body.seen_before else None,
+                excluded_frame_ids=body.excluded_frame_ids,
             )
             coverage = workspace.capture.snapshot()
             result["coverage"] = {

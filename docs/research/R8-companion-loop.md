@@ -918,3 +918,70 @@ Its first attempt failed because it expected obsolete raw state labels and the
 old Cancel accessible name; the harness was updated to existing readable labels
 and rerun successfully. These are fake model/audio/device boundaries, not real
 recognition or Sarvam performance. All owned experiment processes exited.
+
+## Guided historical finding — 2026-10-20
+
+**Decision under test:** can the selected local model reliably compare a current
+reference object with historical candidates, or should the MVP require review?
+`reference-probe-001` used the two-remotes public still as reference, selecting
+the right remote, against the original scene, mirrored scene, and a crop of the
+OTHER remote. Actual two-image generation used the pinned Qwen3.5 2B MLX 8-bit
+runtime and a 240-token cap. The prompt required distinctive matching appearance,
+allowed position changes and uncertainty for lookalikes. Source fixture and
+runtime are unchanged from preceding tests. `reference_probe.py` preserves the
+method; raw generations remain local.
+
+All three responses were JSON arrays rather than the required object, so the
+strict parser returned uncertain. Raw generations nevertheless claimed visible
+matches in all three cases, including the wrong remote. Do not interpret parser
+rejection as evidence of successful identity discrimination or simply unwrap the
+array to accept the wrong match. The process took 21.08 s; the lowest sampled
+free-memory metric was 17%. This probe rejected automatic reference matching for
+the present MVP; no such matcher was added to the application.
+
+**Implemented instead:** historical hits become reviewable candidates. The main
+reply asks whether the image contains the intended item and does not promote a
+model location guess into a fact. Rejecting skips the frame on the next bounded
+search while retaining query/source/time filters. Confirmation uses the saved
+frame's own timestamp, is explicitly user-attributed, persists in existing
+conversation storage and is idempotent. Deleting the source invalidates replay.
+No new models, snapshot retention, identity store, or memory subsystem.
+
+**Actual-model workflow:** `mvp-review-013` ran the current → correction → history
+requests using the same public slideshow and explicitly simulated old/recent
+recording dates. The first three turns took 8.32 s, 5.89 s and 19.29 s. They
+produced clarification, a current visible result, then a historical candidate.
+A simulated reviewer used known fixture provenance: offsets 14/16 crop the wrong
+remote, while 0/8 contain the intended right remote (mirrored at 8). The model's
+first candidate at offset 16 was rejected. The next candidate was offset 8 and
+was explicitly confirmed through the real API. These fixture rules exist ONLY
+in the experiment, never application routing or identity decisions.
+
+The entire process took 78.40 s, including imports/indexing, model work and the
+review loop. Reported MLX peak was 3,812,473,918 bytes (3.55 GiB), excluding other
+process/system allocations. Lowest sampled free-memory metric was 20%. The same
+10% cutoff, three-second watchdog and 180-second limit were used; it exited
+normally. This demonstrates a guided workflow with an oracle reviewer; it is
+not an autonomous-accuracy pass, actual intended-user study or a speed guarantee.
+
+**Browser verification:** `match-review-browser-002` used synthetic camera/audio
+and deterministic model boundaries, plus the public-image synthetic slideshow.
+It passed candidate rejection, confirmation, conversation reload, source-image
+display, speech/cancellation/acknowledgement, playback failure reporting, brief
+flash suppression and library paging, with no browser errors. The first attempt
+had a test polling failure while indexing was still running; explicit bounded
+job polling fixed the harness and the rerun passed. No real devices or provider
+calls. All owned experiment/browser processes exited.
+
+Final verification: **269 deterministic tests pass**; lint, formatting, JavaScript
+syntax and offline packaging checks pass. The packaged runtime and web assets
+match the working source. Synthetic browser review coverage is recorded above;
+no additional inference was required for final checks.
+
+**Next identity experiment (proposed, not measured):** compare object-crop
+embeddings for the intended remote across views against the other remote and
+background distractors. Existing full-frame SigLIP retrieval already ranks
+candidates; it does not establish individual-object identity. Measure whether
+crop similarity separates same-item views from lookalikes before adding a
+reference-ranking path or replacing explicit review. The failed VLM probe does
+not establish that embedding-based matching will fail.

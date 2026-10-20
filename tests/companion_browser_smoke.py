@@ -17,6 +17,7 @@ from playwright.sync_api import expect, sync_playwright
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--review-fixture", type=Path)
     parser.add_argument(
         "--speech",
         action="store_true",
@@ -193,6 +194,51 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                     assert page.evaluate(
                         "window.fakeStream.getTracks().every(t=>t.readyState==='ended')"
                     )
+                    if args.review_fixture:
+                        imported = page.request.post(
+                            url
+                            + "/api/import?name=review-fixture.mp4&recorded_at=2026-10-19T10:00:00Z",
+                            data=args.review_fixture.read_bytes(),
+                            headers={"content-type": "application/octet-stream"},
+                        ).json()
+                        deadline = time.monotonic() + 30
+                        while True:
+                            imported_job = page.request.get(
+                                url + "/api/jobs/" + imported["id"]
+                            ).json()
+                            if (
+                                imported_job["status"] in {"succeeded", "failed"}
+                                or time.monotonic() > deadline
+                            ):
+                                break
+                            page.wait_for_timeout(100)
+                        assert imported_job["status"] == "succeeded", imported_job
+                        page.evaluate("refreshLibrary()")
+                        page.locator("#scope").select_option(imported_job["result"]["video_id"])
+                        page.locator("#object-query").fill("green")
+                        page.locator("#history-mode").select_option("relevance")
+                        page.locator("#ask-history").click()
+                        confirm = page.get_by_role("button", name="This is the item", exact=True)
+                        expect(confirm).to_be_visible(timeout=15000)
+                        expect(page.locator("#answer-text")).to_contain_text("Is this the item")
+                        before = page.locator("#answer-evidence img").get_attribute("src")
+                        page.get_by_role("button", name="Not this item", exact=True).click()
+                        expect(page.locator("#answer-evidence img")).not_to_have_attribute(
+                            "src", before, timeout=15000
+                        )
+                        confirm.click()
+                        expect(page.locator("#answer-text")).to_contain_text(
+                            "You confirmed", timeout=10000
+                        )
+                        expect(page.locator("#answer-evidence")).to_contain_text(
+                            "You confirmed this item"
+                        )
+                        assert (
+                            page.request.get(url + "/api/companion").json()["conversations"][-1][
+                                "plan"
+                            ]["mode"]
+                            == "user_confirmation"
+                        )
                     library = [
                         {
                             "id": f"{index:032x}",
@@ -221,6 +267,10 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                     expect(page.locator("#companion-thread")).to_contain_text(
                         "Where is the green thing?", timeout=10000
                     )
+                    if args.review_fixture:
+                        expect(page.locator("#companion-thread")).to_contain_text(
+                            "I confirmed the item", timeout=10000
+                        )
                     assert not errors, errors
                     (args.output / "results.json").write_text(
                         json.dumps(
@@ -232,6 +282,7 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                                 "cancelled_pending_audio": args.speech,
                                 "playback_denial_reports_failure": args.speech,
                                 "older_library_access": True,
+                                "candidate_rejection_and_confirmation": bool(args.review_fixture),
                                 "brief_flash_suppressed": True,
                                 "sustained_activity_delivers": True,
                                 "passed": True,
