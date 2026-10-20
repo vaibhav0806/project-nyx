@@ -259,3 +259,13 @@ the system free-memory metric reached 22% (25% cutoff). Neither turn completed.
 The owned process exited and the metric recovered to 48%; no retry was run.
 No new quality result or acceptance gate. The prior 252 deterministic tests
 remain the latest code verification; no code changed. Details: [R8](research/R8-companion-loop.md).
+
+### Current-view check completed; correction still fails — 2026-10-20
+
+With the user-approved 10% watchdog cutoff, the two-turn current-only run completed
+in 15.05 seconds and exited. Visual prompt v2 produced an actual location matching
+the left remote, without placeholder text. The planner still omitted “on the
+left” from its correction query; the initial answer also failed to acknowledge
+two matching remotes. Thus correction/ambiguity acceptance remains unmet. No
+history/departure test or additional inference followed. See [R8](research/R8-companion-loop.md)
+for timings and memory limitations. No code changed; prior 252-test result stands.

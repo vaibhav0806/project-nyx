@@ -724,3 +724,38 @@ was launched. Logs/watchdog samples remain local under ignored `data/runs/`.
 Current/correction validation still requires more headroom or a separately agreed
 runtime change. History and departure validation remain pending. No application
 code changed in this run.
+
+## Current-only retry with approved 10% cutoff — 2026-10-20
+
+The user explicitly approved lowering the watchdog cutoff to 10% and rerunning
+the small test. `mvp-current-004` used the same current-only fixture, pinned
+Qwen3.5 2B MLX 8-bit, visual prompt v2 and planner prompt v9. No history imports,
+embedding indexing, devices, voice or cloud calls. The 180-second timeout and
+three-second memory sampling remained in place.
+
+**Measured:** process exited normally in 15.05 seconds. Sampled free-memory
+metrics were 60%, 59%, 29%, 30%, 27%; the watchdog did not trigger. These discrete
+samples do not establish the instantaneous minimum or show that lowering the
+cutoff caused success (this run started with more headroom). Reported MLX peak
+was 4,177,850,684 bytes (3.89 GiB), not total process/system RAM. After exit the
+system metric was 50%, and process inspection found no experiment process.
+
+- Current question completed in 8.83 seconds, including initial model loading.
+  Query: `television remote control`. Answer: “I can see television remote control
+  left side of the pink surface, near the first cat.”
+- Correction completed in 4.48 seconds. User: “I mean the remote on the left of
+  the picture.” The tool query remained `television remote control`, and the
+  answer was identical. Both traces used inspect_current then finish, with no
+  decision errors.
+
+**Manual interpretation:** the location corresponds to the visible left remote.
+No schema placeholder was emitted in this run. However, the image has two remotes
+and the generic first request received an unqualified single-object answer. The
+correction's spatial attribute was still dropped. A coincidentally matching answer
+is not evidence of correction understanding, and this one reused development
+image does not establish recognition reliability.
+
+No further inference followed. The next reliability work should address how the
+planner retains user attributes and how visual verification handles multiple
+matches, without adding a hand-coded rule for this image or object. History and
+departure tests remain pending. No application code changed for this measurement.
