@@ -130,3 +130,26 @@ periodic checks and resumes on change. The isolated generated-media reminder bro
 check passes. The nine-case reversal experiment rejects another model-call gate;
 departure accuracy remains open. See R8 for the separate resource-limited live replay;
 no new household, hardware, latency or recognition acceptance gate is closed.
+
+### Temporal window and conversation verification follow-up
+
+The approved temporal window now runs before automatic embedding and live inference:
+controlled 0.1 s returned-to-baseline disturbances are suppressed, lasting placement
+qualifies, activity shares episode IDs and busy inference does not consume a pending
+nomination. A separate action gate matches temporal/model cues to eligible armed
+requests. Full recordings and source timestamps remain intact. Live phases and
+decision reasons are visible. General event importance and personal memory remain
+outside this bounded slice.
+
+**192 deterministic tests pass.** Generated-video tests exercise actual FFmpeg and
+index selection; lifecycle checks cover cancellation, camera stop and stale inference.
+The generated-media browser reminder scenario passes brief-flash suppression followed
+by sustained activity, playback, cancellation, acknowledgement and denied playback.
+
+Expanded real-planner development checks found and fixed continuation/routing gaps.
+The latest ten scripted cases pass query-attribute, tool-path and bounded-completion
+checks with real Qwen and controlled tool observations. These are not independent
+household retrieval trials. Dense real-model API replay produced an exit reminder
+and an erroneous entry reminder; recognition acceptance remains unmet. See
+[R8](research/R8-companion-loop.md) and the
+[implementation plan](superpowers/plans/2026-10-20-temporal-attention.md).

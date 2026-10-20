@@ -97,12 +97,13 @@ def index_video_batches(
     try:
         if not managed_source:
             shutil.copyfile(video, copied_video)
-        frames = extract_frames(copied_video, frame_dir, interval)
+        scan_interval = min(interval, 0.1) if adaptive else interval
+        frames = extract_frames(copied_video, frame_dir, scan_interval)
         decoded_samples = len(frames)
         if adaptive:
-            from nyx.attention import select_frames
+            from nyx.attention import select_activity_frames
 
-            selected = select_frames(frames)
+            selected = select_activity_frames(frames)
             keep = {path for _, path in selected}
             for _, path in frames:
                 if path not in keep:
@@ -111,7 +112,12 @@ def index_video_batches(
         with store.connection() as db:
             db.execute(
                 "UPDATE videos SET sampling_policy=? WHERE id=?",
-                (f"change-v1/{interval:g}s/30s" if adaptive else "periodic", video_id),
+                (
+                    f"activity-v1/scan={scan_interval:g}s/0.5s-persistence/30s"
+                    if adaptive
+                    else "periodic",
+                    video_id,
+                ),
             )
         for offset in range(0, len(frames), batch_size):
             batch = frames[offset : offset + batch_size]

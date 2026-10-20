@@ -11,11 +11,11 @@ const companion = {
     this.player?.pause();
   },
 
-  snapshot(maxWidth = 1280) {
+  snapshot(maxWidth = 1280, maxHeight = Infinity) {
     const viewer = $("viewer");
     if (!enabled || !stream || !viewer.videoWidth) return {};
     const canvas = document.createElement("canvas");
-    const scale = Math.min(1, maxWidth / viewer.videoWidth);
+    const scale = Math.min(1, maxWidth / viewer.videoWidth, maxHeight / viewer.videoHeight);
     canvas.width = Math.floor(viewer.videoWidth * scale);
     canvas.height = Math.floor(viewer.videoHeight * scale);
     canvas.getContext("2d").drawImage(viewer, 0, 0, canvas.width, canvas.height);
@@ -71,7 +71,7 @@ const companion = {
     if (this.observing || !enabled || !captureSession || !this.armed) return;
     this.observing = true;
     try {
-      const frame = this.snapshot(640);
+      const frame = this.snapshot(640, 360);
       if (!frame.snapshot) return;
       await api("/api/observe", json({ session_id: captureSession.id, captured_at: frame.captured_at, image: frame.snapshot }));
     } catch (error) {
@@ -156,7 +156,11 @@ const companion = {
         }
         $("reminders").append(row);
       }
-      $("observation-state").textContent = !enabled ? "Camera off; departure reminders are waiting for observation." : state.observation.error ? `Observation interrupted: ${state.observation.error}` : `${this.armed ? "Watching locally for departure cues" : "No armed departure reminder"}${state.observation.judgment ? ` · ${state.observation.judgment.cue}` : ""}`;
+      const phases = { quiet: "Waiting for activity", collecting: "Watching whether the change persists", active: "Following activity", settling: "Following activity", settled: "Activity settled" };
+      const decisions = { uncertain: "Departure unclear; continuing to watch", no_departure: "No departure indicated", missing_exit_cues: "Exit movement not established", no_matching_request: "Waiting for evidence after the request" };
+      const phase = phases[state.observation.phase] || "Watching locally for departure cues";
+      const decision = decisions[state.observation.decision?.reason];
+      $("observation-state").textContent = !enabled ? "Camera off; departure reminders are waiting for observation." : state.observation.error ? `Observation interrupted: ${state.observation.error}` : `${this.armed ? phase : "No armed departure reminder"}${this.armed && decision ? ` · ${decision}` : ""}${state.observation.judgment ? ` · ${state.observation.judgment.cue}` : ""}`;
       if (state.pending.length) this.deliver(state.pending[0]);
     } finally { this.refreshBusy = false; }
   },
@@ -171,6 +175,6 @@ $("companion-form").onsubmit = async event => {
 $("companion-stop").onclick = () => { companion.cancel(); };
 window.addEventListener("nyx-camera-stopped", () => { companion.interruptDelivery(); });
 window.addEventListener("pagehide", () => { companion.cancel(); });
-setInterval(() => companion.observe(), 750);
+setInterval(() => companion.observe(), 100);
 setInterval(() => companion.refresh().catch(() => {}), 1000);
 companion.refresh().catch(error => { $("companion-status").textContent = error.message; });

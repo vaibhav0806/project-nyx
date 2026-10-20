@@ -100,7 +100,7 @@ class Intentions:
                 (identifier,),
             )
 
-    def trigger(self, event_id, observed_at, evidence):
+    def trigger(self, event_id, observed_at, evidence, *, request_ids=None):
         observed = aware_time(observed_at)
         started = observed
         if "frame_times" in evidence:
@@ -125,6 +125,8 @@ class Intentions:
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             for task in db.execute("SELECT * FROM intentions WHERE state='armed'").fetchall():
+                if request_ids is not None and task["id"] not in request_ids:
+                    continue
                 # A new intention must not reuse the beginning of an earlier event,
                 # even when its last frame arrived after the request.
                 if started < aware_time(task["created_at"]):

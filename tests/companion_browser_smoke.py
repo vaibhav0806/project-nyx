@@ -93,10 +93,15 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                             window.fakeMicContext=new AudioContext({sampleRate:16000});
                             return window.fakeMicContext.createMediaStreamDestination().stream;
                         }
-                        const canvas = document.createElement('canvas'); canvas.width=640; canvas.height=360;
+                        const canvas = document.createElement('canvas'); canvas.width=640; canvas.height=480;
                         const ctx=canvas.getContext('2d'); let i=0;
-                        ctx.fillStyle='gray'; ctx.fillRect(0,0,640,360);
-                        window.fakeTimer=setInterval(()=>{ctx.fillStyle=i++%2?'white':'gray';ctx.fillRect(0,0,640,360);},800);
+                        window.fakeScene='quiet';window.fakeFlashUntil=0;
+                        ctx.fillStyle='gray'; ctx.fillRect(0,0,640,480);
+                        window.fakeTimer=setInterval(()=>{
+                            ctx.fillStyle=performance.now()<window.fakeFlashUntil?'white':
+                                window.fakeScene==='active'&&Math.floor(i++/16)%2?'white':'gray';
+                            ctx.fillRect(0,0,640,480);
+                        },50);
                         window.fakeStream=canvas.captureStream(10);return window.fakeStream;
                     };""")
                     page.goto(url)
@@ -110,6 +115,16 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                     if not args.speech:
                         page.locator("#start").click()
                     expect(page.locator("#camera-state")).to_have_text("Recording video")
+                    # A brief disturbance followed by the same scene must never invoke
+                    # the positive vision fixture or create a notification.
+                    page.wait_for_timeout(400)
+                    page.evaluate("window.fakeFlashUntil=performance.now()+100")
+                    page.wait_for_timeout(1500)
+                    state = page.request.get(url + "/api/companion").json()
+                    assert state["reminders"][0]["state"] == "armed"
+                    assert state["pending"] == []
+                    assert not state["observation"].get("job_id")
+                    page.evaluate("window.fakeScene='active'")
                     if args.speech:
                         expect(page.locator("#reminders")).to_contain_text(
                             "delivering", timeout=20000
@@ -209,6 +224,8 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                                 "cancelled_pending_audio": args.speech,
                                 "playback_denial_reports_failure": args.speech,
                                 "older_library_access": True,
+                                "brief_flash_suppressed": True,
+                                "sustained_activity_delivers": True,
                                 "passed": True,
                             },
                             indent=2,

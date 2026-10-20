@@ -42,6 +42,20 @@ def test_delivery_claim_is_atomic_and_cannot_replay_or_resurrect_cancelled_task(
     assert tasks.get(item["id"])["state"] == "cancelled"
 
 
+def test_event_action_gate_only_claims_the_eligible_request_ids(tmp_path):
+    from nyx.intentions import Intentions
+
+    tasks = Intentions(tmp_path)
+    first = tasks.create("first", "Take water")
+    other = tasks.create("other", "Take keys")
+    deliveries = tasks.trigger(
+        "event", datetime.now(UTC).isoformat(), {}, request_ids=[first["id"]]
+    )
+    assert [row["intention_id"] for row in deliveries] == [first["id"]]
+    assert tasks.get(other["id"])["state"] == "armed"
+    assert tasks.trigger("event", datetime.now(UTC).isoformat(), {}, request_ids=[]) == []
+
+
 def test_old_or_pre_request_events_never_trigger_a_reminder(tmp_path):
     from nyx.intentions import Intentions
 
@@ -54,21 +68,33 @@ def test_old_or_pre_request_events_never_trigger_a_reminder(tmp_path):
         tasks.trigger("future-event", (datetime.now(UTC) + timedelta(minutes=1)).isoformat(), {})
 
 
-def test_sequence_started_before_request_cannot_trigger_its_next_departure(tmp_path):
+def test_sequence_started_before_request_cannot_trigger_its_next_departure(tmp_path, monkeypatch):
     from nyx.intentions import Intentions
 
+    clock = [datetime.now(UTC)]
+
+    class Clock:
+        @staticmethod
+        def now(zone):
+            return clock[0]
+
+    monkeypatch.setattr("nyx.intentions.datetime", Clock)
     tasks = Intentions(tmp_path)
     older = tasks.create("older", "Take keys")
-    before = datetime.now(UTC)
+    clock[0] += timedelta(milliseconds=100)
+    before = clock[0]
+    clock[0] += timedelta(milliseconds=100)
     newer = tasks.create("newer", "Take water")
-    after = datetime.now(UTC)
+    clock[0] += timedelta(milliseconds=100)
+    after = clock[0]
     evidence = {"frame_times": [before.isoformat(), after.isoformat()]}
     deliveries = tasks.trigger("straddling-sequence", after.isoformat(), evidence)
     assert [row["intention_id"] for row in deliveries] == [older["id"]]
     assert tasks.get(newer["id"])["state"] == "armed"
     # A complete new sequence still works, without recreating the request.
-    start = datetime.now(UTC)
+    start = clock[0] + timedelta(milliseconds=100)
     end = start + timedelta(milliseconds=1)
+    clock[0] = end
     deliveries = tasks.trigger(
         "new-sequence", end.isoformat(), {"frame_times": [start.isoformat(), end.isoformat()]}
     )

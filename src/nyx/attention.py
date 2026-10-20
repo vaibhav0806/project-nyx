@@ -4,6 +4,16 @@ import numpy as np
 from PIL import Image
 
 
+def frame_pixels(image):
+    return np.asarray(image.convert("L").resize((160, 96)), dtype=np.float32) / 255
+
+
+def pixels_changed(left, right):
+    difference = np.abs(left - right)
+    blocks = difference.reshape(12, 8, 20, 8).mean(axis=(1, 3))
+    return float(difference.mean()) > 0.035 or float(blocks.max()) > 0.12
+
+
 class ChangeDetector:
     def __init__(self, heartbeat=30.0, gap=10.0):
         self.heartbeat = heartbeat
@@ -16,7 +26,7 @@ class ChangeDetector:
     def observe(self, image, at):
         if not np.isfinite(at):
             raise ValueError("Frame time must be finite")
-        pixels = np.asarray(image.convert("L").resize((160, 96)), dtype=np.float32) / 255
+        pixels = frame_pixels(image)
         reason = None
         changed = False
         if self.previous is None:
@@ -25,10 +35,8 @@ class ChangeDetector:
             reason = "gap"
             self.settle = False
         else:
-            difference = np.abs(pixels - self.previous)
             # Local blocks prevent a small placed object being diluted by the whole room.
-            blocks = difference.reshape(12, 8, 20, 8).mean(axis=(1, 3))
-            changed = float(difference.mean()) > 0.035 or float(blocks.max()) > 0.12
+            changed = pixels_changed(pixels, self.previous)
             if changed:
                 reason = "change"
             elif self.settle:
@@ -68,3 +76,37 @@ def select_frames(frames):
         if decision["changed"] and i:
             selected.add(i - 1)
     return [row for i, row in enumerate(frames) if i in selected]
+
+
+def select_activity_frames(frames):
+    """Dense cheap observations select sparse evidence; original rows retain offsets."""
+    from nyx.activity import ActivityWindow
+
+    window = ActivityWindow()
+    selected = set()
+    event_start = None
+    selected_event = None
+    last_selected = None
+    for index, (at, source) in enumerate(frames):
+        if isinstance(source, Image.Image):
+            activity = window.observe(source, at)
+        else:
+            with Image.open(source) as image:
+                activity = window.observe(image, at)
+        if index == 0 or activity["discontinuity"]:
+            selected.add(index)
+            last_selected = at
+        if activity["state"] == "collecting" and activity["started_at"] == at:
+            event_start = index
+        if activity["qualified"]:
+            if activity["event_id"] != selected_event:
+                selected.update([max(0, event_start - 1), event_start, index])
+                selected_event = activity["event_id"]
+                last_selected = at
+            elif activity["closed"] or (activity["moved"] and at - last_selected >= 3):
+                selected.add(index)
+                last_selected = at
+        elif activity["state"] == "quiet" and at - last_selected >= 30:
+            selected.add(index)
+            last_selected = at
+    return [row for index, row in enumerate(frames) if index in selected]

@@ -186,3 +186,171 @@ of functionality, following the user's clarification.
 person motion with the current VLM on independently labelled fixed-camera sequences.
 The present work does not establish departure reliability, lower visual-answer p95,
 real-camera behavior or audible warning before an exit. M3–M5 remain in progress.
+
+## Temporal window and stronger conversation checks — 2026-10-20
+
+The user approved the temporal-window/action-gate approach and requested execution,
+while deferring general long-term memory. The implementation keeps the existing
+models, runtime and local-media boundary. No new model, framework, hosted call or
+hardware capture was used. Runtime/checkpoints remain as listed above.
+
+### Window method and decision
+
+**Hypothesis:** elapsed-time persistence should suppress a controlled 0.1 s disturbance
+returning to the baseline while preserving a fast placement whose resulting scene
+persists. Qualification should precede expensive embedding/vision. Passing those
+checks justifies integrating this nomination layer; it does not establish event meaning.
+
+`activity.py` compares tiny grayscale blocks with both a stable reference and the
+previous observation. Three supporting observations and 0.5 s persistent change
+qualify an episode. It settles after 0.8 s without adjacent-frame change; gaps over
+0.5 s reset continuity. These are first-pass engineering values, not tuned household
+thresholds. Live observation targets 10 Hz with at most 64 images/six seconds, and
+three exact frames go to the VLM. Continuing changed activity can recheck after three
+seconds. Busy-worker nominations are consumed only after admission and expire after
+eight seconds if never admitted.
+
+Automatic saved-segment indexing requests 0.1 s decoded observations, selects
+before/during/settled frames plus periodic coverage, and embeds only those samples.
+Actual source offsets remain authoritative; the original video is preserved. Each
+segment/discontinuity retains an anchor, so a brief disturbance can still appear in
+an anchor or periodic sample. Low source frame rate limits what can be established.
+The denser scan is a functionality change, not a claim of fewer embeddings than
+the earlier sparse two-second policy.
+
+Command and local artifact:
+
+```sh
+uv run --no-sync python experiments/companion/window.py \
+  --manifest data/evaluation/departure-manifest.json \
+  --output data/runs/temporal-window-replay-001
+```
+
+This uses a declared replay clock and immediate nomination admission, with no VLM.
+
+| Generated scene | Cheap observations | Indexed samples | Live nominations | Episodes |
+| --- | --- | --- | --- | --- |
+| Static, 120 s including endpoint | 1201 | 5 | 0 | 0 |
+| 0.1 s flash returning to baseline | 41 | 1 anchor | 0 | 0 |
+| Fast placement with lasting result | 41 | 5 | 1 | 1 |
+| Continuing motion | 101 | 7 | 4 | 1 |
+
+**Measured:** nine existing public clips supplied 2191 decoded observations, 278
+selected frames and 98 potential live nominations. These whole-clip counts are not
+departure scores: previous labels describe selected subsequences, and negatives also
+contain qualifying visual activity. The cheap window does not distinguish entry,
+closet activity or phone use. Source paths/hashes and exact offsets are in the local
+result; temporary dense public frames were removed after measurement.
+
+### Separate action eligibility and actual live replay
+
+The new `departure_action` gate requires temporal qualification, unambiguous model
+departure/approach/exit-interaction fields, and an eligible armed request. Only its
+request IDs can be claimed atomically; cancellation is checked again at persistence.
+Episode ID, timing, interpretation and gate reason accompany delivery evidence. This
+implements relevance to the existing next-departure request, not general-purpose
+event importance or identity recognition.
+
+```sh
+HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/live.py \
+  --manifest data/evaluation/departure-manifest.json --cases 3H0PT BM3UJ \
+  --output data/runs/temporal-window-live-001
+```
+
+This now uses dense source excerpts at actual decoded intervals, not the old
+two-second frame replay. Nominal old manifest indices locate the development excerpt;
+the saved offsets and replay times are explicit, not original capture clock times.
+Voice is disabled. Every admitted model job is recorded, including jobs completed
+before the final replay frame.
+
+- `3H0PT`: two model checks succeeded. The first judged no departure; a later check
+  judged departure and created one pending notification. This does not measure whether
+  speech could finish before an exit.
+- `BM3UJ`: one model check incorrectly described the entering person as preparing to
+  exit and created one pending notification. **The action gate cannot correct mutually
+  consistent but semantically wrong model flags. Recognition remains unreliable.**
+- Maximum observed replay gaps were 0.201/0.214 s, below the continuity reset limit.
+  These are two reused development excerpts, not independent household trials.
+
+### What conversation/search testing actually covers
+
+The implementation is a custom Python model/tool/observation loop, without LangChain.
+Before this follow-up, deterministic tests covered tools, attribution, cancellation,
+limits and replay; real-model evidence comprised seven direct action-label probes and
+five narrow integrated workflows. Those checks did **not** sufficiently exercise
+query attributes or repeated inconclusive tool results.
+
+The new `experiments/companion/planner.py` runs the actual local Qwen planner and agent
+loop with controlled tool observations. It checks query concepts/contradictory
+attributes, actual tool paths, search windows, bounded completion and authoritative
+answers. It retrieves no images and performs no real reminder mutations.
+
+```sh
+HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/planner.py \
+  --output data/runs/planner-query-loop-004
+```
+
+Development runs are retained locally: `001` passed 7/10 checks, `002` 6/10, `003`
+7/10 and `004` 10/10. Earlier scoring allowed an honest uncertain answer without
+requiring broad search; final scoring also requires multiple distinct windows in
+the all-inconclusive case. These are iterative development runs with changing
+policies/scoring, not a controlled accuracy trend or independent test set.
+
+Observed failures drove the changes: the model repeated current inspection after an
+inconclusive result; repeated a checked history window; chose history for “Is it still
+there?”; tried a missing camera; and copied a schema placeholder during an unsuccessful
+remaining-action prompt experiment. Full candidate JSON templates were removed from
+remaining-action guidance. Query placeholders are rejected. Up to two decision repairs
+remain inside six total decisions. Explicit current/history/no-camera policies and
+recorded repeated-window broadening prevent those errors silently becoming answers.
+A revised query can still revisit a time window. A completed authoritative tool at
+the final decision is returned without an extra generation.
+
+Latest run `004` passed the following narrow checks:
+
+- Blue-bottle description retained; thin/silver/reading-glasses correction retained,
+  with the old black attribute removed.
+- Historical pronoun resolved; “still there” checked a fresh view despite an old
+  assistant answer; an imported red mug used undated best-match search.
+- Inconclusive current check continued through two-hour then 24-hour history; missing
+  camera used history; all-inconclusive checks widened and returned uncertainty.
+- Cancellation selected the provided request ID; gratitude used chat without search.
+
+One all-inconclusive case still needed a bounded malformed-decision repair. Concept
+matching is narrow and not a semantic correctness oracle. Ten development cases,
+controlled sightings and prior public-image integration do not establish dependable
+household retrieval, arbitrary conversations or general personal memory.
+
+Conversation text/trace persists in SQLite; the planner sees at most twelve completed
+turns from the recent twenty. There is no saved-fact/correction/summarization layer or
+semantic recall over older conversations. Long-term memory remains deferred as asked.
+
+### Verification and recommendation
+
+**192 deterministic tests pass**, including actual generated-video FFmpeg/indexing,
+flash suppression, persistent placement, time/gap boundaries, episode grouping,
+busy-worker recovery, cancellation/camera-stop/stale-inference action rejection,
+query/tool policy repairs, source attribution and persistence. A request-boundary
+test had relied on two wall-clock calls being distinct; it now uses an explicit
+replay clock so its before/after ordering is deterministic.
+
+`temporal-window-browser-001` passed generated-camera flash suppression (no vision
+job or notification), subsequent sustained activity, synthetic speech, cancellation,
+acknowledgement, denied playback and library controls. Model/voice boundaries are
+doubles there; actual Qwen behavior is reported separately above.
+
+Inline review reproduced 4:3 live snapshots being rejected because only width was
+bounded (`temporal-window-4x3-before-001`). Bounding both dimensions preserves aspect
+ratio and passes the repeated full generated-camera scenario
+(`temporal-window-4x3-after-001`). The exact 0.5 s sampling boundary also has a passing
+float-rounding regression. Final lint/format/JavaScript checks and local Markdown
+links pass. The final offline wheel (`temporal-window-package-final-001`) includes
+byte-matched current versions of all nine changed runtime modules/assets. Building
+uses the cached isolated backend; an initial no-isolation invocation lacked hatchling
+in the runtime environment and was corrected without changing project dependencies.
+
+**Recommendation:** retain the temporal/action wiring and auditable continuation
+policies. Next recognition work needs explicit exit geometry and chronological person
+motion on independently labelled fixed-camera sequences. Do not promote the present
+VLM to dependable departure assistance or close M1–M5 acceptance gates from these
+prototype checks. General memory and RAM optimization remain deferred.

@@ -15,7 +15,7 @@ from nyx.agent import agent_steps
 from nyx.answers import history_steps
 from nyx.intentions import Intentions
 from nyx.memory import aware_time
-from nyx.observation import Observer
+from nyx.observation import Observer, departure_action
 from nyx.voice import Conversations, spoken_answer
 
 
@@ -346,18 +346,20 @@ def install_companion(app, workspace, voice):
             raise HTTPException(409, "Live observation needs the active recording session")
         image = decode_image(body.image, 640 * 360)
         if not any(row["state"] == "armed" for row in tasks.active()):
+            observer.reset()
             last_observation.update(
-                state="quiet", note="Camera active; no armed departure reminder"
+                state="quiet", phase="quiet", note="Camera active; no armed departure reminder"
             )
             return {"state": "quiet"}
         burst = observer.feed(body.session_id, image, body.captured_at.isoformat())
         last_observation.update(
             state="watching",
+            phase=observer.phase,
             at=body.captured_at.isoformat(),
             note="Checking local visual changes for an active departure request",
         )
         if burst is None:
-            return {"state": "watching"}
+            return {"state": "watching", "phase": observer.phase}
         with workspace.lock:
             if any(
                 job["kind"] == "observe" and job["status"] not in {"succeeded", "failed"}
@@ -365,6 +367,7 @@ def install_companion(app, workspace, voice):
             ):
                 return {"state": "busy"}
         job_id = workspace.reserve("observe")
+        observer.accept(burst)
         last_observation.pop("error", None)
         last_observation["job_id"] = job_id
 
@@ -385,27 +388,40 @@ def install_companion(app, workspace, voice):
             ):
                 return {"state": "interrupted", "deliveries": []}
             fresh(burst["times"][-1])
+            decision = departure_action(burst, judgment, tasks.active())
             evidence = {
                 "judgment": judgment,
                 "model": model.fingerprint,
                 "frame_times": burst["times"],
                 "inference_seconds": time.perf_counter() - started,
                 "kind": "model_inference",
+                "event_id": burst["event_id"],
+                "activity": burst["activity"],
+                "decision": decision,
             }
             deliveries = (
-                tasks.trigger(job_id, burst["times"][-1], evidence)
-                if judgment["departure"] and not judgment["uncertain"]
+                tasks.trigger(
+                    burst["event_id"],
+                    burst["times"][-1],
+                    evidence,
+                    request_ids=decision["request_ids"],
+                )
+                if decision["act"]
                 else []
             )
             last_observation.update(
                 state="triggered" if deliveries else "watching",
                 judgment=judgment,
+                decision=decision,
                 seconds=evidence["inference_seconds"],
             )
             return {
                 "state": last_observation["state"],
                 "judgment": judgment,
                 "deliveries": deliveries,
+                "decision": decision,
+                "event_id": burst["event_id"],
+                "activity": burst["activity"],
             }
 
         workspace.submit(job_id, check)

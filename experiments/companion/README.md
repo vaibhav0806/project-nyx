@@ -14,6 +14,38 @@ HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/run.py \
 
 The script records local planner decisions, raw generations, a current-view request, recent-history follow-up with older distractor footage, departure reminder creation/cancellation, and a separate unknown-time import workspace. Inputs are development cases, not held-out household or language evaluation. An action label match does not establish the correctness of the reply text. The API applies additional policy checks; a bare model may propose unsupported behavior.
 
+For more targeted query construction and actual agent-loop continuation checks:
+
+```sh
+HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/planner.py \
+  --output data/runs/planner-query-new
+```
+
+This uses real Qwen decisions with **controlled tool observations**, opening no devices,
+retrieving no images and performing no real reminder mutations. It checks descriptive
+attributes, corrections, pronouns, current/history policies, widening, undated imports,
+no-camera fallback, bounded uncertainty and cancellation ID selection. Raw generations,
+actual tool traces, policy adjustments and case checks remain local. Concept checks
+are deliberately narrow and still need manual review; ten development cases do not
+establish general conversation or household retrieval accuracy. `--cases NAME ...`
+selects cases without reusing an output directory.
+
+## Temporal window
+
+```sh
+uv run --no-sync python experiments/companion/window.py \
+  --manifest data/evaluation/departure-manifest.json \
+  --output data/runs/temporal-window-new
+```
+
+Omit `--manifest` for generated scenes only. No model loads. The script replays
+generated static/flash/placement/motion scenes, then optionally densely decodes the
+existing local public clips. It exercises the actual window and observer with a
+declared replay clock and immediate admission, recording selected source offsets,
+episode IDs and potential model nominations. Public labels describe earlier selected
+subsequences, so whole-clip nomination counts are not departure accuracy. Temporary
+decoded public frames are removed; originals, hashes and result metadata stay local.
+
 ## Selected public video
 
 `fetch_charades.py` reads a central directory and named compressed members using HTTP ranges. It refuses non-range responses, individual ranges/clips over 8 MiB, and more than 32 MiB per run. It never downloads the complete ~16 GB archive. Source URL, selected member paths, hashes and byte counts are recorded beside the clips.
@@ -65,7 +97,8 @@ HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/video_native.py \
 
 Use `--mode labelled_images` with another fresh output directory for the comparison. Relative timestamps come from the manifest's two-second sampling protocol, not capture clock time.
 
-To exercise the actual request → live-observer → pending-notification API with the local model, replay selected cases two seconds apart:
+To exercise the actual request → live-observer → pending-notification API with the
+local model, densely replay excerpts at their decoded time intervals:
 
 ```sh
 HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/live.py \
@@ -73,7 +106,15 @@ HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/live.py \
   --output data/runs/companion-live-new
 ```
 
-This saves raw judgments, request/delivery state and elapsed time from the last frame. It records recognition errors rather than asserting every case passes. No video segment must finish first. It starts no device, uses a replay clock rather than an original capture date, disables the voice provider and makes no speech-delivery claim.
+This locates an excerpt using the manifest's prior nominal two-second indices, with
+one second before and three after; actual dense decoded offsets drive replay. It
+records every admitted observation job, actual sampling gaps, raw judgments and
+request/delivery state. Gaps over the window's continuity limit invalidate context.
+This records errors rather than asserting every case passes. No saved segment must
+finish first. It starts no device, uses an explicit replay clock rather than an
+original capture date, disables voice and makes no speech/advance-warning claim.
+The earlier sparse two-second replay cannot establish subsecond persistence and is
+superseded by this protocol for current code.
 
 ## Browser wiring
 

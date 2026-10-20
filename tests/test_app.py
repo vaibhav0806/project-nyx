@@ -164,7 +164,7 @@ def test_continuous_segment_is_saved_indexed_and_delivered_once(tmp_path, video)
             if status["counts"].get("ready") == 1:
                 break
             time.sleep(0.01)
-        assert status["searchable_through"] == "2026-10-19T10:00:02+00:00"
+        assert status["searchable_through"] == "2026-10-19T10:00:03+00:00"
         repeat = client.post(
             f"/api/capture/{session_id}/segments/0", params=params, content=video.read_bytes()
         )

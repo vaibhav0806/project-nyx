@@ -24,17 +24,35 @@ The search encoder compares a text description with indexed visual samples. A cl
 
 The agent has a maximum of six decisions. It sees twelve recent completed turns and compact tool results. It does not currently have an unlimited life history or a general saved-fact memory. A previous assistant answer is not fresh visual evidence.
 
+The loop is custom Python, without LangChain. Up to two invalid-decision repairs fit
+inside the existing six-decision budget. Repeated identical history queries advance
+to the next unused wider window; a revised query can still search the same window.
+Current follow-ups such as “Is it still there?” require a fresh view when available;
+explicit last-sighting requests use history. Policy adjustments persist in the trace.
+
 ## Watching without constant commentary
 
-While recording is enabled, full video segments save locally. Cheap image differences select changed, pre-change, settled and periodic samples for indexing. A quiet room needs fewer embeddings, while original video remains available. Skipping a sample does not prove nothing happened.
+While recording is enabled, full video segments save locally. Cheap dense observations
+pass through a temporal window before frames are embedded. A 0.1-second flash returning
+to the original scene is suppressed; a fast placement leaving a lasting change can
+qualify. Selected frames preserve before/during/settled evidence and periodic coverage.
+Every independent segment retains an anchor, so brief disturbances can still appear
+in anchor/periodic samples. Skipping a sample does not prove nothing happened.
 
 A separate live observer uses small recent frames from the same camera. It does not wait for a saved segment to finish indexing. It checks departure cues with the heavier local model only when a departure reminder is armed. A camera change, pause or stale sequence invalidates that burst.
 
-Unchanged sequences skip the model entirely. For a nominated burst, the first,
-middle and last frames are the exact images named in event evidence. The complete
-sequence must come after the reminder request; the tail of an older event cannot
-satisfy a newly created reminder. Motion is only a reason to look more closely, not
-proof of departure.
+Unchanged or isolated short disturbances skip the model. The first-pass policy needs
+at least three observations spanning 0.5 seconds of persistent change; 0.8 seconds of
+quiet closes an episode, and a gap over 0.5 seconds resets continuity. Live sampling
+targets ten observations per second. Qualified activity can be inspected before it
+settles. Continuing activity can be rechecked after three seconds with further change;
+a busy worker does not consume a nomination before admission.
+
+For a nominated burst, the first, middle and last frames are the exact images named
+in event evidence. A separate action gate checks temporal qualification, model exit
+cues and eligible active requests. The complete sequence must come after the request;
+the tail of an older event cannot satisfy a new reminder. Pixel change does not
+establish meaning, and the model's interpretation can still be wrong.
 
 ## Remembering to act
 
@@ -60,7 +78,7 @@ The request survives a restart. Its condition is an observed event, not a clock 
 | --- | --- |
 | Original clips and `capture.sqlite3` | Saved media, segment times, recording interruptions and recovery |
 | `index.sqlite3` and selected thumbnails | Searchable sampled observations, offsets, encoder identity and vectors |
-| Ephemeral live buffer | At most six small frames for active event checks; no permanent live-frame archive |
+| Ephemeral live buffer | At most 64 small frames and six seconds of recent context; three frames per model check; no permanent live-frame archive |
 | `conversations.sqlite3` | User/assistant conversation, chosen tools and source references |
 | `intentions.sqlite3` | Requested next-departure tasks, notification attempts and acknowledgement state |
 

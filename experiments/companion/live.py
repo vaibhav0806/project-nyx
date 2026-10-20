@@ -7,11 +7,13 @@ import time
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from fastapi.testclient import TestClient
 from PIL import Image
 
 from nyx.app import create_app
+from nyx.capture import extract_frames
 from nyx.verification import LocalVerifier
 
 
@@ -52,7 +54,11 @@ def main():
         model.generate_json = record
         return model
 
-    results = {"cases": [], "protocol": "Actual API clock; sampled public frames replayed 2s apart"}
+    results = {
+        "cases": [],
+        "protocol": "Actual API clock; dense 0.1s requested decode, replay at actual decoded offsets",
+        "scope": "Nominal two-second manifest indices locate development excerpts; replay clock is not original capture time",
+    }
     with TestClient(
         create_app(
             args.output / "workspace", verifier_factory=factory, voice_factory=lambda root: None
@@ -75,35 +81,53 @@ def main():
             session = client.post(
                 "/api/capture/start", json={"at": datetime.now(UTC).isoformat()}
             ).json()
-            paths = sorted(Path(case["frames"]).glob("*.jpg"))
-            for index, frame in enumerate(case["indices"]):
-                if index:
-                    time.sleep(2)
-                with Image.open(paths[frame]) as source:
-                    image = source.convert("RGB")
-                image.thumbnail((640, 360))
-                encoded = BytesIO()
-                image.save(encoded, format="JPEG")
-                observed_at = datetime.now(UTC)
-                observation = client.post(
-                    "/api/observe",
-                    json={
-                        "session_id": session["id"],
-                        "captured_at": observed_at.isoformat(),
-                        "image": base64.b64encode(encoded.getvalue()).decode(),
-                    },
-                )
-                assert observation.status_code in {200, 202}, observation.text
-            outcome = (
-                wait(client, observation.json()["id"])
-                if observation.status_code == 202
-                else observation.json()
-            )
+            source = Path(case["frames"]).parent / f"{case['name']}.mp4"
+            lower = max(0, min(case["indices"]) * 2 - 1)
+            upper = max(case["indices"]) * 2 + 3
+            jobs = []
+            gaps = []
+            with TemporaryDirectory(prefix="nyx-live-replay-") as folder:
+                frames = [
+                    (at, path)
+                    for at, path in extract_frames(source, Path(folder) / "frames", 0.1)
+                    if lower <= at <= upper
+                ]
+                if not frames:
+                    raise ValueError("No frames in the requested development excerpt")
+                started = time.monotonic()
+                previous = None
+                for offset, path in frames:
+                    delay = started + offset - frames[0][0] - time.monotonic()
+                    if delay > 0:
+                        time.sleep(delay)
+                    with Image.open(path) as opened:
+                        image = opened.convert("RGB")
+                    image.thumbnail((640, 360))
+                    encoded = BytesIO()
+                    image.save(encoded, format="JPEG")
+                    observed_at = datetime.now(UTC)
+                    if previous is not None:
+                        gaps.append((observed_at - previous).total_seconds())
+                    previous = observed_at
+                    response = client.post(
+                        "/api/observe",
+                        json={
+                            "session_id": session["id"],
+                            "captured_at": observed_at.isoformat(),
+                            "image": base64.b64encode(encoded.getvalue()).decode(),
+                        },
+                    )
+                    assert response.status_code in {200, 202}, response.text
+                    if response.status_code == 202:
+                        jobs.append(response.json()["id"])
+            outcomes = [wait(client, identifier) for identifier in jobs]
             status = client.get("/api/companion").json()
             row = {
                 **case,
                 "request": request_job,
-                "observation": outcome,
+                "observations": outcomes,
+                "source_offsets": [at for at, _ in frames],
+                "maximum_replay_gap_seconds": max(gaps, default=0),
                 "seconds_since_final_frame": (datetime.now(UTC) - observed_at).total_seconds(),
                 "reminders": status["reminders"],
                 "pending": status["pending"],
@@ -111,7 +135,19 @@ def main():
             }
             results["cases"].append(row)
             (args.output / "results.json").write_text(json.dumps(results, indent=2))
-            print(json.dumps(row), flush=True)
+            print(
+                json.dumps(
+                    {
+                        "name": case["name"],
+                        "jobs": len(outcomes),
+                        "statuses": [job["status"] for job in outcomes],
+                        "judgments": [job.get("result", {}).get("judgment") for job in outcomes],
+                        "pending_notifications": len(status["pending"]),
+                        "maximum_replay_gap_seconds": row["maximum_replay_gap_seconds"],
+                    }
+                ),
+                flush=True,
+            )
             for task in status["reminders"]:
                 if task["state"] in {"armed", "pending", "delivering"}:
                     client.delete("/api/reminders/" + task["id"])

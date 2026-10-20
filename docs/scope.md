@@ -71,8 +71,16 @@ On 2026-10-20 the user authorized conversational tool selection, continuous inex
 
 This is a single-person, fixed-view/main-door experiment. No identity is inferred. A model-positive condition is a fallible inference, not verified departure. Actual public-video checks have misses and false positives; speaking before departure is not established. Show explicit monitoring and delivery states, support cancel/stop, and keep playback separate from acknowledgement. A missed/interrupted event is not automatically replayed after restart. Broader recall, timed/recurring reminders, arbitrary event triggers, interviews, purchases and hardware deployment remain later work. See [R8](research/R8-companion-loop.md).
 
-The departure follow-up skips model calls for unchanged live bursts, aligns the three
-inspected frames with their evidence timestamps, and requires the whole sequence to
-follow the request. These are resource/evidence fixes; moving-person false positives
-and recognition latency remain unresolved. No second reversal-classification call is
-added to the app.
+The temporal follow-up suppresses isolated returned-to-baseline disturbances before
+automatic embedding/live inspection, while persistent change can nominate analysis.
+Recordings remain complete and independent segments retain anchors/periodic coverage.
+Live activity groups into episodes; a separate gate checks the model's exit cues
+against eligible active next-departure requests. This is bounded request relevance,
+not a general learned event-importance system. Three inspected frames retain exact
+timestamps and the whole sequence must follow the request. Entering-person false
+triggers remain measured failures. No second reversal-classification call is added.
+
+The user approved this window/action-gate implementation on 2026-10-20 and reaffirmed
+that general long-term context/memory is later work. Existing conversation persistence
+and bounded recent-turn context remain; no summarization, saved-fact or semantic
+conversation-recall layer is added by this follow-up.

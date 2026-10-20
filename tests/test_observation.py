@@ -1,24 +1,95 @@
 from datetime import UTC, datetime, timedelta
+from itertools import pairwise
 
 import pytest
 from PIL import Image
 
 
-def test_observer_requires_a_fresh_sequence_and_resets_on_camera_session_change():
-    from nyx.observation import Observer
+@pytest.fixture
+def live(monkeypatch):
+    from nyx import observation
 
-    observer = Observer()
-    now = datetime.now(UTC)
-    image = Image.new("RGB", (160, 96), "gray")
-    assert observer.feed("session-1", image, (now - timedelta(seconds=2)).isoformat()) is None
-    assert observer.feed("session-1", image, (now - timedelta(seconds=1)).isoformat()) is None
-    changed = Image.new("RGB", (160, 96), "white")
-    burst = observer.feed("session-1", changed, now.isoformat())
-    assert len(burst["images"]) == 3
+    base = datetime.now(UTC)
+    clock = [base]
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return clock[0]
+
+    monkeypatch.setattr(observation, "datetime", Clock)
+    observer = observation.Observer()
+
+    def feed(at, gray=100, session="session"):
+        clock[0] = base + timedelta(seconds=at)
+        return observer.feed(
+            session, Image.new("RGB", (160, 96), (gray,) * 3), clock[0].isoformat()
+        )
+
+    return observer, feed, base
+
+
+def test_short_flash_cannot_nominate_a_live_model_check(live):
+    _, feed, _ = live
+    for tick in range(31):
+        assert feed(tick / 10, 200 if tick == 10 else 100) is None
+
+
+def test_live_placement_waits_for_persistence_and_has_exact_three_sample_evidence(live):
+    observer, feed, base = live
+    assert feed(0) is None
+    for tick in range(1, 6):
+        assert feed(tick / 10, 200) is None
+    burst = feed(0.6, 200)
+    assert burst["activity"]["qualified"]
+    assert burst["times"] == [(base + timedelta(seconds=at)).isoformat() for at in [0, 0.3, 0.6]]
+    assert [image.getpixel((0, 0))[0] for image in burst["images"]] == [100, 200, 200]
+    assert observer.accept(burst)
+    for tick in range(7, 21):
+        assert feed(tick / 10, 200) is None
+
+
+def test_busy_worker_does_not_consume_an_unaccepted_nomination(live):
+    observer, feed, _ = live
+    feed(0)
+    for tick in range(1, 7):
+        burst = feed(tick / 10, 200)
+    first_event = burst["event_id"]
+    # Keep collecting while no model job can be admitted, including episode closure.
+    for tick in range(7, 13):
+        burst = feed(tick / 10, 200)
+        assert burst["event_id"] == first_event
+    assert observer.accept(burst)
+    assert feed(1.3, 200) is None
+
+
+def test_continuing_activity_rechecks_only_with_new_evidence_in_the_same_episode(live):
+    observer, feed, _ = live
+    feed(0)
+    admitted = []
+    for tick in range(1, 70):
+        burst = feed(tick / 10, 150 + (tick % 3) * 40)
+        if burst:
+            assert observer.accept(burst)
+            admitted.append((tick / 10, burst))
+    assert len(admitted) == 3
+    assert len({burst["event_id"] for _, burst in admitted}) == 1
+    assert all(right[0] - left[0] >= 2.99 for left, right in pairwise(admitted))
+    assert len(observer.frames) <= 64
+
+
+def test_camera_reset_or_sample_gap_invalidates_old_event_evidence(live):
+    observer, feed, _ = live
+    feed(0)
+    for tick in range(1, 7):
+        burst = feed(tick / 10, 200)
     assert observer.valid(burst)
-    observer.reset()
+    assert feed(1.3, 200) is None
     assert not observer.valid(burst)
-    assert observer.feed("session-2", changed, now.isoformat()) is None
+    assert not observer.accept(burst)
+    assert feed(1.4, 200, session="different") is None
+    observer.reset()
+    assert feed(1.5, 200) is None
 
 
 def test_old_out_of_order_or_interrupted_sequences_cannot_trigger_departure():
@@ -36,64 +107,54 @@ def test_old_out_of_order_or_interrupted_sequences_cannot_trigger_departure():
         observer.feed("session-1", image, (now - timedelta(seconds=1)).isoformat())
 
 
-def test_burst_metadata_describes_exactly_the_three_images_checked():
-    from nyx.observation import Observer
-
-    observer = Observer()
-    now = datetime.now(UTC)
-    times = [(now + timedelta(seconds=index - 4.5)).isoformat() for index in range(6)]
-    for index, at in enumerate(times):
-        burst = observer.feed("session", Image.new("RGB", (160, 96), (index * 30,) * 3), at)
-    # The verifier checks first/middle/last; evidence must not name uninspected frames.
-    assert burst["times"] == [times[0], times[3], times[5]]
-    assert [image.getpixel((0, 0))[0] for image in burst["images"]] == [0, 90, 150]
-
-
-@pytest.mark.parametrize("colors", [[100, 100, 100], [100, 101, 100]])
-def test_unchanged_live_sequence_cannot_nominate_a_departure_check(colors):
-    from nyx.observation import Observer
-
-    observer = Observer()
-    now = datetime.now(UTC)
-    for index, gray in enumerate(colors):
-        image = Image.new("RGB", (160, 96), (gray,) * 3)
-        assert (
-            observer.feed("session", image, (now + timedelta(seconds=index - 2)).isoformat())
-            is None
-        )
-
-
-def test_slow_cumulative_change_is_not_lost_by_the_live_motion_gate():
-    from nyx.observation import Observer
-
-    observer = Observer()
-    now = datetime.now(UTC)
-    for index, gray in enumerate([100, 105, 110]):
-        image = Image.new("RGB", (160, 96), (gray,) * 3)
-        burst = observer.feed("session", image, (now + timedelta(seconds=index - 2)).isoformat())
-    assert burst is not None
-
-
-def test_quiet_monitoring_stays_local_across_periodic_checks_and_then_resumes(monkeypatch):
-    from nyx import observation
-
-    now = datetime.now(UTC)
-
-    class Clock(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return now
-
-    monkeypatch.setattr(observation, "datetime", Clock)
-    observer = observation.Observer()
-    still = Image.new("RGB", (160, 96), "gray")
-    for _ in range(120):
-        now += timedelta(seconds=1)
-        assert observer.feed("session", still, now.isoformat()) is None
-    now += timedelta(seconds=1)
-    burst = observer.feed("session", Image.new("RGB", (160, 96), "white"), now.isoformat())
+def test_long_quiet_monitoring_does_not_load_a_model_and_resumes_on_change(live):
+    observer, feed, _ = live
+    for tick in range(1201):
+        assert feed(tick / 10, 100 + tick % 2) is None
+    for tick in range(1201, 1207):
+        burst = feed(tick / 10, 200)
     assert burst is not None
     assert len(burst["images"]) == len(burst["times"]) == 3
+    assert observer.valid(burst)
+
+
+def test_action_gate_matches_visual_and_temporal_evidence_to_current_requests(live):
+    from nyx.observation import departure_action
+
+    _, feed, base = live
+    feed(0)
+    for tick in range(1, 7):
+        burst = feed(tick / 10, 200)
+    judgment = {
+        "departure": True,
+        "uncertain": False,
+        "approached_exit": True,
+        "exit_interaction": True,
+        "cue": "Synthetic approach and handle interaction",
+    }
+    older = {"id": "old", "state": "armed", "created_at": (base - timedelta(seconds=1)).isoformat()}
+    newer = {
+        "id": "new",
+        "state": "armed",
+        "created_at": (base + timedelta(seconds=0.2)).isoformat(),
+    }
+    cancelled = {**older, "id": "cancelled", "state": "cancelled"}
+    result = departure_action(burst, judgment, [older, newer, cancelled])
+    assert result["act"]
+    assert result["request_ids"] == ["old"]
+    assert not departure_action(burst, judgment, [newer, cancelled])["act"]
+    assert not departure_action(burst, judgment, [])["act"]
+    for patch in [
+        {"uncertain": True},
+        {"approached_exit": False},
+        {"exit_interaction": False},
+        {"departure": False},
+        {"departure": "true"},
+    ]:
+        assert not departure_action(burst, {**judgment, **patch}, [older])["act"]
+    assert not departure_action({**burst, "activity": {"qualified": False}}, judgment, [older])[
+        "act"
+    ]
 
 
 def test_departure_parser_cannot_promote_ambiguous_or_malformed_judgments():

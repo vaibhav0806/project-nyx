@@ -166,3 +166,39 @@ one of three exit proxies while still accepting a stationary-doorway case, and a
 another expensive generation. This is diagnostic evidence of weak temporal reasoning,
 not a quality improvement. Next recognition work should test explicit exit geometry
 and chronological person motion on independently labelled fixed-camera views.
+
+### Temporal window and agent continuation — 2026-10-20
+
+The user approved the temporal window and separate event/action eligibility design,
+requested implementation, and explicitly deferred general long-term memory. Inline
+engineering choices for this slice:
+
+- Share one elapsed-time `ActivityWindow` between live nomination and automatic
+  indexing. Start with 0.5 s persistent change supported by three observations,
+  0.8 s quiet to close an episode, and continuity reset after gaps over 0.5 s.
+  Live observation targets 10 Hz; saved segments request 0.1 s decoded sampling.
+  These settings preserve a lasting placement while rejecting controlled 0.1 s
+  returned-to-baseline flashes. They are not household-validated semantic thresholds.
+- Preserve full media, existing source policies and per-segment/periodic anchors.
+  Nomination retains before/during/settled evidence; actual offsets remain original.
+  Keep up to six seconds/64 live frames and inspect three. Consume nominations only
+  after job admission; meaningful continued activity may recheck after three seconds.
+- Keep an explicit narrow action gate for existing departure requests. Qualified
+  activity, model exit cues and an eligible armed request are all required. Persist
+  episode identity and decision reason with delivery evidence. This does not make
+  a mistaken model judgment true; the dense entry replay still falsely triggers.
+- Expanded real-planner checks exposed repeated tools, failed time-window widening,
+  current/history routing errors and copied schema placeholders. Keep the custom
+  bounded loop: show remaining choices during continuation, reject placeholder
+  queries, allow up to two decision repairs inside six steps, and record explicit
+  evidence-selection policies. An identical repeated history query advances to an
+  unused wider window; a changed query can revisit a window. This is an auditable
+  application rule, not a claim of unconstrained model reasoning.
+- Conversation text remains in SQLite, with at most twelve completed turns from the
+  recent twenty loaded as context. No summarization, fact memory, semantic chat
+  recall, framework, new model download or cloud visual fallback is introduced.
+
+[R8](research/R8-companion-loop.md) records the ten-case real-planner development
+check, synthetic and public temporal replay, browser checks and remaining false
+departure. Revisit thresholds/recognition using independent fixed-camera evidence;
+do not mark household or event acceptance complete from these wiring checks.

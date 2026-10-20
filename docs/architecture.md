@@ -153,13 +153,53 @@ M4 feedback follow-up: the fixed browser speech threshold was replaced by a lowe
 
 The separate `search_matches` tool checks semantically ranked candidates including unknown recording dates. Its answer identifies a matching moment and preserves unknown time; it cannot establish the latest sighting. Planner input distinguishes dated and undated source availability.
 
-An invalid decision, including a completion that references no current-turn observation, gets one correction attempt inside the existing six-decision limit. Repeated invalid output returns uncertainty. Tool traces and the correction reason persist with conversation metadata; the repair does not create evidence or expand action authorization.
+An invalid decision, including a completion referencing no current-turn observation,
+can receive up to two correction attempts inside the existing six-decision limit.
+Repeated invalid output returns uncertainty. An identical repeated history action
+advances to the next unused wider window for that query (2/24/168 hours, then all
+dated history); a changed query can revisit a window. Explicit last-sighting and
+current “still there” requests receive the matching historical/current tool policy.
+Camera-unavailable requests can use available history. Adjustments and correction
+reasons persist with the actual tool trace; these policies do not create evidence.
+A completed authoritative final tool result is returned even if it consumes the
+last permitted decision. Remaining-tool guidance is supplied during continuation;
+schema placeholders cannot become a resolved object query.
 
 For the current single-task workflows, a completed tool result selects its authoritative observation directly, without another language-model generation. Uncertain results still require an agent decision about the next useful search. This preserves evidence checks while avoiding a redundant completion call.
 
-`attention.py` compares inexpensive grayscale local blocks. Continuous indexing selects pre-change/changed/settled/periodic frames and removes skipped thumbnails before embedding; videos retain actual decoded offsets and a sampling-policy field. Each independent segment retains an anchor, so per-file selection does not assert cross-segment continuity. Original media, retention/deletion and encoder compatibility are unchanged.
+`attention.py` compares inexpensive grayscale local blocks. `activity.py` owns shared
+elapsed-time nomination: persistent reference-relative change needs three samples
+and 0.5 s support; 0.8 s adjacent-frame quiet settles an episode; a gap over 0.5 s
+resets continuity. Isolated changes returning to the reference are discarded. The
+thresholds are initial engineering settings, not learned semantic importance.
 
-`observation.py` owns an ephemeral, session-bound live buffer (at most six 640×360 images), clock/order/gap checks and an epoch invalidated by camera/session changes. It selects first/middle/last before inference so burst images and evidence timestamps describe the same three samples. A cheap anchor-relative scene-change check suppresses inference on unchanged sequences, including periodic nominations; cumulative changes from the anchor can still qualify. This is a nomination gate, not a departure classifier, and subtle changes below its thresholds can be missed. Low-latency event checks run separately from saved segment indexing; no cloud media path exists. The model's structured departure fields are fallible, and actual event recognition is not validated.
+Continuous indexing requests decoded observations at `min(interval, 0.1)` seconds,
+then selects before/during/settled/periodic frames and removes skipped thumbnails
+before embedding. Existing `interval_seconds` retains the requested nominal index
+interval for retry compatibility; the source's `sampling_policy` records its actual
+dense scan policy and frame rows retain actual decoded offsets. Source frame rates
+can supply fewer observations. Independent segments and discontinuities retain
+anchors; anchor/periodic frames can still include brief activity. Manual periodic
+imports and existing ready sources retain their policies. Original media,
+retention/deletion and encoder compatibility are unchanged.
+
+`observation.py` owns an ephemeral session-bound buffer of at most 64 images bounded
+to six seconds (each at most 640×360). The browser targets 100 ms observations while
+a departure request is armed. Session/sample gaps invalidate the epoch. The shared
+window nominates a qualified episode before settling; first/middle/last selection
+keeps exact image/time attribution. Meaningful continued activity can be rechecked
+after three seconds. `Observer.accept` consumes a nomination only after job admission;
+an unaccepted recent nomination survives a busy worker, with an eight-second expiry.
+This is independent of saved segment indexing and cannot preempt running inference.
+
+`departure_action` separates temporal nomination, fallible interpretation and request
+eligibility. It requires qualified activity and explicit departure/approach/interaction
+flags without uncertainty, then selects armed requests created no later than the
+first inspected sample. The durable claim boundary rechecks state using only those
+request IDs. Episode ID, timing, model judgment and action reason accompany delivery
+evidence; the UI exposes phase and decision. No general-purpose event importance
+model, permanent live-frame archive or cloud media path is introduced. A consistently
+wrong model can still produce a false reminder; R8 records such an entering case.
 
 `intentions.py` owns durable next-departure requests and separate notification attempts in `intentions.sqlite3`. Atomic claims prevent concurrent replay. Expired unclaimed attempts become missed; lost or restarted playback remains interrupted. User acknowledgement is separate. An armed request survives restart, but an old detected event is not fresh evidence after restart. No cron job establishes departure and no general action registry is added.
 

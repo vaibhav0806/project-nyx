@@ -20,11 +20,23 @@ A pinned SigLIP 2 encoder runs on this Mac's MPS GPU. Search results remain unve
 
 The **Talk to Nyx** field works without an API key. Ask “Where are my reading glasses?”, refine the description, or ask “Where did you last see them?” The local agent chooses tools over a bounded conversation and tool-result loop. Present-location requests inspect an available fresh view first; historical tools can search recent dated windows before widening. Imported clips with unknown dates can be checked as best matches, without claiming a latest sighting. Answers retain current/historical attribution. The details show what was checked. Stop cancels subsequent steps; in-flight inference can finish. Direct candidate search and explicit visual checks remain available below.
 
+This is a small custom Python loop, without LangChain. It uses recent conversation
+to construct descriptive queries and feeds tool observations back into the local
+model. An identical repeated historical search advances to an untried wider window;
+those policy adjustments persist with the trace. Conversation text is durable, but
+only bounded recent context reaches the model; general long-term personal memory is
+not implemented. [R8](docs/research/R8-companion-loop.md) separates real planner/query
+checks with controlled tools from earlier integrated retrieval trials.
+
 “Remind me to take my water bottle when I leave” saves a **next-departure** request. With recording running and the main door visible, a separate live observer checks local changes and selected short image sequences without waiting for saved-segment indexing. The reminder list shows actual state; Cancel removes an active request and **Got it** acknowledges played speech. Requests survive restart, but old events are not silently replayed. Spoken delivery requires Sarvam configuration and browser playback permission; display-only output is not counted as speech.
 
-Unchanged live sequences do not invoke departure inference. A change only nominates
-inspection; it does not establish departure. The whole checked sequence must follow
-the reminder request, and event evidence lists only the three images actually checked.
+Cheap live observation targets ten samples per second. A short activity window ignores
+isolated disturbances returning to the original scene, while lasting changes or
+sustained activity can nominate inspection after 0.5 seconds. Activity groups into
+episodes and settles after 0.8 seconds of quiet; sample gaps reset continuity. These
+are prototype thresholds, not household-validated settings. The action gate separately
+checks the model's exit cues against an active request. The whole checked sequence
+must follow the request, and evidence names the three images actually inspected.
 
 **Departure recognition is experimental and currently unreliable.** Public-video diagnostics found misses, false positives and delay. This is a single-person doorway prototype, without identity recognition or a guarantee of speaking before departure. Timed/recurring reminders and arbitrary event triggers are unsupported. A running browser page is required for live observation. [R8](docs/research/R8-companion-loop.md) records actual successes and failures.
 
@@ -39,7 +51,7 @@ uv run --no-sync nyx --data-dir data/manual-demo serve
 
 Open **http://127.0.0.1:8000** and press **Start recording**. Approximately every ten seconds, a completed segment saves and starts indexing automatically. Search can run while the camera stays on; select a candidate to replay its source in a separate player. **Pause recording** releases the camera; **Resume recording** reopens it explicitly. **Stop recording** saves the final segment. **Import video** still indexes a local file without inventing its recording time.
 
-Capture is video-only. Continuous segments now select initial, changed, pre-change, settled and periodic samples using cheap local image differences before embedding. Each ten-second segment retains an anchor. Fewer similar samples do not establish unchanged object presence. Original video still saves in full; manual imports and CLI indexing keep periodic sampling. The page shows latest saved and searchable sample times separately, a backlog, and pause/interruption history; these timestamps do not guarantee gap-free coverage. Search starts seeing each segment only after indexing completes. The first model load or current decoding/inference batch can delay search; queued search takes priority between small indexing batches.
+Capture is video-only. Continuous segments decode cheap observations at a requested 0.1-second interval and apply the same temporal window before embedding selected before/during/settled/periodic frames. Each independent segment retains an anchor; source frame rates and gaps limit temporal filtering, and anchor/periodic samples can still include a brief disturbance. Fewer similar samples do not establish unchanged object presence. Original video still saves in full; manual imports and CLI indexing keep periodic sampling. Existing indexed sources retain their original sampling policy. The page shows latest saved and searchable sample times separately, a backlog, and pause/interruption history; these timestamps do not guarantee gap-free coverage. Search starts seeing each segment only after indexing completes. The first model load or current decoding/inference batch can delay search; queued search takes priority between small indexing batches.
 
 The saved original-video budget is **1 GiB**, including existing clips. Recording stops on a full backlog, upload failure, quota or low disk space; existing clips are preserved. Thumbnails and the model cache use additional space. Failed uploads stay available for retry/download while the page remains open. A browser exit can lose the unsaved tail. Camera loss or detected suspension stops capture with an interruption warning; merely hiding the tab does not deliberately stop it. Browser/OS recording behavior and clock accuracy still need real hardware testing.
 

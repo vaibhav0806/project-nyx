@@ -37,7 +37,13 @@ class Planner:
         }
 
     def inspect_departure(self, images):
-        return {"departure": True, "uncertain": False, "cue": "Synthetic exit sequence"}
+        return {
+            "departure": True,
+            "uncertain": False,
+            "approached_exit": True,
+            "exit_interaction": True,
+            "cue": "Synthetic exit sequence",
+        }
 
 
 def snapshot(color="green"):
@@ -113,20 +119,23 @@ def test_live_observer_does_not_wait_for_recording_segment_and_requires_owner(tm
             "/api/capture/start", json={"at": datetime.now(UTC).isoformat()}
         ).json()
         now = datetime.now(UTC)
-        for index, color in enumerate(["gray", "gray", "white"]):
+        for index, color in enumerate(["gray"] + ["white"] * 6):
             response = client.post(
                 "/api/observe",
                 json={
                     "session_id": session["id"],
-                    "captured_at": (now + timedelta(seconds=index * 0.5)).isoformat(),
+                    "captured_at": (now + timedelta(seconds=index / 10)).isoformat(),
                     "image": snapshot(color),
                 },
             )
             assert response.status_code in {200, 202}, response.text
+            if index < 6:
+                assert response.status_code == 200
         assert response.status_code == 202
         job = wait_for_job(client, response.json()["id"])
         assert job["status"] == "succeeded", job
         assert job["result"]["deliveries"]
+        assert job["result"]["decision"]["act"]
         assert client.get("/api/videos").json() == []
         wrong = client.post(
             "/api/observe",
@@ -137,6 +146,37 @@ def test_live_observer_does_not_wait_for_recording_segment_and_requires_owner(tm
             },
         )
         assert wrong.status_code == 409
+
+
+def test_brief_live_flash_keeps_requested_reminder_armed_without_inspection(tmp_path):
+    class NoInspection(Planner):
+        def inspect_departure(self, images):
+            pytest.fail("A short returned-to-baseline flash must not invoke vision")
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=NoInspection)
+    ) as client:
+        request = client.post(
+            "/api/agent",
+            json={"message": "Remind me about water when I leave", "request_id": "flash"},
+        ).json()
+        wait_for_job(client, request["id"])
+        now = datetime.now(UTC)
+        session = client.post("/api/capture/start", json={"at": now.isoformat()}).json()
+        for tick in range(16):
+            response = client.post(
+                "/api/observe",
+                json={
+                    "session_id": session["id"],
+                    "captured_at": (now + timedelta(seconds=tick / 10)).isoformat(),
+                    "image": snapshot("white" if tick == 5 else "gray"),
+                },
+            )
+            assert response.status_code == 200
+        status = client.get("/api/companion").json()
+        assert status["reminders"][0]["state"] == "armed"
+        assert status["pending"] == []
+        assert status["observation"]["phase"] == "quiet"
 
 
 def test_no_active_reminder_means_no_visual_model_load_for_live_observation(tmp_path):
@@ -158,6 +198,77 @@ def test_no_active_reminder_means_no_visual_model_load_for_live_observation(tmp_
             },
         )
         assert response.json()["state"] == "quiet"
+
+
+@pytest.mark.parametrize("interruption", ["cancel", "stop", "expired"])
+def test_inflight_departure_cannot_act_after_cancellation_camera_stop_or_expiry(
+    tmp_path, monkeypatch, interruption
+):
+    from threading import Event
+
+    entered, release = Event(), Event()
+    clock = [datetime.now(UTC)]
+
+    class Clock:
+        @staticmethod
+        def now(zone):
+            return clock[0]
+
+    class Waiting(Planner):
+        def inspect_departure(self, images):
+            entered.set()
+            assert release.wait(5)
+            return super().inspect_departure(images)
+
+    monkeypatch.setattr("nyx.companion.datetime", Clock)
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Waiting)
+    ) as client:
+        try:
+            request = client.post(
+                "/api/agent",
+                json={"message": "Remind me about water when I leave", "request_id": "inflight"},
+            ).json()
+            wait_for_job(client, request["id"])
+            clock[0] = datetime.now(UTC)
+            now = clock[0]
+            state = client.get("/api/companion").json()
+            item = state["reminders"][0]
+            session = client.post("/api/capture/start", json={"at": now.isoformat()}).json()
+            for tick in range(7):
+                response = client.post(
+                    "/api/observe",
+                    json={
+                        "session_id": session["id"],
+                        "captured_at": (now + timedelta(seconds=tick / 10)).isoformat(),
+                        "image": snapshot("gray" if tick == 0 else "white"),
+                    },
+                )
+            assert response.status_code == 202
+            assert entered.wait(2)
+            if interruption == "cancel":
+                client.delete("/api/reminders/" + item["id"])
+            elif interruption == "stop":
+                client.post(
+                    f"/api/capture/{session['id']}/state",
+                    json={
+                        "state": "stopped",
+                        "at": (now + timedelta(seconds=0.7)).isoformat(),
+                        "reason": "Test stop",
+                    },
+                )
+            else:
+                clock[0] += timedelta(seconds=20)
+            release.set()
+            outcome = wait_for_job(client, response.json()["id"])
+            assert outcome["status"] == ("failed" if interruption == "expired" else "succeeded")
+            status = client.get("/api/companion").json()
+            assert status["pending"] == []
+            assert status["reminders"][0]["state"] == (
+                "cancelled" if interruption == "cancel" else "armed"
+            )
+        finally:
+            release.set()
 
 
 def test_voice_agent_reply_requires_the_authoritative_matching_turn(tmp_path):
