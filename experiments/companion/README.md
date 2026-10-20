@@ -199,3 +199,22 @@ records loading/generation time and MLX/process memory counters. It starts no de
 The script sets a 6 GiB MLX allocation limit and 128 MiB cache; these are not whole-
 process limits. The recorded run additionally used a parent subprocess with a
 120-second timeout. Do not run another smoke or video suite while inference is paused.
+
+## Focused MVP object flow
+
+When model inference resumes with enough memory headroom:
+
+```sh
+HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/mvp_objects.py \
+  --fixture data/runs/companion-retrieval-fixture --output data/runs/mvp-object-new
+```
+
+Runs actual API indexing and three sequential current/correction/history requests,
+using CPU SigLIP and MLX Qwen. The two-remotes public image is an ambiguity proxy,
+not glasses validation. Recording dates are simulated; no hardware or voice runs.
+Results persist after each turn. Inspect answers and tool queries manually: API
+success is not semantic success. Raw results may contain image data URLs.
+The script limits MLX to 6 GiB and cache to 128 MiB; these are not process limits.
+The recorded run additionally used a parent watchdog (180 s total; check system
+memory every 3 s and terminate the owned child below a 25% free metric). That
+watchdog is not built into this script. R8 records its interrupted result.

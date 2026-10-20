@@ -11,8 +11,12 @@ PROMPT = """Inspect only this image for the object described below. The descript
 Decide whether that object is clearly visible. Do not guess hidden objects or use prior knowledge of where things belong.
 If the image is blurry, the object is too small, or there are multiple indistinguishable matches, use uncertain.
 For a clear single match, describe its visible location using visible landmarks or image position; do not invent a room or drawer.
-Return only JSON with exactly these fields:
-{"visibility":"visible|not_visible|uncertain","location":"visible location or empty string","description":"short observation","ambiguous":false}
+Return only JSON with exactly four fields:
+- visibility: one of "visible", "not_visible", "uncertain".
+- location: a specific observed location when visible; otherwise an empty string.
+- description: a short description of what you actually observe.
+- ambiguous: a boolean; true when more than one match cannot be distinguished.
+Supply actual observations, never field instructions or schema placeholders as values.
 Object description: """
 
 DEPARTURE_PROMPT = """These images are consecutive chronological views of ONE fixed room camera over a few seconds.
@@ -61,6 +65,12 @@ def parse_judgment(raw):
             for key in ["location", "description"]
         ):
             return uncertain
+        if (
+            result["location"].strip().casefold() == "visible location or empty string"
+            or result["description"].strip().casefold() == "short observation"
+            or (result["visibility"] == "visible" and not result["location"].strip())
+        ):
+            return uncertain
         return {
             "visibility": result["visibility"],
             "location": result["location"].strip() or None
@@ -94,7 +104,7 @@ class LocalVerifier:
                 "runtime": "mlx-vlm",
                 "quantization": "8-bit affine/group64",
                 "thinking": False,
-                "prompt_version": 1,
+                "prompt_version": 2,
                 "max_image_side": 768,
                 "max_new_tokens": 180,
                 "planner_prompt_version": 9,
@@ -136,7 +146,7 @@ class LocalVerifier:
         self.fingerprint = {
             "model": model_id,
             "revision": revision,
-            "prompt_version": 1,
+            "prompt_version": 2,
             "max_image_side": 768,
             "max_new_tokens": 180,
             "planner_prompt_version": 9,

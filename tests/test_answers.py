@@ -17,6 +17,9 @@ def test_verifier_accepts_a_specific_visible_observation():
     "raw",
     [
         "yes definitely",
+        '{"visibility":"visible","location":"visible location or empty string","description":"two remote controls","ambiguous":false}',
+        '{"visibility":"visible","location":"","description":"A remote","ambiguous":false}',
+        '{"visibility":"visible","location":"left of the cat","description":"short observation","ambiguous":false}',
         '{"visibility":"visible","location":42}',
         '{"visibility":"visible","location":"beside laptop","description":"two pairs","ambiguous":true}',
         '{"visibility":"visible","location":"left","description":"glasses","ambiguous":"false"}',

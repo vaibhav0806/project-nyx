@@ -334,3 +334,15 @@ measured workarounds to revisit with model evaluation, not a template for adding
 This continuation only improves existing reminder controls: readable lifecycle labels,
 request timestamps to distinguish repeated messages, and descriptive cancellation
 button labels. No new planner, backend state, model call or clarification workflow.
+
+### Focus on two MVP experiences — 2026-10-20
+
+The user accepted focusing on object finding with corrections/history and the
+next-departure bottle reminder. Prioritize integrated evidence over new features
+or general memory. A bounded real-model object run exposed Transformers 5 pooling
+incompatibility, copied visual schema placeholders and a lost spatial correction.
+Restore image/text pooling compatibility and reject malformed visual evidence;
+retain agent ownership of query interpretation. Visual prompt version is now 2.
+Memory pressure stopped the run before history completed; further model runs are
+paused for headroom. New-model departure validation and correction reliability
+remain open. See R8 for the measured failures and exact limitations.

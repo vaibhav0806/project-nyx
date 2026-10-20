@@ -659,3 +659,47 @@ adjustment, all 34 companion API tests pass again. Ruff, formatting and JavaScri
 syntax pass. The offline `conversation-repair-package-001` wheel contains the current
 agent, verifier, companion and UI files. Browser interaction was not rerun during
 the memory-constrained pause. No new model accuracy measurement is claimed.
+
+## Two-flow MVP check — 2026-10-20
+
+**Scope:** focus on object finding with corrections/history and a next-departure
+reminder; defer feature expansion and general memory. `mvp_objects.py` exercises
+the actual API, CPU SigLIP and the pinned Qwen3.5 MLX 8-bit model. It reuses the
+public-image synthetic video, imported with explicitly simulated dates (one hour
+and ten days earlier). The image has two remote controls on a couch: this is an
+ambiguity/correction diagnostic, not a glasses or household accuracy benchmark.
+No devices, cloud calls or new downloads. Same M4/16 GiB runtime as above.
+
+**Measured:** `mvp-object-001` failed indexing because Transformers 5 returns a
+pooled output object where the encoder expected a tensor. Both image and text
+paths now extract `pooler_output`, retaining compatibility with tensor outputs.
+The rerun, `mvp-object-002`, successfully indexed both imports. Current-view and
+correction turns completed in 6.00 s and 4.11 s, respectively, but both answered
+“I can see television remote control visible location or empty string.” The
+verifier copied its schema placeholder and described two remotes while marking
+the result unambiguous. The correction “on the left” was absent from the tool
+query. API job success therefore did **not** mean product success.
+
+A parent watchdog checked system memory pressure every three seconds and stopped
+only the owned experiment process below a 25% free metric (observed 22%), before
+the history turn completed. It also enforced a 180-second time budget. Recorded
+MLX peak after the two turns was 4,169,108,456 bytes (3.88 GiB), not whole-process
+or system RAM. The process exited; no departure replay followed. These results
+do not establish history ordering, corrected reference resolution or useful
+departure timing with the new model.
+
+**Implemented after the run:** visual prompt v2 describes fields without literal
+placeholder values. Parsing rejects the observed placeholders and visible claims
+with empty locations as uncertain. Regression tests cover these malformed answers
+and both SigLIP output formats. This blocks the observed malformed evidence; it
+does not fix all ambiguity or prove the revised prompt improves real recognition.
+The model was not rerun after this fix. Attribute retention remains an open model
+quality failure; no scenario-specific query rewrite was added.
+
+**Next decision:** resume the small object/correction/history check when memory
+headroom permits, then one positive and one negative departure replay. Use those
+results to choose the smallest reliability fix. Neither MVP flow is accepted yet.
+
+Verification: **251 deterministic tests pass**, Ruff and formatting pass, edited
+document links resolve, and the offline wheel matches the changed runtime files.
+These checks do not substitute for the pending real-model flow validation.

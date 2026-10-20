@@ -55,6 +55,7 @@ class SiglipEncoder:
         inputs = self.processor(images=images, return_tensors="pt").to(self.device)
         with torch.inference_mode():
             features = self.model.get_image_features(**inputs)
+            features = getattr(features, "pooler_output", features)
             return (features / features.norm(dim=-1, keepdim=True)).float().cpu().numpy()
 
     def encode_text(self, query):
@@ -69,4 +70,5 @@ class SiglipEncoder:
         ).to(self.device)
         with torch.inference_mode():
             features = self.model.get_text_features(**inputs)
+            features = getattr(features, "pooler_output", features)
             return (features / features.norm(dim=-1, keepdim=True)).float().cpu().numpy()[0]

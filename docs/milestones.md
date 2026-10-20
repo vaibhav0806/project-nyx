@@ -228,3 +228,17 @@ without adding backend state or another agent workflow. JavaScript syntax and di
 checks pass; browser interaction and model inference were not run during this small
 memory-constrained UI update. Prior deterministic suite remains 246 tests; it was not
 rerun for text/DOM-label-only edits.
+
+### Two-flow MVP validation — 2026-10-20
+
+Focus is now object finding → correction → history and next-departure reminders.
+A real Qwen3.5/SigLIP API run found an indexing compatibility failure, then after
+repair completed two turns with incorrect placeholder answers and a dropped
+spatial correction. Pooling and malformed-answer handling now have regression
+coverage; revised visual prompting has not been rerun. Memory pressure stopped
+the history turn, and departure replay was deferred. Neither flow meets its MVP
+acceptance goal yet; no milestone is newly closed. See [R8](research/R8-companion-loop.md).
+
+Verification: **251 deterministic tests pass**, Ruff and formatting pass, edited
+document links resolve, and the offline wheel matches the changed runtime files.
+These checks do not substitute for the pending real-model flow validation.

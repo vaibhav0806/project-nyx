@@ -61,7 +61,7 @@ correct but slow results.
 On Apple Silicon, the selected model is now Qwen3.5-2B in MLX 8-bit format, shared
 by visual checks and text decisions. First use loads/downloads its pinned checkpoint.
 This replaces the earlier BF16 Qwen3-VL path; historical results below remain results
-of that older model. Recognition quality with the new checkpoint is not yet measured. This checkout's measured machine has 16 GiB memory, unlike the earlier 24 GiB benchmark machine. Run model experiments sequentially and preserve disk headroom.
+of that older model. An initial integrated check exposed malformed visual answers and a lost spatial correction; fixes are only partly validated, and new-model departure quality remains unmeasured. See [R8](docs/research/R8-companion-loop.md). This checkout's measured machine has 16 GiB memory, unlike the earlier 24 GiB benchmark machine. Run model experiments sequentially and preserve disk headroom.
 
 Requires Python 3.12, uv, FFmpeg on PATH, and a browser with MediaRecorder support (Chrome was tested).
 
