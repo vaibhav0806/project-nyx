@@ -15,6 +15,42 @@ from nyx.verification import LocalVerifier
 
 CASES = [
     {
+        "name": "history-after-correction",
+        "message": "Where did you last see it?",
+        "context": [
+            {
+                "transcript": "Where is the television remote control?",
+                "answer": "Which one do you mean?",
+            },
+            {
+                "transcript": "I mean the remote on the right of the picture.",
+                "answer": "Between the two cats",
+            },
+        ],
+        "concepts": ["remote", "right"],
+        "forbidden": ["cats"],
+        "path": ["search_history", "finish"],
+    },
+    {
+        "name": "answered-clarification",
+        "message": "The one on the right",
+        "context": [
+            {
+                "transcript": "Where is the television remote control?",
+                "answer": "Which one do you mean? Please describe its color, position, or another distinguishing detail.",
+            }
+        ],
+        "concepts": ["remote", "right"],
+        "path": ["inspect_current", "finish"],
+    },
+    {
+        "name": "answered-material",
+        "message": "The leather one",
+        "context": [{"transcript": "Find my backpack", "answer": "Which backpack do you mean?"}],
+        "concepts": ["leather", "backpack"],
+        "path": ["inspect_current", "finish"],
+    },
+    {
         "name": "spatial-correction-right",
         "message": "I mean the remote on the right of the picture.",
         "context": [

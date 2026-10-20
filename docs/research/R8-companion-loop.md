@@ -818,3 +818,103 @@ mark object finding, historical retrieval or departure MVP acceptance complete.
 
 Verification: **261 deterministic tests pass**; lint, format, local document
 links and byte-matched offline wheel pass. Browser interaction was not rerun.
+
+## Integrated follow-ups, visual filtering and departure replays — 2026-10-20
+
+The user requested completing the discussed work. Tests remained sequential,
+local/offline, using the existing public media and synthetic browser inputs. All
+real-model runs used the same pinned Qwen3.5 2B MLX 8-bit checkpoint and watchdog
+(10% free-memory metric cutoff, three-second sampling, 180-second timeout). No
+new weights, real device capture, provider calls or uploads. All runs exited
+normally; no watchdog fired.
+
+**Final implementation:** planner v17 replaces the long, overlapping instructions
+with a shorter tool policy. It treats an answer to a clarification as a refined
+query. Prior conversation includes the last `previous_tool_query` from existing
+stored steps, alongside user/assistant text and source availability. Missing
+query hints are omitted. This is descriptive context, never fresh visual proof;
+there is no new memory store or hard-coded object-attribute extraction.
+
+Visual prompt v6 explicitly filters candidates by user attributes BEFORE counting
+matches, and requests valid JSON without list bullets. The existing single-match
+validation stays intact. Tool-schema repair now names the exact allowed fields,
+extra fields to remove and missing fields. The first explicit last-seen request
+uses dated history before an undated-match tool when dated history exists; only
+undated footage still follows the labelled unknown-time path. That final policy
+change was verified deterministically after the last integrated run.
+
+### Conversation measurements
+
+`planner-v13-001`: five targeted real planner cases passed, including answers to
+clarification questions. Controlled tool outputs do not measure vision accuracy.
+Full v15 and v16 suites each passed **13/16** development checks. Failures included
+lost spatial attributes, a copied concrete prompt example, invalid undated-search
+fields, and—in v15—attempting to finish a gratitude turn without an observation.
+Concrete query examples were removed and repair feedback improved. Final v17
+targeted rerun passed **4/5**: clarification answer, spatial correction, imported
+search and gratitude passed; a historical pronoun with no stored prior-query hint
+still dropped the qualifier and selected matches. The later first-window policy
+fix addresses routing, not that lost attribute. The full suite was not rerun on
+v17; do not report a final full-suite pass.
+
+Actual API runs imported the same synthetic slideshow with simulated dates one
+hour and ten days earlier. Current/correction requests used the two-remotes still;
+history had no current snapshot. Raw results remain under ignored data/runs.
+
+| Run | Planner/visual | Process time | Result |
+| --- | --- | --- | --- |
+| mvp-full-009 | v13/v5 | 30.11 s | Clarified generic request, inspected right-hand correction, lost qualifier in history. |
+| mvp-full-010 | v14/v5 | 33.11 s | Same history qualifier failure despite extra prompt instruction. |
+| mvp-full-011 | v15/v5 | 33.09 s | Stored-query hint preserved history qualifier; vision still called right-hand correction ambiguous. |
+| mvp-full-012 | v17/v6 | 57.53 s | Clarified generic request, inspected right-hand query, retained it in 2-hour historical search. |
+
+The final three turns took 9.66 s, 7.87 s and 25.39 s respectively. MLX reported
+3,812,391,998 bytes peak (3.55 GiB), not total process/system memory. The final
+query was `television remote control on the right of the picture`. History chose
+the recent import at offset 16 s with timestamp attribution. **Manual review:**
+that frame is a small centered crop of the original LEFT remote. It cannot
+substantiate the requested right-hand object's last sighting, and the generated
+location “right of the picture” is not supported by that centered crop. Thus
+conversation/query/time wiring improved, but historical visual attribution still
+fails. Similarity and a model-confirmed description are not physical identity.
+
+### Isolated visual checks
+
+New `visual_queries.py` freezes four public-fixture cases before inference: generic
+two-remotes image should clarify, right-hand query should select one, a clear
+single-remote crop should be visible, empty image should be not-visible. It saves
+input hashes, raw generations and parsed judgments after every case.
+`visual-v5-001` passed 2/4: the specific query counted both remotes, and the empty
+image produced invalid JSON with list bullets (safely parsed as uncertain).
+`visual-v6-002` passed **4/4**, including the right-hand location between the cats
+and correct empty-image rejection. These reused development images are not
+held-out accuracy, and the integrated small-crop historical failure above remains.
+
+### Real departure checks
+
+`departure-v13-001` replayed complete public Charades clips 3H0PT (staged room-exit
+proxy) and BM3UJ (room entry); `departure-v15-002` replayed YF6FL (another staged
+exit). Each actual API request successfully armed its own reminder. Capture used
+decoded source offsets, with six seconds of explicitly synthetic final-frame
+repetition to drain work. Voice was disabled; no audible-delivery claim.
+
+| Clip | Jobs | Semantic checks | Notifications | Interpretation |
+| --- | --- | --- | --- | --- |
+| 3H0PT | 8 | 1 | 0 | Missed exit proxy; most jobs lacked a supported person trajectory. |
+| BM3UJ | 14 | 3 | 0 | Two false semantic exit claims were blocked by the independent movement-toward-exit check. |
+| YF6FL | 12 | 4 | 0 | Missed exit proxy; semantic checks did not establish exit interaction. |
+
+The two replay processes took 72.21 s and 45.14 s. Two positive proxies missed;
+no false notification on this one entry clip. This is neither useful advance
+warning nor household validation. These are staged room exits, not verified
+home exits. Do not weaken direction/continuity checks to turn them into successes.
+Departure recognition remains an open MVP blocker.
+
+Final verification: **265 deterministic tests pass**, lint/format and offline
+packaging pass. The synthetic browser speech check passes with no browser errors:
+100 ms flash suppression, sustained activity, pending-audio cancellation, spoken
+delivery/acknowledgement, playback-denial failure reporting and library paging.
+Its first attempt failed because it expected obsolete raw state labels and the
+old Cancel accessible name; the harness was updated to existing readable labels
+and rerun successfully. These are fake model/audio/device boundaries, not real
+recognition or Sarvam performance. All owned experiment processes exited.

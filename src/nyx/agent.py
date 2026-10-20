@@ -27,8 +27,15 @@ def validate_action(value):
         "clarify": {"message"},
         "chat": {"message"},
     }
-    if action not in fields or set(value) != fields[action] | {"action"}:
-        raise ValueError("Unknown tool or unexpected decision fields")
+    if action not in fields:
+        raise ValueError("Unknown tool")
+    allowed = fields[action] | {"action"}
+    if set(value) != allowed:
+        raise ValueError(
+            f"Unexpected decision fields for {action}; use exactly {', '.join(sorted(allowed))}. "
+            f"Remove: {', '.join(sorted(set(value) - allowed)) or 'none'}. "
+            f"Missing: {', '.join(sorted(allowed - set(value))) or 'none'}."
+        )
     for key in fields[action] - {"hours", "observation"}:
         if not isinstance(value[key], str) or not 1 <= len(value[key].strip()) <= 240:
             raise ValueError("Tool text must be 1–240 characters")
@@ -137,7 +144,7 @@ def agent_steps(
             )
         if (
             not observations
-            and action["action"] == "inspect_current"
+            and action["action"] in {"inspect_current", "search_matches"}
             and re.search(
                 r"\b(last (?:see|seen)|where did|historical|history)\b", message, re.IGNORECASE
             )

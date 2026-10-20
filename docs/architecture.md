@@ -284,3 +284,10 @@ further search. History stops at ambiguous evidence rather than selecting an
 older candidate. Voice preserves the question. These are model-output consistency
 checks, not guarantees of correct recognition. The next user message remains an
 ordinary agent request with recent conversation context.
+
+Planner conversation context includes `previous_tool_query`, extracted from the
+last query-bearing step of an existing saved turn. This carries descriptive
+corrections across current/history requests; it is not an object identity or
+evidence of current presence. First last-sighting requests prefer dated windows
+even if the model proposes an undated-match tool. Subsequent uncertain searches
+can still use unknown-time candidates with explicit attribution.

@@ -376,3 +376,19 @@ candidates before match count/decision. No regex for object attributes, separate
 query model or new agent framework. Real checks show improved ambiguity handling
 but repeated clarification on a usable spatial follow-up; see R8. The user
 authorized these sequential tests at a 10% watchdog cutoff; all have exited.
+
+### Preserve resolved query context and clarify evidence limits — 2026-10-20
+
+The user authorized continued implementation and sequential model checks. Planner
+v17 uses shorter instructions and includes the latest tool query from each saved
+turn, without treating it as visual proof. Existing conversation storage is
+sufficient; no new memory subsystem. Visual v6 counts candidates after attribute
+filtering. Schema errors identify exact extra/missing fields for bounded repair.
+An explicit first last-sighting search uses available dated history before
+undated matches; unknown-time-only libraries remain supported.
+
+Real tests improved current clarification resolution and preserved corrected
+queries into history. They also demonstrated wrong historical item attribution
+and missed departure proxies. Keep candidate/identity/temporal evidence distinct;
+no identity claim or MVP acceptance follows from successful API jobs. Existing
+movement and continuity checks remain intact despite missed detections.

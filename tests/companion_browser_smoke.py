@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -111,7 +112,9 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                     expect(page.locator("#reminders")).to_contain_text(
                         "Take your water bottle", timeout=15000
                     )
-                    expect(page.locator("#reminders")).to_contain_text("armed")
+                    expect(page.locator("#reminders")).to_contain_text(
+                        "Waiting for your next departure"
+                    )
                     if not args.speech:
                         page.locator("#start").click()
                     expect(page.locator("#camera-state")).to_have_text("Recording video")
@@ -127,10 +130,10 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                     page.evaluate("window.fakeScene='active'")
                     if args.speech:
                         expect(page.locator("#reminders")).to_contain_text(
-                            "delivering", timeout=20000
+                            "Speaking", timeout=20000
                         )
-                        page.get_by_role("button", name="Cancel", exact=True).click()
-                        expect(page.locator("#reminders")).to_contain_text("cancelled")
+                        page.get_by_role("button", name=re.compile("^Cancel reminder:")).click()
+                        expect(page.locator("#reminders")).to_contain_text("Cancelled")
                         assert len(held_claims) == 1
                         route, response = held_claims[0]
                         route.fulfill(response=response)
@@ -143,11 +146,14 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                         )
                         page.locator("#companion-send").click()
                     expect(page.locator("#reminders")).to_contain_text(
-                        "delivered" if args.speech else "failed", timeout=20000
+                        "Spoken; awaiting your acknowledgement"
+                        if args.speech
+                        else "Could not speak",
+                        timeout=20000,
                     )
                     if args.speech:
                         page.get_by_role("button", name="Got it", exact=True).click()
-                        expect(page.locator("#reminders")).to_contain_text("acknowledged")
+                        expect(page.locator("#reminders")).to_contain_text("Acknowledged")
                         page.wait_for_timeout(2500)
                         assert (
                             len(
@@ -166,7 +172,9 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                             "Remind me about water when I leave"
                         )
                         page.locator("#companion-send").click()
-                        expect(page.locator("#reminders")).to_contain_text("failed", timeout=20000)
+                        expect(page.locator("#reminders")).to_contain_text(
+                            "Could not speak", timeout=20000
+                        )
                         assert (
                             page.request.get(url + "/api/companion").json()["reminders"][0]["state"]
                             == "failed"

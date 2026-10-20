@@ -16,6 +16,13 @@ With Sarvam configured, the page starts camera recording and microphone wake lis
 
 A pinned SigLIP 2 encoder runs on this Mac's MPS GPU. Search results remain unverified visual candidates. M3 adds local model checks with source/time attribution and explicitly captured snapshots; these checks can be wrong. Scheduled reminders, general personal recall and intended-user evaluation remain later work; see [companion/event findings](docs/research/R8-companion-loop.md). See [measured retrieval results](docs/research/R3-local-retrieval.md), [continuous indexing implementation](docs/superpowers/plans/2026-10-19-continuous-recording.md) and [local verification findings](docs/research/R4-local-verification.md).
 
+Recent real-model checks now resolve a clarification into a refined current-view
+query and retain that query into dated history. Four isolated visual development
+cases pass, but historical attribution still selected the wrong remote in a
+multi-object fixture. Two staged departure proxies were missed; direction checks
+blocked false exit claims on an entry clip. These remain MVP blockers, not finished
+recognition features. See [R8](docs/research/R8-companion-loop.md).
+
 ## Run the local demo
 
 The **Talk to Nyx** field works without an API key. Ask “Where are my reading glasses?”, refine the description, or ask “Where did you last see them?” The local agent chooses tools over a bounded conversation and tool-result loop. Present-location requests inspect an available fresh view first; historical tools can search recent dated windows before widening. Imported clips with unknown dates can be checked as best matches, without claiming a latest sighting. Answers retain current/historical attribution. The details show what was checked. Stop cancels subsequent steps; in-flight inference can finish. Direct candidate search and explicit visual checks remain available below.

@@ -515,3 +515,99 @@ def test_planner_can_inspect_a_changed_query_after_an_uncertain_current_check():
         }
     )
     assert action == {"action": "inspect_current", "query": "silver reading glasses"}
+
+
+def test_followup_planner_receives_last_corrected_tool_query_without_old_evidence():
+    import json
+
+    from nyx.verification import LocalVerifier
+
+    verifier = object.__new__(LocalVerifier)
+
+    def generate(messages):
+        state = json.loads(messages[1]["content"])
+        turn = state["conversation"][-1]
+        assert turn["previous_tool_query"] == "green ceramic mug"
+        assert turn["sources_available"] is False
+        assert turn["transcript"] == "No, the green ceramic one"
+        return json.dumps(
+            {"action": "search_history", "query": turn["previous_tool_query"], "hours": 2}
+        )
+
+    verifier.generate_json = generate
+    action = verifier.decide(
+        {
+            "message": "Where did you last see it?",
+            "conversation": [
+                {
+                    "transcript": "No, the green ceramic one",
+                    "answer": "Old answer",
+                    "sources_available": False,
+                    "plan": {
+                        "steps": [
+                            {"action": "inspect_current", "query": "mug"},
+                            {"action": "inspect_current", "query": "green ceramic mug"},
+                            {"action": "finish", "observation": 1},
+                        ]
+                    },
+                }
+            ],
+            "available": {"current_view": False, "history": True},
+        }
+    )
+    assert action["query"] == "green ceramic mug"
+
+
+def test_search_argument_repair_identifies_extra_field_before_tool_execution():
+    from nyx.agent import agent_steps
+
+    def decide(state):
+        if state["observations"]:
+            return {"action": "finish", "observation": 0}
+        if state.get("decision_error"):
+            assert "search_matches" in state["decision_error"]
+            assert "Remove: hours" in state["decision_error"]
+            return {"action": "search_matches", "query": "red mug"}
+        return {"action": "search_matches", "query": "red mug", "hours": 2}
+
+    calls = []
+
+    def tool(action):
+        calls.append(action)
+        return {"status": "seen", "answer": "Controlled imported sighting"}
+
+    result = complete(agent_steps("Find the red mug in my imported clip", [], decide, tool))
+    assert calls == [{"action": "search_matches", "query": "red mug"}]
+    assert len(result["decision_errors"]) == 1
+    assert result["status"] == "seen"
+
+
+@pytest.mark.parametrize("dated,expected", [(True, "search_history"), (False, "search_matches")])
+def test_last_seen_starts_with_dated_history_before_undated_matches(dated, expected):
+    from nyx.agent import agent_steps
+
+    choices = iter(
+        [
+            {"action": "search_matches", "query": "green ceramic mug"},
+            {"action": "finish", "observation": 0},
+        ]
+    )
+    calls = []
+
+    def tool(action):
+        calls.append(action)
+        return {"status": "seen", "answer": "Controlled sighting with appropriate time attribution"}
+
+    complete(
+        agent_steps(
+            "Where did you last see it?",
+            [],
+            lambda state: next(choices),
+            tool,
+            available={"dated_history": dated, "undated_history": True, "history": True},
+        )
+    )
+    assert calls[0]["action"] == expected
+    assert calls[0]["query"] == "green ceramic mug"
+    if dated:
+        assert calls[0]["hours"] == 2

@@ -233,3 +233,18 @@ Planner cases `spatial-correction-right`, `spatial-correction-under`,
 `changed-object`, `corrected-attributes`, and `historical-pronoun` isolate query
 construction with controlled tool observations. Passing them does not validate
 responses to a real assistant clarification or real visual ambiguity.
+
+## Attribute filtering in actual images
+
+```sh
+HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/visual_queries.py \
+  --fixture data/runs/companion-retrieval-fixture --output data/runs/visual-new
+```
+
+Four fixed development cases isolate visual verification: multiple generic
+matches, a specified right-hand match, a single-object crop and an empty image.
+The script records raw generations and input hashes. It does not use the planner,
+embedding search or devices. It does load the model; respect current inference
+authorization and run it sequentially under the documented memory/time watchdog.
+These four cases do not cover physical identity across video or tiny-object
+recognition. R8 records a historical crop failure despite this suite passing.

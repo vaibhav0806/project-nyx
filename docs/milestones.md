@@ -283,3 +283,27 @@ See [R8](research/R8-companion-loop.md) for each iteration and limits.
 
 Verification: **261 deterministic tests pass**; lint, format, local document
 links and byte-matched offline wheel pass. Browser interaction was not rerun.
+
+### Integrated flow evaluation — 2026-10-20
+
+Clarification follow-ups now reach inspection in real API testing, and saved-query
+context preserves attributes into history. Final isolated visual checks passed
+4/4 development cases. The final three-turn API run retained the right-hand query
+and selected recent dated footage, but manual inspection found wrong historical
+item/location attribution. The latest broad planner result was 13/16 on v16; a
+final v17 targeted rerun was 4/5, with a historical qualifier failure when prior
+query hints were absent. No general conversation/recognition acceptance claim.
+
+Full video replays armed reminders for two exit proxies and one entry clip. Both
+exits were missed; two false semantic departure claims on entry were blocked by
+the independent direction check. No notification was created. Recognition and
+timely departure delivery remain open MVP blockers. See [R8](research/R8-companion-loop.md).
+
+Final verification: **265 deterministic tests pass**, lint/format and offline
+packaging pass. The synthetic browser speech check passes with no browser errors:
+100 ms flash suppression, sustained activity, pending-audio cancellation, spoken
+delivery/acknowledgement, playback-denial failure reporting and library paging.
+Its first attempt failed because it expected obsolete raw state labels and the
+old Cancel accessible name; the harness was updated to existing readable labels
+and rerun successfully. These are fake model/audio/device boundaries, not real
+recognition or Sarvam performance. All owned experiment processes exited.
