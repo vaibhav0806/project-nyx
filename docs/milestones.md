@@ -251,3 +251,11 @@ before the change; all **252 deterministic tests pass** afterwards. No model
 loaded or inference run. The MVP experiment now offers `--current-only` to isolate
 two conversation turns without indexing/history. Further inference requires user
 approval; real correction quality, history and departure acceptance remain open.
+
+### Approved inference retry stopped by memory guard — 2026-10-20
+
+The approved current-only two-turn experiment was stopped at 6.09 seconds when
+the system free-memory metric reached 22% (25% cutoff). Neither turn completed.
+The owned process exited and the metric recovered to 48%; no retry was run.
+No new quality result or acceptance gate. The prior 252 deterministic tests
+remain the latest code verification; no code changed. Details: [R8](research/R8-companion-loop.md).

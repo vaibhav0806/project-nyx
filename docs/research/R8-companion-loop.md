@@ -703,3 +703,24 @@ results to choose the smallest reliability fix. Neither MVP flow is accepted yet
 Verification: **251 deterministic tests pass**, Ruff and formatting pass, edited
 document links resolve, and the offline wheel matches the changed runtime files.
 These checks do not substitute for the pending real-model flow validation.
+
+## Approved current-only retry — 2026-10-20
+
+The user explicitly approved the proposed two-turn model check. Run
+`mvp-current-003` used `mvp_objects.py --current-only`, offline cached Qwen3.5
+2B MLX 8-bit, with no video imports, embedding indexing, devices or voice. The
+parent watchdog sampled the system free-memory metric every three seconds, with
+a 25% cutoff and 180-second timeout. Metrics were 52%, 46%, then 22%; the
+watchdog terminated the owned child at 6.09 seconds (exit -15). No turn finished
+and no results file was written. This does not measure model quality or latency.
+
+Process inspection confirmed the experiment exited. The free-memory metric
+recovered to 48% in the subsequent check. These percentages are the macOS
+`memory_pressure` metric, not a measurement of model allocation or literal free
+RAM. No model peak was captured. Do not infer a memory leak or precise model
+footprint from this interrupted run. The cutoff was not loosened and no retry
+was launched. Logs/watchdog samples remain local under ignored `data/runs/`.
+
+Current/correction validation still requires more headroom or a separately agreed
+runtime change. History and departure validation remain pending. No application
+code changed in this run.
