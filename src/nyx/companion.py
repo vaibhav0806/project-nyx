@@ -302,6 +302,7 @@ def install_companion(app, workspace, voice):
                         "mode": "agent",
                         "steps": result["steps"],
                         "decision_errors": result["decision_errors"],
+                        "policy_adjustments": result["policy_adjustments"],
                         "model": workspace.verifier.fingerprint if workspace.verifier else None,
                         "current_snapshot_at": body.captured_at.isoformat()
                         if body.captured_at

@@ -54,6 +54,213 @@ def test_agent_observes_failure_and_chooses_another_tool_before_finishing():
     ]
 
 
+def test_repeated_tool_decision_can_be_repaired_without_repeating_the_tool():
+    from nyx.agent import agent_steps
+
+    decisions = iter(
+        [
+            {"action": "inspect_current", "query": "reading glasses"},
+            {"action": "inspect_current", "query": "reading glasses"},
+            {"action": "search_history", "query": "reading glasses", "hours": 2},
+            {"action": "finish", "observation": 1},
+        ]
+    )
+    checked = []
+
+    def tool(action):
+        checked.append(action["action"])
+        return {
+            "status": "uncertain" if action["action"] == "inspect_current" else "seen",
+            "answer": "Unclear current view"
+            if action["action"] == "inspect_current"
+            else "Checked historical sighting",
+        }
+
+    result = complete(agent_steps("Find reading glasses", [], lambda state: next(decisions), tool))
+    assert result["status"] == "seen"
+    assert checked == ["inspect_current", "search_history"]
+    assert len(result["decision_errors"]) == 1
+
+
+def test_still_there_followup_checks_fresh_view_before_historical_evidence():
+    from nyx.agent import agent_steps
+
+    decisions = iter(
+        [
+            {"action": "search_history", "query": "television remote", "hours": 2},
+            {"action": "finish", "observation": 0},
+        ]
+    )
+
+    def tool(action):
+        assert action["action"] == "inspect_current"
+        return {"kind": "snapshot", "status": "seen", "answer": "Checked current remote"}
+
+    result = complete(
+        agent_steps(
+            "Is it still there?",
+            [{"transcript": "Find my remote", "answer": "Seen yesterday"}],
+            lambda state: next(decisions),
+            tool,
+            available={"current_view": True},
+        )
+    )
+    assert result["status"] == "seen"
+
+
+def test_planner_rejects_an_already_checked_visual_tool():
+    from nyx.verification import LocalVerifier
+
+    verifier = object.__new__(LocalVerifier)
+    verifier.generate_json = lambda *args: '{"action":"inspect_current","query":"reading glasses"}'
+    with pytest.raises(ValueError, match="already|available"):
+        verifier.decide(
+            {
+                "message": "Find reading glasses",
+                "available": {"current_view": True, "history": True},
+                "actions": [{"action": "inspect_current", "query": "reading glasses"}],
+                "observations": [
+                    {"index": 0, "kind": "snapshot", "status": "uncertain", "answer": "Unclear"}
+                ],
+            }
+        )
+
+
+def test_continuation_repair_and_window_progression_fit_the_six_decision_limit():
+    from nyx.agent import agent_steps
+
+    decisions = iter(
+        [
+            {"action": "inspect_current", "query": "reading glasses"},
+            {"action": "inspect_current", "query": "reading glasses"},
+            {"action": "search_history", "query": "reading glasses", "hours": 2},
+            {"action": "search_history", "query": "reading glasses", "hours": 2},
+            {"action": "finish", "observation": 2},
+        ]
+    )
+    seen = []
+
+    def tool(action):
+        seen.append(action)
+        return {
+            "status": "seen" if action.get("hours") == 24 else "uncertain",
+            "answer": "Controlled evidence",
+        }
+
+    result = complete(agent_steps("Find reading glasses", [], lambda state: next(decisions), tool))
+    assert result["status"] == "seen"
+    assert [row.get("hours") for row in seen] == [None, 2, 24]
+    assert len(result["decision_errors"]) == 1
+    assert result["policy_adjustments"][0]["to"]["hours"] == 24
+
+
+def test_repeated_window_advances_but_a_new_query_in_the_same_window_is_retained():
+    from nyx.agent import agent_steps
+
+    decisions = iter(
+        [
+            {"action": "search_history", "query": "silver glasses", "hours": 2},
+            {"action": "search_history", "query": "thin silver reading glasses", "hours": 2},
+            {"action": "finish", "observation": 1},
+        ]
+    )
+    queries = []
+
+    def tool(action):
+        queries.append((action["query"], action["hours"]))
+        return {
+            "status": "uncertain" if len(queries) == 1 else "seen",
+            "answer": "Controlled result",
+        }
+
+    result = complete(agent_steps("Find glasses", [], lambda state: next(decisions), tool))
+    assert result["status"] == "seen"
+    assert queries == [("silver glasses", 2), ("thin silver reading glasses", 2)]
+    assert result["policy_adjustments"] == []
+
+
+def test_repeating_a_day_window_broadens_to_a_week_without_narrowing_to_two_hours():
+    from nyx.agent import agent_steps
+
+    decisions = iter(
+        [
+            {"action": "search_history", "query": "glasses", "hours": 24},
+            {"action": "search_history", "query": "glasses", "hours": 24},
+            {"action": "finish", "observation": 1},
+        ]
+    )
+    hours = []
+
+    def tool(action):
+        hours.append(action["hours"])
+        return {
+            "status": "seen" if action["hours"] == 168 else "uncertain",
+            "answer": "Controlled evidence",
+        }
+
+    result = complete(agent_steps("Last seen glasses", [], lambda state: next(decisions), tool))
+    assert result["status"] == "seen"
+    assert hours == [24, 168]
+
+
+def test_completed_evidence_at_decision_limit_is_returned_without_another_model_call():
+    from nyx.agent import agent_steps
+
+    result = complete(
+        agent_steps(
+            "Find glasses",
+            [],
+            lambda state: {"action": "inspect_current", "query": "glasses"},
+            lambda action: {
+                "kind": "snapshot",
+                "status": "seen",
+                "answer": "Checked at left of book",
+            },
+            max_steps=1,
+        )
+    )
+    assert result["status"] == "seen"
+    assert result["answer"] == "Checked at left of book"
+    assert len(result["steps"]) == 1
+
+
+def test_explicit_last_seen_question_cannot_be_answered_from_current_view_only():
+    from nyx.agent import agent_steps
+
+    decisions = iter(
+        [
+            {"action": "inspect_current", "query": "blue water bottle"},
+            {"action": "finish", "observation": 0},
+        ]
+    )
+
+    def tool(action):
+        assert action == {"action": "search_history", "query": "blue water bottle", "hours": 2}
+        return {"kind": "history", "status": "seen", "answer": "Checked historical sighting"}
+
+    result = complete(
+        agent_steps(
+            "Where did you last see it?",
+            [],
+            lambda state: next(decisions),
+            tool,
+            available={"current_view": True, "dated_history": True},
+        )
+    )
+    assert result["status"] == "seen"
+
+
+def test_schema_placeholder_is_not_a_resolved_visual_query():
+    from nyx.verification import LocalVerifier
+
+    verifier = object.__new__(LocalVerifier)
+    verifier.generate_json = lambda *args: (
+        '{"action":"inspect_current","query":"resolved object description"}'
+    )
+    with pytest.raises(ValueError, match="description|query"):
+        verifier.decide({"message": "Find my remote", "available": {"current_view": True}})
+
+
 def test_agent_cannot_invent_a_visual_answer_or_run_without_a_bound():
     from nyx.agent import agent_steps
 

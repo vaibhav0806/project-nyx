@@ -54,6 +54,7 @@ def agent_steps(
         "sources": [],
         "steps": trace,
         "decision_errors": [],
+        "policy_adjustments": [],
     }
     state = {
         "message": message,
@@ -70,15 +71,39 @@ def agent_steps(
             break
         try:
             action = validate_action(decide(state))
+            if action in trace and action["action"] == "search_history":
+                windows = [2, 24, 168, 0]
+                next_hours = next(
+                    (
+                        hours
+                        for hours in windows[windows.index(action["hours"]) + 1 :]
+                        if {**action, "hours": hours} not in trace
+                    ),
+                    None,
+                )
+                if next_hours is not None:
+                    advanced = {**action, "hours": next_hours}
+                    result["policy_adjustments"].append(
+                        {
+                            "reason": "advance_repeated_window",
+                            "from": action,
+                            "to": advanced,
+                        }
+                    )
+                    action = advanced
             if action["action"] == "finish" and action["observation"] >= len(observations):
                 raise ValueError(
                     "That observation does not exist in this request; use a tool first"
+                )
+            if action in trace:
+                raise ValueError(
+                    "That tool was already checked; choose an untried search or finish"
                 )
         except (ValueError, TypeError, KeyError) as exc:
             result["answer"] = (
                 "I couldn't interpret the next step reliably. Please clarify your request."
             )
-            if not result["decision_errors"]:
+            if len(result["decision_errors"]) < 2:
                 state["decision_error"] = (
                     f"Invalid previous decision: {str(exc)[:240]}. Choose a valid next action."
                 )
@@ -88,11 +113,41 @@ def agent_steps(
         state.pop("decision_error", None)
         if cancelled():
             raise ValueError("Request cancelled")
+        requested = action
+        if (
+            not observations
+            and action["action"] == "inspect_current"
+            and (available or {}).get("current_view") is False
+            and (available or {}).get("history")
+        ):
+            action = (
+                {"action": "search_matches", "query": action["query"]}
+                if (available or {}).get("dated_history") is False
+                else {"action": "search_history", "query": action["query"], "hours": 2}
+            )
+        if (
+            not observations
+            and action["action"] == "inspect_current"
+            and re.search(
+                r"\b(last (?:see|seen)|where did|historical|history)\b", message, re.IGNORECASE
+            )
+        ):
+            # An explicit last-sighting request cannot be completed by a current view.
+            action = (
+                {"action": "search_matches", "query": action["query"]}
+                if (available or {}).get("dated_history") is False
+                and (available or {}).get("undated_history")
+                else {"action": "search_history", "query": action["query"], "hours": 2}
+            )
         if (
             not observations
             and (available or {}).get("current_view")
             and action["action"] in {"search_history", "search_matches"}
-            and re.search(r"\b(where (?:is|are)|find|locate)\b", message, re.IGNORECASE)
+            and re.search(
+                r"\b(where (?:is|are)|find|locate|still (?:there|here|visible)|(?:is it|are they) (?:there|here))\b",
+                message,
+                re.IGNORECASE,
+            )
             and not re.search(
                 r"\b(last|seen|ago|earlier|history|past|yesterday|before|did|recording|recorded|footage|video|clip|imported)\b",
                 message,
@@ -101,11 +156,14 @@ def agent_steps(
         ):
             # Product policy: present location starts with available fresh evidence.
             action = {"action": "inspect_current", "query": action["query"]}
-        if action in trace:
-            result["answer"] = (
-                "I couldn't find more evidence with that search. Try describing the object or time more precisely."
+        if action != requested:
+            result["policy_adjustments"].append(
+                {
+                    "reason": "match_evidence_to_request",
+                    "from": requested,
+                    "to": action,
+                }
             )
-            break
         trace.append(action)
         if action["action"] == "finish":
             index = action["observation"]
@@ -157,6 +215,19 @@ def agent_steps(
             for i, row in enumerate(observations)
         ]
         yield {"step": len(trace), "action": action["action"], "status": observation.get("status")}
+    else:
+        if observations and observations[-1].get("status") in {
+            "seen",
+            "armed",
+            "cancelled",
+            "complete",
+        }:
+            selected = observations[-1]
+            result.update(
+                answer=selected["answer"],
+                status=selected["status"],
+                visual=selected if selected.get("kind") in {"snapshot", "history"} else None,
+            )
     if cancelled():
         raise ValueError("Request cancelled")
     result["sources"] = sorted(
