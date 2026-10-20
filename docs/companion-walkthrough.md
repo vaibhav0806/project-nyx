@@ -54,6 +54,20 @@ cues and eligible active requests. The complete sequence must come after the req
 the tail of an older event cannot satisfy a new reminder. Pixel change does not
 establish meaning, and the model's interpretation can still be wrong.
 
+The grounded-event follow-up adds independent entity positions. A small detector
+checks the nominated images; ambiguous/missing people or unsupported translation
+skip heavier semantic interpretation. Qwen then attempts to locate the visible
+home exit. Generic geometry computes movement toward/away from that region,
+stationary positions and reversals. Direction must support the semantic exit cues
+before an active request can trigger. Region coordinates come from the images,
+without a predefined door location or bottle-specific rule. No personal identity
+or 3D physical distance is inferred. These evidence components can serve future
+conditions, but only next-departure requests are currently wired as actions.
+
+Real replay blocked an entering-person false claim using observed movement away
+from the door. It also missed an exit because of sparse detector gaps. Automatic
+exit labels can still be wrong; [R8](research/R8-companion-loop.md) records both.
+
 ## Remembering to act
 
 ```mermaid

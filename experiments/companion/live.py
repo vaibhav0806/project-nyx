@@ -32,7 +32,15 @@ def main():
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cases", nargs="+", required=True)
+    parser.add_argument(
+        "--hold-final-seconds",
+        type=float,
+        default=0,
+        help="Synthetic repeated final image after the excerpt, to exercise pending-work drain; not additional source footage",
+    )
     args = parser.parse_args()
+    if not 0 <= args.hold_final_seconds <= 20:
+        parser.error("Final-image hold must be between zero and twenty seconds")
     cases = json.loads(args.manifest.read_text())["cases"]
     selected = [row for row in cases if row["name"] in args.cases]
     if len(selected) != len(set(args.cases)):
@@ -58,6 +66,7 @@ def main():
         "cases": [],
         "protocol": "Actual API clock; dense 0.1s requested decode, replay at actual decoded offsets",
         "scope": "Nominal two-second manifest indices locate development excerpts; replay clock is not original capture time",
+        "synthetic_final_image_hold_seconds": args.hold_final_seconds,
     }
     with TestClient(
         create_app(
@@ -95,8 +104,16 @@ def main():
                 if not frames:
                     raise ValueError("No frames in the requested development excerpt")
                 started = time.monotonic()
+                replay_started_at = datetime.now(UTC)
                 previous = None
-                for offset, path in frames:
+                replay = [(offset, offset, path, False) for offset, path in frames]
+                last_offset, last_path = frames[-1]
+                replay.extend(
+                    (last_offset + tick / 10, last_offset, last_path, True)
+                    for tick in range(1, int(args.hold_final_seconds * 10) + 1)
+                )
+                admissions = []
+                for offset, source_offset, path, repeated in replay:
                     delay = started + offset - frames[0][0] - time.monotonic()
                     if delay > 0:
                         time.sleep(delay)
@@ -120,6 +137,14 @@ def main():
                     assert response.status_code in {200, 202}, response.text
                     if response.status_code == 202:
                         jobs.append(response.json()["id"])
+                        admissions.append(
+                            {
+                                "job_id": response.json()["id"],
+                                "admitted_at": observed_at.isoformat(),
+                                "source_offset_at_admission": source_offset,
+                                "synthetic_repetition": repeated,
+                            }
+                        )
             outcomes = [wait(client, identifier) for identifier in jobs]
             status = client.get("/api/companion").json()
             row = {
@@ -127,6 +152,8 @@ def main():
                 "request": request_job,
                 "observations": outcomes,
                 "source_offsets": [at for at, _ in frames],
+                "replay_started_at": replay_started_at.isoformat(),
+                "admissions": admissions,
                 "maximum_replay_gap_seconds": max(gaps, default=0),
                 "seconds_since_final_frame": (datetime.now(UTC) - observed_at).total_seconds(),
                 "reminders": status["reminders"],

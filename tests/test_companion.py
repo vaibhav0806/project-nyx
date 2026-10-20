@@ -43,6 +43,15 @@ class Planner:
             "approached_exit": True,
             "exit_interaction": True,
             "cue": "Synthetic exit sequence",
+            "region": {
+                "label": "Synthetic exit",
+                "kind": "exterior_exit",
+                "box": [0.8, 0.1, 0.95, 0.8],
+                "uncertain": False,
+            },
+            "entities": [
+                [{"box": [x - 0.04, 0.4, x + 0.04, 0.6], "score": 0.9}] for x in [0.2, 0.5, 0.82]
+            ],
         }
 
 
@@ -198,6 +207,55 @@ def test_no_active_reminder_means_no_visual_model_load_for_live_observation(tmp_
             },
         )
         assert response.json()["state"] == "quiet"
+
+
+@pytest.mark.parametrize("relation", ["entering", "standing", "turnback", "unknown_exit"])
+def test_semantic_departure_without_grounded_motion_preserves_armed_request(tmp_path, relation):
+    class Contradictory(Planner):
+        def inspect_departure(self, images):
+            result = super().inspect_departure(images)
+            points = {
+                "entering": [0.82, 0.5, 0.2],
+                "standing": [0.82] * 3,
+                "turnback": [0.3, 0.82, 0.4],
+            }
+            if relation == "unknown_exit":
+                result["region"]["kind"] = "unknown"
+            else:
+                result["entities"] = [
+                    [{"box": [x - 0.04, 0.4, x + 0.04, 0.6], "score": 0.9}]
+                    for x in points[relation]
+                ]
+            return result
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Contradictory)
+    ) as client:
+        request = client.post(
+            "/api/agent",
+            json={"message": "Remind me about water when I leave", "request_id": "geometry"},
+        ).json()
+        wait_for_job(client, request["id"])
+        now = datetime.now(UTC)
+        session = client.post("/api/capture/start", json={"at": now.isoformat()}).json()
+        for index, color in enumerate(["gray"] + ["white"] * 6):
+            response = client.post(
+                "/api/observe",
+                json={
+                    "session_id": session["id"],
+                    "captured_at": (now + timedelta(seconds=index / 10)).isoformat(),
+                    "image": snapshot(color),
+                },
+            )
+        assert response.status_code == 202
+        result = wait_for_job(client, response.json()["id"])["result"]
+        assert not result["deliveries"]
+        assert result["decision"]["reason"] == (
+            "unresolved_exit" if relation == "unknown_exit" else "unconfirmed_approach"
+        )
+        state = client.get("/api/companion").json()
+        assert state["reminders"][0]["state"] == "armed"
+        assert not state["pending"]
 
 
 @pytest.mark.parametrize("interruption", ["cancel", "stop", "expired"])

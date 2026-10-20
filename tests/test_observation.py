@@ -131,6 +131,15 @@ def test_action_gate_matches_visual_and_temporal_evidence_to_current_requests(li
         "approached_exit": True,
         "exit_interaction": True,
         "cue": "Synthetic approach and handle interaction",
+        "region": {
+            "label": "Synthetic exit",
+            "kind": "exterior_exit",
+            "box": [0.8, 0.1, 0.95, 0.8],
+            "uncertain": False,
+        },
+        "entities": [
+            [{"box": [x - 0.04, 0.4, x + 0.04, 0.6], "score": 0.9}] for x in [0.2, 0.5, 0.82]
+        ],
     }
     older = {"id": "old", "state": "armed", "created_at": (base - timedelta(seconds=1)).isoformat()}
     newer = {
@@ -142,6 +151,19 @@ def test_action_gate_matches_visual_and_temporal_evidence_to_current_requests(li
     result = departure_action(burst, judgment, [older, newer, cancelled])
     assert result["act"]
     assert result["request_ids"] == ["old"]
+    # 2D door-box proximity is not physical distance. Consistent direction can
+    # corroborate separately checked handle interaction before the feet reach it.
+    toward = {
+        "entities": [
+            [{"box": [x - 0.04, 0.4, x + 0.04, 0.6], "score": 0.9}] for x in [0.2, 0.4, 0.65]
+        ]
+    }
+    approach = departure_action(burst, {**judgment, **toward}, [older])
+    assert approach["act"]
+    assert approach["motion"]["relation"] == "toward"
+    assert not departure_action(burst, {**judgment, **toward, "exit_interaction": False}, [older])[
+        "act"
+    ]
     assert not departure_action(burst, judgment, [newer, cancelled])["act"]
     assert not departure_action(burst, judgment, [])["act"]
     for patch in [
@@ -155,6 +177,26 @@ def test_action_gate_matches_visual_and_temporal_evidence_to_current_requests(li
     assert not departure_action({**burst, "activity": {"qualified": False}}, judgment, [older])[
         "act"
     ]
+
+    # Semantic booleans cannot override independent entering/stationary/turnback evidence.
+    for points in [[0.82, 0.5, 0.2], [0.82, 0.82, 0.82], [0.3, 0.82, 0.4]]:
+        spatial = {
+            "entities": [[{"box": [x - 0.04, 0.4, x + 0.04, 0.6], "score": 0.9}] for x in points]
+        }
+        rejected = departure_action(
+            burst, {**judgment, **spatial, "motion": {"relation": "approaching"}}, [older]
+        )
+        assert not rejected["act"]
+        assert rejected["reason"] == "unconfirmed_approach"
+    for region in [
+        None,
+        {**judgment["region"], "kind": "unknown"},
+        {**judgment["region"], "uncertain": True},
+    ]:
+        rejected = departure_action(burst, {**judgment, "region": region}, [older])
+        assert not rejected["act"]
+        assert rejected["reason"] == "unresolved_exit"
+    assert not departure_action(burst, {**judgment, "entities": [[], [], []]}, [older])["act"]
 
 
 def test_departure_parser_cannot_promote_ambiguous_or_malformed_judgments():

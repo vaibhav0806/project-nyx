@@ -202,3 +202,37 @@ engineering choices for this slice:
 check, synthetic and public temporal replay, browser checks and remaining false
 departure. Revisit thresholds/recognition using independent fixed-camera evidence;
 do not mark household or event acceptance complete from these wiring checks.
+
+### Reusable grounded event evidence — 2026-10-20
+
+The user authorized the next recognition slice and required reusable automatic
+behavior rather than a scenario-specific workaround. Engineering choices:
+
+- Automatically infer the relevant region from actual images, without a predefined
+  doorway position, clip-specific branch or mandatory manual calibration. Abstain
+  on an unknown/ambiguous home exit. Retain the one supported next-departure action;
+  general conditions and personal memory remain later work.
+- Add independent entity localization through the existing optional Torchvision
+  dependency: lazy CPU SSDLite320 MobileNet V3 Large COCO_V1, common 0.6 score cutoff.
+  No additional framework or quantization. The small detector took roughly 0.1 s
+  per three images in the diagnostic run. A measured Faster R-CNN MobileNet V3 FPN
+  alternative took roughly 0.9–1.2 s, added ambiguous detections and did not fix
+  coverage consistently, so it is not promoted or used as a fallback.
+- Keep entity-position change and generic region-relative direction independent of
+  semantic cues. Stationary/ambiguous observations skip VLM work. Direction toward
+  the inferred exit must corroborate a positive semantic interaction; standing,
+  entry and reversal can reject confident semantic mistakes.
+- An initial rule also demanded footpoint proximity to the estimated door rectangle.
+  Reject that physical-distance interpretation: perspective and imperfect bounds
+  make it unsound. Keep proximity as a diagnostic; consistent direction plus separate
+  semantic interaction is the action criterion. This change applies to all scenes.
+- Preserve the existing timestamp/freshness/request/cancellation boundaries. A small
+  model can mislabel a closet as an exterior exit; even multiple evidence sources
+  cannot establish guaranteed correctness. Sparse three-image detector misses
+  currently lose an exit in live replay. Do not close event or advance-warning gates.
+
+The latest frozen development replay has one action on three staged exit proxies,
+zero actions on four negatives and zero on two ambiguous cases. It is reused
+development evidence, not independent accuracy. Live entry replay independently
+exercises a confident VLM positive rejected by movement away from the door.
+[R8](research/R8-companion-loop.md) contains results, failures and rejected alternatives.

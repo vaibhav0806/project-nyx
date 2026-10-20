@@ -84,3 +84,12 @@ The user approved this window/action-gate implementation on 2026-10-20 and reaff
 that general long-term context/memory is later work. Existing conversation persistence
 and bounded recent-turn context remain; no summarization, saved-fact or semantic
 conversation-recall layer is added by this follow-up.
+
+The next authorized follow-up separates reusable spatial/temporal evidence from
+the one supported action. Exit regions are inferred automatically from the images,
+without a fixed doorway rectangle. An independent small object detector supplies
+entity positions; generic geometry corroborates direction and can reject standing,
+entry or turnback despite a semantic positive. Missing/ambiguous detections abstain.
+This is three-frame image-plane evidence, not dense identity tracking, a home map
+or arbitrary automatic event understanding. Actual live replay still misses an exit;
+the successful direction rejection does not close recognition or useful-warning gates.

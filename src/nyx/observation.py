@@ -7,6 +7,7 @@ from threading import Lock
 
 from nyx.activity import ActivityWindow
 from nyx.attention import frame_pixels, pixels_changed
+from nyx.events import region_motion
 from nyx.memory import aware_time
 
 
@@ -46,6 +47,18 @@ def departure_action(burst, judgment, requests):
         return {**decision, "reason": "no_departure"}
     if any(judgment.get(key) is not True for key in ["approached_exit", "exit_interaction"]):
         return {**decision, "reason": "missing_exit_cues"}
+    region = judgment.get("region")
+    if (
+        not isinstance(region, dict)
+        or region.get("uncertain") is not False
+        or region.get("kind") != "exterior_exit"
+    ):
+        return {**decision, "reason": "unresolved_exit"}
+    motion = region_motion(region.get("box"), judgment.get("entities", []))
+    # The semantic checker owns interaction; image-plane foot/door distance cannot
+    # establish physical proximity. Independently corroborate direction only.
+    if motion["relation"] not in {"toward", "approaching"}:
+        return {**decision, "reason": "unconfirmed_approach", "motion": motion}
     first = aware_time(burst["times"][0])
     eligible = [
         row["id"]
@@ -54,7 +67,7 @@ def departure_action(burst, judgment, requests):
     ]
     if not eligible:
         return {**decision, "reason": "no_matching_request"}
-    return {"act": True, "request_ids": eligible, "reason": "requested_departure"}
+    return {"act": True, "request_ids": eligible, "reason": "requested_departure", "motion": motion}
 
 
 class Observer:

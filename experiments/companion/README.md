@@ -2,6 +2,34 @@
 
 These are opt-in local model experiments, separate from deterministic tests. They open no real camera/microphone and call no cloud provider. Use fresh output directories. Raw data, model generations and databases stay under ignored `data/`.
 
+## Automatic regions and independent motion
+
+`grounding.py` runs the real local object detector and Qwen on the same frozen
+manifest. It records automatic region coordinates, observed entity boxes, generic
+direction, action rejection, timings, input hashes and raw generations. Reversing
+the same observed trajectory diagnoses geometric direction without another model
+generation. The existing Charades inputs are reused development diagnostics, not
+independent home-exit accuracy. Do not redistribute their frames or contact sheets.
+
+```sh
+HF_HUB_OFFLINE=1 uv run --no-sync python experiments/companion/grounding.py \
+  --manifest data/evaluation/departure-manifest.json --output data/runs/grounding-new
+uv run --no-sync python experiments/companion/detectors.py \
+  --manifest data/evaluation/departure-manifest.json --output data/runs/detectors-new
+```
+
+The detector comparison uses the same live-sized images and common 0.6 score cutoff
+with SSDLite and Faster R-CNN MobileNet V3 FPN. It can download about 13.4 and 74.2 MB
+of official cached weights respectively; only the smaller detector is in runtime.
+Box counts are coverage diagnostics, not correctness labels. First runtime use of
+event inspection can download the small checkpoint; the later offline experiments
+assume it is cached. Neither model sends images to a provider.
+
+`live.py --hold-final-seconds 6` adds a clearly labelled synthetic repeat of the last
+image after the real excerpt. This tests pending-work draining; it is not extra
+source footage or evidence of the room remaining unchanged. Actual source offsets
+remain distinct from the artificial replay schedule. See [R8](../../docs/research/R8-companion-loop.md).
+
 ## Conversational tools
 
 Generate the permitted public-image smoke fixture using the existing retrieval experiment, then:

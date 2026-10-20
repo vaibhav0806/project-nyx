@@ -95,4 +95,10 @@ attention/observer tests. `experiments/companion/planner.py` separates
 real query/tool-decision checks from controlled tool observations; `window.py` replays
 cheap temporal nomination and `live.py` exercises dense local-model API replay.
 
+`events.py` owns the lazy local object detector, normalized observed boxes and
+generic entity/region-relative motion. It contains no reminder text, clip IDs or
+predefined room layout. `tests/test_events.py` covers its evidence boundaries;
+`experiments/companion/grounding.py` tests actual scene grounding and geometry,
+and `detectors.py` compares two small detector candidates independently of Qwen.
+
 `tests/test_agent.py`, `test_attention.py`, `test_observation.py`, `test_intentions.py` and `test_companion.py` exercise behavior with deterministic inference boundaries. `tests/companion_browser_smoke.py` uses generated media; real local experiments live in `experiments/companion/`. Follow [its README](../experiments/companion/README.md) for source/license and storage limits. Local databases now also include `intentions.sqlite3`; raw media and model outputs remain ignored.

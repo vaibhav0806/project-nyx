@@ -193,13 +193,37 @@ an unaccepted recent nomination survives a busy worker, with an eight-second exp
 This is independent of saved segment indexing and cannot preempt running inference.
 
 `departure_action` separates temporal nomination, fallible interpretation and request
-eligibility. It requires qualified activity and explicit departure/approach/interaction
-flags without uncertainty, then selects armed requests created no later than the
+eligibility. It requires qualified activity, explicit departure/approach/interaction
+flags without uncertainty, an automatically inferred exterior exit region, and
+independent observed movement toward that region. It selects armed requests created no later than the
 first inspected sample. The durable claim boundary rechecks state using only those
 request IDs. Episode ID, timing, model judgment and action reason accompany delivery
 evidence; the UI exposes phase and decision. No general-purpose event importance
 model, permanent live-frame archive or cloud media path is introduced. A consistently
-wrong model can still produce a false reminder; R8 records such an entering case.
+wrong set of observations can still produce a false reminder; R8 records earlier
+entering failures and the subsequent direction rejection.
+
+`events.py` contains reusable image-plane evidence, without reminder contents or
+room coordinates. A lazy Torchvision SSDLite320 MobileNet V3 Large COCO_V1 detector
+runs on CPU over the three nominated images. Scores below 0.6 are excluded. One
+entity must be detected in every image; missing/multiple observations abstain rather
+than assuming identity or absence. Maximum bottom-center displacement below 0.08
+of normalized image coordinates skips semantic inference. This is position change,
+not a test for all body/hand motion.
+
+Qwen departure prompt v4 returns semantic cues plus a stable, image-grounded region
+on a 0..1000 coordinate scale. Strict parsing normalizes it to 0..1; uncertain or
+invalid regions cannot authorize action. `region_motion` calculates bottom-center
+distance to that rectangle. Both toward and near-approach relations can corroborate
+separate semantic interaction; receding, reversal and stationary evidence cannot.
+Distance contraction needs 0.08; a 0.03 tolerance detects conflicting direction;
+0.06 labels image-plane proximity only. These global starting policies do not
+measure 3D distance or intent. The action gate recomputes motion from detector boxes;
+the VLM cannot supply its own passing motion result. Boxes, detector fingerprint,
+region, exact inspected times, relation and rejection reason accompany evidence.
+No scene calibration UI, dense person tracker, automatic identity, model provider
+registry or arbitrary-condition action engine is added. Detector misses and weak
+region inference still limit recognition; an exterior label remains fallible.
 
 `intentions.py` owns durable next-departure requests and separate notification attempts in `intentions.sqlite3`. Atomic claims prevent concurrent replay. Expired unclaimed attempts become missed; lost or restarted playback remains interrupted. User acknowledgement is separate. An armed request survives restart, but an old detected event is not fresh evidence after restart. No cron job establishes departure and no general action registry is added.
 

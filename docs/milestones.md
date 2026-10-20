@@ -153,3 +153,21 @@ household retrieval trials. Dense real-model API replay produced an exit reminde
 and an erroneous entry reminder; recognition acceptance remains unmet. See
 [R8](research/R8-companion-loop.md) and the
 [implementation plan](superpowers/plans/2026-10-20-temporal-attention.md).
+
+### Grounded event follow-up — 2026-10-20
+
+**217 deterministic tests pass.** Automatic region inference and independent object
+detections now provide reusable trajectory evidence before a departure action.
+Tests cover different region positions, reverse motion, stationary/turnback cases,
+missing/multiple detections, malformed coordinates, authoritative action rejection
+and preserved armed requests. The generated-media browser speech/cancel/acknowledge/
+denied-playback flow and offline wheel check pass.
+
+Nine reused public diagnostic sequences produced one action on three exit proxies,
+zero on four negatives and zero on two ambiguous cases. Live entry replay blocked
+a confident semantic false departure using observed movement away from the door;
+live exit replay still missed the event because of detector gaps. Automatic exit
+labels and sparse trajectories remain fallible. This does not establish dependable
+household recognition, arbitrary automatic conditions or useful advance warning.
+M1–M5 remain in progress. See [R8](research/R8-companion-loop.md) and the
+[grounded event plan](superpowers/plans/2026-10-20-grounded-events.md).

@@ -38,6 +38,15 @@ are prototype thresholds, not household-validated settings. The action gate sepa
 checks the model's exit cues against an active request. The whole checked sequence
 must follow the request, and evidence names the three images actually inspected.
 
+Nominated sequences now pass a separate small CPU object detector. A single subject
+must have supported position change before the VLM runs. Qwen attempts to locate
+the exit from the actual images; region-relative geometry must corroborate approach
+before a reminder can act. Entry, standing and turnback evidence can reject a
+confident semantic departure claim. Door position and reminder contents are not
+predefined. These reusable evidence components currently feed only the supported
+next-departure action; they do not establish arbitrary automatic event understanding.
+Detector misses, uncertain exit grounding and slow inference still cause missed events.
+
 **Departure recognition is experimental and currently unreliable.** Public-video diagnostics found misses, false positives and delay. This is a single-person doorway prototype, without identity recognition or a guarantee of speaking before departure. Timed/recurring reminders and arbitrary event triggers are unsupported. A running browser page is required for live observation. [R8](docs/research/R8-companion-loop.md) records actual successes and failures.
 
 The agent reuses local Qwen for text decisions, so first use loads/downloads it. No new inference framework or quantization was added. This checkout's measured machine has 16 GiB memory, unlike the earlier 24 GiB benchmark machine. Run model experiments sequentially and preserve disk headroom.
@@ -87,7 +96,7 @@ Latest mode checks twelve newest dated samples, then up to five semantic fallbac
 
 With recording explicitly enabled, **Check current view** captures a fresh video-only snapshot for local inspection. Its time and age are shown; snapshots that become stale in the queue/model load must be retaken. Snapshot answers are ephemeral, not permanently added to history. This button never opens a camera by itself.
 
-Two local models serve different jobs: **SigLIP 2 Base** embeds/searches frames; **Qwen3-VL-2B-Instruct** loads lazily to inspect images. Vision uses existing PyTorch/Transformers on MPS; MLX, JEPA and cloud vision are not runtime dependencies. First VLM use downloads approximately 4 GiB of weights to the external model cache, outside the saved-video budget. One worker yields between inspected images; in-flight model work can still delay search. See [R4](docs/research/R4-local-verification.md) for the two-model smoke comparison and measured limits.
+Local models serve different jobs: **SigLIP 2 Base** embeds/searches frames; **Qwen3-VL-2B-Instruct** loads lazily to inspect images. A lazy **SSDLite MobileNet V3** CPU detector adds independent entity positions for event checks (about 13.4 MB of cached weights). Vision uses existing PyTorch/Transformers/Torchvision; MLX, JEPA and cloud vision are not runtime dependencies. First VLM use downloads approximately 4 GiB of weights to the external model cache, outside the saved-video budget. One worker yields between inspected images; in-flight model work can still delay search. See [R4](docs/research/R4-local-verification.md) for the earlier VLM comparison and [R8](docs/research/R8-companion-loop.md) for event-detector findings.
 
 ## Try the baseline
 

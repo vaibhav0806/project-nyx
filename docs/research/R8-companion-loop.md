@@ -354,3 +354,129 @@ policies. Next recognition work needs explicit exit geometry and chronological p
 motion on independently labelled fixed-camera sequences. Do not promote the present
 VLM to dependable departure assistance or close M1–M5 acceptance gates from these
 prototype checks. General memory and RAM optimization remain deferred.
+
+## Automatic region grounding and independent spatial evidence — 2026-10-20
+
+**Question/decision:** Can reusable entity/region motion corroborate semantic cues
+without encoding the bottle, doorway position or diagnostic clip? The user approved
+this recognition slice and explicitly rejected scenario-specific workarounds.
+
+### Method and runtime
+
+Keep the earlier M4/16 GiB Mac, Python 3.12.11 and Qwen revision above, unquantized
+on MPS. Measured versions: Torch 2.14.1, Torchvision 0.29.1, Transformers 4.57.6,
+Pillow 12.3.0. Departure prompt v4 additionally asks for a stable exit region in
+0..1000 image coordinates and uncertainty about exterior status. Generation is
+bounded to 280 new tokens. Invalid/truncated responses abstain; no model repair
+call is added to event checks.
+
+Use existing Torchvision on CPU for independent SSDLite320 MobileNet V3 Large
+COCO_V1 detections. Official source-reported weight size is 13.4 MB; measured cache
+file is 14,069,355 bytes, SHA256
+`a79551df90c79834bcd3bb3845ef9d966b5449a3a9b2833ae8404778ca5d65d2`.
+One score >=0.6 detection per inspected image is required. Unsupported translation
+skips semantic inference; a missed detection is not evidence of absence.
+
+Generic geometry uses bottom-center positions, normalized to actual image size.
+It distinguishes movement toward/away from a region, stationary positions and
+reversal. A 0.08 displacement/contraction, 0.03 reversal tolerance and 0.06
+diagnostic proximity are global starting policies. They are not calibrated physical
+distances or probabilities. No room coordinates, clip IDs or reminder object names
+occur in this evidence layer. The existing action still specifically implements
+next-departure requests; generic evidence is not arbitrary event understanding.
+
+`grounding.py` freezes the manifest/protocol before inference, records selected file
+hashes and raw responses, and reverses the same trajectory for geometry diagnostics.
+Nine previously used Charades sequences remain development inputs, not held-out
+accuracy. Labels are staged room-exit proxies, not confirmed home departures.
+No new household footage, real devices, cloud vision or paid calls were used.
+
+### Measured results and rejected approaches
+
+`grounded-events-001` first demanded proximity of the footpoint to the inferred door
+rectangle. That policy produced no actions, including an otherwise supported
+approach. Image-plane box distance is not reliable physical distance, so the final
+gate uses observed direction to corroborate separately checked interaction. The
+policy-only replay is retained as `grounded-policy-review-001`; it is not another
+model run or an independent evaluation.
+
+`grounded-events-002` reran the actual models with final code and the same manifest:
+
+| Cases | Action result | Important observation |
+| --- | --- | --- |
+| Three exit proxies | 1/3 actions | 3H0PT supported; CUCBN detector coverage missing; YF6FL exit/direction uncertain |
+| Four negatives | 0/4 false actions | Includes entry, closet, stationary doorway and indoor activity |
+| Two ambiguous cases | 0/2 actions | Unknown exit or missing entity evidence |
+
+The VLM still confidently called the closet an exterior exit and asserted departure;
+its independently observed geometry was stationary and blocked the action. It also
+invents interaction in an indoor activity. An exterior label is a model inference,
+not proof of a house's layout. Five semantic calls in the final run took about
+7.9–9.2 s per sequence including detector overhead; four early-abstention cases
+took about 0.11–0.15 s. The static doorway skipped semantic inference after the
+generic translation check was added.
+
+`grounded-detector-001` measured roughly 0.10–0.12 s per three images after loading.
+The fair live-dimension comparison `grounded-detector-comparison-001` uses the same
+640×360-bounded images, common cutoff and CPU: SSDLite about 0.11–0.13 s, Faster
+R-CNN MobileNet V3 Large FPN about 0.90–1.18 s. The latter recovered some small
+subjects but introduced extra detections and retained a miss; complete single-person
+coverage did not improve consistently. Counts are not accuracy measurements.
+**Do not promote that larger detector or add a fallback.** Its measured cached
+weights use 77,844,807 bytes; both experimental downloads total under 100 MB.
+
+### Actual API replay and its limits
+
+`grounded-events-live-001` exposed an eight-second semantic check occupying the
+worker on an initially seated subject. The generic entity-position check now skips
+that work. An offline selected sequence succeeding does not establish live success.
+
+`grounded-events-live-002` uses the actual observer, API, models and fresh replay
+clock. Both cases admitted three successful jobs with maximum sample gaps about
+0.20/0.13 s, below the continuity limit:
+
+- **BM3UJ entry:** the later Qwen response confidently says the person exits, despite
+  entry labels. Independent distances increase across the sequence, producing
+  `away`; no notification is created and the request stays armed. Earlier jobs
+  abstain on missing detections. This directly exercises disagreement rejection,
+  rather than treating abstention alone as proof of direction recognition.
+- **3H0PT exit proxy:** no notification. Initially stationary boxes and later missing
+  detections prevent a complete trajectory. This is a miss, not a success. The
+  successful selected-image result does not survive sparse live selection.
+
+`grounded-events-live-drain-001` repeats the exit replay with six seconds of clearly
+labelled synthetic final-image hold so pending checks can drain. It still admits
+three successful checks and produces no notification; the miss is not fixed by
+waiting longer. Repeated source images are not extra footage or assertions about
+what happened after recording. Source offsets and replay admission times are
+recorded separately. No audible delivery or advance-warning success is established.
+
+### Verification, limits and recommendation
+
+**217 deterministic tests pass.** They exercise reflected/vertical layouts, reverse
+motion, standing, turnback/pass-by, missing/multiple entities, malformed coordinates,
+model-supplied fake geometry being overwritten, pre-semantic stationary rejection,
+and the real action/API boundary preserving armed requests. Existing tests retain
+freshness, gaps, cancellation, request ordering and durable delivery checks.
+
+`grounded-events-browser-001` passes the generated 4:3 camera flow: brief flash
+suppression, sustained activity, synthetic speech, cancellation, acknowledgement,
+denied playback and older library controls, without browser errors. Its model/voice
+boundaries are doubles. Final lint/format and JavaScript syntax pass. The offline
+wheel `grounded-events-package-001` has byte-matched current `events.py`,
+`observation.py`, `verification.py` and `web/companion.js`.
+
+**Inference/recommendation:** keep reusable evidence and the independent direction
+guard. It prevents a measured semantic false positive; it does not establish reliable
+recognition or an improvement in overall recall. The observed tradeoff is stronger
+rejection with missed events. Sparse localization, model region errors, occlusion,
+perspective, camera movement and possible subject substitution remain limitations.
+Next recognition work needs chronological tracking with explicit gaps on independently
+labelled complete fixed-camera sequences, including actual positive approaches and
+entry/visitor/turnback negatives. Measure missed/false actions and useful warning
+time; preserve the current failure evidence. No M1–M5 acceptance gate is closed.
+
+Sources (checked 2026-10-20): [official SSDLite model/weights](https://docs.pytorch.org/vision/master/models/generated/torchvision.models.detection.ssdlite320_mobilenet_v3_large.html),
+[official Faster R-CNN MobileNet V3 FPN model/weights](https://docs.pytorch.org/vision/main/models/generated/torchvision.models.detection.fasterrcnn_mobilenet_v3_large_fpn.html).
+Raw generations, hashes, SQLite state and protocol files remain local in the named
+`data/runs/` directories; restrictive Charades source material is not redistributed.
