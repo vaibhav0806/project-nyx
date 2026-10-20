@@ -985,3 +985,64 @@ candidates; it does not establish individual-object identity. Measure whether
 crop similarity separates same-item views from lookalikes before adding a
 reference-ranking path or replacing explicit review. The failed VLM probe does
 not establish that embedding-based matching will fail.
+
+
+## Agent-driven rejection follow-up — 2026-10-20
+
+**Decision under test:** can conversational feedback enter the normal bounded
+agent loop and let the selected small planner choose how to continue, without a
+hardcoded rejection phrase/router? The API persists candidate frame/query/time
+references with existing conversation plans. The browser supplies the currently
+shown reference for both typed and activated spoken requests; the server resolves
+frame metadata from the index. The optional rejection button sends an ordinary
+agent message. Both search actions accept model-selected frame exclusions, skipped
+before visual inference. Confirmation and cheap background change detection are
+unchanged. No additional model, dependency or memory subsystem was introduced.
+
+`experiments/companion/planner.py` adds five controlled feedback cases: casual
+rejection, rejection with a new identifying detail, an unrelated new object,
+a second rejection phrasing, and thanks. Actual pinned Qwen3.5-2B MLX 8-bit
+performs planning; tools return controlled observations. Thus this measures
+query/tool decisions, not actual vision or retrieval. The machine/runtime/model
+are unchanged from the preceding guided-finding run. Runs were offline, sequential,
+under the existing 10% memory-metric cutoff and 180-second parent watchdog.
+
+Measured development iterations:
+
+| Run | Planner prompt | Focused result | Main failure |
+| --- | --- | --- | --- |
+| rejection-planner-001 | 18 | 1/3 | Failed to include all rejected IDs |
+| rejection-planner-002 | 19 | 1/3 | Lost new detail; stale exclusions on new task |
+| rejection-planner-003 | 20 | 2/3 | Rejection incorrectly used current view |
+| rejection-planner-004 | 21 | 3/5 | Lost detail; stale exclusions on new task |
+| rejection-planner-005 | 22 | 3/5 | New task and thanks incorrectly continued history |
+| rejection-planner-006 | 23 | 3/5 | Lost detail; stale exclusions on new task |
+| rejection-planner-007 | 24, discarded | 2/5 | Request-summary wrapper lost rejected-object context |
+
+Final code retains **v23**, with compact review context, optional search exclusions,
+and ordinary action JSON. The attempted request-summary wrapper was removed; it
+was not an improvement. Final successes: "nah man its not this item" and "That's
+somebody else's. Keep looking please." both searched history for the blue mug with
+IDs 40 and 42 excluded. Thanks produced chat. Failures: "mine has a white handle"
+retained only "blue mug"; switching to a red backpack in the camera incorrectly
+searched history and retained old exclusions. These are development cases, not
+held-out accuracy estimates. No claim that arbitrary feedback is dependable.
+
+All seven runs exited normally; elapsed times were 15.06, 15.07, 15.05, 21.15,
+21.07, 21.44 and 27.12 seconds. Lowest sampled memory metrics ranged from 19–22%;
+no cutoff fired. No visual media/provider calls or downloads were needed.
+
+**Integration evidence:** 277 deterministic tests pass. They verify saved candidate
+context across restart, agent-selected exclusions through the actual API, a direct
+history result's reference flowing into a normal agent request with a current
+camera fixture, strict argument bounds and prompt context. The planner is mocked
+in these integration tests; they do not substitute for the failures above.
+`agent-review-browser-002` passed button rejection followed by typed rejection,
+nonrepeating images, explicit confirmation/reload, synthetic speech and existing
+activity/cancellation checks, with no browser errors. All devices/model/provider
+boundaries in this browser check are synthetic. Lint, formatting, JS syntax and
+offline packaging pass. Owned model/browser processes exited.
+
+Recommendation: keep feedback agent-driven and retain the measured failures as
+regressions for the next planner improvement. Do not mask them with object-specific
+or phrase-specific routing, and do not claim this resolves lookalike recognition.

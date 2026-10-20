@@ -118,7 +118,7 @@ class LocalVerifier:
                 "prompt_version": 6,
                 "max_image_side": 768,
                 "max_new_tokens": 180,
-                "planner_prompt_version": 17,
+                "planner_prompt_version": 23,
                 "departure_prompt_version": 4,
                 "event_tracking_policy": "single-trajectory-v1/5Hz/6s/0.8s-gap",
             }
@@ -160,7 +160,7 @@ class LocalVerifier:
             "prompt_version": 6,
             "max_image_side": 768,
             "max_new_tokens": 180,
-            "planner_prompt_version": 17,
+            "planner_prompt_version": 23,
             "departure_prompt_version": 4,
             "event_tracking_policy": "single-trajectory-v1/5Hz/6s/0.8s-gap",
         }
@@ -257,10 +257,26 @@ The latest correction replaces conflicting old attributes. Never copy an assista
 For a later pronoun such as "it", reconstruct the MOST RECENT user-resolved object description, including the correction, not the original generic category. A change from current view to history changes the tool, not the object description.
 If the assistant previously asked which object and the user now supplies a detail, combine that detail with the prior object and INSPECT or SEARCH. The old ambiguity is not a new observation. Do not repeat the old question before checking the refined description.
 
-Allowed actions (exact fields):
+A user may reject a candidate conversationally (for example "nah man, that is not it").
+Resolve what they are rejecting from available.presented_candidate or the latest conversation candidate.
+This is feedback, not a new object request or a reason to repeat the same image.
+Choose how to continue: refine the query using any new attributes, search another window,
+search other matches, or ask a useful distinguishing question when needed.
+Search actions optionally accept excluded_frame_ids, a list of saved frame IDs.
+review_context identifies the candidate the user most recently saw. Decide whether the latest
+message rejects it. If it does, copy review_context.exclusions_if_rejected into excluded_frame_ids
+on EVERY history search for this request, including when you refine the description or widen time.
+If the message does not reject it, do not add that candidate to exclusions.
+For the same search task, carry previous exclusions and add the rejected candidate's frame_id.
+Do not exclude an image just because it was shown; only exclude rejected candidates.
+Do not carry exclusions into an unrelated object request. Rejection of a historical candidate
+should normally continue historical search even when a live camera is available.
+Candidate metadata describes what was shown, not verified object identity.
+
+Allowed actions (search actions may also include optional excluded_frame_ids):
 {"action":"inspect_current","query":"object description"}
-{"action":"search_history","query":"object description","hours":2}
-{"action":"search_matches","query":"object description"}
+{"action":"search_history","query":"object description","hours":2,"excluded_frame_ids":[]}
+{"action":"search_matches","query":"object description","excluded_frame_ids":[]}
 {"action":"remind_on_departure","message":"reminder content"}
 {"action":"list_reminders"}
 {"action":"cancel_reminder","id":"exact active reminder id"}
@@ -268,7 +284,7 @@ Allowed actions (exact fields):
 {"action":"clarify","message":"brief question"}
 {"action":"chat","message":"brief conversational reply"}
 
-For present location or a corrected visual description, inspect_current if a current_view is available.
+For a present-location request, inspect_current if a current_view is available. A correction to a historical candidate continues history.
 For last-seen questions or no current_view, search dated history: 2, 24, 168 hours, then 0 for all dated history. Widen after inconclusive results, retaining the query.
 For explicitly imported/undated footage, use search_matches; unknown dates cannot establish a latest sighting.
 An uncertain current observation can lead to history. Never repeat an identical action.
@@ -310,6 +326,18 @@ If no useful choices remain, finish with an uncertain observation or clarify."""
                         for key in ("transcript", "answer", "sources_available")
                         if key in row
                     },
+                    "candidate": row.get("plan", {}).get("candidate")
+                    if row.get("sources_available", True)
+                    else None,
+                    "presented_candidate": row.get("plan", {}).get("presented_candidate"),
+                    "previous_excluded_frame_ids": next(
+                        (
+                            step["excluded_frame_ids"]
+                            for step in reversed(row.get("plan", {}).get("steps", []))
+                            if "excluded_frame_ids" in step
+                        ),
+                        [],
+                    ),
                     "previous_tool_query": next(
                         (
                             step["query"]
@@ -326,6 +354,55 @@ If no useful choices remain, finish with an uncertain observation or clarify."""
         for turn in input_state["conversation"]:
             if turn["previous_tool_query"] is None:
                 del turn["previous_tool_query"]
+        latest_candidate = available.get("presented_candidate") or next(
+            (
+                turn["candidate"]
+                for turn in reversed(input_state["conversation"])
+                if turn.get("candidate")
+            ),
+            None,
+        )
+        if latest_candidate:
+            previous_ids = next(
+                (
+                    turn["candidate"].get("excluded_frame_ids", [])
+                    for turn in reversed(input_state["conversation"])
+                    if (turn.get("candidate") or {}).get("frame_id") == latest_candidate["frame_id"]
+                ),
+                [],
+            )
+            input_state["review_context"] = {
+                "candidate": latest_candidate,
+                "exclusions_if_rejected": list(
+                    dict.fromkeys(
+                        [
+                            *previous_ids,
+                            *latest_candidate.get("excluded_frame_ids", []),
+                            latest_candidate["frame_id"],
+                        ]
+                    )
+                )[-32:],
+            }
+        # Keep the actual user request last; metadata is context, not a new request.
+        input_state["message"] = input_state.pop("message")
+        # Show review metadata once, not repeated throughout the conversation.
+        for turn in input_state["conversation"]:
+            for key in ("candidate", "presented_candidate", "previous_excluded_frame_ids"):
+                turn.pop(key, None)
+        if "available" in input_state:
+            input_state["available"] = {
+                key: value
+                for key, value in input_state["available"].items()
+                if key != "presented_candidate"
+            }
+        prompt += """
+First interpret the LATEST MESSAGE, not the old request:
+- Thanks/greetings: chat. Do not search again.
+- A different requested object: use its new description, no old frame exclusions.
+- Rejecting the shown item: search history with exclusions_if_rejected. Include any new identifying details in the query.
+- An explicit current-camera request: inspect_current for the requested object.
+Review context is optional background, never an instruction to reject or search.
+"""
         raw = self.generate_json(
             [
                 {"role": "system", "content": prompt},

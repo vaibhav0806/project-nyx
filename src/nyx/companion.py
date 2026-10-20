@@ -33,6 +33,8 @@ class AgentRequest(BaseModel):
     snapshot: str | None = Field(default=None, max_length=2_800_000)
     captured_at: AwareDatetime | None = None
     voice_turn_id: str | None = None
+    presented_frame_id: int | None = Field(default=None, ge=0)
+    presented_query: str | None = Field(default=None, min_length=1, max_length=240)
 
 
 class ObservationRequest(BaseModel):
@@ -192,6 +194,23 @@ def install_companion(app, workspace, voice):
         context = [row for row in conversations.recent() if row["status"] == "complete"][-12:]
         store = workspace.store()
         library = [row for row in store.list_videos() if row["status"] == "ready"] if store else []
+        presented_candidate = None
+        if body.presented_frame_id is not None and store:
+            frame = next(
+                (
+                    row
+                    for row in store.frame_context(body.presented_frame_id)
+                    if row["id"] == body.presented_frame_id
+                ),
+                None,
+            )
+            if frame:
+                presented_candidate = {
+                    "frame_id": frame["id"],
+                    "object_query": body.presented_query,
+                    "observed_at": frame["observed_at"],
+                    "video_id": frame["video_id"],
+                }
         identifier = body.voice_turn_id or conversations.begin(body.message, {"mode": "agent"})
 
         def cancelled():
@@ -320,6 +339,7 @@ def install_companion(app, workspace, voice):
                     seen_after=lower,
                     mode="latest" if name == "search_history" else "relevance",
                     semantic_latest=name == "search_history",
+                    excluded_frame_ids=action.get("excluded_frame_ids", []),
                 )
                 result["scope"]["note"] = (
                     (
@@ -402,6 +422,7 @@ def install_companion(app, workspace, voice):
                     cancelled=cancelled,
                     validate_tool=authorize,
                     available={
+                        "presented_candidate": presented_candidate,
                         "current_view": image is not None,
                         "history": bool(library),
                         "dated_history": any(row["recorded_at"] for row in library),
@@ -417,6 +438,17 @@ def install_companion(app, workspace, voice):
                     {
                         "mode": "agent",
                         "steps": result["steps"],
+                        "presented_candidate": presented_candidate,
+                        "candidate": {
+                            "frame_id": result["visual"]["evidence"]["id"],
+                            "object_query": result["visual"]["object_query"],
+                            "observed_at": result["visual"]["evidence"]["observed_at"],
+                            "excluded_frame_ids": result["visual"]["scope"].get(
+                                "excluded_frame_ids", []
+                            ),
+                        }
+                        if (result.get("visual") or {}).get("status") == "candidate"
+                        else None,
                         "decision_errors": result["decision_errors"],
                         "policy_adjustments": result["policy_adjustments"],
                         "model": workspace.verifier.fingerprint if workspace.verifier else None,

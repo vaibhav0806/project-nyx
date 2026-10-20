@@ -613,3 +613,62 @@ def test_last_seen_starts_with_dated_history_before_undated_matches(dated, expec
     assert calls[0]["query"] == "green ceramic mug"
     if dated:
         assert calls[0]["hours"] == 2
+
+
+@pytest.mark.parametrize("ids", [[True], [-1], ["2"], list(range(33)), "1"])
+def test_search_rejects_invalid_exclusion_ids(ids):
+    from nyx.agent import validate_action
+
+    with pytest.raises(ValueError, match="frame IDs"):
+        validate_action({"action": "search_matches", "query": "mug", "excluded_frame_ids": ids})
+
+
+def test_planner_receives_candidate_and_rejections_without_image_payloads():
+    import json
+
+    from nyx.verification import LocalVerifier
+
+    verifier = object.__new__(LocalVerifier)
+
+    def generate(messages):
+        state = json.loads(messages[1]["content"])
+        assert state["review_context"]["candidate"]["frame_id"] == 42
+        assert state["review_context"]["exclusions_if_rejected"] == [40, 42]
+        assert "nah man" in messages[0]["content"]
+        return json.dumps(
+            {
+                "action": "search_history",
+                "query": "blue mug",
+                "hours": 24,
+                "excluded_frame_ids": [40, 42],
+            }
+        )
+
+    verifier.generate_json = generate
+    action = verifier.decide(
+        {
+            "message": "nah, not that one",
+            "conversation": [
+                {
+                    "transcript": "Find my blue mug",
+                    "answer": "Is this it?",
+                    "plan": {
+                        "candidate": {
+                            "frame_id": 42,
+                            "object_query": "blue mug",
+                            "excluded_frame_ids": [40],
+                        },
+                        "steps": [
+                            {
+                                "action": "search_history",
+                                "query": "blue mug",
+                                "hours": 2,
+                                "excluded_frame_ids": [40],
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+    )
+    assert action["excluded_frame_ids"] == [40, 42]

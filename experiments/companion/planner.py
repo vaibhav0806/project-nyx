@@ -167,6 +167,75 @@ CASES = [
 ]
 
 
+# These are controlled planner cases, not object-recognition evidence.
+REVIEW_CONTEXT = [
+    {
+        "transcript": "Where did you last see my blue mug?",
+        "answer": "Is this the item you mean?",
+        "sources_available": True,
+        "plan": {
+            "steps": [
+                {
+                    "action": "search_history",
+                    "query": "blue mug",
+                    "hours": 2,
+                    "excluded_frame_ids": [40],
+                }
+            ],
+            "candidate": {"frame_id": 42, "object_query": "blue mug", "excluded_frame_ids": [40]},
+        },
+    }
+]
+CASES.extend(
+    [
+        {
+            "name": "casual-candidate-rejection",
+            "message": "nah man its not this item",
+            "context": REVIEW_CONTEXT,
+            "concepts": ["blue", "mug"],
+            "required_exclusions": [40, 42],
+            "history_only": True,
+        },
+        {
+            "name": "candidate-rejection-with-detail",
+            "message": "No, mine has a white handle. Look further back.",
+            "context": REVIEW_CONTEXT,
+            "concepts": ["mug", "white", "handle"],
+            "required_exclusions": [40, 42],
+            "history_only": True,
+        },
+        {
+            "name": "new-object-after-candidate",
+            "message": "Actually find my red backpack in the camera view instead",
+            "context": REVIEW_CONTEXT,
+            "concepts": ["red", "backpack"],
+            "path": ["inspect_current", "finish"],
+        },
+    ]
+)
+
+CASES.extend(
+    [
+        {
+            "name": "another-casual-rejection",
+            "message": "That's somebody else's. Keep looking please.",
+            "context": REVIEW_CONTEXT,
+            "concepts": ["blue", "mug"],
+            "required_exclusions": [40, 42],
+            "history_only": True,
+        },
+        {
+            "name": "candidate-thanks",
+            "message": "Thanks for checking",
+            "context": REVIEW_CONTEXT,
+            "concepts": [],
+            "path": ["chat"],
+            "status": "chat",
+        },
+    ]
+)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
@@ -256,6 +325,19 @@ def main():
             "path": "path" not in case or path == case["path"],
             "hours": "hours" not in case or hours == case["hours"],
             "bounded": len(path) <= 6,
+            "rejected_frames": all(
+                set(case.get("required_exclusions", [])).issubset(
+                    step.get("excluded_frame_ids", [])
+                )
+                for step in result["steps"]
+                if step["action"] in {"search_history", "search_matches"}
+            ),
+            "history_feedback": not case.get("history_only")
+            or (
+                bool(path)
+                and path[0] in {"search_history", "search_matches"}
+                and "inspect_current" not in path
+            ),
             "history_coverage": len(set(hours)) >= case.get("min_history_windows", 0),
         }
         row = {

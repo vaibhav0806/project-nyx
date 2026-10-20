@@ -512,6 +512,8 @@ function answerEvidence(row, label) {
 }
 
 function showAnswer(output) {
+  if (typeof companion !== "undefined") companion.reviewCandidate = output.status === "candidate" && output.evidence
+    ? { presented_frame_id: output.evidence.id, presented_query: output.object_query } : null;
   $("answer-panel").hidden = false;
   const observed = output.captured_at || output.evidence?.observed_at;
   $("answer-text").textContent = observed ? output.answer.replace(observed, new Date(observed).toLocaleString()) : output.answer;
@@ -551,12 +553,16 @@ function showAnswer(output) {
     confirm.onclick = () => review(() => api("/api/matches/confirm", json({
       frame_id: output.evidence.id, object_query: output.object_query, request_id: requestId,
     })));
-    reject.onclick = () => review(() => task("/api/answer", json({
-      object_query: output.object_query, mode: output.scope.mode,
-      video_id: output.scope.video_id || null,
-      seen_after: output.scope.seen_after, seen_before: output.scope.seen_before,
-      excluded_frame_ids: [...(output.scope.excluded_frame_ids || []), output.evidence.id],
-    })));
+    reject.onclick = async () => {
+      confirm.disabled = reject.disabled = true;
+      try {
+        await companion.request("That's not the item I meant. Please keep looking.");
+      } catch (error) {
+        message(error.message, true);
+        $("answer-panel").hidden = false;
+        confirm.disabled = reject.disabled = false;
+      }
+    };
     $("answer-evidence").append(confirm, reject);
   }
   for (const row of output.checked || []) {

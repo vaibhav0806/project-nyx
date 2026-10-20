@@ -58,3 +58,9 @@ Research assignments and evidence standards live in [Research](research/README.m
 The user chose two bounded interactions: conversational object finding (including corrections, current inspection and recent history) and a continuing next-departure reminder. A tool-using loop carries requests through observations; continuous inexpensive visual attention can activate work for an existing intention without another spoken question. A fixed camera seeing the main door is the initial departure setting. This is a direction for a useful small demo, not a requirement to solve every household task before testing.
 
 The implementation and its measured failures are recorded in [R8](research/R8-companion-loop.md). Event inference is experimental; scheduled reminders, broad personal recall and intended-user evaluation remain open. Device selection follows measured workload; no purchase is authorized by this slice.
+
+
+Object-finding feedback should be conversational: a user can say that a proposed
+match is wrong, add a distinguishing detail, or change what they are looking for.
+The agent uses that feedback to choose the next search or question. Review buttons
+are optional shortcuts, not the required way to reject a candidate.

@@ -328,3 +328,24 @@ Final verification: **269 deterministic tests pass**; lint, formatting, JavaScri
 syntax and offline packaging checks pass. The packaged runtime and web assets
 match the working source. Synthetic browser review coverage is recorded above;
 no additional inference was required for final checks.
+
+
+### Conversational candidate rejection — 2026-10-20
+
+Typed/activated spoken feedback and the rejection button now enter the ordinary
+agent loop. Displayed candidate references survive in recent conversation plans;
+the planner can choose query refinements, time windows, exclusions or clarification.
+Search execution honors excluded frames without a rejection-phrase router.
+
+Verification: **277 deterministic tests pass**, including agent-selected rejection
+through the real API, restart context, direct-result feedback and argument bounds.
+Synthetic browser checks cover button rejection followed by typed rejection,
+different returned frames, confirmation/reload and existing speech controls.
+Lint, formatting, JavaScript syntax and offline packaging pass.
+
+Final planner v23 passed **3/5 focused real-model cases** with controlled tool
+observations: two casual rejection phrases and thanks. It dropped a new handle
+attribute in one case and carried old exclusions into an unrelated new-object
+request in another. The conversational wiring is implemented; robust semantic
+feedback handling remains open. This is not a recognition or full MVP acceptance
+claim. See [R8](research/R8-companion-loop.md) for iterations and limitations.

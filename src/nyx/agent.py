@@ -29,13 +29,22 @@ def validate_action(value):
     }
     if action not in fields:
         raise ValueError("Unknown tool")
+    optional = {"excluded_frame_ids"} if action in {"search_history", "search_matches"} else set()
     allowed = fields[action] | {"action"}
-    if set(value) != allowed:
+    if set(value) - optional != allowed:
         raise ValueError(
             f"Unexpected decision fields for {action}; use exactly {', '.join(sorted(allowed))}. "
-            f"Remove: {', '.join(sorted(set(value) - allowed)) or 'none'}. "
+            f"Remove: {', '.join(sorted(set(value) - allowed - optional)) or 'none'}. "
             f"Missing: {', '.join(sorted(allowed - set(value))) or 'none'}."
         )
+    if "excluded_frame_ids" in value:
+        ids = value["excluded_frame_ids"]
+        if (
+            not isinstance(ids, list)
+            or len(ids) > 32
+            or any(type(i) is not int or i < 0 for i in ids)
+        ):
+            raise ValueError("excluded_frame_ids must be a list of up to 32 nonnegative frame IDs")
     for key in fields[action] - {"hours", "observation"}:
         if not isinstance(value[key], str) or not 1 <= len(value[key].strip()) <= 240:
             raise ValueError("Tool text must be 1–240 characters")
@@ -159,6 +168,7 @@ def agent_steps(
         if (
             not observations
             and (available or {}).get("current_view")
+            and not action.get("excluded_frame_ids")
             and action["action"] in {"search_history", "search_matches"}
             and re.search(
                 r"\b(where (?:is|are)|find|locate|still (?:there|here|visible)|(?:is it|are they) (?:there|here))\b",

@@ -299,8 +299,14 @@ completed tool result, preserving its image/time attribution and review question
 The main answer omits unverified model location assertions; raw judgments remain
 in evidence details. Current-view inspection still uses its existing statuses.
 
-The review UI sends rejected frame IDs back to `/api/answer`; the next request
-retains query, source and time bounds and skips those frames before inference.
+Conversational rejection and the optional rejection button both use `/api/agent`.
+The UI supplies the displayed frame reference; the server resolves its source/time
+from the index. Agent results persist compact candidate metadata in the existing
+conversation plan, so typed or activated spoken feedback also works from recent
+conversation context. Search actions accept optional `excluded_frame_ids`; the
+model chooses these IDs, the query and the search window, or asks a clarification.
+The executor skips excluded frames before inference. Exclusions and candidate
+metadata remain available on follow-up turns; they do not delete recordings.
 The existing candidate bound remains, so exhausting it returns uncertainty.
 `POST /api/matches/confirm` accepts an explicit user choice and request UUID.
 It resolves the frame/time from the current index, records a `user_confirmation`

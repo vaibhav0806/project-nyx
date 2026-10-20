@@ -41,8 +41,15 @@ class Speech:
         with wave.open(out,'wb') as f:
             f.setnchannels(1);f.setsampwidth(2);f.setframerate(16000);f.writeframes(b'\\0'*32000)
         return base64.b64encode(out.getvalue()).decode()
+class ReviewPlanner(Planner):
+    def decide(self,state):
+        candidate=state.get('available',{}).get('presented_candidate')
+        if candidate and not state['observations']:
+            previous=next((r['plan']['candidate'].get('excluded_frame_ids',[]) for r in reversed(state['conversation']) if (r.get('plan',{}).get('candidate') or {}).get('frame_id')==candidate['frame_id']),[])
+            return {'action':'search_matches','query':candidate['object_query'],'excluded_frame_ids':previous+[candidate['frame_id']]}
+        return super().decide(state)
 factory=(lambda root:Voice(root,Speech(),lambda pcm:'',agent_mode=True)) if sys.argv[3]=='1' else None
-uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_factory=Planner,voice_factory=factory), host='127.0.0.1',port=int(sys.argv[2]))"""
+uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_factory=ReviewPlanner,voice_factory=factory), host='127.0.0.1',port=int(sys.argv[2]))"""
     env = {**os.environ, "PYTHONPATH": "src:tests"}
     env.pop("SARVAM_API_KEY", None)
     with (args.output / "server.log").open("w") as log:
@@ -226,6 +233,16 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                         expect(page.locator("#answer-evidence img")).not_to_have_attribute(
                             "src", before, timeout=15000
                         )
+                        second_image = page.locator("#answer-evidence img").get_attribute("src")
+                        page.locator("#companion-message").fill("nah man its not this item")
+                        page.locator("#companion-send").click()
+                        expect(page.locator("#answer-evidence img")).not_to_have_attribute(
+                            "src", second_image, timeout=15000
+                        )
+                        assert page.locator("#answer-evidence img").get_attribute("src") != before
+                        expect(page.locator("#companion-thread")).to_contain_text(
+                            "nah man its not this item"
+                        )
                         confirm.click()
                         expect(page.locator("#answer-text")).to_contain_text(
                             "You confirmed", timeout=10000
@@ -283,6 +300,7 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                                 "playback_denial_reports_failure": args.speech,
                                 "older_library_access": True,
                                 "candidate_rejection_and_confirmation": bool(args.review_fixture),
+                                "conversational_rejection": bool(args.review_fixture),
                                 "brief_flash_suppressed": True,
                                 "sustained_activity_delivers": True,
                                 "passed": True,

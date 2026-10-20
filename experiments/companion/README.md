@@ -268,3 +268,16 @@ The lightweight browser check accepts
 `--review-fixture data/runs/companion-retrieval-fixture/scenes.mp4` to verify the
 review buttons, rejection, confirmation and persistence with fake model/device
 boundaries. Add `--speech` for the existing synthetic speech checks.
+
+
+Conversational feedback planner cases (actual planner, controlled tool results):
+
+```sh
+uv run python experiments/companion/planner.py --output data/runs/feedback-planner --cases casual-candidate-rejection candidate-rejection-with-detail new-object-after-candidate another-casual-rejection candidate-thanks
+```
+
+Use the existing memory watchdog for local inference. Expected checks cover
+retaining excluded frame IDs, adding new query attributes and avoiding stale
+searches on topic changes. R8 records current failures; this is not an image
+recognition benchmark. The browser smoke with `--review-fixture` now verifies both
+button and typed conversational rejection through `/api/agent`.

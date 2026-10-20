@@ -17,10 +17,13 @@ With Sarvam configured, the page starts camera recording and microphone wake lis
 A pinned SigLIP 2 encoder runs on this Mac's MPS GPU. Search results remain unverified visual candidates. M3 adds local model checks with source/time attribution and explicitly captured snapshots; these checks can be wrong. Scheduled reminders, general personal recall and intended-user evaluation remain later work; see [companion/event findings](docs/research/R8-companion-loop.md). See [measured retrieval results](docs/research/R3-local-retrieval.md), [continuous indexing implementation](docs/superpowers/plans/2026-10-19-continuous-recording.md) and [local verification findings](docs/research/R4-local-verification.md).
 
 Current-view clarification and a **guided historical finding flow** are implemented.
-Historical results are possible matches: review the image, choose **Not this item**
-to check another candidate, or **This is the item** to save your confirmation with
+Historical results are possible matches: review the image, say that it is not
+the right item (or choose **Not this item**) to let the agent continue searching,
+or choose **This is the item** to save your confirmation with
 its recording time. Nyx distinguishes your confirmation from model output; it
-cannot reliably identify similar objects automatically across time. Two staged
+cannot reliably identify similar objects automatically across time. Conversational
+rejection is wired, but the small planner can still drop new details or carry old
+search exclusions into a new topic (see the focused R8 failures). Two staged
 departure proxies were missed, so departure recognition remains experimental.
 See [R8](docs/research/R8-companion-loop.md) for measured results and limitations.
 

@@ -100,7 +100,8 @@ and late notification; recognition and useful-warning gates remain open.
 ### Guided object-finding MVP
 
 Historical model matches are candidates for user review, not verified identity.
-The laptop UI supports rejecting a candidate or confirming the item in a saved
+Typed or activated spoken rejection uses the conversational agent; the optional
+rejection button uses that same path. The laptop UI can confirm an item in a saved
 frame. Confirmations persist as explicitly user-attributed conversation records
 with source/time links; source deletion invalidates those links. They do not prove
 current location or the latest possible sighting. Voice can ask the review

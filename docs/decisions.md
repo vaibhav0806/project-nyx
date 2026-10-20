@@ -413,3 +413,16 @@ model, entity database or permanent snapshots. Confirmation request IDs are
 idempotent, persist across restart, and conflict on different choices. Deleted
 sources invalidate confirmation replay. Rejection exclusions are request-local;
 they do not delete footage or establish object identity.
+
+
+### Conversational feedback belongs to the agent — 2026-10-20
+
+The user explicitly rejected a button-dependent deterministic retry workflow.
+Natural-language feedback now goes through the normal agent loop; the rejection
+button sends the same conversational request. The planner receives the displayed
+candidate's frame reference and past exclusions, then chooses a refined query,
+another historical window, another match search, or a clarification. There is no
+phrase-matching rejection router. Search tools enforce model-selected exclusions.
+This supersedes the fixed query/time/source retry described above. Explicit
+confirmation remains a user-attributed UI action; background change detection is
+unchanged. Persist only compact references in existing conversation storage.

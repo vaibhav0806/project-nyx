@@ -100,3 +100,89 @@ def test_rejection_keeps_time_bounds_and_does_not_load_model_when_all_excluded(t
     assert result["status"] == "uncertain"
     assert result["checked"] == []
     assert result["scope"]["seen_after"] == "2026-10-19T09:00:00+00:00"
+
+
+def test_conversational_rejection_reaches_agent_and_skips_candidate_after_restart(tmp_path, video):
+    class Reviewing(CandidateVerifier):
+        def decide(self, state):
+            if state["observations"]:
+                return {"action": "finish", "observation": 0}
+            if state["message"] == "nah man its not this item":
+                previous = state["conversation"][-1]["plan"]["candidate"]
+                assert previous["frame_id"] == first_id
+                return {
+                    "action": "search_matches",
+                    "query": "green",
+                    "excluded_frame_ids": [previous["frame_id"]],
+                }
+            return {"action": "search_matches", "query": "green"}
+
+    def app():
+        return create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Reviewing)
+
+    with TestClient(app()) as client:
+        imported = client.post(
+            "/api/import", params={"name": "review.mp4"}, content=video.read_bytes()
+        ).json()
+        wait_for_job(client, imported["id"])
+        job = client.post(
+            "/api/agent", json={"message": "Find green in my imported video", "request_id": "first"}
+        ).json()
+        first = wait_for_job(client, job["id"])["result"]
+        first_id = first["visual"]["evidence"]["id"]
+    with TestClient(app()) as client:
+        job = client.post(
+            "/api/agent", json={"message": "nah man its not this item", "request_id": "reject"}
+        ).json()
+        second = wait_for_job(client, job["id"])["result"]
+        assert second["status"] == "candidate"
+        assert second["visual"]["evidence"]["id"] != first_id
+        assert first_id not in [row["id"] for row in second["checked"]]
+        assert second["steps"][0]["excluded_frame_ids"] == [first_id]
+        assert (
+            client.get("/api/companion").json()["conversations"][-1]["transcript"]
+            == "nah man its not this item"
+        )
+
+
+def test_direct_candidate_can_be_rejected_via_normal_agent_request(tmp_path, video):
+    from datetime import UTC, datetime
+
+    from test_companion import snapshot
+
+    class Reviewing(CandidateVerifier):
+        def decide(self, state):
+            if state["observations"]:
+                return {"action": "finish", "observation": 0}
+            candidate = state["available"]["presented_candidate"]
+            assert candidate["object_query"] == "green"
+            return {
+                "action": "search_matches",
+                "query": "green",
+                "excluded_frame_ids": [candidate["frame_id"]],
+            }
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Reviewing)
+    ) as client:
+        imported = client.post(
+            "/api/import", params={"name": "review.mp4"}, content=video.read_bytes()
+        ).json()
+        wait_for_job(client, imported["id"])
+        job = client.post("/api/answer", json={"object_query": "green", "mode": "relevance"}).json()
+        candidate = wait_for_job(client, job["id"])["result"]
+        frame_id = candidate["evidence"]["id"]
+        job = client.post(
+            "/api/agent",
+            json={
+                "message": "Please find another one, that's not it",
+                "request_id": "reject",
+                "presented_frame_id": frame_id,
+                "presented_query": "green",
+                "snapshot": snapshot(),
+                "captured_at": datetime.now(UTC).isoformat(),
+            },
+        ).json()
+        result = wait_for_job(client, job["id"])["result"]
+        assert result["status"] == "candidate"
+        assert result["visual"]["evidence"]["id"] != frame_id
