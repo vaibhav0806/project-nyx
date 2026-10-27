@@ -206,6 +206,7 @@ CASES.extend(
         },
         {
             "name": "new-object-after-candidate",
+            "no_exclusions": True,
             "message": "Actually find my red backpack in the camera view instead",
             "context": REVIEW_CONTEXT,
             "concepts": ["red", "backpack"],
@@ -236,12 +237,56 @@ CASES.extend(
 )
 
 
+def score_case(case, result):
+    queries = [step["query"].lower() for step in result["steps"] if "query" in step]
+    path = [step["action"] for step in result["steps"]]
+    hours = [step["hours"] for step in result["steps"] if "hours" in step]
+    searches = [
+        step for step in result["steps"] if step["action"] in {"search_history", "search_matches"}
+    ]
+    checks = {
+        "status": result["status"] == case.get("status", "seen"),
+        "query_concepts": all(all(word in query for word in case["concepts"]) for query in queries)
+        and (bool(queries) or not case["concepts"]),
+        "no_contradictory_attributes": all(
+            not any(word in query for word in case.get("forbidden", [])) for query in queries
+        ),
+        "path": "path" not in case or path == case["path"],
+        "hours": "hours" not in case or hours == case["hours"],
+        "bounded": len(path) <= 6,
+        "rejected_frames": (not case.get("required_exclusions") or bool(searches))
+        and all(
+            set(case.get("required_exclusions", [])).issubset(step.get("excluded_frame_ids", []))
+            for step in result["steps"]
+            if step["action"] in {"search_history", "search_matches"}
+        ),
+        "no_stale_exclusions": not case.get("no_exclusions")
+        or all(not step.get("excluded_frame_ids") for step in searches),
+        "no_unrequested_rejection": all(
+            not set(case.get("forbidden_exclusions", [])).intersection(
+                step.get("excluded_frame_ids", [])
+            )
+            for step in searches
+        ),
+        "history_feedback": not case.get("history_only")
+        or (
+            bool(path)
+            and path[0] in {"search_history", "search_matches"}
+            and "inspect_current" not in path
+        ),
+        "history_coverage": len(set(hours)) >= case.get("min_history_windows", 0),
+    }
+    return checks
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cases", nargs="+")
+    parser.add_argument("--case-file", type=Path, help="Separate JSON list of evaluation cases")
     args = parser.parse_args()
-    selected = [case for case in CASES if not args.cases or case["name"] in args.cases]
+    cases = json.loads(args.case_file.read_text()) if args.case_file else CASES
+    selected = [case for case in cases if not args.cases or case["name"] in args.cases]
     if args.cases and len(selected) != len(set(args.cases)):
         parser.error("Every requested case must exist")
     args.output.mkdir(parents=True, exist_ok=False)
@@ -310,36 +355,7 @@ def main():
                 next(steps)
         except StopIteration as done:
             result = done.value
-        queries = [step["query"].lower() for step in result["steps"] if "query" in step]
-        path = [step["action"] for step in result["steps"]]
-        hours = [step["hours"] for step in result["steps"] if "hours" in step]
-        checks = {
-            "status": result["status"] == case.get("status", "seen"),
-            "query_concepts": all(
-                all(word in query for word in case["concepts"]) for query in queries
-            )
-            and (bool(queries) or not case["concepts"]),
-            "no_contradictory_attributes": all(
-                not any(word in query for word in case.get("forbidden", [])) for query in queries
-            ),
-            "path": "path" not in case or path == case["path"],
-            "hours": "hours" not in case or hours == case["hours"],
-            "bounded": len(path) <= 6,
-            "rejected_frames": all(
-                set(case.get("required_exclusions", [])).issubset(
-                    step.get("excluded_frame_ids", [])
-                )
-                for step in result["steps"]
-                if step["action"] in {"search_history", "search_matches"}
-            ),
-            "history_feedback": not case.get("history_only")
-            or (
-                bool(path)
-                and path[0] in {"search_history", "search_matches"}
-                and "inspect_current" not in path
-            ),
-            "history_coverage": len(set(hours)) >= case.get("min_history_windows", 0),
-        }
+        checks = score_case(case, result)
         row = {
             "case": case,
             "result": result,

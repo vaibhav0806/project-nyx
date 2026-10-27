@@ -1046,3 +1046,32 @@ offline packaging pass. Owned model/browser processes exited.
 Recommendation: keep feedback agent-driven and retain the measured failures as
 regressions for the next planner improvement. Do not mask them with object-specific
 or phrase-specific routing, and do not claim this resolves lookalike recognition.
+
+
+## Retrieval continuation and evaluation preparation — 2026-10-28
+
+**Code finding:** exclusions were applied after retrieval LIMIT, so rejection could
+exhaust the same initial ranked candidates while additional eligible frames existed.
+The correction applies parameterized frame-ID exclusions within SQLite, before
+ranking/LIMIT, on both history retrieval paths. Per-request inference bounds,
+source/time filters and model-controlled decisions remain unchanged. Synthetic
+24-frame regression fixtures cover relevance, chronological latest and semantic
+latest selection beyond the original retrieval window. No semantic accuracy claim.
+
+`feedback_cases.json` adds six previously unrun conversation scenarios for the
+existing actual-planner/controlled-tool harness. `--case-file` keeps them separate
+from the older development examples. They test new identifying details, switching
+objects, continuing history, thanks/stopping, and time widening without rejection.
+Scoring now explicitly fails stale/unrequested exclusions and cannot count a lack
+of searches as a successful rejection. Scoring regression tests use no model.
+
+Decision criterion for the next model run: retain the current planner unless an
+alternative improves correction and task switching without breaking rejection,
+non-rejection follow-ups or greetings. Once these cases influence tuning, treat
+them as development examples rather than held-out evidence. They have not yet
+been executed with a model; the previous v23 3/5 result stands.
+
+Verification: 281 deterministic tests pass; 2 PyTorch-dependent tests skip because
+only the locked Python 3.12 web/test environment was restored (the previous local
+virtual environment was absent). Tests now explicitly mark the optional dependency.
+No new model weights, inference, browser/device capture or external-provider calls.

@@ -349,3 +349,24 @@ attribute in one case and carried old exclusions into an unrelated new-object
 request in another. The conversational wiring is implemented; robust semantic
 feedback handling remains open. This is not a recognition or full MVP acceptance
 claim. See [R8](research/R8-companion-loop.md) for iterations and limitations.
+
+
+### Retrieval continuation repaired; broader planner evaluation prepared — 2026-10-28
+
+Rejected frames now filter out before the database result limit, so a follow-up
+can reach candidates beyond the original five best matches or latest-mode window.
+Regression tests reject five/seventeen candidates and still retrieve an eligible
+next candidate, with source/time constraints and the existing work bound intact.
+The agent remains responsible for choosing exclusions and its next search.
+
+Six additional conversation cases cover different objects, casual rejection,
+attribute correction, topic changes, time widening without rejection, and stopping.
+Scoring rejects vacuous exclusion passes (no search) and stale/unrequested
+exclusions. Cases are prepared but **not run with the model**; no prompt change or
+claim of improved planner accuracy. The prior 3/5 result remains the latest.
+
+Verification: **281 tests pass, 2 optional PyTorch tests skip** in a recreated
+Python 3.12 web/test-only environment. An initial full run exposed these tests'
+unconditional torch import; they now explicitly skip when the vision extra is
+absent and still run when installed. Lint/format and changed document links pass.
+No model inference, hardware capture, vision downloads or browser run this turn.

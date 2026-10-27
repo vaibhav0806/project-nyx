@@ -186,3 +186,48 @@ def test_direct_candidate_can_be_rejected_via_normal_agent_request(tmp_path, vid
         result = wait_for_job(client, job["id"])["result"]
         assert result["status"] == "candidate"
         assert result["visual"]["evidence"]["id"] != frame_id
+
+
+@pytest.mark.parametrize(
+    "mode,semantic_latest,rejected_count",
+    [("relevance", False, 5), ("latest", False, 17), ("latest", True, 17)],
+)
+def test_rejection_can_reach_beyond_initial_candidate_limit(
+    tmp_path, monkeypatch, mode, semantic_latest, rejected_count
+):
+    from PIL import Image
+
+    from nyx.answers import history_steps
+    from nyx.memory import Store
+
+    store = Store(tmp_path / "index", ColorEncoder.fingerprint, 3)
+    source = store.add_video("fixture.mp4", "fixture.mp4", "2026-10-19T10:00:00Z", 1)
+    store.add_frames(source, [(i, f"{i}.jpg") for i in range(24)], [[0, 1, 0]] * 24)
+    store.finish_video(source)
+    monkeypatch.setattr("nyx.answers.frame_image", lambda *args: Image.new("RGB", (8, 8), "green"))
+    rejected = []
+    for _ in range(rejected_count + 1):
+        steps = history_steps(
+            "green",
+            store,
+            ColorEncoder(),
+            CandidateVerifier,
+            mode=mode,
+            semantic_latest=semantic_latest,
+            video_id=source,
+            seen_after="2026-10-19T10:00:00Z",
+            seen_before="2026-10-19T10:00:23Z",
+            excluded_frame_ids=rejected,
+        )
+        while True:
+            try:
+                next(steps)
+            except StopIteration as done:
+                result = done.value
+                break
+        assert result["status"] == "candidate"
+        frame_id = result["evidence"]["id"]
+        assert frame_id not in rejected
+        assert result["scope"]["checked_count"] == 1
+        assert result["scope"]["candidates_retrieved"] <= result["scope"]["candidate_limit"]
+        rejected.append(frame_id)

@@ -215,6 +215,7 @@ class Store:
         seen_before=None,
         order="relevance",
         known_time_only=False,
+        excluded_frame_ids=(),
     ):
         if not 1 <= limit <= 100:
             raise ValueError("Limit must be between 1 and 100")
@@ -246,6 +247,13 @@ class Store:
             if value:
                 filters.append(f"{clock_time} {operator} ?")
                 params.append(value)
+        if len(excluded_frame_ids) > 32 or any(
+            type(i) is not int or i < 0 for i in excluded_frame_ids
+        ):
+            raise ValueError("Exclude at most 32 nonnegative frame IDs")
+        if excluded_frame_ids:
+            filters.append(f"f.id NOT IN ({','.join('?' for _ in excluded_frame_ids)})")
+            params.extend(excluded_frame_ids)
         params.append(limit)
         with self.connection() as db:
             rows = db.execute(

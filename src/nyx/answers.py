@@ -36,6 +36,7 @@ def history_steps(
         seen_before=seen_before,
         order="relevance" if semantic_latest and mode == "latest" else mode,
         known_time_only=semantic_latest,
+        excluded_frame_ids=excluded_frame_ids,
     )
     if semantic_latest and mode == "latest":
         candidates.sort(key=lambda row: row["observed_at"], reverse=True)
@@ -51,6 +52,7 @@ def history_steps(
             seen_after=seen_after,
             seen_before=seen_before,
             known_time_only=True,
+            excluded_frame_ids=excluded_frame_ids,
         )
         candidates.extend(
             sorted(
@@ -63,8 +65,6 @@ def history_steps(
     selected = None
     verifier = None
     for candidate in candidates:
-        if candidate["id"] in excluded_frame_ids:
-            continue
         verifier = verifier or verifier_factory()
         source = (store.root / candidate["video_path"]).resolve()
         if not source.is_relative_to(store.root):

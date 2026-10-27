@@ -305,7 +305,8 @@ from the index. Agent results persist compact candidate metadata in the existing
 conversation plan, so typed or activated spoken feedback also works from recent
 conversation context. Search actions accept optional `excluded_frame_ids`; the
 model chooses these IDs, the query and the search window, or asks a clarification.
-The executor skips excluded frames before inference. Exclusions and candidate
+The database filters excluded frames before ranking and applying the result limit,
+so rejections do not consume the next search's candidate budget. Exclusions and candidate
 metadata remain available on follow-up turns; they do not delete recordings.
 The existing candidate bound remains, so exhausting it returns uncertainty.
 `POST /api/matches/confirm` accepts an explicit user choice and request UUID.

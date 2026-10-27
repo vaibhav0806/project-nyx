@@ -281,3 +281,15 @@ retaining excluded frame IDs, adding new query attributes and avoiding stale
 searches on topic changes. R8 records current failures; this is not an image
 recognition benchmark. The browser smoke with `--review-fixture` now verifies both
 button and typed conversational rejection through `/api/agent`.
+
+
+Additional feedback cases prepared on 2026-10-28 (not yet model-evaluated):
+
+```sh
+uv run --no-sync python experiments/companion/planner.py --case-file experiments/companion/feedback_cases.json --output data/runs/feedback-additional
+```
+
+This requires the model runtime extras/cache and the usual resource guard. The
+lightweight web/test environment alone cannot run inference. Cases include topic
+switches and time-only changes; scoring flags stale or unrequested exclusions as
+well as lost attributes. Keep model results separate from deterministic tests.

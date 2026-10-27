@@ -8,7 +8,7 @@ from nyx.perception import SiglipEncoder
 
 @pytest.mark.parametrize("structured", [False, True])
 def test_siglip_normalizes_image_and_text_pooling_across_transformers_versions(structured):
-    import torch
+    torch = pytest.importorskip("torch", reason="Requires the optional vision extra")
 
     class Inputs(dict):
         def to(self, device):

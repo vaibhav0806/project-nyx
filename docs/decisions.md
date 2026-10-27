@@ -426,3 +426,13 @@ phrase-matching rejection router. Search tools enforce model-selected exclusions
 This supersedes the fixed query/time/source retry described above. Explicit
 confirmation remains a user-attributed UI action; background change detection is
 unchanged. Persist only compact references in existing conversation storage.
+
+
+### Rejected frames must not consume retrieval slots — 2026-10-28
+
+Apply agent-selected exclusions in the existing SQLite search before ordering and
+LIMIT, in both the primary and fallback searches. Previously history selected a
+bounded result set and only then skipped rejected frames, preventing further
+results from being reached after enough rejections. Keep the same per-request
+candidate/model-check bounds and source/time filters. No change to the planner's
+control over query, time window or rejection, and no automatic deletion.
