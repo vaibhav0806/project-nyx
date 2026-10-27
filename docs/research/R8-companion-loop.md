@@ -1181,3 +1181,46 @@ active 2B snapshot referenced it. The 2B weights were preserved. Reclaimed rough
 supports paired `--model-id`/exact `--revision` overrides and reports load time and
 MLX peak allocation. Scoring tests, lint, format and document links pass; no
 application code changed in this comparison.
+
+
+## Context diagnostics and stale-review repair — 2026-10-28
+
+**Hypothesis tested:** precomputing exclusions_if_rejected may bias the model,
+while omitting the previous history window may impede widening. Experimental v27
+replaced proposed exclusions with existing rejected IDs and exposed prior hours.
+`planner-factual-context-20261028` still scored 3/6 on the six development cases:
+attribute/time changes, unrelated-task exclusions and non-rejection widening still
+failed. The stop reply also promised unrequested monitoring. This change was
+reverted; its patch remains local. Runtime/model are the same pinned 2B setup.
+Run elapsed 21.09 s; lowest sampled memory metric 27%; normal exit.
+
+A separate diagnostic (`experiments/companion/interpret.py`) asked only for object
+query, relation (new/reject/continue/chat/clarify), view and whether to search older
+footage. `interpret-request-20261028` used a JSON conversation excerpt;
+`interpret-chat-20261028` used actual user/assistant chat roles. Both systematically
+classified same-item rejection/continuation as new, sometimes chose the wrong
+view, and included request wording instead of a clean object description. Neither
+was a successful request interpreter; no aggregate accuracy score is claimed for
+these manually inspected raw field outputs. Runs took 15.07/15.08 s, sampled no
+lower than 37%/32%, and exited normally. No additional interpretation call or
+service was added to application behavior.
+
+**Separate code finding and repair:** candidate lookup previously scanned backward
+through all recent turns, even after a newer visual query returned no candidate
+or the user explicitly confirmed an item. It could resurrect an older task's
+candidate. Browser state could also keep a presented-frame reference after a
+successful nonvisual answer hid the result panel. Context v28 stops historical
+review lookup at those evidence boundaries and clears the hidden UI reference.
+A clarification without new visual work retains its candidate; an explicitly
+shown frame remains authoritative for what is being reviewed. This does not
+interpret rejection phrases or identify objects deterministically.
+
+Verification: 290 deterministic tests pass. New context tests cover current/history
+queries without candidates, confirmation, deleted-source boundaries, clarification
+continuity and explicit display precedence. `candidate-context-browser-20261028`
+passes the synthetic full review/speech test plus hidden-reference clearing, with
+no browser errors. All device/model/provider boundaries in that browser test are
+fake. Lint, format, JS syntax and local documentation links pass. No assertion of
+improved semantic accuracy from these integration tests; no real-model evaluation
+of the final context boundary across varied conversations yet. All owned processes
+exited. No new dependency, model download, permanent memory layer or framework.

@@ -51,6 +51,7 @@ const companion = {
         $("companion-steps").append(line);
       }
       if (result.visual?.scope) showAnswer(result.visual);
+      else this.reviewCandidate = null;
       await this.refresh();
       return { result, jobId: this.job };
     } finally {

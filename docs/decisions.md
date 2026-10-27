@@ -436,3 +436,14 @@ bounded result set and only then skipped rejected frames, preventing further
 results from being reached after enough rejections. Keep the same per-request
 candidate/model-check bounds and source/time filters. No change to the planner's
 control over query, time window or rejection, and no automatic deletion.
+
+
+### Pending review follows actual evidence state — 2026-10-28
+
+Do not search backward past a newer visual tool request or explicit confirmation
+to resurrect an older historical candidate as the active review target. A
+clarification without another visual query may retain the pending candidate.
+An explicitly displayed, server-resolved frame takes precedence. When a successful
+browser request has no visual result and hides the result panel, clear its
+presented-frame reference. This is evidence lifecycle bookkeeping, not a language
+classifier or a new workflow; the agent still chooses queries, tools and exclusions.

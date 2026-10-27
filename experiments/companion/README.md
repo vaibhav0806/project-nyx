@@ -320,3 +320,11 @@ from wall time/system memory. The 4B trial and its rejection are documented in R
 `transfer_cases.json` contains four additional cases prepared before the 4B result.
 They remain unrun: do not claim transfer accuracy or tune against them without
 recording that they have become development cases.
+
+
+`interpret.py --case-file feedback_cases.json --output ...` is a standalone request
+interpretation diagnostic; pass `--chat-history` to compare actual conversational
+roles with a serialized excerpt. It uses the same local model and logs raw outputs,
+without performing tools or changing application behavior. The initial probes
+failed to reliably distinguish rejection/continuation/new requests; no extra
+interpretation stage was adopted. Run only with the normal model resource guard.

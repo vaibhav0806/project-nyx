@@ -702,3 +702,76 @@ def test_history_policy_adjustment_preserves_model_selected_exclusions():
     assert calls == [
         {"action": "search_history", "query": "glasses", "hours": 2, "excluded_frame_ids": [71, 74]}
     ]
+
+
+@pytest.mark.parametrize(
+    "newer",
+    [
+        {"plan": {"steps": [{"action": "inspect_current", "query": "wallet"}], "candidate": None}},
+        {
+            "plan": {
+                "steps": [{"action": "search_history", "query": "wallet", "hours": 2}],
+                "candidate": None,
+            }
+        },
+        {"plan": {"mode": "user_confirmation"}},
+        {
+            "sources_available": False,
+            "plan": {
+                "steps": [{"action": "search_matches", "query": "glasses"}],
+                "candidate": {"frame_id": 75},
+            },
+        },
+    ],
+)
+def test_newer_visual_work_or_confirmation_does_not_resurrect_old_review(newer):
+    import json
+
+    from nyx.verification import LocalVerifier
+
+    verifier = object.__new__(LocalVerifier)
+
+    def generate(messages):
+        state = json.loads(messages[1]["content"])
+        assert "review_context" not in state
+        return '{"action":"clarify","message":"Which item do you mean?"}'
+
+    verifier.generate_json = generate
+    verifier.decide(
+        {
+            "message": "Not that one",
+            "conversation": [
+                {"plan": {"candidate": {"frame_id": 74, "object_query": "glasses"}}},
+                newer,
+            ],
+        }
+    )
+
+
+def test_clarification_preserves_pending_candidate_and_explicit_display_takes_precedence():
+    import json
+
+    from nyx.verification import LocalVerifier
+
+    verifier = object.__new__(LocalVerifier)
+    context = [
+        {"plan": {"candidate": {"frame_id": 74, "object_query": "glasses"}}},
+        {"plan": {"steps": [{"action": "clarify", "message": "What differs?"}]}},
+    ]
+    expected = 74
+
+    def generate(messages):
+        state = json.loads(messages[1]["content"])
+        assert state["review_context"]["candidate"]["frame_id"] == expected
+        return '{"action":"clarify","message":"Which item?"}'
+
+    verifier.generate_json = generate
+    verifier.decide({"message": "Not that one", "conversation": context})
+    expected = 82
+    verifier.decide(
+        {
+            "message": "Not that one",
+            "conversation": context,
+            "available": {"presented_candidate": {"frame_id": 82, "object_query": "keys"}},
+        }
+    )

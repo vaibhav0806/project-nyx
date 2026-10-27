@@ -118,7 +118,7 @@ class LocalVerifier:
                 "prompt_version": 6,
                 "max_image_side": 768,
                 "max_new_tokens": 180,
-                "planner_prompt_version": 23,
+                "planner_prompt_version": 28,
                 "departure_prompt_version": 4,
                 "event_tracking_policy": "single-trajectory-v1/5Hz/6s/0.8s-gap",
             }
@@ -160,7 +160,7 @@ class LocalVerifier:
             "prompt_version": 6,
             "max_image_side": 768,
             "max_new_tokens": 180,
-            "planner_prompt_version": 23,
+            "planner_prompt_version": 28,
             "departure_prompt_version": 4,
             "event_tracking_policy": "single-trajectory-v1/5Hz/6s/0.8s-gap",
         }
@@ -326,6 +326,8 @@ If no useful choices remain, finish with an uncertain observation or clarify."""
                         for key in ("transcript", "answer", "sources_available")
                         if key in row
                     },
+                    "ends_candidate_review": row.get("plan", {}).get("mode") == "user_confirmation"
+                    or any("query" in step for step in row.get("plan", {}).get("steps", [])),
                     "candidate": row.get("plan", {}).get("candidate")
                     if row.get("sources_available", True)
                     else None,
@@ -354,14 +356,14 @@ If no useful choices remain, finish with an uncertain observation or clarify."""
         for turn in input_state["conversation"]:
             if turn["previous_tool_query"] is None:
                 del turn["previous_tool_query"]
-        latest_candidate = available.get("presented_candidate") or next(
-            (
-                turn["candidate"]
-                for turn in reversed(input_state["conversation"])
-                if turn.get("candidate")
-            ),
-            None,
-        )
+        latest_candidate = available.get("presented_candidate")
+        if latest_candidate is None:
+            for turn in reversed(input_state["conversation"]):
+                if turn.get("candidate"):
+                    latest_candidate = turn["candidate"]
+                    break
+                if turn["ends_candidate_review"]:
+                    break
         if latest_candidate:
             previous_ids = next(
                 (
@@ -387,7 +389,12 @@ If no useful choices remain, finish with an uncertain observation or clarify."""
         input_state["message"] = input_state.pop("message")
         # Show review metadata once, not repeated throughout the conversation.
         for turn in input_state["conversation"]:
-            for key in ("candidate", "presented_candidate", "previous_excluded_frame_ids"):
+            for key in (
+                "candidate",
+                "presented_candidate",
+                "previous_excluded_frame_ids",
+                "ends_candidate_review",
+            ):
                 turn.pop(key, None)
         if "available" in input_state:
             input_state["available"] = {

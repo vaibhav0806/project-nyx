@@ -414,3 +414,23 @@ including the verified shared cache blob; active 2B weights remain. This rules o
 adopting that larger checkpoint on the present evidence, not all larger models.
 Experimental CLI checks/scoring tests and documentation checks pass. The latest
 full application suite remains 285 passing tests from the preceding follow-up.
+
+
+### Stale review context repaired — 2026-10-28
+
+The browser no longer presents a hidden old frame as the current review target
+after a successful nonvisual reply. Planner lookup no longer reaches past newer
+visual work or explicit confirmation to resurrect an older candidate. Clarifying
+questions retain their pending candidate; explicitly displayed evidence wins.
+Context version 28 retains the existing tools/model and adds no inference stage.
+
+Verification: **290 tests pass**, lint/format/JS syntax and local documentation
+links pass. Synthetic browser check `candidate-context-browser-20261028` passes
+rejection, confirmation, reload, hidden-reference clearing and existing synthetic
+speech/activity checks with no browser errors. No actual camera/provider use.
+
+A factual-only context prompt (v27) still scored 3/6 and was reverted. Separate
+request-interpretation probes also confused rejection/continuation with new tasks;
+no second model call was added. These failures and the boundary-tested state fix
+are distinct: no claim that v28 resolves the broader conversation accuracy gate.
+All owned model/browser processes exited. See R8.

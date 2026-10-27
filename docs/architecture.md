@@ -321,3 +321,11 @@ History-tool policy redirection preserves model-selected `excluded_frame_ids`;
 redirecting best-match search to dated history cannot resurrect rejected frames.
 The 2026-10-28 review-choice/reasoning experiments were not adopted: application
 planning still uses v23 and explicit frame exclusions.
+
+
+Planner context version 28 bounds review lookup to the latest visual work. It
+stops at a newer query-bearing turn without an available candidate or at a
+user-confirmation turn, rather than reusing a historical candidate from an older
+task. Clarification turns can retain review context; explicitly presented frames
+still take precedence. The browser clears its presented-frame reference after a
+successful nonvisual answer. No second interpretation call is used in the app.

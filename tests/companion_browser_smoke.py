@@ -43,6 +43,8 @@ class Speech:
         return base64.b64encode(out.getvalue()).decode()
 class ReviewPlanner(Planner):
     def decide(self,state):
+        if state['message']=='Thanks, pause':
+            return {'action':'chat','message':'Okay, paused.'}
         candidate=state.get('available',{}).get('presented_candidate')
         if candidate and not state['observations']:
             previous=next((r['plan']['candidate'].get('excluded_frame_ids',[]) for r in reversed(state['conversation']) if (r.get('plan',{}).get('candidate') or {}).get('frame_id')==candidate['frame_id']),[])
@@ -243,6 +245,16 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                         expect(page.locator("#companion-thread")).to_contain_text(
                             "nah man its not this item"
                         )
+                        reviewed_result = page.request.get(
+                            url + "/api/jobs/" + page.evaluate("companion.job")
+                        ).json()["result"]["visual"]
+                        page.locator("#companion-message").fill("Thanks, pause")
+                        page.locator("#companion-send").click()
+                        expect(page.locator("#companion-thread")).to_contain_text("Okay, paused.")
+                        assert page.evaluate("companion.reviewCandidate === null")
+                        expect(page.locator("#answer-panel")).to_be_hidden()
+                        # Explicitly displaying a saved result establishes a new reference.
+                        page.evaluate("output => showAnswer(output)", reviewed_result)
                         confirm.click()
                         expect(page.locator("#answer-text")).to_contain_text(
                             "You confirmed", timeout=10000
@@ -301,6 +313,7 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                                 "older_library_access": True,
                                 "candidate_rejection_and_confirmation": bool(args.review_fixture),
                                 "conversational_rejection": bool(args.review_fixture),
+                                "hidden_candidate_reference_cleared": bool(args.review_fixture),
                                 "brief_flash_suppressed": True,
                                 "sustained_activity_delivers": True,
                                 "passed": True,
