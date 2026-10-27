@@ -51,3 +51,16 @@ def test_time_change_does_not_authorize_rejecting_candidate():
         },
     )
     assert not checks["no_unrequested_rejection"]
+
+
+def test_older_footage_requires_a_wider_window():
+    case = {"concepts": ["glasses"], "wider_than_hours": 2}
+    result = {
+        "status": "seen",
+        "steps": [{"action": "search_history", "query": "glasses", "hours": 2}],
+    }
+    assert not score_case(case, result)["requested_wider_window"]
+    result["steps"][0]["hours"] = 24
+    assert score_case(case, result)["requested_wider_window"]
+    result["steps"][0]["hours"] = 0
+    assert score_case(case, result)["requested_wider_window"]

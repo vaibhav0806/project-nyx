@@ -315,3 +315,9 @@ conversation turn, and returns `confirmed` with `confirmation=user`. It has no
 model call and is not an agent tool. The conversation ID supplies idempotency
 without a new table. Source deletion uses the existing invalidation mechanism.
 No new snapshot retention or automatic cross-time identity mechanism was added.
+
+
+History-tool policy redirection preserves model-selected `excluded_frame_ids`;
+redirecting best-match search to dated history cannot resurrect rejected frames.
+The 2026-10-28 review-choice/reasoning experiments were not adopted: application
+planning still uses v23 and explicit frame exclusions.

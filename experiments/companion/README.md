@@ -293,3 +293,19 @@ This requires the model runtime extras/cache and the usual resource guard. The
 lightweight web/test environment alone cannot run inference. Cases include topic
 switches and time-only changes; scoring flags stale or unrequested exclusions as
 well as lost attributes. Keep model results separate from deterministic tests.
+
+
+The additional feedback cases were evaluated on 2026-10-28; see R8 for failures.
+They are now development cases. Scoring also requires requested time widening and
+retention of previous exclusions on non-rejection follow-ups.
+
+Optional experiment flags (not application defaults):
+
+- `--natural-user-turn`: put the latest request in a separate user message.
+- `--thinking-tokens 256`: MLX-only reasoning probe with a forced thinking budget,
+  followed by the normal output budget. Logs raw reasoning locally; unfinished
+  reasoning is an error, never an accepted tool decision.
+
+These probes did not establish a dependable improvement. Keep the resource guard
+and separate deterministic/tool-path checks from real recognition and manual
+answer-quality review.

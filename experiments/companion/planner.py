@@ -274,6 +274,9 @@ def score_case(case, result):
             and path[0] in {"search_history", "search_matches"}
             and "inspect_current" not in path
         ),
+        "requested_wider_window": "wider_than_hours" not in case
+        or bool(hours)
+        and (hours[0] == 0 or hours[0] > case["wider_than_hours"]),
         "history_coverage": len(set(hours)) >= case.get("min_history_windows", 0),
     }
     return checks
@@ -284,6 +287,14 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cases", nargs="+")
     parser.add_argument("--case-file", type=Path, help="Separate JSON list of evaluation cases")
+    parser.add_argument(
+        "--natural-user-turn",
+        action="store_true",
+        help="Compare putting the latest request in its own user message",
+    )
+    parser.add_argument(
+        "--thinking-tokens", type=int, default=0, help="Experimental MLX reasoning token budget"
+    )
     args = parser.parse_args()
     cases = json.loads(args.case_file.read_text()) if args.case_file else CASES
     selected = [case for case in cases if not args.cases or case["name"] in args.cases]
@@ -292,8 +303,46 @@ def main():
     args.output.mkdir(parents=True, exist_ok=False)
     model = LocalVerifier()
     original = model.generate_json
+    if args.thinking_tokens:
+        from mlx_vlm import generate
+
+        def thinking_generate(messages, max_tokens=240):
+            prompt = model.runtime.processor.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True, enable_thinking=True
+            )
+            result = generate(
+                model.runtime.model,
+                model.runtime.processor,
+                prompt,
+                max_tokens=args.thinking_tokens + max_tokens,
+                thinking_budget=args.thinking_tokens,
+                thinking_start_token="<think>",
+                thinking_end_token="</think>",
+                temperature=0.0,
+                enable_thinking=True,
+                verbose=False,
+            ).text
+            with (args.output / "thinking.jsonl").open("a") as file:
+                file.write(json.dumps({"raw": result}) + "\n")
+            if "</think>" not in result:
+                raise ValueError("Reasoning did not finish within its token budget")
+            return result.split("</think>", 1)[1].strip()
+
+        original = thinking_generate
 
     def record(messages, max_tokens=240):
+        if args.natural_user_turn:
+            state = json.loads(messages[1]["content"])
+            latest = state.pop("message")
+            messages = [
+                {
+                    "role": "system",
+                    "content": messages[0]["content"]
+                    + "\nThe first user message is background context. The final user message is the current request.",
+                },
+                {"role": "user", "content": json.dumps(state)},
+                {"role": "user", "content": latest},
+            ]
         raw = original(messages, max_tokens)
         with (args.output / "raw.jsonl").open("a") as file:
             file.write(json.dumps({"messages": messages, "raw": raw}) + "\n")
@@ -305,6 +354,8 @@ def main():
         "python": platform.python_version(),
         "runtime": {name: version(name) for name in ["torch", "transformers"]},
         "model": model.fingerprint,
+        "natural_user_turn": args.natural_user_turn,
+        "thinking_tokens": args.thinking_tokens,
         "tools": "controlled observations; no actual retrieval or mutations",
         "scoring": "Query concept/contradiction checks and expected tool paths; manual review still required",
         "cases": [],

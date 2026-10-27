@@ -183,6 +183,12 @@ def agent_steps(
         ):
             # Product policy: present location starts with available fresh evidence.
             action = {"action": "inspect_current", "query": action["query"]}
+        if (
+            action != requested
+            and action["action"] in {"search_history", "search_matches"}
+            and "excluded_frame_ids" in requested
+        ):
+            action = {**action, "excluded_frame_ids": requested["excluded_frame_ids"]}
         if action != requested:
             result["policy_adjustments"].append(
                 {

@@ -75,7 +75,8 @@
           }
         }
       }
-    ]
+    ],
+    "wider_than_hours": 2
   },
   {
     "name": "switch-to-wallet-history",
@@ -188,6 +189,10 @@
           }
         }
       }
+    ],
+    "wider_than_hours": 2,
+    "required_exclusions": [
+      71
     ]
   },
   {

@@ -672,3 +672,33 @@ def test_planner_receives_candidate_and_rejections_without_image_payloads():
         }
     )
     assert action["excluded_frame_ids"] == [40, 42]
+
+
+def test_history_policy_adjustment_preserves_model_selected_exclusions():
+    from nyx.agent import agent_steps
+
+    calls = []
+
+    def decide(state):
+        return (
+            {"action": "finish", "observation": 0}
+            if state["observations"]
+            else {"action": "search_matches", "query": "glasses", "excluded_frame_ids": [71, 74]}
+        )
+
+    def tool(action):
+        calls.append(action)
+        return {"kind": "history", "status": "candidate", "answer": "Is this it?"}
+
+    complete(
+        agent_steps(
+            "Where did you last see them?",
+            [],
+            decide,
+            tool,
+            available={"dated_history": True, "history": True},
+        )
+    )
+    assert calls == [
+        {"action": "search_history", "query": "glasses", "hours": 2, "excluded_frame_ids": [71, 74]}
+    ]

@@ -370,3 +370,30 @@ Python 3.12 web/test-only environment. An initial full run exposed these tests'
 unconditional torch import; they now explicitly skip when the vision extra is
 absent and still run when installed. Lint/format and changed document links pass.
 No model inference, hardware capture, vision downloads or browser run this turn.
+
+
+### Feedback evaluation completed; redirect exclusion bug fixed — 2026-10-28
+
+Restored the previously selected pinned Qwen3.5-2B 8-bit checkpoint and locked
+runtime after local cleanup. Ran six additional conversation cases with actual
+planning and controlled tools. Under tightened scoring (older footage must widen
+the window; continuing without rejection must retain earlier exclusions), the
+baseline passed **3/6**. Moving the request into its own user message also passed
+3/6. Experimental review-choice tools/compact prompts traded failures rather than
+improving overall reliability; bounded reasoning passed 1/3 targeted cases.
+These alternatives were reverted from application code. Planner v23 remains.
+
+Fixed a separate executor bug: redirecting a search toward dated history now
+preserves the agent's excluded frame IDs. A regression test verifies the actual
+arguments delivered to the tool. No phrase/object routing was added.
+
+Verification: **285 deterministic tests pass**, including restored vision tests;
+lint/format and changed document links pass. No browser/hardware/provider tests.
+All owned model processes exited; minimum sampled memory metric across completed
+runs was 21%, above the approved 10% cutoff. One unbounded-reasoning probe was
+manually stopped after failing to produce a usable decision. See R8 for timing,
+manual answer-quality failures and limits of automated scoring.
+
+Next decision: compare a more capable text planner on these now-development cases
+and separate fresh cases. Do not treat more prompt iterations on this small set
+as evidence of dependable conversation or improved visual recognition.

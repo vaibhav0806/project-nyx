@@ -1075,3 +1075,64 @@ Verification: 281 deterministic tests pass; 2 PyTorch-dependent tests skip becau
 only the locked Python 3.12 web/test environment was restored (the previous local
 virtual environment was absent). Tests now explicitly mark the optional dependency.
 No new model weights, inference, browser/device capture or external-provider calls.
+
+
+## Actual feedback evaluation and rejected alternatives — 2026-10-28
+
+**Question:** do the newly prepared conversations expose the previous failure
+modes, and can a small change to input formatting, the review tool interface or
+reasoning improve them? Restored the existing pinned MLX Qwen3.5-2B 8-bit revision
+and locked runtime (Python 3.12.11, mlx-vlm 0.4.1, MLX 0.32.4, Transformers 5.20.2)
+on the same 16 GiB Mac. Only public model weights were downloaded; text planning
+stayed local. Tools returned controlled observations, not real image findings.
+
+Scoring was strengthened after manual inspection: an explicit request for older
+footage must widen the previous two-hour window; a continuing search must retain
+previous exclusions without adding the displayed candidate unless rejected.
+Original result files remain local alongside separately rescored reports. The
+following figures use the tightened criteria consistently:
+
+| Local run suffix (20261028) | Method | Result | Elapsed | Minimum free-memory metric |
+| --- | --- | --- | --- | --- |
+| feedback-baseline | Application planner v23 | 3/6 | 33.21 s | 23% |
+| feedback-natural | Same prompt, latest message in separate user turn | 3/6 | 21.21 s | 21% |
+| feedback-review | Experimental v25: model chooses new/continue/reject; executor carries IDs | 3/6 | 18.16 s | 24% |
+| feedback-compact | Experimental v26: same review interface, shorter prompt and prior hours | 3/6 | 18.24 s | 23% |
+| feedback-thinking | v26 with 1024-token reasoning, no forced thinking limit | Stopped, no completed cases | 75.40 s | 35% |
+| feedback-thinking-bounded | v26 with 256-token thinking budget plus 240 output tokens | 1/3 targeted cases | 48.40 s | 27% |
+
+The baseline retained glasses attributes but failed to widen time, copied glasses
+exclusions to a wallet search, and treated time widening as candidate rejection.
+The natural-message variant did not fix these. Review-choice interfaces helped
+some switches but lost corrections or prior exclusions. The compact variant
+selected history for an explicit live-camera request. Limited reasoning still
+lost the red-frame attribute and misrouted a stop request. The unbounded probe
+was manually terminated (exit -15) after reasoning did not finish; this was not a
+memory-cutoff event. All other processes exited normally under the three-second
+sampling, 10% cutoff, 180-second parent watchdog. No process remains loaded.
+
+**Manual quality caveat:** automated path scores are not enough. The baseline's
+stop/thanks answer promised to keep watching without creating a monitoring task.
+The compact variant returned an incoherent first-person correction on that case,
+even though its chat action passed the path check. Therefore 3/6 is a structural
+check count, not an end-to-end conversational success rate. These cases have now
+influenced experiments and are development cases, not a held-out benchmark.
+
+**Decision:** keep the existing v23 application planner. Do not ship the altered
+review interface, shorter prompt or reasoning settings without a demonstrated
+improvement. The rejected code diff is retained locally under ignored runs;
+`planner.py` retains opt-in natural-message and bounded-thinking probes for future
+comparisons, with raw generation logs. No application thinking mode was enabled.
+
+**Concrete repair:** while inspecting the tool path, found that existing policy
+redirection from search_matches to search_history rebuilt arguments and discarded
+model-selected exclusions. The executor now preserves exclusions when changing
+between history search tools. This is tool plumbing, not deterministic detection
+of user feedback. A targeted regression proves excluded IDs reach the tool.
+
+Final verification: 285 deterministic tests pass with restored optional vision
+dependencies, plus lint/format and documentation links. No browser, household,
+voice-provider or image-recognition evaluation occurred in this follow-up.
+Recommendation: compare a more capable text planner rather than repeatedly tuning
+this small model on the same examples. Vision and text planning need not use the
+same model; such a comparison is proposed, not yet implemented or measured.
