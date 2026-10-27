@@ -9,6 +9,8 @@ from pathlib import Path
 import numpy as np
 import sqlite_vec
 
+from nyx.perception import compatible_fingerprints
+
 
 def aware_time(value):
     parsed = datetime.fromisoformat(value)
@@ -47,7 +49,11 @@ class Store:
                 "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
             )
             saved = db.execute("SELECT value FROM meta WHERE key = 'encoder'").fetchone()
-            if saved and saved[0] != identity:
+            previous = json.loads(saved[0]) if saved else None
+            if previous and (
+                previous["dimensions"] != dimensions
+                or not compatible_fingerprints(previous["encoder"], fingerprint)
+            ):
                 raise ValueError(
                     "This index uses a different encoder; choose another data directory"
                 )

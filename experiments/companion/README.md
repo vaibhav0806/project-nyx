@@ -318,8 +318,9 @@ checkpoint is unchanged. MLX load time and peak allocation are recorded separate
 from wall time/system memory. The 4B trial and its rejection are documented in R8.
 
 `transfer_cases.json` contains four additional cases prepared before the 4B result.
-They remain unrun: do not claim transfer accuracy or tune against them without
-recording that they have become development cases.
+They were first run unchanged during the 2026-10-28 baseline comparison: 2/4
+passed. They are now evaluated development cases; see R8 for the temporal and
+unresolved-reference failures.
 
 
 `interpret.py --case-file feedback_cases.json --output ...` is a standalone request
@@ -335,3 +336,32 @@ interpretation stage was adopted. Run only with the normal model resource guard.
 Run `mvp_objects.py --fixture data/runs/companion-retrieval-fixture --output data/runs/UNIQUE --acceptance` under the normal resource watchdog. This uses the existing public fixture and actual local API/models. It exercises clarification, correction, recent history, ordinary `/api/agent` rejection, fixture-provenance-based user confirmation, topic switching and stopping. Seven structural checks must pass; review the raw answers separately. This is a development flow, not automatic identity accuracy.
 
 Use `--negative-only` instead of `--acceptance` for a generated blank-image uncertainty check without indexing. Both modes exit nonzero on failed checks. The fixture argument is still required. No actual camera, microphone or hosted provider is used.
+
+### Comparing a baseline checkout
+
+`baseline.py` imports Nyx from the Python environment invoking it. Create a detached
+baseline worktree and sync its own lockfile; never run old application code with
+the branch's upgraded dependencies and call it a baseline. Use the normal resource
+watchdog and run processes sequentially. Example (choose new output files):
+
+```bash
+BASELINE_PYTHON experiments/companion/baseline.py retrieval \
+  --fixture data/runs/companion-retrieval-fixture \
+  --workspace data/runs/baseline-library --output data/runs/baseline-retrieval.json
+```
+
+Copy that **synthetic** workspace before opening it with the branch interpreter;
+compare top frame IDs, offsets, timestamps and scores, then reopen the copy with
+the baseline interpreter to check rollback reads. `visual` instead of `retrieval`
+checks the same ambiguous/right/single/blank images with each runtime's default
+verifier and needs no workspace. Reports contain observations/timings, not an
+accuracy or superiority verdict. A killed process may have only partial output;
+the watchdog result is authoritative for completion. Both modes are offline-capable
+when their pinned model files are already cached.
+
+The shared `tests/browser_smoke.py` harness also runs with either interpreter,
+using `--video .../scenes.mp4 --output UNIQUE --record-seconds 25` for synthetic
+capture/search/lifecycle checks. Do not pass `--visual-answers` to that baseline
+comparison: its old positive-answer labels are no longer the branch contract.
+See R8 for exact revisions, lockfiles, fixture limitations, the stopped BF16 load,
+and the six classified legacy-test differences.

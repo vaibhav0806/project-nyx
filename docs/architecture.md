@@ -329,3 +329,12 @@ user-confirmation turn, rather than reusing a historical candidate from an older
 task. Clarification turns can retain review context; explicitly presented frames
 still take precedence. The browser clears its presented-frame reference after a
 successful nonvisual answer. No second interpretation call is used in the app.
+
+### Measured processor metadata compatibility — 2026-10-28
+
+The store/retrieval fingerprint guard accepts one explicit SigLIP2 compatibility
+pair across the locked Transformers 4→5 transition. Only processor-class metadata
+serialization changed; sampled pixels/tokens/embeddings and three retrieval results
+were equal. The exact model, revision, fingerprint keys and dimensions remain
+checked. Stored metadata/vectors are preserved; unknown preprocessing identities
+still require a separate index. See R8 and `compatible_fingerprints` in perception.

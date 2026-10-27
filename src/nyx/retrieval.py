@@ -7,10 +7,14 @@ from pathlib import Path
 from PIL import Image
 
 from nyx.capture import extract_frames
+from nyx.perception import compatible_fingerprints
 
 
 def _check_encoder(store, encoder):
-    if store.fingerprint != encoder.fingerprint or store.dimensions != encoder.dimensions:
+    if (
+        not compatible_fingerprints(store.fingerprint, encoder.fingerprint)
+        or store.dimensions != encoder.dimensions
+    ):
         raise ValueError("The index uses a different encoder")
 
 

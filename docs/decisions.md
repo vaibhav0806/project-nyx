@@ -457,3 +457,13 @@ stage or framework after unsuccessful planner probes. Present departure reminder
 as experimental, and distinguish explicit user confirmation from model checks.
 The demo runbook is [here](mvp-demo.md); broader household/voice acceptance remains
 open in milestones. This narrows the demo promise, not the independence mission.
+
+## 2026-10-28 — Preserve measured SigLIP index compatibility
+
+The baseline comparison found identical pixels/tokens/embeddings but different
+preprocessing hashes across the locked Transformers upgrade: v5 omitted the
+nonfunctional `_processor_class` metadata key. Accept exactly those two measured
+hashes for the pinned SigLIP2 model/revision, preserving stored identity/vectors
+and all other mismatch checks. Do not silently rebuild or invalidate old libraries.
+See R8 for the failed upgrade, measured equivalence, repair and regression checks.
+The broader companion branch remains off main pending conversation reliability.

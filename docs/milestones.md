@@ -459,3 +459,26 @@ companion browser passes review/reload and speech/activity checks, and the offli
 wheel's 26 runtime/assets match source. Model processes exited. Next evidence
 needed is a permitted representative room trial and intended-user feedback, not
 another architecture layer; dependable departure reminders remain later work.
+
+### Remote-main regression comparison — 2026-10-28
+
+**Do not merge yet.** Main's 109 tests pass in its locked environment. Branch's
+292 tests pass after fixing a real old-index compatibility failure caused solely
+by Transformers processor metadata serialization. Same public-fixture retrieval
+results match exactly across three queries after repair; both versions pass the
+same synthetic recording/search lifecycle browser check. Copied old media,
+capture states and transcripts remain readable. Six original-suite differences
+are classified in R8 (stricter judgment schema, candidate labels, adaptive
+sampling and spoken review language).
+
+Main's original BF16 visual model was stopped at the authorized memory cutoff
+before output; its comparison-only weights were removed. Branch completed four
+visual development checks, but a direct quality superiority claim is unavailable.
+Four previously unrun planner cases scored **2/4**, including time-widening and
+unresolved-reference failures. These reinforce the existing conversation concern.
+No merge/push or remote merge-readiness claim; see [R8](research/R8-companion-loop.md).
+
+The upgraded synthetic index also reopens under main with exactly matching
+retrieval results (rollback read verified). Final lint/format, documentation links
+and packaged runtime checks pass. Comparison environment/model weights were
+removed; no experiment remains running.

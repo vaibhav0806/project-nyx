@@ -6,6 +6,26 @@ MODEL_ID = "google/siglip2-base-patch16-224"
 MODEL_REVISION = "75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2"
 
 
+def compatible_fingerprints(left, right):
+    """Accept only the measured metadata-only SigLIP processor transition."""
+    if left == right:
+        return True
+    # Transformers 5 omits _processor_class from image_processor.to_dict().
+    # Pixels, tokens and embeddings were compared with the locked v4 runtime.
+    # Keep this allowlist exact: other preprocessing changes require reindexing.
+    signatures = {
+        "88acf431ff7614d8b483901a6081638db423762041c19387afbbcf820d43636b",
+        "78fc613b813e1657e1aecca76714a7c9be8548da1ee749d678c68c58754148bc",
+    }
+    return (
+        set(left) == set(right) == {"model", "revision", "preprocessing"}
+        and left["model"] == right["model"] == MODEL_ID
+        and left["revision"] == right["revision"] == MODEL_REVISION
+        and left["preprocessing"] in signatures
+        and right["preprocessing"] in signatures
+    )
+
+
 class SiglipEncoder:
     def __init__(self, device="auto"):
         import torch

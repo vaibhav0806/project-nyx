@@ -1273,3 +1273,98 @@ experimental; distinguish “Confirmed by you” from model/candidate labels. Ad
 Synthetic companion browser run `mvp-final-browser-20261028` passed review,
 confirmation/reload, hidden-reference clearing and existing speech/activity
 controls. This uses fake models/providers/devices, separate from real API results.
+
+## R8 — Focused remote-main comparison, 2026-10-28
+
+**Question:** can the companion branch replace remote main without worsening the
+existing experience? **Recommendation: not yet.** A storage compatibility blocker
+was found and repaired, but new conversation tests still fail and the old visual
+model could not be safely loaded for a direct quality comparison on this laptop.
+
+Baselines: fetched `origin/main` = `e24172c683b42a477bef8aff2663eacc4274151a`;
+branch start = `e6b3b9fd0c39d9c8d8911531b4746e740be9a0c5`, 26 commits ahead with
+no remote-only commits. Detached ignored worktree `data/runs/main-comparison`
+uses its own locked environment (Transformers 4.57.6/HF hub 0.36.2); branch uses
+Transformers 5.20.2/HF hub 2.2.0. Same Mac M4/16 GiB, Python 3.12.11, public
+slideshow fixture and generated speech; no actual devices or hosted providers.
+Raw results: `data/runs/comparison-20261028/`.
+
+| Check | Main | Branch | Interpretation |
+| --- | --- | --- | --- |
+| Own deterministic suite | 109 pass | 292 pass after repair | Different test sets; counts are not relative quality |
+| Original 109 tests on branch | — | 103 pass, 6 contract differences | Classified below; no unexplained crash in final run |
+| Same recording/search browser harness | Pass | Pass | Import, replay, capture/index, search during capture, pause/resume, interruption, deletion, reload, no browser errors |
+| Actual tiny.en / generated voice browser | Pass | Pass (prior same-day `mvp-voice-wake-20261028`) | Same variant-0 input; provider/planner/visual judgments mocked on both |
+| Open main's indexed library | Baseline works | Initially rejected; repaired and retested | Metadata-only preprocessing signature transition |
+| Three queries over same main-created vectors | Baseline | Identical top-five IDs, offsets, dates and scores | After repair; no relevance improvement claimed |
+| Saved media/capture/transcript copies | Created by main | Readable after upgrade | Four sources replayable, interruption state preserved, one transcript identical |
+| Actual visual model | Aborted at RAM cutoff before output | Four development checks completed | Cannot establish head-to-head recognition improvement |
+| Four previously unrun planner cases | No equivalent local agent | 2/4 | Conversation replacement remains a release concern |
+
+The initial copied-test run also had four fixture-path errors because the copied
+suite resolved experiment resources relative to its new location. Restoring that
+resource layout left six genuine expectation differences: two parser cases now
+require matching_count; historical `seen` became a reviewable `candidate`;
+adaptive sampling changes the last sampled time (3 s versus 2 s in that fixture);
+two spoken-history tests expected a location/old wording. Current speech omits the
+unverified location and asks for image review. These are deliberate contracts,
+including a real screen-dependence tradeoff for voice users, not proof of equal UX.
+
+### Upgrade failure and bounded fix
+
+Only `_processor_class: SiglipProcessor` disappeared from serialized image
+processor configuration. Token IDs, sampled pixel tensors, image embeddings and
+text embeddings matched exactly across locked runtimes (max absolute delta 0).
+The old preprocessing hash `88acf431...d43636b` and new `78fc613b...148bc` are now
+accepted as equivalent **only for the exact pinned SigLIP2 model/revision and
+exact fingerprint keys**; dimension checks remain. Unknown signatures/revisions
+still fail. Original index identity and vectors are not rewritten. A regression
+covers reopen, timestamps, retrieval, preserved identity and mismatched config
+rejection. This is an explicit measured compatibility exception, not a general
+bypass of the embedding-space guard. App reads of copied main capture/media and
+conversation databases also passed.
+
+### Resources and model limits
+
+Main's original Qwen3-VL-2B BF16 revision
+`89644892e4d85e24eaac8bacfd4f463576704203` was temporarily restored for comparison.
+The watchdog terminated it at 6.62 s: sampled free-memory metric fell 57% → 43%
+→ 5%, crossing the 10% cutoff before any judgment. No retry or quality score.
+The 4,255,140,312-byte trial weight blob and unused model repository were removed
+afterward; active Qwen3.5-2B remains cached.
+
+Branch Qwen3.5-2B 8-bit completed ambiguity, right-hand remote, single remote and
+blank-image checks in 18.10 s total, minimum sampled metric 22%. Load 3.95 s,
+individual checks 2.76–3.41 s. Outputs match the expected development labels;
+no independent household accuracy claim. Process RSS high-water was ~1.82 GiB,
+which excludes important Metal/system allocations and is not total memory usage.
+Main/branch browser checks each ran at least 25 s of synthetic recording; their
+single search samples were 0.94/0.30 s and maximum sampled server RSS 199/500 MiB.
+These are sparse, uncontrolled samples (OS caching/swap differ), not throughput,
+p95 latency or total memory comparisons.
+
+### Fresh conversation evidence
+
+Ran `planner.py --case-file experiments/companion/transfer_cases.json` unchanged,
+with actual planner v28 and controlled tool observations. These four cases were
+prepared before the earlier model comparison and had not been run or tuned.
+Color replacement/rejection and switching to a current-view wallet passed.
+“Older without rejection” incorrectly kept the two-hour window and excluded the
+current candidate; an unresolved “other one” triggered inspection instead of
+clarification. 2/4 pass; 18.31 s watchdog, minimum metric 22%, normal exit.
+These cases are now evaluated development evidence, no longer an unseen set.
+No prompt changes or scenario-specific routing were introduced to raise the score.
+
+No merge or push. The exact local head has no verified remote CI/review verdict.
+Remote main contains no workflow files; branch-protection lookup returned 404,
+which does not prove that all repository rules are absent. Remaining release
+concerns are semantic conversation/voice routing reliability and the incomplete
+visual quality comparison, not a need for another framework.
+
+Final rollback check reopened the upgraded synthetic index with main's original
+locked interpreter: all three top-five result lists, including scores and source
+timestamps, exactly matched the pre-upgrade baseline. The old identity remains
+unchanged. Final 292-test suite, lint/format, document links and byte-matched wheel
+pass. The comparison worktree/environment was removed after recording results;
+all owned model/browser processes exited. An initial lint finding in the new
+standalone probe's broad exception handler was narrowed before commit.
