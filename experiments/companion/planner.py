@@ -254,6 +254,11 @@ def score_case(case, result):
         "path": "path" not in case or path == case["path"],
         "hours": "hours" not in case or hours == case["hours"],
         "bounded": len(path) <= 6,
+        "earlier_than_evidence": "before_frame_id" not in case
+        or (
+            bool(searches)
+            and all(step.get("before_frame_id") == case["before_frame_id"] for step in searches)
+        ),
         "rejected_frames": (not case.get("required_exclusions") or bool(searches))
         and all(
             set(case.get("required_exclusions", [])).issubset(step.get("excluded_frame_ids", []))

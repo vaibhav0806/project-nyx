@@ -231,3 +231,77 @@ def test_rejection_can_reach_beyond_initial_candidate_limit(
         assert result["scope"]["checked_count"] == 1
         assert result["scope"]["candidates_retrieved"] <= result["scope"]["candidate_limit"]
         rejected.append(frame_id)
+
+
+@pytest.mark.parametrize(
+    "recorded_at,missing,hours",
+    [
+        ("2026-10-20T10:00:00Z", False, 0),
+        (None, False, 0),
+        ("2026-10-20T10:00:00Z", True, 0),
+        ("old", False, 2),
+    ],
+)
+def test_agent_can_search_strictly_before_evidence_without_rejecting_it(
+    tmp_path, video, recorded_at, missing, hours
+):
+    from datetime import UTC, datetime, timedelta
+
+    from nyx.agent import validate_action
+
+    if recorded_at == "old":
+        recorded_at = (datetime.now(UTC) - timedelta(days=2)).isoformat()
+    selected = {}
+
+    class EarlierVerifier(CandidateVerifier):
+        def decide(self, state):
+            if state["observations"]:
+                return {"action": "finish", "observation": 0}
+            return validate_action(
+                {
+                    "action": "search_history",
+                    "query": "green",
+                    "hours": hours,
+                    "before_frame_id": selected["id"],
+                    "excluded_frame_ids": [],
+                }
+            )
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=EarlierVerifier)
+    ) as client:
+        params = {"name": "earlier.mp4"}
+        if recorded_at:
+            params["recorded_at"] = recorded_at
+        response = client.post("/api/import", params=params, content=video.read_bytes()).json()
+        wait_for_job(client, response["id"])
+        from nyx.memory import Store
+
+        store = Store(tmp_path, ColorEncoder.fingerprint, 3)
+        rows = store.search([0, 1, 0], limit=100)
+        selected.update(max(rows, key=lambda row: row["offset_seconds"]))
+        if missing:
+            selected["id"] = 999999
+        response = client.post(
+            "/api/agent",
+            json={
+                "message": "Show me an earlier moment with the same item.",
+                "request_id": str(uuid4()),
+            },
+        ).json()
+        job = wait_for_job(client, response["id"])
+        assert job["status"] == "succeeded"
+        result = job["result"]
+        if recorded_at and not missing and hours == 0:
+            visual = result["visual"]
+            assert visual["status"] == "candidate"
+            assert visual["evidence"]["observed_at"] < selected["observed_at"]
+            assert all(row["observed_at"] < selected["observed_at"] for row in visual["checked"])
+            assert visual["scope"]["excluded_frame_ids"] == []
+            assert visual["scope"]["before_frame_id"] == selected["id"]
+            assert selected["id"] in {row["id"] for row in store.search([0, 1, 0])}
+        else:
+            assert result["status"] == "uncertain"
+            assert (
+                "predates this search window" if hours else "no available recording timestamp"
+            ) in result["answer"]

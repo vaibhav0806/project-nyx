@@ -775,3 +775,87 @@ def test_clarification_preserves_pending_candidate_and_explicit_display_takes_pr
             "available": {"presented_candidate": {"frame_id": 82, "object_query": "keys"}},
         }
     )
+
+
+@pytest.mark.parametrize("identifier", [True, -1, "12", 1.5, None])
+def test_history_boundary_requires_a_saved_frame_id(identifier):
+    from nyx.agent import validate_action
+
+    with pytest.raises(ValueError, match="before_frame_id"):
+        validate_action(
+            {"action": "search_history", "query": "book", "hours": 0, "before_frame_id": identifier}
+        )
+
+
+def test_explicit_history_boundary_cannot_be_redirected_to_current_view():
+    from nyx.agent import agent_steps
+
+    action = {"action": "search_history", "query": "book", "hours": 0, "before_frame_id": 12}
+    calls = []
+
+    def tool(value):
+        calls.append(value)
+        return {"status": "candidate", "answer": "A historical candidate"}
+
+    result = complete(
+        agent_steps(
+            "Find it",
+            [],
+            lambda state: (
+                {"action": "finish", "observation": 0} if state["observations"] else action
+            ),
+            tool,
+            available={"current_view": True, "history": True},
+        )
+    )
+    assert calls == [action]
+    assert result["policy_adjustments"] == []
+
+
+@pytest.mark.parametrize("next_query", ["book", "red book"])
+def test_older_search_cannot_drop_its_bound_after_an_inconclusive_result(next_query):
+    from nyx.agent import agent_steps
+
+    first = {"action": "search_history", "query": "book", "hours": 2, "before_frame_id": 12}
+    choices = iter(
+        [
+            first,
+            {"action": "search_history", "query": next_query, "hours": 24},
+            {**first, "query": next_query, "hours": 24},
+            {"action": "finish", "observation": 1},
+        ]
+    )
+    calls = []
+
+    def tool(action):
+        calls.append(action)
+        return {
+            "status": "uncertain",
+            "answer": "No supported match",
+            "scope": {"before_frame_id": 12},
+        }
+
+    result = complete(agent_steps("Earlier please", [], lambda _: next(choices), tool))
+    assert calls == [first, {**first, "query": next_query, "hours": 24}]
+    assert len(result["decision_errors"]) == 1
+    assert "retain before_frame_id" in result["decision_errors"][0]
+
+
+def test_unresolved_boundary_does_not_prevent_repairing_the_anchor():
+    from nyx.agent import agent_steps
+
+    first = {"action": "search_history", "query": "book", "hours": 0, "before_frame_id": 999}
+    repaired = {**first, "before_frame_id": 12}
+    choices = iter([first, repaired, {"action": "finish", "observation": 1}])
+    calls = []
+
+    def tool(action):
+        calls.append(action)
+        if action["before_frame_id"] == 999:
+            raise ValueError("Unknown saved frame")
+        return {"status": "candidate", "answer": "Earlier frame", "scope": {"before_frame_id": 12}}
+
+    result = complete(agent_steps("Earlier please", [], lambda _: next(choices), tool))
+    assert calls == [first, repaired]
+    assert result["status"] == "candidate"
+    assert result["decision_errors"] == []

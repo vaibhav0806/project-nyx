@@ -64,3 +64,18 @@ def test_older_footage_requires_a_wider_window():
     assert score_case(case, result)["requested_wider_window"]
     result["steps"][0]["hours"] = 0
     assert score_case(case, result)["requested_wider_window"]
+
+
+def test_earlier_moment_requires_a_real_upper_bound_not_only_more_history():
+    case = {"concepts": ["book"], "before_frame_id": 90}
+    result = {
+        "status": "seen",
+        "steps": [{"action": "search_history", "query": "book", "hours": 0}],
+    }
+    assert not score_case(case, result)["earlier_than_evidence"]
+    result["steps"][0]["before_frame_id"] = 91
+    assert not score_case(case, result)["earlier_than_evidence"]
+    result["steps"][0]["before_frame_id"] = 90
+    assert score_case(case, result)["earlier_than_evidence"]
+    result["steps"] = []
+    assert not score_case(case, result)["earlier_than_evidence"]

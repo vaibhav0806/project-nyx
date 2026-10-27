@@ -331,12 +331,34 @@ def install_companion(app, workspace, voice):
                     if name == "search_history" and action["hours"]
                     else None
                 )
+                upper = None
+                if "before_frame_id" in action:
+                    anchor = next(
+                        (
+                            row
+                            for row in store.frame_context(action["before_frame_id"])
+                            if row["id"] == action["before_frame_id"]
+                        ),
+                        None,
+                    )
+                    if not anchor or not anchor.get("observed_at"):
+                        raise ValueError(
+                            "That frame has no available recording timestamp. Ask which dated moment to search before."
+                        )
+                    upper = (
+                        datetime.fromisoformat(anchor["observed_at"]) - timedelta(microseconds=1)
+                    ).isoformat()
+                    if lower and datetime.fromisoformat(lower) >= datetime.fromisoformat(upper):
+                        raise ValueError(
+                            "The selected frame predates this search window. Choose hours=0 for all dated history before it, or a window reaching its recording time."
+                        )
                 result = yield from history_steps(
                     action["query"],
                     store,
                     workspace.encoder,
                     workspace.visual_verifier,
                     seen_after=lower,
+                    seen_before=upper,
                     mode="latest" if name == "search_history" else "relevance",
                     semantic_latest=name == "search_history",
                     excluded_frame_ids=action.get("excluded_frame_ids", []),
@@ -349,6 +371,7 @@ def install_companion(app, workspace, voice):
                     else "Best matching sampled candidates, including unknown recording dates. This establishes neither the latest sighting nor the current location."
                 )
                 result["scope"]["hours"] = action.get("hours")
+                result["scope"]["before_frame_id"] = action.get("before_frame_id")
                 result["answer"] = spoken_answer(result)
                 return result
             if name == "remind_on_departure":

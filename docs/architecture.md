@@ -338,3 +338,15 @@ serialization changed; sampled pixels/tokens/embeddings and three retrieval resu
 were equal. The exact model, revision, fingerprint keys and dimensions remain
 checked. Stored metadata/vectors are preserved; unknown preprocessing identities
 still require a separate index. See R8 and `compatible_fingerprints` in perception.
+
+### Earlier history versus rejected identity — 2026-10-28
+
+The agent's dated-history tool can specify `before_frame_id`. The executor looks
+up the saved frame's capture timestamp and applies an exclusive upper bound using
+the existing inclusive `seen_before` filter. The anchor and actual bounds appear
+in the result scope. Missing/undated anchors and incompatible lookback ranges
+produce repairable uncertainty, never invented times. Exclusions remain independent.
+Once a tool establishes a bound, subsequent visual queries in that request must
+retain it even when refined; failed lookups can be repaired. This does not supply
+semantic intent recognition: the local planner still sometimes chooses the wrong
+parameters. No new inference service, framework or background workflow was added.

@@ -30,6 +30,8 @@ def validate_action(value):
     if action not in fields:
         raise ValueError("Unknown tool")
     optional = {"excluded_frame_ids"} if action in {"search_history", "search_matches"} else set()
+    if action == "search_history":
+        optional.add("before_frame_id")
     allowed = fields[action] | {"action"}
     if set(value) - optional != allowed:
         raise ValueError(
@@ -45,6 +47,10 @@ def validate_action(value):
             or any(type(i) is not int or i < 0 for i in ids)
         ):
             raise ValueError("excluded_frame_ids must be a list of up to 32 nonnegative frame IDs")
+    if "before_frame_id" in value and (
+        type(value["before_frame_id"]) is not int or value["before_frame_id"] < 0
+    ):
+        raise ValueError("before_frame_id must be a nonnegative saved frame ID")
     for key in fields[action] - {"hours", "observation"}:
         if not isinstance(value[key], str) or not 1 <= len(value[key].strip()) <= 240:
             raise ValueError("Tool text must be 1–240 characters")
@@ -71,6 +77,7 @@ def agent_steps(
     started = time.monotonic()
     observations = []
     trace = []
+    history_boundary = None
     result = {
         "kind": "agent",
         "status": "uncertain",
@@ -97,6 +104,14 @@ def agent_steps(
             action = validate_action(decide(state))
             if validate_tool is not None:
                 validate_tool(action)
+            if (
+                action["action"] in {"search_history", "search_matches", "inspect_current"}
+                and history_boundary is not None
+                and action.get("before_frame_id") != history_boundary
+            ):
+                raise ValueError(
+                    f"This request is constrained to moments before frame {history_boundary}; retain before_frame_id when continuing the search."
+                )
             if action in trace and action["action"] == "search_history":
                 windows = [2, 24, 168, 0]
                 next_hours = next(
@@ -169,6 +184,7 @@ def agent_steps(
             not observations
             and (available or {}).get("current_view")
             and not action.get("excluded_frame_ids")
+            and "before_frame_id" not in action
             and action["action"] in {"search_history", "search_matches"}
             and re.search(
                 r"\b(where (?:is|are)|find|locate|still (?:there|here|visible)|(?:is it|are they) (?:there|here))\b",
@@ -237,6 +253,8 @@ def agent_steps(
                 raise
             observation = {"status": "uncertain", "answer": str(exc)}
         observations.append(observation)
+        if observation.get("scope", {}).get("before_frame_id") is not None:
+            history_boundary = observation["scope"]["before_frame_id"]
         # Only compact evidence summaries are sent back to the deciding model.
         state["observations"] = [
             {

@@ -118,7 +118,7 @@ class LocalVerifier:
                 "prompt_version": 6,
                 "max_image_side": 768,
                 "max_new_tokens": 180,
-                "planner_prompt_version": 28,
+                "planner_prompt_version": 38,
                 "departure_prompt_version": 4,
                 "event_tracking_policy": "single-trajectory-v1/5Hz/6s/0.8s-gap",
             }
@@ -160,7 +160,7 @@ class LocalVerifier:
             "prompt_version": 6,
             "max_image_side": 768,
             "max_new_tokens": 180,
-            "planner_prompt_version": 28,
+            "planner_prompt_version": 38,
             "departure_prompt_version": 4,
             "event_tracking_policy": "single-trajectory-v1/5Hz/6s/0.8s-gap",
         }
@@ -263,6 +263,7 @@ This is feedback, not a new object request or a reason to repeat the same image.
 Choose how to continue: refine the query using any new attributes, search another window,
 search other matches, or ask a useful distinguishing question when needed.
 Search actions optionally accept excluded_frame_ids, a list of saved frame IDs.
+search_history also accepts optional before_frame_id: a saved frame ID whose recording timestamp is a strict upper bound. Use it to search for an earlier moment than a shown dated frame, without rejecting that frame's identity. Keep that boundary when continuing the same search. Unknown capture times cannot be used as a time boundary.
 review_context identifies the candidate the user most recently saw. Decide whether the latest
 message rejects it. If it does, copy review_context.exclusions_if_rejected into excluded_frame_ids
 on EVERY history search for this request, including when you refine the description or widen time.

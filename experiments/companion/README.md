@@ -365,3 +365,19 @@ capture/search/lifecycle checks. Do not pass `--visual-answers` to that baseline
 comparison: its old positive-answer labels are no longer the branch contract.
 See R8 for exact revisions, lockfiles, fixture limitations, the stopped BF16 load,
 and the six classified legacy-test differences.
+
+### Reliability and temporal-boundary evaluation
+
+`reliability_holdout.json` contains twelve cases prepared before the v29–v38
+reliability iterations. Its first evaluation was v33 (4/12); it is now evaluated
+development evidence. Use `planner.py --case-file ...` and the normal watchdog.
+No accuracy claim should aggregate repeated prompt variants as independent cases.
+See R8 for all measured variants, original v28 regression comparison, rejected
+native tools/reviewer/reasoning probes and the unchanged default 2B runtime.
+
+A case can specify `before_frame_id` to require every historical search to carry
+the strict evidence-time upper bound. This is checked separately from widening
+`hours`: widening alone still admits the newest candidate. Runtime API tests verify
+actual timestamp filtering and ensure earlier-time browsing does not mark the
+shown frame rejected or delete it. Controlled planner results cannot replace that
+storage/API validation, nor do they prove the model selects the tool reliably.

@@ -467,3 +467,18 @@ hashes for the pinned SigLIP2 model/revision, preserving stored identity/vectors
 and all other mismatch checks. Do not silently rebuild or invalidate old libraries.
 See R8 for the failed upgrade, measured equivalence, repair and regression checks.
 The broader companion branch remains off main pending conversation reliability.
+
+## 2026-10-28 — Time boundaries are distinct from candidate rejection
+
+Expose optional `before_frame_id` on dated history searches. Resolve its actual
+saved capture time in the executor and query strictly before it; do not mark the
+frame rejected or remove it. Preserve an established bound across the request's
+continued/refined visual searches, while allowing repair of a failed anchor lookup.
+Unknown capture times remain unknown. This repairs a tool limitation: simply
+widening a lookback window can return the same newest moment again.
+
+Retain the selected Qwen3.5-2B 8-bit runtime and original planner format with the
+minimal v38 schema addition. Do not adopt the tested prompt rewrites, larger model,
+native adapter, review-choice mapping or extra LLM reviewer without better evidence.
+They did not resolve the feedback failures consistently; several regressed existing
+flows. See R8. Reliable semantic planning and merge readiness remain open.

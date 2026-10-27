@@ -1368,3 +1368,142 @@ unchanged. Final 292-test suite, lint/format, document links and byte-matched wh
 pass. The comparison worktree/environment was removed after recording results;
 all owned model/browser processes exited. An initial lint finding in the new
 standalone probe's broad exception handler was narrowed before commit.
+
+## R8 — Conversation reliability deep dive, 2026-10-28
+
+**Decision affected:** whether the branch can safely replace main; whether to
+change the selected local planner or add another inference stage. **Not resolved
+by prompt tuning alone.** Only the measured temporal tool repair and its minimal
+schema description are retained. The default remains Qwen3.5-2B MLX 8-bit,
+non-thinking; no hosted calls, device capture, uploads, merge or push.
+
+### Concrete temporal bug repaired
+
+A wider lookback window still contains the newest candidate and can return it
+again. Added optional `search_history.before_frame_id`. The executor resolves the
+saved frame's actual recording timestamp and passes a strict upper bound to
+retrieval (one microsecond before the anchor, because the store's date filter is
+inclusive). This changes time coverage, not identity/rejection state. A missing
+or undated frame cannot supply a fabricated time; an incompatible lookback window
+returns a repairable error suggesting all dated history. Results retain the
+actual bounds and anchor ID in their scope.
+
+After a tool establishes that boundary, the agent loop rejects later visual calls
+that drop/change it within the request, including a refined query. A failed
+anchor lookup does not establish a boundary and can be repaired. The agent still
+chooses the query, source, time window, exclusions, continuation or clarification;
+there is no phrase/object router. API tests exercise actual SQLite/FFmpeg retrieval,
+strict timestamp ordering, unknown time, unchanged exclusions and retained source
+frames. Boundary/type/repair and evaluation-scoring regressions are separate from
+real-model semantic results.
+
+### Method and development iterations
+
+Same M4/16 GiB, Python 3.12.11, MLX 0.32.4, mlx-vlm 0.4.1,
+Transformers 5.20.2. Qwen2B revision `562fb8ea19bbe7565a3ddf5b7d49899ea2c88d2b`;
+4B revision `1704583a86670ba531b7f2c92530a2f725cfd45b`. Sequential local processes,
+10% memory metric watchdog and 180 s ceiling per run. `planner.py` uses actual
+model decisions and controlled tools; these scores do not measure recognition.
+Raw prompts/outputs and runtime fingerprints remain in ignored `data/runs/`.
+
+The ten-case development set combines `feedback_cases.json` and
+`transfer_cases.json`. Twelve additional cases in `reliability_holdout.json` were
+written before these iterations: different objects, windows, corrections, stops,
+unresolved pronouns/descriptions and multi-object ambiguity. Their first run was
+v33. They are now evaluated development evidence, not an unseen benchmark.
+
+| Variant / artifact prefix | Measured result | Decision |
+| --- | --- | --- |
+| v29: expose prior time window, strengthen reference/time instructions | 5/10 | Time selection improved in some cases; rejection/query errors remain |
+| v30: one-call request summary before action | 5/10 | No aggregate gain; stopping sometimes caused another search |
+| v31: shorter prompt with contrasting examples | 3/10 | Reject |
+| v32: natural conversation roles and factual review state | 6/10 | Original two failures improved, but other feedback regressed |
+| v33: natural review descriptions plus before-frame tool | 7/10; 4/12 fresh; 7/21 existing regression cases | Reject as default: broad regression |
+| v34: model chooses new/continue/reject instead of copying IDs | 5/10 | Reject; do not add review-state machinery |
+| v36: full guidance with natural roles | 4/10 | Reject |
+| v37: original message format plus expanded temporal context/instructions | 16/21 regression; guided API flow 7/7 | Reject broader prompt change after a spatial-routing case regressed |
+| v38: original format/guidance with only the optional temporal tool description | 17/21 regression versus baseline 16/21, no previously passing case lost | Retain minimal tool/schema change; not a general reliability claim |
+
+Artifacts use `reliability-v29` through `reliability-v34`,
+`reliability-v36-fixed`, `reliability-regression-v33`, `reliability-holdout-v33`,
+`reliability-final-v37`, `reliability-mvp-v37`, and `reliability-final-v38`.
+A failed source-edit setup left the first `reliability-v36` running the preceding
+variant; it was stopped and is not a v36 result. The unchanged v28 baseline was
+rerun as `reliability-original-v28`: **16/21** existing cases and **5/12** additional
+cases. Do not confuse that baseline with remote main, which has no local agent.
+The v38 gain was retaining the white-handle attribute in a candidate correction.
+
+### Additional approaches rejected
+
+Native function calling was tried through the installed model's own chat template.
+An initial adapter expected JSON inside tool tags, but this checkpoint emits
+function/parameter tags; that run was stopped and not scored as model quality.
+After adapting the diagnostic parser, `reliability-native-fixed` passed 6/10.
+It still missed corrections and stopping/reference behavior. No native-tool parser
+or dependency was added to the app.
+
+Bounded thinking on 2B (`reliability-thinking512`) passed 4/6 targeted cases in
+75.29 s. The 4B model with v33 passed 8/10 in 96.56 s, minimum sampled free-memory
+metric 14%. Adding 512 reasoning tokens passed the two targeted failures, but a
+full rerun (`reliability-4b-thinking-dev`) was **9/10 in 150.74 s**, still wrongly
+rejecting the shown candidate for a time-only request. Minimum sampled metric was
+19%. This is not evidence that the larger model solves the task, nor a latency
+improvement. No larger-model default was adopted. Its 5,136,696,107-byte trial
+weights and repository cache were removed after testing; selected 2B remains.
+
+A separate proposed-action reviewer (`review-diagnostic`) correctly classified
+6/8 proposals but rejected two valid searches, misreading the exclusion semantics.
+It was not installed as a guard or second inference stage. A minimal reference
+probe also over-clarified a fully named object. These results argue against adding
+more unvalidated local LLM calls to hide the existing failures.
+
+### Limits of scoring and remaining decision
+
+The scorer checks queries, selected paths, time windows and exclusions. Added a
+non-vacuous `earlier_than_evidence` check: widening hours alone does not pass an
+explicit before-frame requirement. The 12-case set uses this for its two older
+moment cases. Historical ten-case scores above retain their original criteria;
+they do not establish correct use of the new upper bound. Some generated stop
+responses promised future watching despite a valid chat action; manual review
+caught this even when the structural score passed.
+
+In v33's fresh set, one response asked the right clarification but used chat rather
+than clarify, and one applied an earlier-than-frame boundary without widening the
+previous day's window. Those strict-score failures differ from substantive stale
+exclusions, missing attributes and unresolved queries. Neither manual nuance nor
+the repeated development scores establish dependable household behavior.
+
+The paid/text-hosted-planner alternative was not tested: no OpenAI API key is
+configured in the environment or a project .env. No credential values were printed.
+Any provider change and paid tests require the applicable user authorization;
+visual media would remain local. Stronger planning remains an open decision, not
+a promised fix or a reason to mark this branch merge-ready.
+
+### Final retained state and verification
+
+Planner schema/context version **38** adds only the optional before-frame tool
+parameter description to the original v28 prompt/message format. All broader
+prompt rewrites, natural-role formats, review-choice parameters, native adapters,
+extra summaries/reviewers and reasoning/model defaults were reverted.
+`reliability-feedback-v38` scored **5/10** focused feedback cases and **5/12**
+additional scenarios, so the original semantic failures remain unresolved. In
+particular, time-only follow-ups still sometimes reject the candidate, and an
+unresolved reference can still reach inspection. Do not claim that the new
+executor capability makes the model select it correctly.
+
+`reliability-mvp-v38` passed all seven existing guided API checks in 78.51 s,
+minimum sampled memory metric 26%, reported peak MLX allocation 4,472,492,752
+bytes (~4.17 GiB). It still used fixture-based review to reject the wrong crop;
+this is preservation of the guided development flow, not improved autonomous
+recognition. Same public fixture, simulated dates and no actual devices/providers.
+
+Final **306 deterministic tests pass**, including invalid IDs, real API handling
+of missing/undated anchors, incompatible lookback windows, strict time ordering,
+refinement-safe continuation, failed-anchor repair and scorer correctness.
+Lint/format and offline packaging checks pass. The additional API test setup had
+a temporary parameterization error during editing; it was repaired before the
+full passing run. Browser/provider/hardware tests were not repeated for this
+backend-only change; prior browser evidence remains separate. Model processes
+exited; trial weights were deleted. Nothing merged or pushed. Further semantic
+improvement needs a separately evidenced planner choice; adding unvalidated local
+stages or claiming the repeated development examples are solved is not justified.

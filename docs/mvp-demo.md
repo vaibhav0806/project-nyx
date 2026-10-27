@@ -66,8 +66,8 @@ wrong crop before selecting the intended item. A blank-image check returned
 uncertainty. These are development examples, not a household accuracy score.
 See [R8](research/R8-companion-loop.md) for commands, timings and failures.
 
-The broader planner development set still scores 3/6; details and temporal
-instructions can be lost. Departure reminders remain an explicitly experimental
+The combined feedback set still scores 5/10; details and temporal instructions
+can be lost. Departure reminders remain an explicitly experimental
 section: misses, false positives and late delivery prevent a dependable reminder
 claim. General long-term memory, scheduled reminders, hardware and intended-user
 evaluation are later work. No broader milestone is declared complete by this demo.

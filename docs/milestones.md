@@ -482,3 +482,27 @@ The upgraded synthetic index also reopens under main with exactly matching
 retrieval results (rollback read verified). Final lint/format, documentation links
 and packaged runtime checks pass. Comparison environment/model weights were
 removed; no experiment remains running.
+
+### Reliability deep dive and strict earlier-history tool — 2026-10-28
+
+**Semantic conversation failures remain unresolved; do not merge yet.** Added a
+real earlier-than-frame time boundary to the history tool, with exact recorded
+source time, unchanged rejection state, missing/unknown-time errors and bounded
+repair. An established boundary survives query refinements/continuations within
+the request. The agent chooses whether to use it; no phrase/scenario routing.
+
+Extensive local prompt/context/tool-interface/reasoning experiments did not produce
+a dependable replacement. Broader rewrites regressed existing behavior and were
+reverted. A larger 4B/8-bit model with bounded reasoning reached 9/10 focused cases
+but still failed a time-only request, with substantially longer execution; it was
+not adopted and its trial weights were removed. A separate semantic reviewer
+rejected correct plans and was not added.
+
+The retained 2B/v38 runtime passed 17/21 existing planner checks versus baseline
+16/21 with no previously passing case lost. Focused feedback remains 5/10 and the
+additional 12-case set 5/12. The seven-step actual-model guided API demo still
+passes; **306 deterministic tests**, lint/format and offline packaging pass.
+These are distinct evidence layers, not a completed household/conversation gate.
+See [R8](research/R8-companion-loop.md) for all iterations, failures and resource
+limits. No hosted-planner credentials are configured; any paid/provider change
+needs the applicable authorization. No merge or push.
