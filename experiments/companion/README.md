@@ -328,3 +328,10 @@ roles with a serialized excerpt. It uses the same local model and logs raw outpu
 without performing tools or changing application behavior. The initial probes
 failed to reliably distinguish rejection/continuation/new requests; no extra
 interpretation stage was adopted. Run only with the normal model resource guard.
+
+
+### Guided MVP acceptance
+
+Run `mvp_objects.py --fixture data/runs/companion-retrieval-fixture --output data/runs/UNIQUE --acceptance` under the normal resource watchdog. This uses the existing public fixture and actual local API/models. It exercises clarification, correction, recent history, ordinary `/api/agent` rejection, fixture-provenance-based user confirmation, topic switching and stopping. Seven structural checks must pass; review the raw answers separately. This is a development flow, not automatic identity accuracy.
+
+Use `--negative-only` instead of `--acceptance` for a generated blank-image uncertainty check without indexing. Both modes exit nonzero on failed checks. The fixture argument is still required. No actual camera, microphone or hosted provider is used.

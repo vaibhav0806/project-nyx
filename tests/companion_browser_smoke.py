@@ -256,6 +256,9 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                         # Explicitly displaying a saved result establishes a new reference.
                         page.evaluate("output => showAnswer(output)", reviewed_result)
                         confirm.click()
+                        expect(page.locator("#answer-source-label")).to_have_text(
+                            "Confirmed by you"
+                        )
                         expect(page.locator("#answer-text")).to_contain_text(
                             "You confirmed", timeout=10000
                         )

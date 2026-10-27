@@ -27,6 +27,9 @@ search exclusions into a new topic (see the focused R8 failures). Two staged
 departure proxies were missed, so departure recognition remains experimental.
 See [R8](docs/research/R8-companion-loop.md) for measured results and limitations.
 
+For the focused MVP walkthrough, setup and stopping instructions, see the
+[guided finding demo](docs/mvp-demo.md).
+
 ## Run the local demo
 
 The **Talk to Nyx** field works without an API key. Ask “Where are my reading glasses?”, refine the description, or ask “Where did you last see them?” The local agent chooses tools over a bounded conversation and tool-result loop. Present-location requests inspect an available fresh view first; historical tools can search recent dated windows before widening. Imported clips with unknown dates can be checked as best matches, without claiming a latest sighting. Answers retain current/historical attribution. The details show what was checked. Stop cancels subsequent steps; in-flight inference can finish. Direct candidate search and explicit visual checks remain available below.
@@ -113,7 +116,7 @@ A pinned **faster-whisper tiny.en** recognizer runs locally on CPU/int8, with lo
 
 ## Check visual evidence
 
-Under **Ask about an object**, enter a description such as “black glasses.” Select **Latest sighting** or **Best matching moments**, optionally expand **Limit history by time**, then press **Check history**. It uses the clip selected above; date inputs use this laptop’s timezone. Evidence links replay the original source moment. “Checks and temporal context” shows individual judgments, nearby unverified samples and the actual bounded scope.
+Under **Ask about an object**, enter a description such as “black glasses.” Select **Latest matching moments** or **Best matching moments**, optionally expand **Limit history by time**, then press **Check history**. It uses the clip selected above; date inputs use this laptop’s timezone. Evidence links replay the original source moment. “Checks and temporal context” shows individual judgments, nearby unverified samples and the actual bounded scope.
 
 Latest mode checks twelve newest dated samples, then up to five semantic fallback candidates if needed. It reports the latest positive within the checked set, not an exhaustive last sighting across all footage. Unknown capture dates are excluded from latest/time-filtered queries. Best-match mode can check an imported clip while keeping its clock time unknown. Empty or uncertain checks never establish absence.
 

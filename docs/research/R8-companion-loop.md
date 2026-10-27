@@ -1224,3 +1224,52 @@ fake. Lint, format, JS syntax and local documentation links pass. No assertion o
 improved semantic accuracy from these integration tests; no real-model evaluation
 of the final context boundary across varied conversations yet. All owned processes
 exited. No new dependency, model download, permanent memory layer or framework.
+
+## R8 — Guided MVP wrap-up, 2026-10-28
+
+**Decision question:** can the existing small local stack complete one reviewable
+finding experience without another framework/model stage? **Measured:** yes on
+the reused development fixture; not established on independent household cases.
+
+Method: `mvp_objects.py --fixture data/runs/companion-retrieval-fixture --output
+ data/runs/mvp-acceptance-20261028 --acceptance` through the existing watchdog
+(10% macOS free-memory metric cutoff, 180 s ceiling). Actual FastAPI, SigLIP2 and
+Qwen3.5-2B 8-bit run locally. Fixture is the previously documented public image
+of two cats/two remotes and derived slideshow, with simulated old/recent recording
+times. Reviewer decisions use fixture provenance, not a human usability trial.
+No actual camera, microphone or hosted service.
+
+Runtime: M4/16 GiB, Python 3.12.11, MLX 0.32.4, mlx-vlm 0.4.1,
+Transformers 5.20.2. Qwen revision
+`562fb8ea19bbe7565a3ddf5b7d49899ea2c88d2b`, visual prompt 6/context 28,
+thinking disabled. SigLIP2 revision
+`75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2`.
+
+All seven structural checks passed: current ambiguity, right-hand correction,
+recent history, conversational rejection, explicit user confirmation, switch to
+a cat on the left and stopping. Current ambiguity took 7.77 s; correction 5.48 s;
+history 17.62 s; new task 6.85 s; stop 3.30 s. Whole watchdog run 78.32 s,
+peak MLX allocation 4,470,411,960 bytes (~4.16 GiB), minimum sampled metric 22%.
+MLX allocation is not total process/system memory; this is not p95 latency.
+
+Manual evidence review: the current location fits the right remote between the
+cats. History first selected the wrong remote crop (frame 21, offset 16 s).
+Ordinary `/api/agent` feedback excluded it and returned frame 17, offset 8 s,
+which the fixture reviewer confirmed. Historical query also carried the earlier
+assistant's “between the two cats” location, and the stop reply referred to the
+remote after switching to a cat. These semantic imperfections are not caught by
+the structural score. Broader feedback development accuracy remains 3/6; this
+single successful trajectory does not overturn those failures.
+
+A separate `--negative-only` run generated a blank white image and called the
+actual inspection API. Passed: uncertain, no asserted location, explicit warning
+that this does not establish absence. 7.24 s request, 9.02 s watchdog duration,
+3,417,541,294 peak MLX bytes, minimum sampled metric 32%. Outputs are under
+`data/runs/mvp-negative-20261028`; both processes exited normally.
+
+Product changes: focus introductory UI on finding; mark departure reminders
+experimental; distinguish “Confirmed by you” from model/candidate labels. Add a
+[demo runbook](../mvp-demo.md). No new agent workflow or model replacement.
+Synthetic companion browser run `mvp-final-browser-20261028` passed review,
+confirmation/reload, hidden-reference clearing and existing speech/activity
+controls. This uses fake models/providers/devices, separate from real API results.

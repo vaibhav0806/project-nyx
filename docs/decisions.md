@@ -447,3 +447,13 @@ An explicitly displayed, server-resolved frame takes precedence. When a successf
 browser request has no visual result and hides the result panel, clear its
 presented-frame reference. This is evidence lifecycle bookkeeping, not a language
 classifier or a new workflow; the agent still chooses queries, tools and exclusions.
+
+
+## 2026-10-28 — Finish the guided finding MVP
+
+Prioritize one reviewable object-finding experience for the authorized MVP wrap-up.
+Keep the bounded local agent and existing tools; do not add another inference
+stage or framework after unsuccessful planner probes. Present departure reminders
+as experimental, and distinguish explicit user confirmation from model checks.
+The demo runbook is [here](mvp-demo.md); broader household/voice acceptance remains
+open in milestones. This narrows the demo promise, not the independence mission.

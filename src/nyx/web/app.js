@@ -515,6 +515,8 @@ function showAnswer(output) {
   if (typeof companion !== "undefined") companion.reviewCandidate = output.status === "candidate" && output.evidence
     ? { presented_frame_id: output.evidence.id, presented_query: output.object_query } : null;
   $("answer-panel").hidden = false;
+  $("answer-source-label").textContent = output.status === "confirmed" ? "Confirmed by you"
+    : output.kind === "snapshot" ? "Model checked" : "Possible match";
   const observed = output.captured_at || output.evidence?.observed_at;
   $("answer-text").textContent = observed ? output.answer.replace(observed, new Date(observed).toLocaleString()) : output.answer;
   $("answer-note").textContent = output.status === "confirmed"

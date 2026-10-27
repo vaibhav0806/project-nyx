@@ -581,3 +581,28 @@ def test_followup_after_playback_does_not_need_another_wake_decode(tmp_path):
 
     voice.recognizer = no_second_wake
     assert voice.utterance(token, audio())["state"] == "question"
+
+
+def test_wake_loads_only_documented_cached_files(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+
+    from nyx.voice import WAKE_MODEL, WAKE_REVISION, WakeRecognizer
+
+    required = {"config.json", "model.bin", "tokenizer.json", "vocabulary.txt"}
+
+    def snapshot(model, *, revision, local_files_only, allow_patterns=None):
+        assert model == WAKE_MODEL and revision == WAKE_REVISION
+        assert local_files_only
+        # A partial offline snapshot must not require model-card/repository files.
+        assert set(allow_patterns or ()) == required
+        return "/cached/wake"
+
+    def whisper(path, **options):
+        assert path == "/cached/wake"
+        assert options["device"] == "cpu" and options["compute_type"] == "int8"
+        return "loaded"
+
+    monkeypatch.setitem(sys.modules, "huggingface_hub", SimpleNamespace(snapshot_download=snapshot))
+    monkeypatch.setitem(sys.modules, "faster_whisper", SimpleNamespace(WhisperModel=whisper))
+    assert WakeRecognizer().model == "loaded"

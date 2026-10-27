@@ -108,3 +108,12 @@ current location or the latest possible sighting. Voice can ask the review
 question, but confirmation currently uses the UI button. Automated identity
 matching among similar objects and intended-user household validation remain
 open. Camera snapshots remain ephemeral.
+
+
+## MVP wrap-up — 2026-10-28
+
+The immediate demonstration focuses on guided conversational object finding,
+including current inspection, correction, dated history and user review.
+Departure reminders remain available as experimental functionality, outside the
+dependable MVP promise. See the [demo runbook](mvp-demo.md) and canonical milestones
+for measured evidence and remaining real-room validation.

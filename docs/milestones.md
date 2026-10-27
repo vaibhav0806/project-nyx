@@ -1,6 +1,6 @@
 # Milestones
 
-Updated: 2026-10-20. **M1 household validation is pending; M2 continuous recording and background indexing are implemented locally. User authorized this expansion after successful manual retrieval.**
+Updated: 2026-10-28. **M1 household validation is pending; M2 continuous recording and background indexing are implemented locally. User authorized this expansion after successful manual retrieval.**
 
 This is the single project progress tracker. Detailed implementation tasks are written for the approved next milestone when the user asks to build. Research can inform the plan without silently changing scope.
 
@@ -434,3 +434,28 @@ request-interpretation probes also confused rejection/continuation with new task
 no second model call was added. These failures and the boundary-tested state fix
 are distinct: no claim that v28 resolves the broader conversation accuracy gate.
 All owned model/browser processes exited. See R8.
+
+### Guided MVP wrap-up — 2026-10-28
+
+The focused object-finding demo is ready for guided developer testing; broader
+M1–M5 household/voice/event acceptance remains open. The [runbook](mvp-demo.md)
+covers setup, review, voice and shutdown. UI now labels departure reminders as
+experimental and explicit item confirmation as “Confirmed by you.”
+
+Actual local Qwen/SigLIP API flow passed 7/7 structural checks: ambiguity,
+correction, recent history, conversational rejection, confirmation, topic switch
+and stop. The fixture reviewer still had to reject a wrong crop. A separate blank
+image returned uncertainty. These reused development examples do not resolve the
+3/6 broader planner result or establish automatic item identity. See R8.
+
+Voice startup was repaired for the documented partial offline wake-model cache.
+Actual tiny.en with one generated pronunciation passed the browser wake/barge-in,
+playback and lifecycle checks; another pronunciation missed the name. Providers
+and visual/agent outputs were mocked. Real-room echo/provider latency remain open.
+See R6. No hardware or uploaded media was used.
+
+Final checks: **291 tests pass**, Ruff/format/JavaScript checks pass, the synthetic
+companion browser passes review/reload and speech/activity checks, and the offline
+wheel's 26 runtime/assets match source. Model processes exited. Next evidence
+needed is a permitted representative room trial and intended-user feedback, not
+another architecture layer; dependable departure reminders remain later work.

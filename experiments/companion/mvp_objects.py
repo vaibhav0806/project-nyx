@@ -5,11 +5,13 @@ import base64
 import json
 import time
 from datetime import UTC, datetime, timedelta
+from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
 import mlx.core as mx
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from nyx.app import create_app
 from nyx.verification import LocalVerifier
@@ -39,7 +41,21 @@ def main():
         action="store_true",
         help="Check current view and correction without indexing or historical retrieval",
     )
+    parser.add_argument(
+        "--acceptance",
+        action="store_true",
+        help="Score finding, conversational rejection and task switching",
+    )
+    parser.add_argument(
+        "--negative-only",
+        action="store_true",
+        help="Check an empty synthetic view through the actual inspection API",
+    )
     args = parser.parse_args()
+    if args.negative_only and (args.acceptance or args.review_history or args.current_only):
+        parser.error("--negative-only cannot be combined with other flow modes")
+    if args.acceptance:
+        args.review_history = True
     if args.review_history and args.current_only:
         parser.error("History review requires the history turn")
     args.output.mkdir(parents=True, exist_ok=False)
@@ -66,6 +82,44 @@ def main():
             voice_factory=lambda root: None,
         )
     ) as client:
+        if args.negative_only:
+            pixels = BytesIO()
+            Image.new("RGB", (320, 240), "white").save(pixels, format="PNG")
+            started = time.perf_counter()
+            response = client.post(
+                "/api/inspect",
+                params={
+                    "object_query": "television remote control",
+                    "captured_at": datetime.now(UTC).isoformat(),
+                },
+                content=pixels.getvalue(),
+            )
+            response.raise_for_status()
+            job = wait(client, response.json()["id"])
+            result = job.get("result", {})
+            passed = (
+                job["status"] == "succeeded"
+                and result.get("status") == "uncertain"
+                and not result.get("judgment", {}).get("location")
+            )
+            report = {
+                "scope": "Synthetic blank image through real local inspection API; not household absence accuracy",
+                "passed": passed,
+                "seconds": time.perf_counter() - started,
+                "job": job,
+                "model": model.fingerprint if model else None,
+                "mlx_peak_bytes": mx.get_peak_memory(),
+            }
+            (args.output / "results.json").write_text(json.dumps(report, indent=2))
+            print(
+                json.dumps(
+                    {"passed": passed, "answer": result.get("answer"), "seconds": report["seconds"]}
+                ),
+                flush=True,
+            )
+            if not passed:
+                raise SystemExit(1)
+            return
         imports = [] if args.current_only else [("old", 240), ("recent", 1)]
         video = (args.fixture / "scenes.mp4").read_bytes() if imports else None
         for name, hours in imports:
@@ -150,24 +204,105 @@ def main():
                     response.raise_for_status()
                     review["confirmation"] = response.json()
                     break
-                scope = candidate["scope"]
                 response = client.post(
-                    "/api/answer",
+                    "/api/agent",
                     json={
-                        "object_query": candidate["object_query"],
-                        "mode": scope["mode"],
-                        "video_id": scope.get("video_id"),
-                        "seen_after": scope["seen_after"],
-                        "seen_before": scope["seen_before"],
-                        "excluded_frame_ids": [*scope["excluded_frame_ids"], evidence["id"]],
+                        "message": "Nah, that is not the item I meant. Please keep looking.",
+                        "request_id": str(uuid4()),
+                        "presented_frame_id": evidence["id"],
+                        "presented_query": candidate["object_query"],
                     },
                 )
                 response.raise_for_status()
-                candidate = wait(client, response.json()["id"]).get("result", {})
+                review_job = wait(client, response.json()["id"])
+                review["attempts"][-1]["rejection_job"] = review_job
+                candidate = review_job.get("result", {}).get("visual") or {}
             results["review"] = review
             results["mlx_peak_bytes"] = mx.get_peak_memory()
             (args.output / "results.json").write_text(json.dumps(results, indent=2))
             print(json.dumps(review), flush=True)
+
+        if args.acceptance:
+            for name, message, current in [
+                ("switch", "New task: check the current camera for the cat on the left.", True),
+                ("stop", "Thanks, stop looking for now.", False),
+            ]:
+                body = {"message": message, "request_id": name}
+                if current:
+                    body.update(
+                        snapshot=base64.b64encode(
+                            (args.fixture / "input_frames" / "000.png").read_bytes()
+                        ).decode(),
+                        captured_at=datetime.now(UTC).isoformat(),
+                    )
+                started = time.perf_counter()
+                response = client.post("/api/agent", json=body)
+                response.raise_for_status()
+                job = wait(client, response.json()["id"])
+                results["cases"].append(
+                    {"name": name, "seconds": time.perf_counter() - started, "job": job}
+                )
+                print(
+                    json.dumps(
+                        {
+                            "name": name,
+                            "job_status": job["status"],
+                            "answer": job.get("result", {}).get("answer"),
+                            "steps": job.get("result", {}).get("steps"),
+                        }
+                    ),
+                    flush=True,
+                )
+                (args.output / "results.json").write_text(json.dumps(results, indent=2))
+            turns = {row["name"]: row["job"].get("result", {}) for row in results["cases"]}
+
+            def query(turn):
+                return next(
+                    (
+                        step["query"].lower()
+                        for step in reversed(turn.get("steps", []))
+                        if "query" in step
+                    ),
+                    "",
+                )
+
+            history = turns["history"].get("visual") or {}
+            observed = (history.get("evidence") or {}).get("observed_at")
+            reviewed = results["review"]
+            rejections = [
+                row["rejection_job"] for row in reviewed["attempts"] if "rejection_job" in row
+            ]
+            checks = {
+                "current_ambiguity": turns["current"].get("status") == "clarify",
+                "correction": turns["correction"].get("status") == "seen"
+                and "right" in query(turns["correction"]),
+                "recent_history": history.get("status") == "candidate"
+                and "right" in query(turns["history"])
+                and bool(observed)
+                and datetime.fromisoformat(observed) > datetime.now(UTC) - timedelta(hours=2),
+                "conversational_rejection": bool(rejections)
+                and all(row.get("status") == "succeeded" for row in rejections)
+                and len({row["frame_id"] for row in reviewed["attempts"]})
+                == len(reviewed["attempts"]),
+                "user_confirmation": bool(reviewed["confirmation"])
+                and reviewed["confirmation"].get("confirmation") == "user",
+                "task_switch": turns["switch"].get("status") == "seen"
+                and "cat" in query(turns["switch"])
+                and "left" in query(turns["switch"])
+                and "remote" not in query(turns["switch"]),
+                "stop": turns["stop"].get("status") == "chat"
+                and len(turns["stop"].get("steps", [])) == 1,
+            }
+            results["acceptance"] = {
+                "checks": checks,
+                "passed": all(checks.values()),
+                "limits": "Public still/slideshow and simulated user review; manual visual/answer review still required. Not household or voice acceptance.",
+            }
+            results["mlx_peak_bytes"] = mx.get_peak_memory()
+            (args.output / "results.json").write_text(json.dumps(results, indent=2))
+            print(json.dumps(results["acceptance"]), flush=True)
+            if not all(checks.values()):
+                raise SystemExit(1)
 
 
 if __name__ == "__main__":

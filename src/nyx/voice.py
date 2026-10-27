@@ -94,7 +94,12 @@ class WakeRecognizer:
         from faster_whisper import WhisperModel
         from huggingface_hub import snapshot_download
 
-        path = snapshot_download(WAKE_MODEL, revision=WAKE_REVISION, local_files_only=True)
+        path = snapshot_download(
+            WAKE_MODEL,
+            revision=WAKE_REVISION,
+            local_files_only=True,
+            allow_patterns=["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"],
+        )
         self.model = WhisperModel(path, device="cpu", compute_type="int8", cpu_threads=2)
 
     def __call__(self, pcm):
