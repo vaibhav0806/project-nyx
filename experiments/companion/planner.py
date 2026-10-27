@@ -295,7 +295,22 @@ def main():
     parser.add_argument(
         "--thinking-tokens", type=int, default=0, help="Experimental MLX reasoning token budget"
     )
+    parser.add_argument(
+        "--model-id", help="Experimental MLX model override; requires a pinned revision"
+    )
+    parser.add_argument("--revision", help="Exact 40-character model commit")
     args = parser.parse_args()
+    if bool(args.model_id) != bool(args.revision):
+        parser.error("--model-id and --revision must be supplied together")
+    if args.revision and (
+        len(args.revision) != 40 or any(c not in "0123456789abcdef" for c in args.revision)
+    ):
+        parser.error("--revision must be an exact lowercase hexadecimal commit")
+    if args.model_id:
+        # Override only in this experiment process; application defaults stay pinned.
+        from nyx import mlx_runtime
+
+        mlx_runtime.MODEL, mlx_runtime.REVISION = args.model_id, args.revision
     cases = json.loads(args.case_file.read_text()) if args.case_file else CASES
     selected = [case for case in cases if not args.cases or case["name"] in args.cases]
     if args.cases and len(selected) != len(set(args.cases)):
@@ -354,6 +369,7 @@ def main():
         "python": platform.python_version(),
         "runtime": {name: version(name) for name in ["torch", "transformers"]},
         "model": model.fingerprint,
+        "load_seconds": model.load_seconds,
         "natural_user_turn": args.natural_user_turn,
         "thinking_tokens": args.thinking_tokens,
         "tools": "controlled observations; no actual retrieval or mutations",
@@ -414,6 +430,10 @@ def main():
             "passed": all(checks.values()),
             "seconds": time.perf_counter() - started,
         }
+        if model.device == "mlx":
+            import mlx.core as mx
+
+            results["mlx_peak_bytes"] = mx.get_peak_memory()
         results["cases"].append(row)
         (args.output / "results.json").write_text(json.dumps(results, indent=2))
         print(

@@ -397,3 +397,20 @@ manual answer-quality failures and limits of automated scoring.
 Next decision: compare a more capable text planner on these now-development cases
 and separate fresh cases. Do not treat more prompt iterations on this small set
 as evidence of dependable conversation or improved visual recognition.
+
+
+### Larger planner comparison did not justify switching — 2026-10-28
+
+The same v23 prompt and six feedback cases scored **3/6** on a pinned Qwen3.5-4B
+8-bit conversion, unchanged from the tightened 2B baseline. It retained a new
+attribute but still failed temporal/exclusion handling. The 39.27-second run
+peaked at about 6.35 GiB MLX allocations and sampled as low as 14% free-memory
+metric; it exited normally above the approved cutoff. No recognition/API-flow
+claim follows from controlled tool observations. The four new transfer cases
+remain unrun. See [R8](research/R8-companion-loop.md).
+
+No application change or model replacement. Unused 4B weights were deleted,
+including the verified shared cache blob; active 2B weights remain. This rules out
+adopting that larger checkpoint on the present evidence, not all larger models.
+Experimental CLI checks/scoring tests and documentation checks pass. The latest
+full application suite remains 285 passing tests from the preceding follow-up.

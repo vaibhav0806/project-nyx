@@ -1,0 +1,137 @@
+[
+  {
+    "name": "replace-color",
+    "message": "Sorry, I meant my silver insulated bottle, not blue. That picture is wrong.",
+    "context": [
+      {
+        "transcript": "Where did you last see my blue insulated bottle?",
+        "answer": "Is this the bottle you mean?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "blue insulated bottle",
+              "hours": 2,
+              "excluded_frame_ids": [
+                200
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 203,
+            "object_query": "blue insulated bottle",
+            "excluded_frame_ids": [
+              200
+            ]
+          }
+        }
+      }
+    ],
+    "concepts": [
+      "silver",
+      "insulated",
+      "bottle"
+    ],
+    "forbidden": [
+      "blue"
+    ],
+    "required_exclusions": [
+      200,
+      203
+    ],
+    "history_only": true
+  },
+  {
+    "name": "change-task-to-live-wallet",
+    "message": "Switch tasks: show me whether my black wallet is in the live camera view.",
+    "context": [
+      {
+        "transcript": "Where did you last see my blue insulated bottle?",
+        "answer": "Is this the bottle you mean?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "blue insulated bottle",
+              "hours": 2,
+              "excluded_frame_ids": [
+                200
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 203,
+            "object_query": "blue insulated bottle",
+            "excluded_frame_ids": [
+              200
+            ]
+          }
+        }
+      }
+    ],
+    "concepts": [
+      "black",
+      "wallet"
+    ],
+    "no_exclusions": true,
+    "path": [
+      "inspect_current",
+      "finish"
+    ]
+  },
+  {
+    "name": "older-without-rejection",
+    "message": "This could be mine. Show me an older moment with the same bottle, please.",
+    "context": [
+      {
+        "transcript": "Where did you last see my blue insulated bottle?",
+        "answer": "Is this the bottle you mean?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "blue insulated bottle",
+              "hours": 2,
+              "excluded_frame_ids": [
+                200
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 203,
+            "object_query": "blue insulated bottle",
+            "excluded_frame_ids": [
+              200
+            ]
+          }
+        }
+      }
+    ],
+    "concepts": [
+      "blue",
+      "insulated",
+      "bottle"
+    ],
+    "required_exclusions": [
+      200
+    ],
+    "forbidden_exclusions": [
+      203
+    ],
+    "wider_than_hours": 2,
+    "history_only": true
+  },
+  {
+    "name": "unresolved-reference",
+    "message": "Find the other one.",
+    "context": [],
+    "concepts": [],
+    "path": [
+      "clarify"
+    ],
+    "status": "clarify"
+  }
+]

@@ -309,3 +309,14 @@ Optional experiment flags (not application defaults):
 These probes did not establish a dependable improvement. Keep the resource guard
 and separate deterministic/tool-path checks from real recognition and manual
 answer-quality review.
+
+
+For a model-only comparison, pass paired `--model-id REPOSITORY --revision COMMIT`
+(the revision must be an exact 40-character hash). Overrides apply only to the
+experiment process, with model/revision recorded in its result; Nyx's default
+checkpoint is unchanged. MLX load time and peak allocation are recorded separately
+from wall time/system memory. The 4B trial and its rejection are documented in R8.
+
+`transfer_cases.json` contains four additional cases prepared before the 4B result.
+They remain unrun: do not claim transfer accuracy or tune against them without
+recording that they have become development cases.

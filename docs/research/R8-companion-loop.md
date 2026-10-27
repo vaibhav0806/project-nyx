@@ -1136,3 +1136,48 @@ voice-provider or image-recognition evaluation occurred in this follow-up.
 Recommendation: compare a more capable text planner rather than repeatedly tuning
 this small model on the same examples. Vision and text planning need not use the
 same model; such a comparison is proposed, not yet implemented or measured.
+
+
+## One larger-model comparison; no architecture expansion — 2026-10-28
+
+**Question:** does a modest model-size increase improve the same feedback task
+without changing prompts or adding agent infrastructure? Compared the existing
+v23 prompt on MLX-community Qwen3.5-4B 8-bit, pinned to revision
+`1704583a86670ba531b7f2c92530a2f725cfd45b`. The experiment overrides model constants
+only in its own process; application defaults remain the pinned 2B checkpoint.
+
+Primary sources checked on 2026-10-28: [Qwen's model card](https://huggingface.co/Qwen/Qwen3.5-4B)
+and [the pinned MLX conversion files](https://huggingface.co/mlx-community/Qwen3.5-4B-8bit/tree/1704583a86670ba531b7f2c92530a2f725cfd45b).
+Source-reported conversion config uses 8-bit affine quantization with group size 64;
+text config has hidden size 2560 and 32 layers. Hub metadata reports 5,136,696,107
+weight bytes. These are file/config facts, not measured task quality or a RAM bound.
+
+**Measured:** `planner-4b-20261028` completed the six feedback development cases in
+39.27 s, including 6.30 s model initialization. Structural score was **3/6**, the
+same as the tightened 2B baseline. It correctly rejected the glasses candidate,
+selected a live-camera tool for keys, and answered the stop request with a normal
+acknowledgement. It retained the new red-frame detail but did not widen the time
+window; it carried old exclusions into the wallet request; and it widened time
+while incorrectly rejecting the displayed candidate on a non-rejection follow-up.
+There were no decision repair errors in these six cases. Tools were controlled,
+so none of this establishes visual recognition or a complete real-world flow.
+
+Peak MLX allocation was 6,820,193,854 bytes (about 6.35 GiB), excluding other process
+and OS allocations. Lowest three-second sampled free-memory metric was 14%; the
+10% cutoff did not fire. The process exited normally. Four additional transfer
+cases were prepared before seeing the result but **not run**, because the larger
+model did not clear the development comparison. No prompts were tuned for 4B.
+
+**Decision:** no production model switch, no new agent framework, and no new state
+or memory subsystem. Larger weights alone did not solve the task/context issues
+in this comparison; the earlier hypothesis that model capacity was the main
+bottleneck is not established. Keep the current app while investigating context
+and tool semantics with a focused test, rather than escalating model size again.
+
+The unused 4B model cache was removed after the run, including its shared global
+weight blob after checking its SHA256 against Hub metadata and confirming no
+active 2B snapshot referenced it. The 2B weights were preserved. Reclaimed roughly
+4.8 GiB of trial weights; no model processes remain. The experimental CLI now
+supports paired `--model-id`/exact `--revision` overrides and reports load time and
+MLX peak allocation. Scoring tests, lint, format and document links pass; no
+application code changed in this comparison.
