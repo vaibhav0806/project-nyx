@@ -69,27 +69,42 @@ def history_steps(
     checked = []
     selected = None
     verifier = None
-    for candidate in candidates:
-        verifier = verifier or verifier_factory()
-        source = (store.root / candidate["video_path"]).resolve()
-        if not source.is_relative_to(store.root):
-            raise ValueError("Source must remain inside the local workspace")
+    verifier = verifier_factory() if candidates else None
+    batch_size = 3 if callable(getattr(verifier, "inspect_batch", None)) else 1
+    stop = False
+    ambiguous = False
+    timings["vision_requests"] = 0
+    for start in range(0, len(candidates), batch_size):
+        batch = candidates[start : start + batch_size]
+        images = []
         phase = time.perf_counter()
-        image = frame_image(source, candidate["offset_seconds"])
+        for candidate in batch:
+            source = (store.root / candidate["video_path"]).resolve()
+            if not source.is_relative_to(store.root):
+                raise ValueError("Source must remain inside the local workspace")
+            images.append(frame_image(source, candidate["offset_seconds"]))
         timings["decode_ms"] += round((time.perf_counter() - phase) * 1000)
         phase = time.perf_counter()
-        judgment = verifier.inspect(image, object_query)
+        judgments = (
+            verifier.inspect_batch(images, object_query)
+            if batch_size > 1
+            else [verifier.inspect(images[0], object_query)]
+        )
         timings["verification_ms"] += round((time.perf_counter() - phase) * 1000)
-        item = {**evidence_links(candidate), "judgment": judgment, "model_checked": True}
-        checked.append(item)
+        timings["vision_requests"] += len(images) if batch_size > 1 else 1
+        for candidate, judgment in zip(batch, judgments, strict=True):
+            item = {**evidence_links(candidate), "judgment": judgment, "model_checked": True}
+            checked.append(item)
+            if not stop and judgment.get("ambiguous"):
+                stop = True
+                ambiguous = True
+            elif not stop and judgment["visibility"] == "visible":
+                selected = item
+                stop = True
         yield {"checked": len(checked), "candidate_limit": limit}
-        if judgment.get("ambiguous"):
-            break
-        if judgment["visibility"] == "visible":
-            selected = item
+        if stop:
             break
     answer = f"I couldn't confirm {object_query} in the sampled frames checked. This does not prove it wasn't there."
-    ambiguous = bool(checked and checked[-1]["judgment"].get("ambiguous"))
     if ambiguous:
         answer = "Which one do you mean? Please describe its color, position, or another distinguishing detail."
     if selected:

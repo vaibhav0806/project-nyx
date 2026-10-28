@@ -421,3 +421,12 @@ finish. A synthetic no-op scheduling probe completed in 0.03 ms while ingestion
 was blocked: this proves isolation, not real cloud response latency. No new paid
 model benchmark was run. A fresh real-provider test is needed to quantify the
 end-to-end improvement; provider latency and sequential visual checks remain.
+
+### Bounded parallel visual checks
+
+History verification runs up to three independent checks concurrently, preserving
+candidate order and ambiguity semantics. This supersedes the serial visual-check
+policy above; ingestion still has a separate worker. The same model and single-frame
+prompt remain. Up to two extra frames may be billed before early termination.
+See R9 for measured 14–15 s answer readiness and 20–22 s including TTS on the saved
+phone development replay; microphone and playback latency are excluded.

@@ -532,3 +532,11 @@ for capture/import and one for interactive tools. Cloud I/O no longer requires
 local-model serialization. Retain ordered visual verification, no automatic retries,
 and existing evidence/cancellation semantics. Use eight-image capture batches and
 bounded text embedding reuse; measure provider and queue time before more changes.
+
+## 2026-10-29 — Overlap three ordered visual checks
+
+User requested another latency reduction after the 30-second replay. Retain the
+same verification model and prompt; allow three concurrent frame checks with
+ordered result consumption and explicit extra-request cost. Discard the multi-image
+single-call trial because it did not improve measured latency. Do not replace
+uncertainty handling or agent decisions with scenario-specific routing.

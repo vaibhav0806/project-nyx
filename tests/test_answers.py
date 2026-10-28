@@ -203,3 +203,47 @@ def test_visible_requires_exactly_one_reported_match(count):
     assert result["location"] is None
     if count == 2:
         assert result["ambiguous"] is True
+
+
+@pytest.mark.parametrize("ambiguous_first", [False, True])
+def test_batch_keeps_candidate_order_and_stops_after_first_decisive_batch(
+    tmp_path, video, ambiguous_first
+):
+    from test_nyx import ColorEncoder
+
+    from nyx.answers import history_steps
+    from nyx.memory import Store
+    from nyx.retrieval import index_video
+
+    store = Store(tmp_path, ColorEncoder.fingerprint, 3)
+    index_video(video, store, ColorEncoder(), recorded_at="2026-10-19T10:00:00Z")
+
+    class BatchVerifier:
+        fingerprint: ClassVar[dict] = {"model": "test"}
+        calls = 0
+
+        def inspect_batch(self, images, query):
+            self.calls += 1
+            assert self.calls == 1
+            return [
+                {
+                    "visibility": "uncertain" if i == 0 and ambiguous_first else "visible",
+                    "ambiguous": i == 0 and ambiguous_first,
+                    "location": "desk",
+                }
+                for i in range(len(images))
+            ]
+
+    verifier = BatchVerifier()
+    steps = history_steps("green", store, ColorEncoder(), lambda: verifier)
+    while True:
+        try:
+            next(steps)
+        except StopIteration as done:
+            result = done.value
+            break
+    assert result["timings"]["vision_requests"] == len(result["checked"])
+    if ambiguous_first:
+        assert result["status"] == "clarify" and result["evidence"] is None
+    else:
+        assert result["evidence"]["id"] == result["checked"][0]["id"]

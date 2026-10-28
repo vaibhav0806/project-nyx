@@ -268,3 +268,34 @@ def test_query_embedding_cache_is_bounded_and_returns_independent_vectors():
     assert len(encoder.text_cache) == 64
     encoder.encode_text("phone")
     assert client.calls == 66
+
+
+def test_parallel_history_preserves_order_and_bounds_concurrency():
+    from threading import Barrier
+
+    from nyx.verification import CloudVerifier
+
+    barrier = Barrier(3)
+
+    class Verifier(CloudVerifier):
+        def inspect(self, image, query):
+            barrier.wait(timeout=2)
+            return {"value": image}
+
+    verifier = Verifier(client=object())
+    assert verifier.inspect_batch([3, 1, 2], "object") == [{"value": 3}, {"value": 1}, {"value": 2}]
+    with pytest.raises(ValueError):
+        verifier.inspect_batch([1, 2, 3, 4], "object")
+
+
+def test_parallel_history_does_not_hide_provider_failure():
+    from nyx.verification import CloudVerifier
+
+    class Verifier(CloudVerifier):
+        def inspect(self, image, query):
+            if image == 2:
+                raise CloudError("Provider unavailable")
+            return {"visibility": "visible"}
+
+    with pytest.raises(CloudError, match="Provider unavailable"):
+        Verifier(client=object()).inspect_batch([1, 2, 3], "object")

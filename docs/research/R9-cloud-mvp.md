@@ -199,3 +199,44 @@ latency. No concurrent ingestion was exercised in this pair; queue isolation has
 separate deterministic coverage. Aggregate key spend increased from $0.51647 to
 $0.55996 (about $0.0435), leaving $1.44004 of the $2 limit.
 Private scripts/results remain under ignored `data/runs/latency-replay/`.
+
+## Parallel history verification — 2026-10-29
+
+Measured repeated single-frame cloud round trips dominate history lookup. A trial
+sending four images in one generation request took 30.53 s including TTS, offering
+no meaningful gain; that prompt/schema experiment was discarded.
+
+Retained approach: overlap at most three independent single-image checks with the
+same GPT-5.4 model and existing judgment prompt. Consume results in original
+retrieval/time order; an earlier ambiguous result still asks for clarification,
+and a later match cannot replace an earlier selected match. All checked frames
+remain in evidence metadata. Errors propagate rather than becoming negative
+observations. No speculative batch beyond the current three is launched. Up to
+two extra checks can be billed compared with serial early exit. Already-sent
+requests cannot be cancelled upstream. Generator boundaries still allow agent
+cancellation between batches. Background ingestion remains a separate worker.
+
+Real saved-data replay, same question/context/time and fresh TTS:
+
+| Run | Answer ready | Including TTS |
+| --- | ---: | ---: |
+| Previous serial optimized | 25.69 s | 30.64 s |
+| Parallel | 14.24 s | 20.24 s |
+| Parallel repeat | 15.32 s | 21.58 s |
+
+Both parallel runs returned the same correct attributed location statement.
+The first selected the same evidence frame as the previous optimized run.
+Six checks ran in each parallel replay; the earlier serial run checked five.
+Verification wall time fell from 18.32 s to 8.52/8.02 s. Context association took
+2.46/4.05 s, retrieval ~0.96 s, decoding ~0.7 s, and TTS 6.00/6.26 s.
+This is two development replays, not a latency SLA or a broad accuracy benchmark.
+No original microphone audio or browser playback timing was available. Raw private
+artifacts stay under ignored `data/runs/latency-replay/`. Total additional trial
+spend was ~$0.0788; $1.3612 remains from the $2 key cap.
+
+340 tests passed, including simultaneous execution with a barrier, preserved result
+order, earlier ambiguity, bounded concurrency and propagated provider failure.
+Lint/format pass. The model and semantic verification rules are unchanged.
+Full-response TTS still delays first audio; streaming or shorter conversational
+wording remains future work. These changes improve latency but do not make the
+experience instantaneous.
