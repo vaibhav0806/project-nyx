@@ -172,3 +172,30 @@ finish. A synthetic no-op scheduling probe completed in 0.03 ms while ingestion
 was blocked: this proves isolation, not real cloud response latency. No new paid
 model benchmark was run. A fresh real-provider test is needed to quantify the
 end-to-end improvement; provider latency and sequential visual checks remain.
+
+### Real-data latency replay — 2026-10-29
+
+User explicitly requested replaying saved data. Compared f74f81d with 42186ac
+using isolated SQLite backups and hardlinked saved video/frames; originals were
+not changed. Both received the same saved phone question and conversation history
+trimmed before that question, with the companion search clock set to its original
+time. No live snapshot or original microphone audio was available. Fresh cloud
+TTS was generated in both processes; no browser playback was measured.
+
+| Measurement | Baseline | Optimized |
+| --- | ---: | ---: |
+| Agent result | 35.22 s | 25.69 s |
+| TTS generation | 4.31 s | 4.95 s |
+| Combined | 39.52 s | 30.64 s |
+| Visual candidates checked | 6 | 5 |
+
+Both succeeded with identical answer text and the actual saved location statement,
+but selected different frame IDs. The observed combined reduction is 22.5%; this
+single pair cannot isolate code improvement from provider variability and the
+one-fewer visual check. It is not a controlled accuracy or statistical benchmark.
+The optimized run spent 18.32 s verifying images, 3.84 s associating the statement,
+1.05 s retrieving and 0.71 s decoding. Ordered visual checks dominate remaining
+latency. No concurrent ingestion was exercised in this pair; queue isolation has
+separate deterministic coverage. Aggregate key spend increased from $0.51647 to
+$0.55996 (about $0.0435), leaving $1.44004 of the $2 limit.
+Private scripts/results remain under ignored `data/runs/latency-replay/`.
