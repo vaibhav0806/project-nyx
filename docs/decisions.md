@@ -524,3 +524,11 @@ transcripts. Idle speech text, raw audio/images, credentials/session tokens and 
 provider error bodies are not logged. User requested this after a live statement
 was absent from saved history; the original cause is not recoverable retrospectively.
 This is observability, not statement-to-visual association or long-term recall.
+
+## 2026-10-29 — Separate cloud ingestion from interaction
+
+Replace the legacy single inference queue with two bounded serial workers: one
+for capture/import and one for interactive tools. Cloud I/O no longer requires
+local-model serialization. Retain ordered visual verification, no automatic retries,
+and existing evidence/cancellation semantics. Use eight-image capture batches and
+bounded text embedding reuse; measure provider and queue time before more changes.

@@ -247,3 +247,24 @@ def test_planner_and_visual_calls_use_their_selected_models(monkeypatch):
         verifier.inspect(Image.new("RGB", (8, 8), "red"), "red square")["visibility"] == "visible"
     )
     assert calls == ["planner-model", "vision-model"]
+
+
+def test_query_embedding_cache_is_bounded_and_returns_independent_vectors():
+    class Client:
+        calls = 0
+
+        def request(self, path, payload):
+            self.calls += 1
+            return {"data": [{"index": 0, "embedding": [1.0] * 768}]}
+
+    client = Client()
+    encoder = CloudEncoder(client)
+    original = encoder.encode_text("phone")
+    original[:] = 0
+    assert encoder.encode_text("phone").any()
+    assert client.calls == 1
+    for i in range(64):
+        encoder.encode_text(str(i))
+    assert len(encoder.text_cache) == 64
+    encoder.encode_text("phone")
+    assert client.calls == 66

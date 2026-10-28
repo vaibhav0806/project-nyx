@@ -267,14 +267,15 @@ def test_live_event_inspection_runs_before_a_backlog_of_background_jobs(tmp_path
         inspected.set()
 
     workspace.thread.start()
+    workspace.ingest_thread.start()
     try:
         workspace.submit(workspace.reserve("capture"), running_batch)
         assert entered.wait(2)
         for _ in range(3):
             workspace.submit(workspace.reserve("capture"), lambda: order.append("background"))
         workspace.submit(workspace.reserve("observe"), observe)
-        release.set()
         assert inspected.wait(2)
+        release.set()
     finally:
         release.set()
         workspace.close()

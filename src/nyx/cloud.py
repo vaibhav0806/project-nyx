@@ -2,7 +2,9 @@
 
 import base64
 import json
+import logging
 import os
+import time
 from io import BytesIO
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -34,6 +36,8 @@ class OpenRouter:
         self.usage = []
 
     def request(self, path, payload, *, binary=False):
+        started = time.perf_counter()
+        outcome = "failed"
         body = {**payload, "provider": {"data_collection": "deny", **payload.get("provider", {})}}
         request = Request(
             "https://openrouter.ai/api/v1/" + path,
@@ -48,10 +52,12 @@ class OpenRouter:
             if binary:
                 if not raw or raw.lstrip().startswith((b"{", b"<")):
                     raise CloudError("Cloud speech returned an invalid audio response.")
+                outcome = "succeeded"
                 return raw
             result = json.loads(raw)
             if not isinstance(result, dict) or "error" in result:
                 raise CloudError("Cloud provider returned an unsuccessful response.")
+            outcome = "succeeded"
             self.usage.append(result.get("usage", {}))
             self.usage = self.usage[-100:]
             return result
@@ -63,6 +69,15 @@ class OpenRouter:
             if isinstance(exc, CloudError):
                 raise
             raise CloudError("Cloud request failed. Check the connection and retry.") from None
+
+        finally:
+            logging.getLogger("uvicorn.error").info(
+                "cloud_request path=%s model=%s outcome=%s elapsed_ms=%d",
+                path,
+                payload.get("model", "unspecified"),
+                outcome,
+                round((time.perf_counter() - started) * 1000),
+            )
 
     def generate(self, messages, model, max_tokens):
         converted = []

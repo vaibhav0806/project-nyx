@@ -1,3 +1,5 @@
+import time
+
 from nyx.capture import frame_image
 from nyx.memory import aware_time
 from nyx.retrieval import search
@@ -25,6 +27,8 @@ def history_steps(
 ):
     if mode not in {"latest", "relevance"}:
         raise ValueError("Choose latest or relevance history")
+    started = time.perf_counter()
+    timings = {"decode_ms": 0, "verification_ms": 0}
     limit = 12 if mode == "latest" else 5
     candidates = search(
         object_query,
@@ -61,6 +65,7 @@ def history_steps(
                 reverse=True,
             )
         )
+    timings["retrieval_ms"] = round((time.perf_counter() - started) * 1000)
     checked = []
     selected = None
     verifier = None
@@ -69,8 +74,12 @@ def history_steps(
         source = (store.root / candidate["video_path"]).resolve()
         if not source.is_relative_to(store.root):
             raise ValueError("Source must remain inside the local workspace")
+        phase = time.perf_counter()
         image = frame_image(source, candidate["offset_seconds"])
+        timings["decode_ms"] += round((time.perf_counter() - phase) * 1000)
+        phase = time.perf_counter()
         judgment = verifier.inspect(image, object_query)
+        timings["verification_ms"] += round((time.perf_counter() - phase) * 1000)
         item = {**evidence_links(candidate), "judgment": judgment, "model_checked": True}
         checked.append(item)
         yield {"checked": len(checked), "candidate_limit": limit}
@@ -102,6 +111,7 @@ def history_steps(
         ]
     return {
         "kind": "history",
+        "timings": timings,
         "object_query": object_query,
         "status": "clarify" if ambiguous else "candidate" if selected else "uncertain",
         "answer": answer,

@@ -66,6 +66,11 @@ class Workspace:
         self.verifier_factory = verifier_factory
         self.verifier = None
         self.queue = PriorityQueue()
+        self.ingest_queue = PriorityQueue()
+        self.model_lock = Lock()
+        self.ingest_thread = Thread(
+            target=lambda: self.run(self.ingest_queue), name="nyx-ingestion", daemon=True
+        )
         self.order = count()
         self.thread = Thread(target=self.run, name="nyx-inference", daemon=True)
         self.lock = Lock()
@@ -87,14 +92,16 @@ class Workspace:
             return Store(self.root, identity["encoder"], identity["dimensions"])
 
     def model_store(self):
-        if self.encoder is None:
-            self.encoder = self.encoder_factory()
+        with self.model_lock:
+            if self.encoder is None:
+                self.encoder = self.encoder_factory()
         with self.store_lock:
             return Store(self.root, self.encoder.fingerprint, self.encoder.dimensions)
 
     def visual_verifier(self):
-        if self.verifier is None:
-            self.verifier = self.verifier_factory()
+        with self.model_lock:
+            if self.verifier is None:
+                self.verifier = self.verifier_factory()
         return self.verifier
 
     def reserve(self, kind, job_id=None):
@@ -126,26 +133,51 @@ class Workspace:
 
     def submit(self, job_id, action):
         priority = 0 if self.jobs[job_id]["kind"] in {"search", "answer", "agent", "observe"} else 1
-        self.queue.put((priority, next(self.order), job_id, action))
+        queue = (
+            self.ingest_queue if self.jobs[job_id]["kind"] in {"capture", "index"} else self.queue
+        )
+        self.jobs[job_id]["queued_clock"] = time.perf_counter()
+        queue.put((priority, next(self.order), job_id, action))
 
-    def run(self):
+    def run(self, queue=None):
+        queue = self.queue if queue is None else queue
         while True:
-            _, _, job_id, work = self.queue.get()
+            _, _, job_id, work = queue.get()
             if job_id is None:
                 return
+            started = time.perf_counter()
+            if "queue_ms" not in self.jobs[job_id]:
+                self.update(
+                    job_id,
+                    queue_ms=round(
+                        (started - self.jobs[job_id].get("queued_clock", started)) * 1000
+                    ),
+                )
             self.update(job_id, status="running")
             try:
                 result = work() if callable(work) else work
                 if isinstance(result, GeneratorType):
                     progress = next(result)
                     self.update(job_id, progress=progress)
-                    self.queue.put((1, next(self.order), job_id, result))
+                    queue.put((1, next(self.order), job_id, result))
                 else:
                     self.update(job_id, status="succeeded", result=result)
             except StopIteration as done:
                 self.update(job_id, status="succeeded", result=done.value)
             except Exception as exc:  # noqa: BLE001 — worker failures must reach the task UI
                 self.update(job_id, status="failed", error=str(exc))
+            finally:
+                elapsed = round((time.perf_counter() - started) * 1000)
+                self.update(job_id, work_ms=self.jobs[job_id].get("work_ms", 0) + elapsed)
+                if self.conversations:
+                    self.conversations.event(
+                        "job_slice",
+                        job_id=job_id,
+                        kind=self.jobs[job_id]["kind"],
+                        status=self.jobs[job_id]["status"],
+                        elapsed_ms=elapsed,
+                        queue_ms=self.jobs[job_id].get("queue_ms", 0),
+                    )
 
     def submit_segment(self, segment):
         with self.lock:
@@ -165,6 +197,7 @@ class Workspace:
                     video_id=segment["id"],
                     name=f"Recording {segment['recorded_at']} · part {segment['sequence'] + 1}",
                     adaptive=True,
+                    batch_size=8,
                 )
             except Exception as exc:
                 self.capture.mark(segment["id"], "failed", str(exc))
@@ -187,7 +220,9 @@ class Workspace:
 
     def close(self):
         self.queue.put((99, next(self.order), None, None))
+        self.ingest_queue.put((99, next(self.order), None, None))
         self.thread.join()
+        self.ingest_thread.join()
 
     def delete_video(self, video_id):
         deletion = self.capture.deletion(video_id)
@@ -294,6 +329,7 @@ def create_app(
         for segment in workspace.capture.pending():
             workspace.submit_segment(segment)
         workspace.thread.start()
+        workspace.ingest_thread.start()
         if voice:
             job_id = workspace.reserve("warmup")
 

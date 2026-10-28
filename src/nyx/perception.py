@@ -35,6 +35,11 @@ class CloudEncoder:
             raise ValueError("Embedding dimensions must be between 1 and 4096")
         self.device = "cloud"
         self.load_seconds = 0
+        from collections import OrderedDict
+        from threading import Lock
+
+        self.text_cache = OrderedDict()
+        self.text_lock = Lock()
         self.fingerprint = {
             "model": self.model,
             "dimensions": self.dimensions,
@@ -78,4 +83,13 @@ class CloudEncoder:
         return self._encode([{"content": [image_part(image)]} for image in images])
 
     def encode_text(self, query):
-        return self._encode([{"content": [{"type": "text", "text": query}]}])[0]
+        query = query.strip()
+        with self.text_lock:
+            if query in self.text_cache:
+                self.text_cache.move_to_end(query)
+                return self.text_cache[query].copy()
+            vector = self._encode([{"content": [{"type": "text", "text": query}]}])[0]
+            self.text_cache[query] = vector.copy()
+            if len(self.text_cache) > 64:
+                self.text_cache.popitem(last=False)
+            return vector

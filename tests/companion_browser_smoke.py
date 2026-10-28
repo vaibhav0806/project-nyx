@@ -251,7 +251,9 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                         page.locator("#companion-message").fill("Thanks, pause")
                         page.locator("#companion-send").click()
                         expect(page.locator("#companion-thread")).to_contain_text("Okay, paused.")
-                        assert page.evaluate("companion.reviewCandidate === null")
+                        page.wait_for_function(
+                            "!companion.working && companion.reviewCandidate === null"
+                        )
                         expect(page.locator("#answer-panel")).to_be_hidden()
                         # Explicitly displaying a saved result establishes a new reference.
                         page.evaluate("output => showAnswer(output)", reviewed_result)

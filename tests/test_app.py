@@ -108,11 +108,12 @@ def test_web_worker_accepts_one_search_while_indexing_and_bounds_extra_jobs(tmp_
             assert client.get("/api/videos").status_code == 200
             query = client.post("/api/search", json={"query": "green"})
             assert query.status_code == 202
-            assert client.post("/api/search", json={"query": "green"}).status_code == 409
+            assert "Record or import" in wait_for_job(client, query.json()["id"])["error"]
             assert client.post("/api/import?name=other.mp4", content=b"data").status_code == 409
             release.set()
             assert wait_for_job(client, response.json()["id"])["status"] == "succeeded"
-            assert wait_for_job(client, query.json()["id"])["status"] == "succeeded"
+            retry = client.post("/api/search", json={"query": "green"}).json()
+            assert wait_for_job(client, retry["id"])["status"] == "succeeded"
     finally:
         release.set()
 
@@ -136,9 +137,9 @@ def test_search_has_priority_between_background_index_batches(tmp_path, video):
             background = client.post("/api/import?name=new.mp4", content=video.read_bytes()).json()
             assert entered.wait(2)
             query = client.post("/api/search", json={"query": "green"}).json()
-            release.set()
             results = wait_for_job(client, query["id"])["result"]["results"]
             assert {row["video_id"] for row in results} == {baseline["video_id"]}
+            release.set()
             assert wait_for_job(client, background["id"])["status"] == "succeeded"
     finally:
         release.set()

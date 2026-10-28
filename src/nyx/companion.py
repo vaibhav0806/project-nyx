@@ -385,6 +385,7 @@ def install_companion(app, workspace, voice):
                             store.root / result["evidence"]["video_path"],
                             result["evidence"]["offset_seconds"],
                         )
+                        context_started = time.perf_counter()
                         attach_statements(
                             result,
                             conversations,
@@ -392,8 +393,18 @@ def install_companion(app, workspace, voice):
                             evidence_image,
                             identifier,
                         )
+                        result["timings"]["spoken_context_ms"] = round(
+                            (time.perf_counter() - context_started) * 1000
+                        )
                     except CloudError:
                         result["answer"] += " Spoken context could not be checked right now."
+                conversations.event(
+                    "history_timing",
+                    turn_id=identifier,
+                    job_id=job_id,
+                    timings=result.get("timings", {}),
+                    checked=len(result.get("checked", [])),
+                )
                 return result
             if name == "remind_on_departure":
                 item = tasks.create(body.request_id, action["message"])

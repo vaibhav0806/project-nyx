@@ -576,3 +576,33 @@ job-cancel events, job IDs and stack function/line locations for agent failures,
 and stack locations for transcription failures (no raw exception/provider payload).
 335 tests and synthetic voice browser smoke pass. Historical cancellation cause
 and a fresh real-user complete test remain open; no merge readiness claim.
+
+## Bounded latency improvements — 2026-10-29
+
+Measured previous real-user flow: question receipt to speech playback was about
+55 seconds; history tool execution occupied roughly 46 seconds. Old diagnostics
+cannot split that interval into individual provider calls or queue delays.
+
+Ingestion now runs in a separate single worker from interactive jobs, allowing
+one ingestion request and one interactive request to overlap. Model initialization
+is synchronized; SQLite writes remain short transactions. No extra speculative
+vision calls, new model downloads or broader worker pool. Capture embeddings use
+batches of eight selected images instead of two. Text embeddings use a 64-entry
+per-encoder in-memory LRU, removing repeated calls for identical queries while
+returning independent arrays. The model/embedding identity is unchanged.
+
+Text answers display before TTS finishes. Jobs expose initial queue and accumulated
+work time, history results split retrieval/decode/verification/context time, and
+server logs record cloud endpoint/model/outcome/duration without payloads or keys.
+
+Deterministic tests explicitly hold ingestion blocked while searches and observation
+finish. A synthetic no-op scheduling probe completed in 0.03 ms while ingestion
+was blocked: this proves isolation, not real cloud response latency. No new paid
+model benchmark was run. A fresh real-provider test is needed to quantify the
+end-to-end improvement; provider latency and sequential visual checks remain.
+
+Validation: 336 tests passed in 7.24 seconds; lint, formatting and JavaScript
+syntax checks pass. Companion synthetic browser regression passed with no browser
+errors, including cancellation, candidate corrections and event delivery. The first
+browser run exposed a test race between persisted conversation text and UI request
+completion; the assertion now waits for completion before checking cleared state.

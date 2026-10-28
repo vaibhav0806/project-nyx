@@ -251,6 +251,7 @@ const voice = {
         stage = "agent";
         const response = await companion.request(turn.transcript, turn);
         jobId = response.jobId;
+        $("voice-answer").textContent = `Nyx: ${response.result.answer}`;
         const output = response.result.visual;
         if (!active()) return;
         if (output?.scope) showAnswer(output);
