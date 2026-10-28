@@ -23,6 +23,7 @@ let uploadFailed = false;
 let downloadUrl = null;
 let latestReadyCount = null;
 let finalizing = 0;
+let clipsShown = 50;
 
 function message(text, error = false) {
   $(error ? "error" : "task").textContent = text;
@@ -40,6 +41,7 @@ function controls() {
   $("search").disabled = busy;
   $("ask-history").disabled = busy;
   $("inspect-now").disabled = busy || !enabled || !stream;
+  $("show-older-clips").disabled = busy;
   document.querySelectorAll(".delete-clip").forEach((button) => { button.disabled = busy || enabled || paused || requestingCamera || Boolean(remoteSession) || uploads.length > 0 || finalizing > 0; });
   $("recording-badge").hidden = !enabled;
   $("camera-state").classList.toggle("active", enabled);
@@ -80,7 +82,7 @@ async function task(path, options, onJob = () => {}) {
       const state = await api(`/api/jobs/${job.id}`);
       if (state.status === "succeeded") return state.result;
       if (state.status === "failed") throw new Error(state.error);
-      message(state.kind === "index" ? "Indexing your imported clip locally…" : state.kind === "answer" ? `Checking visual evidence locally${state.progress?.checked ? ` · ${state.progress.checked} frames checked` : " · first use loads the visual model"}…` : "Searching saved moments…");
+      message(state.kind === "index" ? "Indexing selected frames through OpenRouter…" : state.kind === "answer" ? `Checking visual evidence${state.progress?.checked ? ` · ${state.progress.checked} frames checked` : " · using cloud vision"}…` : "Searching saved moments…");
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
   } finally {
@@ -89,12 +91,36 @@ async function task(path, options, onJob = () => {}) {
   }
 }
 
-function play(source, offset, caption) {
+function play(source, offset, caption, keepWindow = false) {
+  if (!keepWindow) replayGeneration++;
   const replay = $("replay");
+  replay.onended = null; replay.ontimeupdate = null;
   replay.src = `${source}#t=${offset}`;
   $("replay-panel").hidden = false;
   $("replay-caption").textContent = caption;
   replay.play().catch(() => {});
+}
+
+let replayGeneration = 0;
+async function playMoment(row, caption) {
+  const generation = ++replayGeneration;
+  try {
+    const window = await api(`/api/videos/${row.video_id}/window?offset=${row.offset_seconds}`);
+    if (generation !== replayGeneration) return;
+    let index = 0;
+    const replay = $("replay");
+    const next = () => {
+      if (generation !== replayGeneration) return;
+      const part = window.parts[index++];
+      if (!part) { replay.pause(); replay.onended = null; replay.ontimeupdate = null; return; }
+      play(part.media_url, part.start, `${caption} · ${window.note}`, true);
+      let advanced = false;
+      const advance = () => { if (!advanced) { advanced = true; next(); } };
+      replay.onended = advance;
+      replay.ontimeupdate = () => { if (replay.currentTime >= part.end - 0.05) advance(); };
+    };
+    next();
+  } catch (error) { message(`Could not load playback context: ${error.message}`, true); }
 }
 
 async function refreshLibrary() {
@@ -111,7 +137,7 @@ async function refreshLibrary() {
   $("clips").replaceChildren();
   const ready = videos.filter((video) => video.status === "ready");
   $("clip-count").textContent = `${ready.length} ${ready.length === 1 ? "clip" : "clips"}`;
-  for (const video of videos.slice(0, 50)) {
+  for (const video of videos.slice(0, clipsShown)) {
     const row = document.createElement("div");
     row.className = "clip-row";
     const button = document.createElement("button");
@@ -140,6 +166,7 @@ async function refreshLibrary() {
     $("clips").append(row);
   }
   for (const video of ready) $("scope").add(new Option(video.name, video.id));
+  $("show-older-clips").hidden = videos.length <= clipsShown;
   if (!videos.length) {
     const empty = document.createElement("p");
     empty.className = "empty-library";
@@ -149,6 +176,12 @@ async function refreshLibrary() {
   if (ready.some((video) => video.id === scope)) $("scope").value = scope;
   controls();
 }
+
+$("show-older-clips").onclick = async () => {
+  clipsShown += 50;
+  try { await refreshLibrary(); }
+  catch (error) { message(error.message, true); }
+};
 
 async function deleteClip(video) {
   if (!window.confirm(`Permanently delete “${video.name}”? Its saved video, thumbnails and search vectors will be removed. This cannot be undone.`)) return;
@@ -482,7 +515,7 @@ $("search-form").onsubmit = async (event) => {
       score.textContent = `Similarity ${result.similarity.toFixed(3)} · Unverified`;
       text.append(title, name, score);
       button.append(image, text);
-      button.onclick = () => play(result.media_url, result.offset_seconds, `${result.name} · Candidate at ${timestamp(result.offset_seconds)}`);
+      button.onclick = () => playMoment(result, `${result.name} · Candidate at ${timestamp(result.offset_seconds)}`);
       $("results").append(button);
     }
     message(output.results.length ? "Select a candidate to replay it. Recording can keep running." : "No searchable frames yet for these filters. Recording and indexing can keep running.");
@@ -498,15 +531,21 @@ function answerEvidence(row, label) {
   const text = document.createElement("span");
   text.textContent = `${label} · ${timestamp(row.offset_seconds)} · ${row.observed_at ? new Date(row.observed_at).toLocaleString() : "Capture clock time unknown"}`;
   button.append(image, text);
-  button.onclick = () => play(row.media_url, row.offset_seconds, `${row.name || "Source"} · ${label} at ${timestamp(row.offset_seconds)}`);
+  button.onclick = () => playMoment(row, `${row.name || "Source"} · ${label} at ${timestamp(row.offset_seconds)}`);
   return button;
 }
 
 function showAnswer(output) {
+  if (typeof companion !== "undefined") companion.reviewCandidate = output.status === "candidate" && output.evidence
+    ? { presented_frame_id: output.evidence.id, presented_query: output.object_query } : null;
   $("answer-panel").hidden = false;
+  $("answer-source-label").textContent = output.status === "confirmed" ? "Confirmed by you"
+    : output.kind === "snapshot" ? "Model checked" : "Possible match";
   const observed = output.captured_at || output.evidence?.observed_at;
   $("answer-text").textContent = observed ? output.answer.replace(observed, new Date(observed).toLocaleString()) : output.answer;
-  $("answer-note").textContent = output.kind === "snapshot"
+  $("answer-note").textContent = output.status === "confirmed"
+    ? "You confirmed this item in a saved frame. This is historical evidence, not its current location."
+    : output.kind === "snapshot"
     ? `Snapshot age when answered: ${Math.max(0, output.age_seconds).toFixed(1)}s. The view may have changed. This snapshot is not saved to permanent history.`
     : `Checked ${output.scope.checked_count} sampled moments. This may miss sightings in other footage or recording gaps.${output.scope.known_time_only ? " Unknown capture dates were excluded." : ""}`;
   $("answer-evidence").replaceChildren();
@@ -514,7 +553,44 @@ function showAnswer(output) {
   $("snapshot-evidence").hidden = !output.snapshot_url;
   if (output.snapshot_url) $("snapshot-evidence").src = output.snapshot_url;
   else $("snapshot-evidence").removeAttribute("src");
-  if (output.evidence) $("answer-evidence").append(answerEvidence(output.evidence, "Model-confirmed sighting"));
+  if (output.evidence) $("answer-evidence").append(answerEvidence(output.evidence,
+    output.status === "confirmed" ? "You confirmed this item" : "Possible match · check the item"));
+  if (!output.evidence) {
+    const ambiguous = (output.checked || []).find(row => row.judgment?.ambiguous);
+    if (ambiguous) $("answer-evidence").append(answerEvidence(ambiguous, "Several possible items · needs clarification"));
+  }
+  if (output.status === "candidate" && output.evidence) {
+    const confirm = document.createElement("button");
+    confirm.textContent = "This is the item";
+    const reject = document.createElement("button");
+    reject.textContent = "Not this item";
+    const requestId = crypto.randomUUID();
+    const review = async (operation) => {
+      confirm.disabled = reject.disabled = true;
+      try {
+        const result = await operation();
+        showAnswer(result);
+        if (typeof companion !== "undefined") await companion.refresh();
+      } catch (error) {
+        message(error.message, true);
+        confirm.disabled = reject.disabled = false;
+      }
+    };
+    confirm.onclick = () => review(() => api("/api/matches/confirm", json({
+      frame_id: output.evidence.id, object_query: output.object_query, request_id: requestId,
+    })));
+    reject.onclick = async () => {
+      confirm.disabled = reject.disabled = true;
+      try {
+        await companion.request("That's not the item I meant. Please keep looking.");
+      } catch (error) {
+        message(error.message, true);
+        $("answer-panel").hidden = false;
+        confirm.disabled = reject.disabled = false;
+      }
+    };
+    $("answer-evidence").append(confirm, reject);
+  }
   for (const row of output.checked || []) {
     const line = document.createElement("p");
     line.textContent = `${row.observed_at ? new Date(row.observed_at).toLocaleString() : `Clock unknown, offset ${timestamp(row.offset_seconds)}`} · ${row.judgment.visibility}: ${row.judgment.description}`;
@@ -567,7 +643,7 @@ $("inspect-now").onclick = async () => {
   $("answer-panel").hidden = true;
   try {
     showAnswer(await inspectView(objectQuery));
-    message("Snapshot checked locally. Its capture time is shown with the answer.");
+    message("Snapshot checked through cloud vision. Its capture time is shown with the answer.");
   } catch (error) { message(""); message(error.message, true); }
 };
 

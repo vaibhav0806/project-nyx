@@ -155,6 +155,15 @@ def run(url, video, output, record_seconds=0, server_pid=None, visual_answers=Fa
                     next_search = time.monotonic() + 15
                 page.wait_for_timeout(1000)
             recording_elapsed = time.monotonic() - recording_started
+            recording_results = {
+                "requested_recording_seconds": record_seconds,
+                "recording_elapsed_seconds": recording_elapsed,
+                "resource_samples": resource_samples,
+                "search_round_trip_seconds": search_seconds,
+                "capture_after_recording": page.request.get(url + "/api/capture").json(),
+                "phase": "Recording/search completed; subsequent lifecycle checks not yet complete",
+            }
+            (output / "recording-results.json").write_text(json.dumps(recording_results, indent=2))
             expect(page.get_by_role("button", name="Search", exact=True)).to_be_enabled()
             page.get_by_label("What are you looking for?").fill("a television remote control")
             page.get_by_role("button", name="Search", exact=True).click()
@@ -224,6 +233,15 @@ def run(url, video, output, record_seconds=0, server_pid=None, visual_answers=Fa
             before_delete = len(sources)
             imported = next(video for video in sources if video["name"] == "scenes.mp4")
             selected = page.locator(".clip-row").filter(has_text="scenes.mp4")
+            for _ in range((before_delete + 49) // 50):
+                if selected.count():
+                    break
+                visible_clips = page.locator("#clips .clip-row").count()
+                page.get_by_role("button", name="Show older clips", exact=True).click()
+                page.wait_for_function(
+                    "count => document.querySelectorAll('#clips .clip-row').length > count",
+                    arg=visible_clips,
+                )
             page.once("dialog", lambda dialog: dialog.dismiss())
             selected.get_by_role("button", name="Delete clip", exact=True).click()
             assert len(page.request.get(url + "/api/videos").json()) == before_delete
@@ -277,12 +295,10 @@ def run(url, video, output, record_seconds=0, server_pid=None, visual_answers=Fa
             assert mobile.evaluate("document.documentElement.scrollWidth <= innerWidth")
             assert errors == [], errors
             result = {
+                **recording_results,
+                "phase": "Recording/search and all lifecycle checks completed",
                 "browser": browser.version,
                 "visual_answers_checked": visual_answers,
-                "requested_recording_seconds": record_seconds,
-                "recording_elapsed_seconds": recording_elapsed,
-                "resource_samples": resource_samples,
-                "search_round_trip_seconds": search_seconds,
                 "capture_status_before_reload": status,
                 "indexed_count_before_reload": indexed_count,
                 "checks": [

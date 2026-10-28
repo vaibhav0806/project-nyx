@@ -1,0 +1,367 @@
+[
+  {
+    "name": "older-than-day",
+    "message": "Go back further in time for that notebook. This picture might be right.",
+    "context": [
+      {
+        "transcript": "Look through recorded footage for my green notebook.",
+        "answer": "Could this be your item?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "green notebook",
+              "hours": 24,
+              "excluded_frame_ids": [
+                311
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 319,
+            "object_query": "green notebook",
+            "excluded_frame_ids": [
+              311
+            ]
+          }
+        }
+      }
+    ],
+    "concepts": [
+      "green",
+      "notebook"
+    ],
+    "required_exclusions": [
+      311
+    ],
+    "forbidden_exclusions": [
+      319
+    ],
+    "wider_than_hours": 24,
+    "history_only": true,
+    "before_frame_id": 319
+  },
+  {
+    "name": "week-to-all",
+    "message": "Can you extend the search further into the past for the same item?",
+    "context": [
+      {
+        "transcript": "Look through recorded footage for my green notebook.",
+        "answer": "Could this be your item?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "green notebook",
+              "hours": 168,
+              "excluded_frame_ids": [
+                311
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 319,
+            "object_query": "green notebook",
+            "excluded_frame_ids": [
+              311
+            ]
+          }
+        }
+      }
+    ],
+    "concepts": [
+      "green",
+      "notebook"
+    ],
+    "required_exclusions": [
+      311
+    ],
+    "forbidden_exclusions": [
+      319
+    ],
+    "hours": [
+      0
+    ],
+    "history_only": true,
+    "before_frame_id": 319
+  },
+  {
+    "name": "switch-history-umbrella",
+    "message": "Leave the notebook. Check the recordings for an orange umbrella instead.",
+    "context": [
+      {
+        "transcript": "Look through recorded footage for my green notebook.",
+        "answer": "Could this be your item?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "green notebook",
+              "hours": 24,
+              "excluded_frame_ids": [
+                311
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 319,
+            "object_query": "green notebook",
+            "excluded_frame_ids": [
+              311
+            ]
+          }
+        }
+      }
+    ],
+    "concepts": [
+      "orange",
+      "umbrella"
+    ],
+    "no_exclusions": true,
+    "history_only": true
+  },
+  {
+    "name": "reject-and-change-detail",
+    "message": "That belongs to someone else. Mine is a purple notebook with a spiral binding.",
+    "context": [
+      {
+        "transcript": "Look through recorded footage for my green notebook.",
+        "answer": "Could this be your item?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "green notebook",
+              "hours": 24,
+              "excluded_frame_ids": [
+                311
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 319,
+            "object_query": "green notebook",
+            "excluded_frame_ids": [
+              311
+            ]
+          }
+        }
+      }
+    ],
+    "concepts": [
+      "purple",
+      "notebook",
+      "spiral"
+    ],
+    "forbidden": [
+      "green"
+    ],
+    "required_exclusions": [
+      311,
+      319
+    ],
+    "history_only": true
+  },
+  {
+    "name": "accept-description-not-image",
+    "message": "The green notebook is still what I want, but that photo is the wrong one. Please continue.",
+    "context": [
+      {
+        "transcript": "Look through recorded footage for my green notebook.",
+        "answer": "Could this be your item?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "green notebook",
+              "hours": 24,
+              "excluded_frame_ids": [
+                311
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 319,
+            "object_query": "green notebook",
+            "excluded_frame_ids": [
+              311
+            ]
+          }
+        }
+      }
+    ],
+    "concepts": [
+      "green",
+      "notebook"
+    ],
+    "required_exclusions": [
+      311,
+      319
+    ],
+    "history_only": true
+  },
+  {
+    "name": "unresolved-it",
+    "message": "Can you locate it for me?",
+    "context": [],
+    "concepts": [],
+    "path": [
+      "clarify"
+    ],
+    "status": "clarify"
+  },
+  {
+    "name": "unresolved-color",
+    "message": "The smaller yellow one, please.",
+    "context": [],
+    "concepts": [],
+    "path": [
+      "clarify"
+    ],
+    "status": "clarify"
+  },
+  {
+    "name": "explicit-category-no-history",
+    "message": "Check for my spare charging cable in the live view.",
+    "context": [],
+    "concepts": [
+      "charging",
+      "cable"
+    ],
+    "no_exclusions": true,
+    "path": [
+      "inspect_current",
+      "finish"
+    ]
+  },
+  {
+    "name": "clarification-resolved",
+    "message": "The striped one.",
+    "context": [
+      {
+        "transcript": "Find my scarf",
+        "answer": "Which scarf do you mean?",
+        "plan": {
+          "steps": [
+            {
+              "action": "inspect_current",
+              "query": "scarf"
+            }
+          ]
+        }
+      }
+    ],
+    "concepts": [
+      "striped",
+      "scarf"
+    ],
+    "path": [
+      "inspect_current",
+      "finish"
+    ]
+  },
+  {
+    "name": "ambiguous-two-categories",
+    "message": "Where is it now?",
+    "context": [
+      {
+        "transcript": "I am looking for a tablet and its stylus.",
+        "answer": "Which one shall I look for first?",
+        "plan": {
+          "steps": [
+            {
+              "action": "clarify",
+              "message": "Which one?"
+            }
+          ]
+        }
+      }
+    ],
+    "concepts": [],
+    "path": [
+      "clarify"
+    ],
+    "status": "clarify"
+  },
+  {
+    "name": "stop-after-review",
+    "message": "Never mind, I found it myself. You can stop.",
+    "context": [
+      {
+        "transcript": "Look through recorded footage for my green notebook.",
+        "answer": "Could this be your item?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "green notebook",
+              "hours": 24,
+              "excluded_frame_ids": [
+                311
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 319,
+            "object_query": "green notebook",
+            "excluded_frame_ids": [
+              311
+            ]
+          }
+        }
+      }
+    ],
+    "concepts": [],
+    "path": [
+      "chat"
+    ],
+    "status": "chat"
+  },
+  {
+    "name": "correct-object-live",
+    "message": "Actually I need my spectacles, not the notebook. Look at the current view.",
+    "context": [
+      {
+        "transcript": "Look through recorded footage for my green notebook.",
+        "answer": "Could this be your item?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "green notebook",
+              "hours": 24,
+              "excluded_frame_ids": [
+                311
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 319,
+            "object_query": "green notebook",
+            "excluded_frame_ids": [
+              311
+            ]
+          }
+        }
+      }
+    ],
+    "concepts": [
+      "spectacles"
+    ],
+    "forbidden": [
+      "notebook"
+    ],
+    "no_exclusions": true,
+    "path": [
+      "inspect_current",
+      "finish"
+    ]
+  }
+]

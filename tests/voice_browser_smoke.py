@@ -55,12 +55,19 @@ def serve(root, port, conversation=False):
                 "ambiguous": False,
             }
 
+        def decide(self, state):
+            return (
+                {"action": "finish", "observation": 0}
+                if state["observations"]
+                else {"action": "inspect_current", "query": "glasses"}
+            )
+
     uvicorn.run(
         create_app(
             root,
             encoder_factory=ColorEncoder,
             verifier_factory=Verifier,
-            voice_factory=lambda root: Voice(root, Provider(), WakeRecognizer()),
+            voice_factory=lambda root: Voice(root, Provider(), WakeRecognizer(), agent_mode=True),
         ),
         host="127.0.0.1",
         port=port,
@@ -88,7 +95,7 @@ def run(audio, output, conversation=False):
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
-    env = {k: v for k, v in os.environ.items() if k != "SARVAM_API_KEY"}
+    env = {k: v for k, v in os.environ.items() if k not in {"SARVAM_API_KEY", "OPENROUTER_API_KEY"}}
     env["HF_HUB_OFFLINE"] = "1"
     process = subprocess.Popen(
         [sys.executable, __file__, "--serve", str(output / "data"), "--port", str(port)]
@@ -260,8 +267,8 @@ def run(audio, output, conversation=False):
                     "mute during permission request releases late-arriving microphone tracks",
                 ],
                 "limitations": [
-                    "cloud routing, STT, TTS and visual judgment mocked in this browser check",
-                    "Sarvam connection checked separately with generated speech",
+                    "Cloud STT/TTS, agent decisions and visual judgment mocked in this browser check",
+                    "this check makes no hosted-provider calls; provider validation is separate",
                     "no actual webcam or microphone opened",
                 ],
             }

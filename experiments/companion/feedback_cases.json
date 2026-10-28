@@ -1,0 +1,233 @@
+[
+  {
+    "name": "reject-glasses-casually",
+    "message": "Nope, those belong to my brother. Can you look again?",
+    "concepts": [
+      "glasses"
+    ],
+    "required_exclusions": [
+      71,
+      74
+    ],
+    "history_only": true,
+    "context": [
+      {
+        "transcript": "Find my reading glasses in the recordings",
+        "answer": "Is this the item you mean?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "reading glasses",
+              "hours": 2,
+              "excluded_frame_ids": [
+                71
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 74,
+            "object_query": "reading glasses",
+            "excluded_frame_ids": [
+              71
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "glasses-material-correction",
+    "message": "Not those. My reading glasses have red frames. Try the older footage.",
+    "concepts": [
+      "reading",
+      "glasses",
+      "red"
+    ],
+    "required_exclusions": [
+      71,
+      74
+    ],
+    "history_only": true,
+    "context": [
+      {
+        "transcript": "Find my reading glasses in the recordings",
+        "answer": "Is this the item you mean?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "reading glasses",
+              "hours": 2,
+              "excluded_frame_ids": [
+                71
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 74,
+            "object_query": "reading glasses",
+            "excluded_frame_ids": [
+              71
+            ]
+          }
+        }
+      }
+    ],
+    "wider_than_hours": 2
+  },
+  {
+    "name": "switch-to-wallet-history",
+    "message": "Forget the glasses for now. Where did you last see my brown wallet?",
+    "concepts": [
+      "brown",
+      "wallet"
+    ],
+    "no_exclusions": true,
+    "history_only": true,
+    "context": [
+      {
+        "transcript": "Find my reading glasses in the recordings",
+        "answer": "Is this the item you mean?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "reading glasses",
+              "hours": 2,
+              "excluded_frame_ids": [
+                71
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 74,
+            "object_query": "reading glasses",
+            "excluded_frame_ids": [
+              71
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "switch-to-keys-current",
+    "message": "New question: check the live camera for my keys with the yellow tag.",
+    "concepts": [
+      "keys",
+      "yellow"
+    ],
+    "no_exclusions": true,
+    "path": [
+      "inspect_current",
+      "finish"
+    ],
+    "context": [
+      {
+        "transcript": "Find my reading glasses in the recordings",
+        "answer": "Is this the item you mean?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "reading glasses",
+              "hours": 2,
+              "excluded_frame_ids": [
+                71
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 74,
+            "object_query": "reading glasses",
+            "excluded_frame_ids": [
+              71
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "no-rejection-just-time",
+    "message": "Could you look further back for those same reading glasses?",
+    "concepts": [
+      "reading",
+      "glasses"
+    ],
+    "forbidden_exclusions": [
+      74
+    ],
+    "history_only": true,
+    "context": [
+      {
+        "transcript": "Find my reading glasses in the recordings",
+        "answer": "Is this the item you mean?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "reading glasses",
+              "hours": 2,
+              "excluded_frame_ids": [
+                71
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 74,
+            "object_query": "reading glasses",
+            "excluded_frame_ids": [
+              71
+            ]
+          }
+        }
+      }
+    ],
+    "wider_than_hours": 2,
+    "required_exclusions": [
+      71
+    ]
+  },
+  {
+    "name": "pause-search-politely",
+    "message": "Thanks, leave it for now.",
+    "concepts": [],
+    "path": [
+      "chat"
+    ],
+    "status": "chat",
+    "context": [
+      {
+        "transcript": "Find my reading glasses in the recordings",
+        "answer": "Is this the item you mean?",
+        "sources_available": true,
+        "plan": {
+          "steps": [
+            {
+              "action": "search_history",
+              "query": "reading glasses",
+              "hours": 2,
+              "excluded_frame_ids": [
+                71
+              ]
+            }
+          ],
+          "candidate": {
+            "frame_id": 74,
+            "object_query": "reading glasses",
+            "excluded_frame_ids": [
+              71
+            ]
+          }
+        }
+      }
+    ]
+  }
+]

@@ -3,14 +3,13 @@ import json
 import re
 import sqlite3
 import time
+import traceback
 import uuid
 import wave
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from threading import Lock
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 import numpy as np
 
@@ -62,10 +61,16 @@ def conversational_plan(text):
 def spoken_answer(result):
     kind = result.get("kind")
     query = result.get("object_query", "that object")
+    if result.get("status") == "confirmed":
+        return result["answer"]
+    if result.get("status") == "clarify":
+        return "Which one do you mean? Please describe its color, position, or another distinguishing detail."
     if kind == "snapshot":
         if result.get("status") == "seen":
             return f"I can see {query} {result['judgment'].get('location') or 'in this view'}."
         return f"I can't clearly see {query} in this view."
+    if kind == "history" and result.get("spoken_context"):
+        return result["answer"]
     if kind == "history":
         evidence = result.get("evidence")
         if evidence:
@@ -75,8 +80,12 @@ def spoken_answer(result):
                 if when
                 else f"{evidence['offset_seconds']:.0f} seconds into a clip with an unknown recording time"
             )
-            location = evidence["judgment"].get("location") or "in the recording"
-            return f"The latest sighting I found was {query} {location}, at {when}. I can't confirm it's still there."
+            qualifier = (
+                "A possible match I found was"
+                if result.get("scope", {}).get("mode") == "relevance"
+                else "The latest possible match I found was"
+            )
+            return f"{qualifier} in footage from {when}. Is this the item you mean? Please check the image; I have not verified its identity or current location."
         return f"I couldn't confirm {query} in the moments I checked. Other footage may still contain it."
     return result["answer"]
 
@@ -86,7 +95,12 @@ class WakeRecognizer:
         from faster_whisper import WhisperModel
         from huggingface_hub import snapshot_download
 
-        path = snapshot_download(WAKE_MODEL, revision=WAKE_REVISION, local_files_only=True)
+        path = snapshot_download(
+            WAKE_MODEL,
+            revision=WAKE_REVISION,
+            local_files_only=True,
+            allow_patterns=["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"],
+        )
         self.model = WhisperModel(path, device="cpu", compute_type="int8", cpu_threads=2)
 
     def __call__(self, pcm):
@@ -115,7 +129,7 @@ def validate_plan(plan):
         raise VoiceError(
             "Could not interpret that question. Please name an object and say now or last seen."
         )
-    if plan.get("mode") not in {"current", "latest", "relevance", "clarify", "chat"}:
+    if plan.get("mode") not in {"current", "latest", "relevance", "clarify", "chat", "agent"}:
         raise VoiceError(
             "That request is outside the visual demo. Ask where an object is or was last seen."
         )
@@ -132,7 +146,7 @@ def validate_plan(plan):
     ):
         raise VoiceError("Conversation replies cannot contain visual lookup fields.")
     query = plan.get("object_query")
-    if plan["mode"] not in {"clarify", "chat"} and (
+    if plan["mode"] not in {"clarify", "chat", "agent"} and (
         not isinstance(query, str) or not 1 <= len(query.strip()) <= 200
     ):
         raise VoiceError("Please name the object you want me to look for.")
@@ -157,37 +171,16 @@ def validate_plan(plan):
     return plan
 
 
-class Sarvam:
-    def __init__(self, key, transport=urlopen):
-        self.key = key
-        self.transport = transport
-        self.audio_cache = {}
+class CloudVoice:
+    def __init__(self, client=None):
+        import os
 
-    def request(self, path, body, content_type="application/json"):
-        request = Request(
-            "https://api.sarvam.ai/" + path,
-            data=body,
-            headers={
-                "api-subscription-key": self.key,
-                "content-type": content_type,
-            },
-        )
-        try:
-            with self.transport(request, timeout=40) as response:
-                raw = response.read(8 * 1024**2 + 1)
-                if len(raw) > 8 * 1024**2:
-                    raise VoiceError("Sarvam response was too large. Try a shorter question.")
-                return json.loads(raw)
-        except HTTPError as exc:
-            raise VoiceError(
-                f"Sarvam request failed ({exc.code}). Check the key, credits or provider status."
-            ) from None
-        except (URLError, TimeoutError, OSError, ValueError) as exc:
-            if isinstance(exc, VoiceError):
-                raise
-            raise VoiceError(
-                "Sarvam could not complete the request. Check the connection and retry."
-            ) from None
+        from nyx.cloud import OpenRouter
+
+        self.client = client or OpenRouter()
+        self.stt_model = os.environ.get("NYX_STT_MODEL", "openai/gpt-4o-mini-transcribe")
+        self.tts_model = "google/gemini-3.8-flash-lite-tts"
+        self.audio_cache = {}
 
     def transcribe(self, pcm):
         wav = BytesIO()
@@ -196,129 +189,56 @@ class Sarvam:
             file.setsampwidth(2)
             file.setframerate(16000)
             file.writeframes(pcm)
-        boundary = uuid.uuid4().hex
-        parts = []
-        for key, value in {
-            "model": "saaras:v4",
-            "keyterms": json.dumps(["Nyx"]),
-            "language_code": "unknown",
-        }.items():
-            parts.append(
-                f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"\r\n\r\n{value}\r\n'.encode()
-            )
-        parts += [
-            f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="question.wav"\r\nContent-Type: audio/wav\r\n\r\n'.encode(),
-            wav.getvalue(),
-            f"\r\n--{boundary}--\r\n".encode(),
-        ]
-        result = self.request(
-            "speech-to-text", b"".join(parts), f"multipart/form-data; boundary={boundary}"
-        )
-        text = result.get("transcript")
-        if not isinstance(text, str) or not 1 <= len(text.strip()) <= 1500:
-            raise VoiceError("I could not hear a question. Say Hey Nyx and try again.")
-        return text.strip()
-
-    def route(self, transcript, context):
-        schema = {
-            "type": "object",
-            "properties": {
-                "mode": {
-                    "type": "string",
-                    "enum": ["current", "latest", "relevance", "clarify", "chat"],
-                },
-                "object_query": {"type": "string"},
-                "reply": {"type": "string"},
-                "seen_after": {"type": "string"},
-                "seen_before": {"type": "string"},
-            },
-            "required": ["mode", "object_query", "seen_after", "seen_before", "reply"],
-            "additionalProperties": False,
-        }
-        prompt = (
-            "You are Nyx, a friendly, concise voice companion. Decide intent first. "
-            "chat = greetings, small talk and ordinary conversation: reply naturally in at most two short sentences. "
-            "Never send a greeting such as what's up or how are you to the camera as an object. "
-            "current = find a concrete object in the current view. latest = last seen in recorded history. "
-            "relevance = best matching past moments. clarify = ambiguous object/time or unsupported action. "
-            "For visual modes, reply MUST be an empty string; a local visual tool supplies all observations. "
-            "For chat/clarify, object_query and time bounds MUST be empty strings. "
-            "No unsupported claims about seeing, hearing, remembering, people or the room in chat replies. "
-            "No reminders or saving facts yet: explain that briefly when requested. "
-            "For clarify, ask one brief useful question. Don't invent an object. "
-            "Object descriptions are in English. Resolve them using prior object queries only. "
-            "Dates must be explicit aware ISO times or empty strings; clarify ambiguous dates. "
-            "Do not inherit date bounds unless requested. Wake name may be transcribed Nix or Nick. "
-            'Examples: Where are my glasses? -> mode=current, object_query=glasses, reply="". '
-            'Where did you last see them? (prior object glasses) -> mode=latest, object_query=glasses, reply="". '
-            'What is up? -> mode=chat, object_query="", reply="Hey! What can I help with?". '
-            'I feel tired today -> mode=chat, object_query="", reply="Want to talk about your day?". '
-            "All unspecified time bounds are empty strings."
-        )
-        payload = {
-            "model": "sarvam-105b",
-            "messages": [
-                {"role": "system", "content": prompt},
-                {
-                    "role": "user",
-                    "content": json.dumps({"prior_questions": context, "question": transcript}),
-                },
-            ],
-            "tools": [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "inspect",
-                        "description": "Choose conversation, a visual lookup or a useful clarification",
-                        "parameters": schema,
-                    },
-                }
-            ],
-            "tool_choice": {"type": "function", "function": {"name": "inspect"}},
-            "reasoning_effort": None,
-            "max_tokens": 350,
-            "temperature": 0,
-        }
-        result = self.request("v1/chat/completions", json.dumps(payload).encode())
         try:
-            calls = result["choices"][0]["message"]["tool_calls"]
-            if len(calls) != 1 or calls[0]["function"]["name"] != "inspect":
-                raise ValueError
-            plan = json.loads(calls[0]["function"]["arguments"])
-            for field in ["object_query", "reply", "seen_after", "seen_before"]:
-                if plan.get(field) == "":
-                    plan[field] = None
-            return validate_plan(plan)
-        except (KeyError, TypeError, IndexError, ValueError):
-            raise VoiceError(
-                "Please name an object and ask about the current view or its last sighting."
-            ) from None
+            result = self.client.request(
+                "audio/transcriptions",
+                {
+                    "model": self.stt_model,
+                    "input_audio": {
+                        "data": base64.b64encode(wav.getvalue()).decode(),
+                        "format": "wav",
+                    },
+                },
+            )
+            text = result.get("text")
+            if not isinstance(text, str) or not 1 <= len(text.strip()) <= 1500:
+                raise ValueError("I could not hear a question. Say Hey Nyx and try again.")
+            return text.strip()
+        except ValueError as exc:
+            raise VoiceError(str(exc)) from None
 
     def speak(self, text):
         if text in self.audio_cache:
             return self.audio_cache[text]
-        payload = {
-            "text": text[:2200],
-            "language_code": "en-IN",
-            "model": "bulbul:v4-flash",
-            "speaker": "shubh_enhi_companion",
-            "speech_sample_rate": 16000,
-            "output_audio_codec": "wav",
-        }
-        result = self.request("text-to-speech", json.dumps(payload).encode())
         try:
-            audio = result["audios"][0]
-            raw = base64.b64decode(audio, validate=True)
-            if len(raw) > 4 * 1024**2 or not raw.startswith(b"RIFF"):
-                raise ValueError
+            pcm = self.client.request(
+                "audio/speech",
+                {
+                    "model": self.tts_model,
+                    "input": text[:2200],
+                    "voice": "Kore",
+                    "instructions": "Speak warmly and clearly.",
+                    "response_format": "pcm",
+                },
+                binary=True,
+            )
+            if not pcm or len(pcm) % 2 or len(pcm) > 4 * 1024**2:
+                raise ValueError(
+                    "Speech response was invalid. The answer is still shown on screen."
+                )
+            wav = BytesIO()
+            with wave.open(wav, "wb") as file:
+                file.setnchannels(1)
+                file.setsampwidth(2)
+                file.setframerate(24000)
+                file.writeframes(pcm)
+            audio = base64.b64encode(wav.getvalue()).decode()
             self.audio_cache[text] = audio
             if len(self.audio_cache) > 16:
                 self.audio_cache.pop(next(iter(self.audio_cache)))
             return audio
-        except (KeyError, IndexError, TypeError, ValueError):
-            raise VoiceError(
-                "Speech playback was unavailable. The answer is still shown on screen."
-            ) from None
+        except ValueError as exc:
+            raise VoiceError(str(exc)) from None
 
 
 class Conversations:
@@ -330,14 +250,36 @@ class Conversations:
                 (id TEXT PRIMARY KEY, at TEXT, transcript TEXT, plan TEXT, answer TEXT,
                 sources TEXT, sources_available INTEGER DEFAULT 1, status TEXT)""")
             db.execute("UPDATE turns SET status='interrupted' WHERE status='pending'")
+            db.execute("""CREATE TABLE IF NOT EXISTS diagnostics
+                (id INTEGER PRIMARY KEY, at TEXT NOT NULL, event TEXT NOT NULL,
+                 attempt_id TEXT, turn_id TEXT, details TEXT NOT NULL)""")
 
     def connect(self):
         db = sqlite3.connect(self.path)
         db.row_factory = sqlite3.Row
         return db
 
-    def begin(self, transcript, plan):
-        identifier = uuid.uuid4().hex
+    def event(self, event, *, attempt_id=None, turn_id=None, **details):
+        """Bounded local diagnostics. Callers must never pass audio, tokens or idle text."""
+        encoded = json.dumps(details, ensure_ascii=False)
+        if len(encoded) > 32000:
+            raise ValueError("Diagnostic event is too large")
+        with self.connect() as db:
+            db.execute(
+                "INSERT INTO diagnostics(at,event,attempt_id,turn_id,details) VALUES (?,?,?,?,?)",
+                (datetime.now(UTC).isoformat(), event, attempt_id, turn_id, encoded),
+            )
+            db.execute("DELETE FROM diagnostics WHERE id <= (SELECT MAX(id)-2000 FROM diagnostics)")
+
+    def diagnostics(self, limit=100):
+        with self.connect() as db:
+            rows = db.execute(
+                "SELECT * FROM diagnostics ORDER BY id DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [{**dict(row), "details": json.loads(row["details"])} for row in reversed(rows)]
+
+    def begin(self, transcript, plan, identifier=None):
+        identifier = identifier or uuid.uuid4().hex
         with self.connect() as db:
             db.execute(
                 "INSERT INTO turns VALUES (?,?,?,?,?,?,?,?)",
@@ -360,6 +302,10 @@ class Conversations:
                 "UPDATE turns SET answer=?, sources=?, status=? WHERE id=?",
                 (answer, json.dumps(list(sources)), status, identifier),
             )
+
+    def update_plan(self, identifier, plan):
+        with self.connect() as db:
+            db.execute("UPDATE turns SET plan=? WHERE id=?", (json.dumps(plan), identifier))
 
     def recent(self):
         with self.connect() as db:
@@ -384,9 +330,10 @@ class Conversations:
 
 
 class Voice:
-    def __init__(self, root, provider, recognizer=None):
+    def __init__(self, root, provider, recognizer=None, *, agent_mode=False):
         self.provider = provider
         self.recognizer = recognizer
+        self.agent_mode = agent_mode
         self.conversations = Conversations(root)
         self.lock = Lock()
         self.gate = Lock()
@@ -406,7 +353,8 @@ class Voice:
         with self.lock:
             if self.token and time.monotonic() < self.expires:
                 raise VoiceError("Another tab is listening. Mute it before starting here.")
-            self._cancel()
+            self._cancel("session_started")
+            self.conversations.event("voice_session_started")
             self.token = uuid.uuid4().hex
             self.expires = time.monotonic() + 30
             return {"token": self.token}
@@ -416,23 +364,30 @@ class Voice:
             self.check(token)
         return {"state": "listening"}
 
-    def _cancel(self):
+    def _cancel(self, reason="internal"):
+        self.conversations.event(
+            "voice_cancelled",
+            reason=reason,
+            epoch=self.epoch,
+            turn_id=self.turn["id"] if self.turn else None,
+        )
         self.epoch += 1
         self.awake_until = 0
         self.probed = False
         if self.turn:
+            self.conversations.event("turn_cancelled", turn_id=self.turn["id"])
             self.conversations.finish(self.turn["id"], status="interrupted")
         self.turn = None
 
-    def cancel(self, token):
+    def cancel(self, token, reason="cancel_endpoint"):
         with self.lock:
             self.check(token)
-            self._cancel()
+            self._cancel(reason)
 
-    def stop(self, token):
+    def stop(self, token, reason="session_stopped"):
         with self.lock:
             self.check(token)
-            self._cancel()
+            self._cancel(reason)
             self.token = None
 
     def recognize(self, pcm):
@@ -464,6 +419,10 @@ class Voice:
             ):
                 return {"state": "listening"}
             command = wake_command(self.recognize(pcm))
+            if command is not None:
+                self.conversations.event(
+                    "wake_detected", source="probe", duration_seconds=len(pcm) / 32000
+                )
             with self.lock:
                 self.check(token)
                 if epoch != self.epoch:
@@ -491,15 +450,24 @@ class Voice:
             self.probed = False
         return {"state": "activated", "seconds": 10}
 
-    def utterance(self, token, pcm):
+    def utterance(self, token, pcm, attempt_id=None):
+        attempt_id = str(uuid.UUID(attempt_id)) if attempt_id else str(uuid.uuid4())
+        identifier = None
+        stage = "activation"
         if not 6400 <= len(pcm) <= MAX_PCM or len(pcm) % 2:
             raise VoiceError("Use a spoken question between 0.2 and 25 seconds.")
         if not self.gate.acquire(blocking=False):
+            with self.lock:
+                self.check(token)
+            self.conversations.event("utterance_rejected", attempt_id=attempt_id, reason="busy")
             raise VoiceError("Still processing speech. Wait and try again.")
         try:
             with self.lock:
                 self.check(token)
                 epoch = self.epoch
+                self.conversations.event(
+                    "utterance_received", attempt_id=attempt_id, duration_seconds=len(pcm) / 32000
+                )
                 if self.turn:
                     raise VoiceError("Wait for the answer or stop the response first.")
                 awake = time.monotonic() < self.awake_until
@@ -507,6 +475,9 @@ class Voice:
             timings = {}
             started = time.perf_counter()
             if np.sqrt(np.mean(samples**2)) < 0.001:
+                self.conversations.event(
+                    "utterance_ignored", attempt_id=attempt_id, reason="silence"
+                )
                 return {"state": "listening"}
             recognize = not awake or self.probed
             local = self.recognize(pcm) if recognize else ""
@@ -518,13 +489,35 @@ class Voice:
                 if epoch != self.epoch:
                     raise VoiceError("Speech was cancelled.")
                 if command == "":
+                    self.conversations.event("wake_only", attempt_id=attempt_id)
                     self.awake_until = time.monotonic() + 10
                     return {"state": "activated"}
                 if command is None and not awake:
-                    return {"state": "listening"}
+                    self.conversations.event(
+                        "utterance_ignored", attempt_id=attempt_id, reason="wake_not_recognized"
+                    )
+                    return {"state": "listening", "reason": "wake_not_recognized"}
+                activation_deadline = self.awake_until
                 self.awake_until = 0
             started = time.perf_counter()
+            stage = "transcription"
+            self.conversations.event(
+                "transcription_started",
+                attempt_id=attempt_id,
+                model=getattr(self.provider, "stt_model", type(self.provider).__name__),
+                activation="wake" if command is not None else "followup",
+            )
             transcript = self.provider.transcribe(pcm)
+            identifier = self.conversations.begin(
+                transcript, {"mode": "unresolved", "attempt_id": attempt_id}
+            )
+            self.conversations.event(
+                "transcription_completed",
+                attempt_id=attempt_id,
+                turn_id=identifier,
+                transcript=transcript,
+                elapsed_ms=round((time.perf_counter() - started) * 1000),
+            )
             timings["stt_ms"] = round((time.perf_counter() - started) * 1000)
             with self.lock:
                 self.check(token)
@@ -544,15 +537,28 @@ class Voice:
                 if row["status"] == "complete"
             ]
             started = time.perf_counter()
+            stage = "routing"
             plan = validate_plan(
-                conversational_plan(transcript) or self.provider.route(transcript, context)
+                conversational_plan(transcript)
+                or (
+                    {"mode": "agent"}
+                    if self.agent_mode
+                    else self.provider.route(transcript, context)
+                )
             )
             timings["intent_ms"] = round((time.perf_counter() - started) * 1000)
             with self.lock:
                 self.check(token)
                 if epoch != self.epoch:
                     raise VoiceError("Speech was cancelled.")
-                identifier = self.conversations.begin(transcript, plan)
+                self.conversations.update_plan(identifier, plan)
+                self.conversations.event(
+                    "voice_turn_ready",
+                    attempt_id=attempt_id,
+                    turn_id=identifier,
+                    plan=plan,
+                    timings=timings,
+                )
                 self.turn = {
                     "id": identifier,
                     "at": datetime.now(UTC).isoformat(),
@@ -561,6 +567,27 @@ class Voice:
                     "timings": timings,
                 }
                 return {"state": "question", **self.turn}
+        except Exception as exc:
+            if stage == "transcription" and identifier is None:
+                with self.lock:
+                    if epoch == self.epoch:
+                        self.awake_until = max(
+                            self.awake_until, locals().get("activation_deadline", 0)
+                        )
+            self.conversations.event(
+                "utterance_failed",
+                attempt_id=attempt_id,
+                turn_id=identifier,
+                stage=stage,
+                error_type=type(exc).__name__,
+                failure_site=[
+                    f"{frame.name}:{frame.lineno}"
+                    for frame in traceback.extract_tb(exc.__traceback__)
+                ][-8:],
+            )
+            if identifier:
+                self.conversations.finish(identifier, status="interrupted")
+            raise
         finally:
             self.gate.release()
 
@@ -584,8 +611,21 @@ class Voice:
         warning = None
         started = time.perf_counter()
         try:
+            self.conversations.event(
+                "speech_started",
+                turn_id=identifier,
+                model=getattr(self.provider, "tts_model", type(self.provider).__name__),
+            )
             audio = self.provider.speak(answer)
+            self.conversations.event(
+                "speech_generated",
+                turn_id=identifier,
+                elapsed_ms=round((time.perf_counter() - started) * 1000),
+            )
         except VoiceError as exc:
+            self.conversations.event(
+                "speech_failed", turn_id=identifier, error_type=type(exc).__name__
+            )
             warning = str(exc)
         with self.lock:
             self.check(token)

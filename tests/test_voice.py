@@ -3,12 +3,11 @@ import json
 import time
 from io import BytesIO
 from typing import ClassVar
-from urllib.error import HTTPError
 
 import numpy as np
 import pytest
 
-from nyx.voice import Conversations, Sarvam, Voice, VoiceError, wake_command
+from nyx.voice import Conversations, Voice, VoiceError, wake_command
 
 
 @pytest.mark.parametrize(
@@ -51,6 +50,15 @@ class Provider:
 
 def audio():
     return (np.sin(np.arange(16000) / 20) * 3000).astype("<i2").tobytes()
+
+
+def test_local_agent_voice_mode_does_not_call_cloud_intent_router(tmp_path):
+    provider = Provider()
+    voice = Voice(tmp_path, provider, lambda pcm: "Hey Nyx where are my glasses?", agent_mode=True)
+    token = voice.start()["token"]
+    turn = voice.utterance(token, audio())
+    assert turn["plan"]["mode"] == "agent"
+    assert provider.calls == ["stt"]
 
 
 def test_idle_stays_local_wake_only_and_next_question(tmp_path):
@@ -108,55 +116,6 @@ def test_conversations_reopen_interrupt_and_invalidate_sources(tmp_path):
     assert rows[1]["id"] == pending and rows[1]["status"] == "interrupted"
     reopened.invalidate("abc")
     assert reopened.recent()[0]["sources_available"] is False
-
-
-def test_sarvam_shapes_routing_validation_and_safe_errors():
-    calls = []
-
-    def transport(request, timeout):
-        calls.append(request)
-        if request.full_url.endswith("speech-to-text"):
-            data = {"transcript": "where are my glasses?"}
-        elif request.full_url.endswith("text-to-speech"):
-            data = {"audios": [base64.b64encode(b"RIFFtest").decode()]}
-        else:
-            args = {
-                "mode": "current",
-                "object_query": "glasses",
-                "seen_after": None,
-                "seen_before": None,
-            }
-            data = {
-                "choices": [
-                    {
-                        "message": {
-                            "tool_calls": [
-                                {"function": {"name": "inspect", "arguments": json.dumps(args)}}
-                            ]
-                        }
-                    }
-                ]
-            }
-        return BytesIO(json.dumps(data).encode())
-
-    sarvam = Sarvam("test-secret", transport=transport)
-    assert sarvam.transcribe(audio()) == "where are my glasses?"
-    assert b"RIFF" in calls[0].data
-    assert b"saaras:v4" in calls[0].data
-    assert b'name="keyterms"' in calls[0].data
-    assert calls[0].get_header("Api-subscription-key") == "test-secret"
-    assert sarvam.route("where?", [])["mode"] == "current"
-    assert sarvam.speak("I see glasses.")
-    assert json.loads(calls[-1].data)["model"] == "bulbul:v4-flash"
-
-    assert json.loads(calls[-1].data)["speaker"] == "shubh_enhi_companion"
-
-    def denied(request, timeout):
-        raise HTTPError(request.full_url, 403, "test-secret", {}, None)
-
-    with pytest.raises(VoiceError, match="403") as error:
-        Sarvam("test-secret", transport=denied).speak("hello")
-    assert "test-secret" not in str(error.value)
 
 
 @pytest.mark.parametrize(
@@ -407,9 +366,10 @@ def test_spoken_answer_is_brief_but_keeps_historical_uncertainty():
         },
     }
     text = spoken_answer(result)
-    assert "beside the laptop" in text
+    assert "beside the laptop" not in text
+    assert "possible match" in text
     assert "found" in text
-    assert "still" in text
+    assert "current location" in text
     assert "2026-10-19T" not in text
     assert len(text) < 240
     assert "can't clearly see" in spoken_answer(
@@ -517,45 +477,13 @@ def test_spoken_replies_keep_unknown_clock_and_current_uncertainty():
         },
     }
     assert "unknown recording time" in spoken_answer(result)
-    assert "still" in spoken_answer(result)
+    assert "current location" in spoken_answer(result)
     assert (
         "other footage"
         in spoken_answer(
             {"kind": "history", "status": "uncertain", "object_query": "pen", "evidence": None}
         ).lower()
     )
-
-
-def test_router_wire_schema_uses_strings_for_optional_fields():
-    def transport(request, timeout):
-        payload = json.loads(request.data)
-        parameters = payload["tools"][0]["function"]["parameters"]
-        assert parameters["properties"]["reply"]["type"] == "string"
-        args = {
-            "mode": "chat",
-            "object_query": "",
-            "reply": "Want to talk about your day?",
-            "seen_after": "",
-            "seen_before": "",
-        }
-        return BytesIO(
-            json.dumps(
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "tool_calls": [
-                                    {"function": {"name": "inspect", "arguments": json.dumps(args)}}
-                                ]
-                            }
-                        }
-                    ]
-                }
-            ).encode()
-        )
-
-    plan = Sarvam("fake", transport=transport).route("I feel tired", [])
-    assert plan["mode"] == "chat" and plan["object_query"] is None
 
 
 def test_followup_after_playback_does_not_need_another_wake_decode(tmp_path):
@@ -571,3 +499,181 @@ def test_followup_after_playback_does_not_need_another_wake_decode(tmp_path):
 
     voice.recognizer = no_second_wake
     assert voice.utterance(token, audio())["state"] == "question"
+
+
+def test_wake_loads_only_documented_cached_files(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+
+    from nyx.voice import WAKE_MODEL, WAKE_REVISION, WakeRecognizer
+
+    required = {"config.json", "model.bin", "tokenizer.json", "vocabulary.txt"}
+
+    def snapshot(model, *, revision, local_files_only, allow_patterns=None):
+        assert model == WAKE_MODEL and revision == WAKE_REVISION
+        assert local_files_only
+        # A partial offline snapshot must not require model-card/repository files.
+        assert set(allow_patterns or ()) == required
+        return "/cached/wake"
+
+    def whisper(path, **options):
+        assert path == "/cached/wake"
+        assert options["device"] == "cpu" and options["compute_type"] == "int8"
+        return "loaded"
+
+    monkeypatch.setitem(sys.modules, "huggingface_hub", SimpleNamespace(snapshot_download=snapshot))
+    monkeypatch.setitem(sys.modules, "faster_whisper", SimpleNamespace(WhisperModel=whisper))
+    assert WakeRecognizer().model == "loaded"
+
+
+def test_transcript_survives_routing_failure_without_logging_provider_secrets(tmp_path):
+    class Broken(Provider):
+        def transcribe(self, pcm):
+            return "Hey Nix, I will put this bottle on the centre table."
+
+        def route(self, transcript, context):
+            raise ValueError("secret-provider-payload")
+
+    voice = Voice(
+        tmp_path, Broken(), lambda _: "Hey Nix, I will put this bottle on the centre table."
+    )
+    token = voice.start()["token"]
+    with pytest.raises(ValueError):
+        voice.utterance(token, audio(), "00000000-0000-0000-0000-000000000001")
+    rows = Conversations(tmp_path).recent()
+    assert rows[-1]["transcript"].endswith("centre table.")
+    assert rows[-1]["status"] == "interrupted"
+    events = voice.conversations.diagnostics()
+    assert events[-1]["event"] == "utterance_failed"
+    assert events[-1]["details"]["stage"] == "routing"
+    assert events[-1]["turn_id"] == rows[-1]["id"]
+    assert "secret-provider-payload" not in json.dumps(events)
+    assert token not in json.dumps(events)
+
+
+def test_completed_transcription_survives_cancellation_during_provider_call(tmp_path):
+    class Cancelling(Provider):
+        def transcribe(self, pcm):
+            voice.cancel(token)
+            return "I put my bottle on the centre table."
+
+    voice = Voice(tmp_path, Cancelling(), lambda _: "Hey Nyx, remember this")
+    token = voice.start()["token"]
+    with pytest.raises(VoiceError, match="cancelled"):
+        voice.utterance(token, audio())
+    rows = voice.conversations.recent()
+    assert rows[-1]["transcript"] == "I put my bottle on the centre table."
+    assert rows[-1]["status"] == "interrupted"
+
+
+def test_idle_speech_records_reason_but_no_content_or_cloud_call(tmp_path):
+    provider = Provider()
+    voice = Voice(tmp_path, provider, lambda _: "private unrelated conversation")
+    token = voice.start()["token"]
+    assert voice.utterance(token, audio())["state"] == "listening"
+    events = voice.conversations.diagnostics()
+    assert events[-1]["details"]["reason"] == "wake_not_recognized"
+    assert "private unrelated" not in json.dumps(events)
+    assert not voice.conversations.recent() and not provider.calls
+
+
+def test_diagnostics_retention_does_not_delete_transcripts(tmp_path):
+    store = Conversations(tmp_path)
+    turn = store.begin("Keep my statement", {"mode": "agent"})
+    with store.connect() as db:
+        db.executemany(
+            "INSERT INTO diagnostics(at,event,details) VALUES ('now','test','{}')", [()] * 2001
+        )
+    store.event("last")
+    with store.connect() as db:
+        assert db.execute("SELECT count(*) FROM diagnostics").fetchone()[0] == 2000
+    assert store.recent()[-1]["id"] == turn
+
+
+def test_browser_diagnostics_require_session_and_accept_only_bounded_metadata(tmp_path):
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from nyx.app import create_app
+
+    voice = Voice(tmp_path, Provider(), lambda _: "Hey Nyx")
+    with TestClient(
+        create_app(tmp_path, voice_factory=lambda root: voice, verifier_factory=lambda: object())
+    ) as client:
+        assert client.get("/api/voice/diagnostics").status_code == 400
+        token = client.post("/api/voice/session").json()["token"]
+        headers = {"x-nyx-voice": token}
+        payload = {
+            "event": "browser_turn_failed",
+            "stage": "transcription",
+            "attempt_id": "00000000-0000-0000-0000-000000000001",
+        }
+        assert (
+            client.post("/api/voice/diagnostics", headers=headers, json=payload).status_code == 200
+        )
+        for bad in [
+            {**payload, "attempt_id": None},
+            {**payload, "stage": "arbitrary"},
+            {**payload, "event": "arbitrary"},
+        ]:
+            assert (
+                client.post("/api/voice/diagnostics", headers=headers, json=bad).status_code == 400
+            )
+        events = client.get("/api/voice/diagnostics", headers=headers).json()["events"]
+        assert events[-1]["event"] == "browser_turn_failed"
+        assert token not in json.dumps(events)
+
+
+def test_explicit_listen_accepts_statement_without_wake_name(tmp_path):
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from nyx.app import create_app
+
+    class StatementProvider(Provider):
+        def transcribe(self, pcm):
+            return "I will put my glasses on the table."
+
+    provider = StatementProvider()
+    voice = Voice(tmp_path, provider, lambda _: "no wake name", agent_mode=True)
+    with TestClient(
+        create_app(tmp_path, voice_factory=lambda _: voice, verifier_factory=lambda: object())
+    ) as client:
+        token = client.post("/api/voice/session").json()["token"]
+        headers = {"x-nyx-voice": token}
+        assert client.post("/api/voice/activate").status_code == 400
+        assert client.post("/api/voice/activate", headers=headers).json()["seconds"] == 30
+        turn = client.post("/api/voice/utterance", headers=headers, content=audio()).json()
+        assert turn["state"] == "question" and turn["transcript"].startswith("I will put")
+        assert voice.conversations.recent()[-1]["transcript"] == turn["transcript"]
+
+
+def test_failed_transcription_preserves_explicit_activation_and_cancel_reason(tmp_path):
+    import time
+
+    class RetryProvider(Provider):
+        attempts = 0
+
+        def transcribe(self, pcm):
+            self.attempts += 1
+            if self.attempts == 1:
+                raise VoiceError("No speech recognized")
+            return "I will put this on the table."
+
+    voice = Voice(tmp_path, RetryProvider(), lambda _: "", agent_mode=True)
+    token = voice.start()["token"]
+    deadline = time.monotonic() + 30
+    voice.awake_until = deadline
+    with pytest.raises(VoiceError):
+        voice.utterance(token, audio())
+    assert voice.awake_until == deadline
+    turn = voice.utterance(token, audio())
+    assert turn["transcript"] == "I will put this on the table."
+    voice.cancel(token, "user_stop")
+    events = voice.conversations.diagnostics()
+    assert any(
+        e["event"] == "voice_cancelled"
+        and e["details"]["reason"] == "user_stop"
+        and e["turn_id"] == turn["id"]
+        for e in events
+    )

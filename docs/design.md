@@ -1,5 +1,14 @@
 # Product design
 
+## Current implementation direction — 2026-10-28
+
+Cloud inference is the primary MVP path. Keep capture, wake recognition,
+inexpensive observation and evidence storage on-device; use OpenRouter for agent
+reasoning, selected-image interpretation/embeddings and activated speech. The
+mission and evidence/uncertainty principles remain unchanged. Older references
+to local model checks describe the preceding prototype, not the current runtime.
+
+
 Status: working design, 2026-10-19; the user reviewed the package and resumed the first implementation milestone. Product intent comes from the working discussion and approved application pitch; implementation choices are tracked separately in [Decisions](decisions.md).
 
 ## Mission
@@ -20,6 +29,7 @@ Nyx starts with the app or future device, listens locally for “Hey Nyx” or i
 | “What did I ask you yesterday?” | Retrieve the relevant assistant conversation with its time and source. |
 | “Remember that the documents are in the blue drawer.” | Save an attributed fact, allow correction, and retrieve it in a later session. |
 | “Remind me to call my daughter at six.” | Resolve the intended time, read it back, save the reminder, and report its actual delivery state. |
+| “Remind me to take my water bottle when I go out.” | Retain an active intention, observe supported departure cues, and speak at the useful moment; distinguish failed, missed and acknowledged delivery. |
 
 These are full-product design scenarios. The current repository demonstrates continuous candidate retrieval, bounded local model checks and an initial hands-free voice slice; full-product workflows remain staged. Final workflow priorities and preferred language need research with intended users.
 
@@ -50,3 +60,16 @@ The first engineering slice proves only recorded-frame retrieval. The full lapto
 - Who installs and maintains Nyx, and who would choose or pay for it?
 
 Research assignments and evidence standards live in [Research](research/README.md). Boundaries live in [Scope](scope.md).
+
+
+## Companion slice authorized on 2026-10-20
+
+The user chose two bounded interactions: conversational object finding (including corrections, current inspection and recent history) and a continuing next-departure reminder. A tool-using loop carries requests through observations; continuous inexpensive visual attention can activate work for an existing intention without another spoken question. A fixed camera seeing the main door is the initial departure setting. This is a direction for a useful small demo, not a requirement to solve every household task before testing.
+
+The implementation and its measured failures are recorded in [R8](research/R8-companion-loop.md). Event inference is experimental; scheduled reminders, broad personal recall and intended-user evaluation remain open. Device selection follows measured workload; no purchase is authorized by this slice.
+
+
+Object-finding feedback should be conversational: a user can say that a proposed
+match is wrong, add a distinguishing detail, or change what they are looking for.
+The agent uses that feedback to choose the next search or question. Review buttons
+are optional shortcuts, not the required way to reject a candidate.

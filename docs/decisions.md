@@ -1,6 +1,36 @@
 # Decisions and open choices
 
-Updated: 2026-10-19. This records discussion outcomes and engineering choices. The user explicitly resumed work on 2026-10-19; M1 retrieval and continuous recording/background indexing are authorized. Unmeasured model choices remain experiments.
+## Speech-linked finding and surrounding replay — 2026-10-28
+
+Historical matches now replay up to ten seconds before and after the sighting,
+across available segments in the same reliably timed capture session. Gaps are
+not reconstructed. Imported or uncertain recordings use clip-local bounds.
+
+The history tool searches captured user transcripts by object words or within
+90 seconds of the sighting (30 candidates). The visual model selects at most two
+existing transcript IDs. Exact quotes are attributed separately from visual
+findings; intended placement is not confirmed placement. This bounded feature
+is not general long-term semantic memory. Listen now (30 seconds) bypasses missed
+wake activation; ignored wake attempts now display a warning. Idle audio is not
+archived, so missed statements cannot be recovered.
+
+
+## 2026-10-28 — Cloud is the primary MVP inference path
+
+**Approved by the user and implemented in this branch.** Replace local Qwen/MLX
+and SigLIP inference with OpenRouter reasoning/vision and multimodal embeddings;
+consolidate activated STT/TTS onto OpenRouter. Retain local Whisper wake recognition,
+activity filtering, the small event detector and recording/database storage.
+No equally supported offline LLM/VLM path. User supplied a key with a $2 test cap.
+
+The development index may be rebuilt without production compatibility machinery.
+Preserve recordings and evidence timestamps. The explicit reindex command replaces
+vectors transactionally; cloud models cannot query the old vector space. Current
+model selections and measured limits are in [R9](research/R9-cloud-mvp.md).
+Older local-only/Sarvam decisions below are historical and superseded by this decision.
+
+
+Updated: 2026-10-20. This records discussion outcomes and engineering choices. The user explicitly resumed work on 2026-10-19; M1 retrieval and continuous recording/background indexing are authorized. Unmeasured model choices remain experiments.
 
 ## Status vocabulary
 
@@ -132,3 +162,392 @@ Keep tiny.en: a small synthetic comparison did not justify switching to base.en,
 ## Publication authorization
 
 2026-10-19: the user explicitly requested that all current work be pushed to GitHub. Publish the combined history controls, visual answers, hands-free Sarvam v4 voice and voice-feedback improvements on `main`. Earlier local-only entries above record development checkpoints and are superseded by this explicit publication request. Keep credentials, recordings, databases, generated artifacts and model weights outside Git. Publishing does not close the remaining M1–M4 validation gates or implement M5.
+
+
+## Companion and event-request selections — 2026-10-20
+
+The user approved a conversation-aware tool loop, continuous watching, adaptive indexing and a next-departure water-bottle reminder, and requested autonomous implementation/experiments. They subsequently authorized coherent local commits and explicitly prohibited pushing. The new work is on `feat/companion-loop`; earlier publication authorization applies to the older snapshot, not this work.
+
+- Keep one Python process/package and the existing priority worker. A bounded local agent can inspect current evidence, search recent dated semantic candidates, widen history, create/list/cancel departure requests, clarify and converse. Qwen is reused for text decisions; no LangChain, service topology, extra text model or quantization is introduced. Revisit model choice after measured contextual/tool failures, not based on framework availability.
+- Apply explicit product policies around the model: available current evidence first for present-location questions; visual completion cites tool observations; mutations require a corresponding user request; unsupported clock-time conditions cannot silently become unconditional reminders. Context is bounded recent conversation, not all past raw turns.
+- Begin adaptive selection with local block image differences using existing NumPy/Pillow. Preserve initial, pre-change, changed, settled and periodic samples, along with actual offsets and sampling policy. Continuous files each retain an anchor. Source video remains untouched and the 1 GiB stop-without-deletion rule stands. OpenCV comparison remains an option if measurements warrant another dependency.
+- Use fresh bounded live-frame sequences for active departure requests, independently of completed segment indexing. No semantic analysis of every frame, person identification, cloud vision or inference from disappearance alone. The small VLM has measured false positives/misses; keep this an explicitly experimental single-person doorway slice.
+- Save next-departure intentions and notification attempts in `intentions.sqlite3`. Keep armed, pending, delivering, delivered, failed, missed, cancelled, interrupted and acknowledged states distinct. Deduplicate retries, expire stale events, prevent late callbacks after cancellation and never silently replay interrupted speech. Recurrence, scheduled reminders and general fact recall remain outside this slice.
+- Default configured voice retains Sarvam activated STT/TTS but uses the local agent for decisions. Existing cloud-router code remains a compatibility path for tests/older callers. No new provider requests were made during this session.
+- Experiments use synthetic devices and permitted offline/public replay. Public Charades data is evaluation-only under its restrictive license; raw clips/frames/contact sheets stay local and must not become redistributed product/demo assets. Downloads use bounded ranges rather than the entire dataset.
+
+[R8](research/R8-companion-loop.md) records the actual 16 GiB machine, local-model checks and limitations. Running two model processes at once caused swapping; subsequent model tests run sequentially. No milestone accuracy or latency gate is declared met.
+
+Follow-up inline checks preserve unknown-date footage through a separate best-match tool, give fresh event checks priority ahead of queued indexing, and permit one invalid-decision correction within the existing six-step budget. Active requests remain visible beyond recent-history limits. Native timestamped video was compared on the same diagnostic sequences but not promoted: it retained false triggers and missed an exit. The longer recording check exposed hidden older sources after fifty clips; explicit **Show older clips** restores their playback/deletion controls without changing retention.
+
+Completed tool results now finish directly under the existing single-task policy, avoiding an unnecessary generation; uncertain results continue through model decisions. Browser delivery generations invalidate late audio on known cancellation/interruption. Recording-phase results, full lifecycle outcomes and harness failures are recorded separately in R8; no actual-camera or departure-quality gate is closed by them.
+
+### Departure follow-up — 2026-10-20
+
+Following the user's renewed implementation request, keep the existing model and
+worker while fixing the event boundary: select the exact three live samples before
+inspection, suppress unchanged bursts with the existing local change thresholds, and
+require the entire inspected sequence to follow the request. The cheap gate retains
+all nine reused public sequences, including their negatives; it does not resolve
+direction or intent. No extra dependency/model download is needed.
+
+A reversal-consistency experiment was rejected as a runtime gate: it retains only
+one of three exit proxies while still accepting a stationary-doorway case, and adds
+another expensive generation. This is diagnostic evidence of weak temporal reasoning,
+not a quality improvement. Next recognition work should test explicit exit geometry
+and chronological person motion on independently labelled fixed-camera views.
+
+### Temporal window and agent continuation — 2026-10-20
+
+The user approved the temporal window and separate event/action eligibility design,
+requested implementation, and explicitly deferred general long-term memory. Inline
+engineering choices for this slice:
+
+- Share one elapsed-time `ActivityWindow` between live nomination and automatic
+  indexing. Start with 0.5 s persistent change supported by three observations,
+  0.8 s quiet to close an episode, and continuity reset after gaps over 0.5 s.
+  Live observation targets 10 Hz; saved segments request 0.1 s decoded sampling.
+  These settings preserve a lasting placement while rejecting controlled 0.1 s
+  returned-to-baseline flashes. They are not household-validated semantic thresholds.
+- Preserve full media, existing source policies and per-segment/periodic anchors.
+  Nomination retains before/during/settled evidence; actual offsets remain original.
+  Keep up to six seconds/64 live frames and inspect three. Consume nominations only
+  after job admission; meaningful continued activity may recheck after three seconds.
+- Keep an explicit narrow action gate for existing departure requests. Qualified
+  activity, model exit cues and an eligible armed request are all required. Persist
+  episode identity and decision reason with delivery evidence. This does not make
+  a mistaken model judgment true; the dense entry replay still falsely triggers.
+- Expanded real-planner checks exposed repeated tools, failed time-window widening,
+  current/history routing errors and copied schema placeholders. Keep the custom
+  bounded loop: show remaining choices during continuation, reject placeholder
+  queries, allow up to two decision repairs inside six steps, and record explicit
+  evidence-selection policies. An identical repeated history query advances to an
+  unused wider window; a changed query can revisit a window. This is an auditable
+  application rule, not a claim of unconstrained model reasoning.
+- Conversation text remains in SQLite, with at most twelve completed turns from the
+  recent twenty loaded as context. No summarization, fact memory, semantic chat
+  recall, framework, new model download or cloud visual fallback is introduced.
+
+[R8](research/R8-companion-loop.md) records the ten-case real-planner development
+check, synthetic and public temporal replay, browser checks and remaining false
+departure. Revisit thresholds/recognition using independent fixed-camera evidence;
+do not mark household or event acceptance complete from these wiring checks.
+
+### Reusable grounded event evidence — 2026-10-20
+
+The user authorized the next recognition slice and required reusable automatic
+behavior rather than a scenario-specific workaround. Engineering choices:
+
+- Automatically infer the relevant region from actual images, without a predefined
+  doorway position, clip-specific branch or mandatory manual calibration. Abstain
+  on an unknown/ambiguous home exit. Retain the one supported next-departure action;
+  general conditions and personal memory remain later work.
+- Add independent entity localization through the existing optional Torchvision
+  dependency: lazy CPU SSDLite320 MobileNet V3 Large COCO_V1, common 0.6 score cutoff.
+  No additional framework or quantization. The small detector took roughly 0.1 s
+  per three images in the diagnostic run. A measured Faster R-CNN MobileNet V3 FPN
+  alternative took roughly 0.9–1.2 s, added ambiguous detections and did not fix
+  coverage consistently, so it is not promoted or used as a fallback.
+- Keep entity-position change and generic region-relative direction independent of
+  semantic cues. Stationary/ambiguous observations skip VLM work. Direction toward
+  the inferred exit must corroborate a positive semantic interaction; standing,
+  entry and reversal can reject confident semantic mistakes.
+- An initial rule also demanded footpoint proximity to the estimated door rectangle.
+  Reject that physical-distance interpretation: perspective and imperfect bounds
+  make it unsound. Keep proximity as a diagnostic; consistent direction plus separate
+  semantic interaction is the action criterion. This change applies to all scenes.
+- Preserve the existing timestamp/freshness/request/cancellation boundaries. A small
+  model can mislabel a closet as an exterior exit; even multiple evidence sources
+  cannot establish guaranteed correctness. Sparse three-image detector misses
+  currently lose an exit in live replay. Do not close event or advance-warning gates.
+
+The latest frozen development replay has one action on three staged exit proxies,
+zero actions on four negatives and zero on two ambiguous cases. It is reused
+development evidence, not independent accuracy. Live entry replay independently
+exercises a confident VLM positive rejected by movement away from the door.
+[R8](research/R8-companion-loop.md) contains results, failures and rejected alternatives.
+
+### Buffered chronological trajectories — 2026-10-20
+
+The user approved the next tracking slice. Keep the same small detector, Qwen and
+single worker. Retain the full six-second context across activity episodes, sample
+at roughly 5 Hz (at most 32 images), and permit meaningful changed activity checks
+at one-second intervals. Cache detections by timestamp only within the same view.
+Bridge at most 0.8 s of missing detections with explicit gaps; never invent a box.
+Multiple subjects, longer gaps and implausible jumps split the association. Full
+associated motion determines direction; three actual images determine semantic cues.
+
+Compare successive automatically inferred exit bounds within one view (same kind,
+IoU at least 0.5). Disagreement blocks that check; initial grounding remains provisional.
+These are common geometric policies, without per-clip coordinates or reminder content.
+Buffered tracking does not run continuously during the worker's slow VLM generation.
+
+Complete-sequence evaluation is required before claiming recognition improvement.
+The nine-clip protocol was frozen before inference, with coarse event brackets and
+separate ambiguous/moving-camera cases. Each replay now asserts an armed request in
+an isolated conversation: the first attempted shared-conversation run exposed a real
+planner failure and cannot count inactive clips as negative passes. Preserve that
+conversation weakness as open work. Latest results retain misses, late action and
+false indoor grounding; no household accuracy or advance-warning gate is closed.
+See [R8](research/R8-companion-loop.md) and the
+[tracking plan](superpowers/plans/2026-10-20-continuous-trajectories.md).
+
+### Reject superseded results before notification — 2026-10-20
+
+The latest continuation adds a cheap post-inference guard before a positive result
+creates a notification. Reuse the existing ActivityWindow over frames since the exact
+last semantic image, within the same camera epoch. Missing retained history, capture
+older than 0.5 s, a persistent new change or a still-unsettled change withholds action
+and leaves the request armed. A completed brief flash alone may pass. Preserve the
+checked-through time separately; do not relabel newer uninspected images as semantic
+evidence. This rejects old decisions, without claiming to recognize the new scene.
+
+The six-second buffer is also the maximum available continuity history. An eight-
+second generation can therefore be withheld even with a correct positive. This is
+an intentional conservative boundary, not a latency improvement or a fix for false
+exterior-door labels. Model latency and automatic scene grounding remain open.
+
+### Qwen3.5 2B 8-bit selection — 2026-10-20
+
+The user selected the vision-enabled Qwen3.5-2B MLX 8-bit checkpoint and authorized
+one short image inference to verify loading, while keeping video/model benchmarks
+paused for memory pressure. Pin revision 562fb8ea19bbe7565a3ddf5b7d49899ea2c88d2b
+of `mlx-community/Qwen3.5-2B-8bit`. The config declares qwen3_5 with a vision encoder
+and affine 8-bit group-size-64 quantization. Disk weights are about 2.66 GB; this is
+not an estimate of peak process or system memory.
+
+Use a small lazy `mlx_runtime.py` generation boundary, preserving ordered text/image
+parts and disabling thinking in both chat formatting and generation. All existing
+inspection, bounded agent decisions and departure checks share it. Apple Silicon
+selects this path by default; other systems retain the older Transformers path.
+Explicit `model="qwen"` remains a diagnostic baseline, without automatic fallback
+on MLX errors. The `mlx` dependency extra pins mlx-vlm 0.4.1; its Qwen3.5 support
+requires Transformers 5, so the locked environment changes as part of this switch.
+
+No broad accuracy claim follows from the synthetic smoke. Existing Qwen3-VL failures
+remain the baseline; full new-model evaluation is deferred. The user authorized
+removal of obsolete model weights after the replacement loads successfully. Keep
+SigLIP retrieval, speech and detector assets; raw recordings are never cache cleanup.
+
+### Conversation repair without model inference — 2026-10-20
+
+The user authorized reminder/conversation reliability work while keeping real-model
+inference paused. Validate mutation eligibility during bounded decision validation,
+then recheck at the tool boundary. An unauthorized cancellation now returns a decision
+repair signal before creating any tool observation or changing a reminder. Two repair
+attempts still share the six-decision budget. Prior conversation cannot authorize a
+mutation on the current turn.
+
+Cancellation requires a direct supported cancellation request, no negation or embedded
+"remind me to cancel" instruction, an exact active ID, and a reminder referent. When
+several reminders are active, require one uniquely matched full reminder message or
+clarify. Duplicate messages remain ambiguous; UI cancellation by ID remains available.
+This conservative text guard is not general language understanding and may clarify
+valid paraphrases. Existing request-ID idempotency is unchanged; distinct requests
+with identical messages can still create separate reminders.
+
+Planner prompt v9 prioritizes the latest correction, preserves compatible user-given
+attributes, and separates prior answers from current evidence. Remaining search
+windows/tools are computed per resolved query, rather than globally across different
+objects. Query changes can revisit a recent window. Deterministic fixtures validate
+context/arguments/repair behavior; actual Qwen understanding remains unmeasured.
+
+### Keep the agent in control — 2026-10-20
+
+The user reaffirmed broad agent control and asked to avoid overengineering. Prefer
+existing tools and concise decision context over more workflow branches, stored query
+state or new planning infrastructure. The agent owns interpretation, clarification,
+tool selection and continuation; application checks enforce authorized mutations,
+evidence attribution and lifecycle consistency. Existing routing policies remain
+measured workarounds to revisit with model evaluation, not a template for adding more.
+
+This continuation only improves existing reminder controls: readable lifecycle labels,
+request timestamps to distinguish repeated messages, and descriptive cancellation
+button labels. No new planner, backend state, model call or clarification workflow.
+
+### Focus on two MVP experiences — 2026-10-20
+
+The user accepted focusing on object finding with corrections/history and the
+next-departure bottle reminder. Prioritize integrated evidence over new features
+or general memory. A bounded real-model object run exposed Transformers 5 pooling
+incompatibility, copied visual schema placeholders and a lost spatial correction.
+Restore image/text pooling compatibility and reject malformed visual evidence;
+retain agent ownership of query interpretation. Visual prompt version is now 2.
+Memory pressure stopped the run before history completed; further model runs are
+paused for headroom. New-model departure validation and correction reliability
+remain open. See R8 for the measured failures and exact limitations.
+
+### Model runs require renewed approval — 2026-10-20
+
+The user authorized continued code/lightweight verification and requested approval
+before any further model inference. Do not load models for the next experiment
+until that approval arrives. The next proposed run isolates current inspection
+and correction, without indexing/history, to reduce concurrent model memory.
+
+The planner's repeated-current-check guard now compares the full action rather
+than rejecting all current checks after the first. This aligns enforcement with
+query-scoped continuation: the agent may refine a description after an uncertain
+result, while the same query remains blocked. The six-step budget is unchanged.
+This fixes a separate control-flow defect; it does not establish that Qwen retains
+spatial corrections. No extra planner or rule for specific object attributes.
+
+### Clarify ambiguous object requests — 2026-10-20
+
+The user prefers a clarification over an unsupported direct answer. Preserve
+visual ambiguity through parsing and current/history tools, stop the search, and
+return a brief question. A model-reported match count must be exactly one before
+a direct visible-location answer; missing/invalid counts fail uncertain. Counts
+are model claims, not independent ground truth. General uncertainty still permits
+search; explicit ambiguity asks the user before choosing another candidate.
+
+Planner v12 preserves distinguishing attributes in its instructions and sends
+compact prior utterances plus the latest request last. Visual prompt v5 reports
+candidates before match count/decision. No regex for object attributes, separate
+query model or new agent framework. Real checks show improved ambiguity handling
+but repeated clarification on a usable spatial follow-up; see R8. The user
+authorized these sequential tests at a 10% watchdog cutoff; all have exited.
+
+### Preserve resolved query context and clarify evidence limits — 2026-10-20
+
+The user authorized continued implementation and sequential model checks. Planner
+v17 uses shorter instructions and includes the latest tool query from each saved
+turn, without treating it as visual proof. Existing conversation storage is
+sufficient; no new memory subsystem. Visual v6 counts candidates after attribute
+filtering. Schema errors identify exact extra/missing fields for bounded repair.
+An explicit first last-sighting search uses available dated history before
+undated matches; unknown-time-only libraries remain supported.
+
+Real tests improved current clarification resolution and preserved corrected
+queries into history. They also demonstrated wrong historical item attribution
+and missed departure proxies. Keep candidate/identity/temporal evidence distinct;
+no identity claim or MVP acceptance follows from successful API jobs. Existing
+movement and continuity checks remain intact despite missed detections.
+
+### Dependable guided finding before automatic identity — 2026-10-20
+
+The user prioritized one complete object-finding experience. A local two-image
+comparison probe did not support automatic identity matching: raw generations
+claimed a lookalike was visible, and all outputs failed the required JSON shape.
+Do not add an automatic reference-matching feature on that evidence.
+
+Historical visual hits now have `candidate` status and ask the user to review the
+image. They do not repeat a model-inferred location as fact. The user can reject
+a candidate and continue within the same query/time/source bounds, or explicitly
+confirm the item in a saved frame. Confirmation is attributed to the user, not the
+model, and says nothing about current location or a later sighting. The agent
+cannot call the confirmation endpoint as a tool. Button confirmation is the MVP
+interaction; voice-only confirmation is not implemented.
+
+Use existing recordings and conversation storage: no reference-image cache, new
+model, entity database or permanent snapshots. Confirmation request IDs are
+idempotent, persist across restart, and conflict on different choices. Deleted
+sources invalidate confirmation replay. Rejection exclusions are request-local;
+they do not delete footage or establish object identity.
+
+
+### Conversational feedback belongs to the agent — 2026-10-20
+
+The user explicitly rejected a button-dependent deterministic retry workflow.
+Natural-language feedback now goes through the normal agent loop; the rejection
+button sends the same conversational request. The planner receives the displayed
+candidate's frame reference and past exclusions, then chooses a refined query,
+another historical window, another match search, or a clarification. There is no
+phrase-matching rejection router. Search tools enforce model-selected exclusions.
+This supersedes the fixed query/time/source retry described above. Explicit
+confirmation remains a user-attributed UI action; background change detection is
+unchanged. Persist only compact references in existing conversation storage.
+
+
+### Rejected frames must not consume retrieval slots — 2026-10-28
+
+Apply agent-selected exclusions in the existing SQLite search before ordering and
+LIMIT, in both the primary and fallback searches. Previously history selected a
+bounded result set and only then skipped rejected frames, preventing further
+results from being reached after enough rejections. Keep the same per-request
+candidate/model-check bounds and source/time filters. No change to the planner's
+control over query, time window or rejection, and no automatic deletion.
+
+
+### Pending review follows actual evidence state — 2026-10-28
+
+Do not search backward past a newer visual tool request or explicit confirmation
+to resurrect an older historical candidate as the active review target. A
+clarification without another visual query may retain the pending candidate.
+An explicitly displayed, server-resolved frame takes precedence. When a successful
+browser request has no visual result and hides the result panel, clear its
+presented-frame reference. This is evidence lifecycle bookkeeping, not a language
+classifier or a new workflow; the agent still chooses queries, tools and exclusions.
+
+
+## 2026-10-28 — Finish the guided finding MVP
+
+Prioritize one reviewable object-finding experience for the authorized MVP wrap-up.
+Keep the bounded local agent and existing tools; do not add another inference
+stage or framework after unsuccessful planner probes. Present departure reminders
+as experimental, and distinguish explicit user confirmation from model checks.
+The demo runbook is [here](mvp-demo.md); broader household/voice acceptance remains
+open in milestones. This narrows the demo promise, not the independence mission.
+
+## 2026-10-28 — Preserve measured SigLIP index compatibility
+
+The baseline comparison found identical pixels/tokens/embeddings but different
+preprocessing hashes across the locked Transformers upgrade: v5 omitted the
+nonfunctional `_processor_class` metadata key. Accept exactly those two measured
+hashes for the pinned SigLIP2 model/revision, preserving stored identity/vectors
+and all other mismatch checks. Do not silently rebuild or invalidate old libraries.
+See R8 for the failed upgrade, measured equivalence, repair and regression checks.
+The broader companion branch remains off main pending conversation reliability.
+
+## 2026-10-28 — Time boundaries are distinct from candidate rejection
+
+Expose optional `before_frame_id` on dated history searches. Resolve its actual
+saved capture time in the executor and query strictly before it; do not mark the
+frame rejected or remove it. Preserve an established bound across the request's
+continued/refined visual searches, while allowing repair of a failed anchor lookup.
+Unknown capture times remain unknown. This repairs a tool limitation: simply
+widening a lookback window can return the same newest moment again.
+
+Retain the selected Qwen3.5-2B 8-bit runtime and original planner format with the
+minimal v38 schema addition. Do not adopt the tested prompt rewrites, larger model,
+native adapter, review-choice mapping or extra LLM reviewer without better evidence.
+They did not resolve the feedback failures consistently; several regressed existing
+flows. See R8. Reliable semantic planning and merge readiness remain open.
+
+## 2026-10-28 — Trace activated speech before routing
+
+Activated cloud transcripts are persisted immediately after STT, before cancellation
+checks or routing. Later failures leave an interrupted conversation record instead
+of dropping the transcript. Local SQLite diagnostics link attempt/turn IDs across
+activation, STT, routing, agent/tools, speech generation and browser playback.
+Diagnostics retain the latest 2,000 events; that cap does not delete conversation
+transcripts. Idle speech text, raw audio/images, credentials/session tokens and raw
+provider error bodies are not logged. User requested this after a live statement
+was absent from saved history; the original cause is not recoverable retrospectively.
+This is observability, not statement-to-visual association or long-term recall.
+
+## 2026-10-29 — Separate cloud ingestion from interaction
+
+Replace the legacy single inference queue with two bounded serial workers: one
+for capture/import and one for interactive tools. Cloud I/O no longer requires
+local-model serialization. Retain ordered visual verification, no automatic retries,
+and existing evidence/cancellation semantics. Use eight-image capture batches and
+bounded text embedding reuse; measure provider and queue time before more changes.
+
+## 2026-10-29 — Overlap three ordered visual checks
+
+User requested another latency reduction after the 30-second replay. Retain the
+same verification model and prompt; allow three concurrent frame checks with
+ordered result consumption and explicit extra-request cost. Discard the multi-image
+single-call trial because it did not improve measured latency. Do not replace
+uncertainty handling or agent decisions with scenario-specific routing.
+
+## 2026-10-29 — Cheaper cloud models and broader candidate nomination
+
+User requested newer inexpensive models and higher concurrency. Adopt GPT-6 Luna
+for planning and Gemini 3.5 Flash-Lite for vision/context after small visual,
+planner and actual saved-data checks. Six concurrent single-frame checks, configurable
+1–8. Semantic latest-history nomination spreads a 64-frame pool into up to 12
+candidates before chronological checking. Preserve embeddings, original files,
+1 GiB cap and evidence semantics. No new vector service: local scale scans remain
+subsecond at 129,600 synthetic frames. See [R10](research/R10-low-cost-retrieval.md)
+for measured limits, prices, storage constraints and unproven multi-day recall.

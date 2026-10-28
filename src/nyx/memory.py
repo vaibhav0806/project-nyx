@@ -9,6 +9,8 @@ from pathlib import Path
 import numpy as np
 import sqlite_vec
 
+from nyx.perception import compatible_fingerprints
+
 
 def aware_time(value):
     parsed = datetime.fromisoformat(value)
@@ -47,7 +49,11 @@ class Store:
                 "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
             )
             saved = db.execute("SELECT value FROM meta WHERE key = 'encoder'").fetchone()
-            if saved and saved[0] != identity:
+            previous = json.loads(saved[0]) if saved else None
+            if previous and (
+                previous["dimensions"] != dimensions
+                or not compatible_fingerprints(previous["encoder"], fingerprint)
+            ):
                 raise ValueError(
                     "This index uses a different encoder; choose another data directory"
                 )
@@ -72,6 +78,11 @@ class Store:
                 );
                 CREATE INDEX IF NOT EXISTS frames_video ON frames(video_id);
             """)
+            columns = {row[1] for row in db.execute("PRAGMA table_info(videos)")}
+            if "sampling_policy" not in columns:
+                db.execute(
+                    "ALTER TABLE videos ADD COLUMN sampling_policy TEXT NOT NULL DEFAULT 'periodic'"
+                )
 
     @contextmanager
     def connection(self):
@@ -210,6 +221,7 @@ class Store:
         seen_before=None,
         order="relevance",
         known_time_only=False,
+        excluded_frame_ids=(),
     ):
         if not 1 <= limit <= 100:
             raise ValueError("Limit must be between 1 and 100")
@@ -241,6 +253,13 @@ class Store:
             if value:
                 filters.append(f"{clock_time} {operator} ?")
                 params.append(value)
+        if len(excluded_frame_ids) > 32 or any(
+            type(i) is not int or i < 0 for i in excluded_frame_ids
+        ):
+            raise ValueError("Exclude at most 32 nonnegative frame IDs")
+        if excluded_frame_ids:
+            filters.append(f"f.id NOT IN ({','.join('?' for _ in excluded_frame_ids)})")
+            params.extend(excluded_frame_ids)
         params.append(limit)
         with self.connection() as db:
             rows = db.execute(

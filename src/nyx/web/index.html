@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
   <script src="/voice.js" defer></script>
+  <script src="/companion.js" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -17,12 +18,21 @@
     <span id="camera-state" role="status"><i aria-hidden="true"></i>Camera off</span>
   </header>
   <main>
-    <div class="intro"><h1>Keep a little history.<br>Find a moment.</h1><p>Record your surroundings while Nyx indexes in the background.<br>Search saved moments while the camera keeps running.</p></div>
+    <div class="intro"><h1>Keep a little history.<br>Find a moment.</h1><p>Ask about your current view or find an item in recorded moments.<br>Review possible matches and refine your request.</p></div>
+    <section class="voice-panel" aria-label="Nyx companion">
+      <h2>Talk to Nyx</h2>
+      <p class="help">Describe the item you want to find. If a match is wrong, say “That’s not it” or add a distinguishing detail. Selected frames are sent to OpenRouter and its model providers for search and interpretation. Recordings stay on this device. Nyx checks the current view and recorded history using cloud models; review the image before relying on a result.</p>
+      <form id="companion-form"><label for="companion-message">Your request</label><div class="search-row"><input id="companion-message" maxlength="1500" placeholder="Where did you last see my reading glasses?" required><button id="companion-send" class="primary">Ask Nyx</button><button id="companion-stop" type="button" hidden>Stop</button></div></form>
+      <p id="companion-status" role="status" aria-live="polite">Ready. Camera and microphone have separate controls.</p>
+      <div id="companion-thread" aria-live="polite"></div>
+      <details><summary>What Nyx checked</summary><div id="companion-steps"></div></details>
+      <details open><summary>Experimental departure reminders</summary><p id="observation-state" class="help">No departure monitoring while the camera is off.</p><div id="reminders"></div><p class="help">Experimental, single-person doorway demo. A model may miss or misread departure. Playback and acknowledgement are tracked separately.</p></details>
+    </section>
     <section id="voice-panel" class="voice-panel" aria-label="Hands-free voice" hidden>
       <h2>Hey Nyx</h2>
       <p id="voice-state" role="status" aria-live="polite">Starting local wake listening…</p>
-      <p class="help">Say “Hey Nyx, where are my glasses?” or call its name, then ask. Idle speech stays on this laptop. Activated questions and the ten-second follow-up window use Sarvam. Say “Hey Nyx” to interrupt playback. English wake name and replies for this first demo.</p>
-      <div class="controls"><button id="voice-enable">Enable listening</button><button id="voice-mute" hidden>Mute microphone</button><button id="voice-cancel" hidden>Stop response</button><button id="voice-play" hidden>Play answer</button></div>
+      <p class="help">Say “Hey Nyx, where are my glasses?” or call its name, then ask. Idle speech stays on this laptop. Activated questions and the ten-second follow-up window use OpenRouter. Say “Hey Nyx” to interrupt playback. English wake name and replies for this first demo.</p>
+      <div class="controls"><button id="voice-listen-now">Listen now (30 seconds)</button><button id="voice-enable">Enable listening</button><button id="voice-mute" hidden>Mute microphone</button><button id="voice-cancel" hidden>Stop response</button><button id="voice-play" hidden>Play answer</button></div>
       <label class="help" for="voice-level">Microphone level <meter id="voice-level" min="0" max="1" value="0"></meter></label>
       <p id="voice-question"></p><p id="voice-answer"></p>
       <details><summary>Response timing</summary><p id="voice-timing" class="help"></p></details>
@@ -71,14 +81,14 @@
           <form id="answer-form">
             <label for="object-query">Object description</label>
             <input id="object-query" type="text" maxlength="200" placeholder="My black glasses" required>
-            <label class="scope-label" for="history-mode">History order<select id="history-mode"><option value="latest">Latest sighting</option><option value="relevance">Best matching moments</option></select></label>
+            <label class="scope-label" for="history-mode">History order<select id="history-mode"><option value="latest">Latest matching moments</option><option value="relevance">Best matching moments</option></select></label>
             <details><summary>Limit history by time</summary><p class="help">Uses this laptop’s timezone and the clip selected above. Unknown capture times are excluded when filtering by time.</p><label for="seen-after">From<input id="seen-after" type="datetime-local" step="1"></label><label for="seen-before">Until<input id="seen-before" type="datetime-local" step="1"></label></details>
             <div class="controls"><button id="ask-history" type="submit" class="primary">Check history</button><button id="inspect-now" type="button" disabled>Check current view</button></div>
           </form>
           <p class="help">Current view uses the active camera. Visual model checks can be wrong.</p>
         </section>
         <section id="answer-panel" class="answer" aria-label="Visual answer" hidden>
-          <h3>Visual answer <span class="model-label">Model checked</span></h3>
+          <h3>Visual answer <span id="answer-source-label" class="model-label">Possible match</span></h3>
           <p id="answer-text" role="status" aria-live="polite"></p>
           <p id="answer-note" class="help"></p>
           <div id="answer-evidence"></div>
@@ -87,6 +97,7 @@
         </section>
         <div class="section-heading"><h3>Saved clips and segments</h3><span id="clip-count">0 clips</span></div>
         <div id="clips"><p class="empty-library">Your indexed clips will appear here.</p></div>
+        <button id="show-older-clips" type="button" hidden>Show older clips</button>
         <section id="search-results" hidden aria-labelledby="results-heading">
           <div class="section-heading"><h3 id="results-heading">Candidate moments</h3><span id="result-count"></span></div>
           <p class="help">These moments are ranked by visual similarity and haven’t been verified. A missing match doesn’t prove an object wasn’t there.</p>

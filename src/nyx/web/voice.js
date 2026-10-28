@@ -1,6 +1,6 @@
 "use strict";
 
-// Microphone samples go only to this localhost app. Sarvam is called after local activation.
+// Microphone samples go only to this localhost app. OpenRouter is called after local activation.
 const voice = {
   token: null, epoch: 0, mic: null, context: null, node: null, timer: null,
   working: false, playing: false, player: null, url: null, activation: null,
@@ -81,7 +81,8 @@ const voice = {
     this.context = null;
     const token = this.token;
     this.token = null;
-    if (token) api("/api/voice/session", { method: "DELETE", headers: { "x-nyx-voice": token }, keepalive: true }).catch(() => {});
+    const reason = text === "Page closed." ? "page_closed" : text.startsWith("Camera stopped") ? "camera_stopped" : text.startsWith("Voice connection lost") ? "heartbeat_failed" : "session_stopped";
+    if (token) api("/api/voice/session", { method: "DELETE", headers: { "x-nyx-voice": token, "x-nyx-stop-reason": reason }, keepalive: true }).catch(() => {});
     $("voice-enable").hidden = false;
     $("voice-mute").hidden = true;
     $("voice-cancel").hidden = true;
@@ -95,14 +96,15 @@ const voice = {
     this.playing = false;
   },
 
-  async cancel() {
+  async cancel(reason = "user_stop") {
     this.epoch++;
+    if (typeof companion !== "undefined" && companion.working) await companion.cancel();
     this.stopPlayback();
     this.pending = null;
     this.wakeUntil = 0;
     this.reset();
     clearTimeout(this.activation);
-    if (this.token) await api("/api/voice/cancel", { method: "POST", headers: this.headers() }).catch(() => {});
+    if (this.token) await api("/api/voice/cancel", { method: "POST", headers: { ...this.headers(), "x-nyx-cancel-reason": reason } }).catch(() => {});
     $("voice-cancel").hidden = true;
     this.state('Response stopped · say “Hey Nyx” when ready');
   },
@@ -147,6 +149,7 @@ const voice = {
     this.probePromise = api("/api/voice/probe", { method: "POST", headers: this.headers(), body: pcm.buffer, signal: AbortSignal.timeout(5000) })
       .then((reply) => {
         if (epoch !== this.epoch || !this.token || reply.state !== "activated") return;
+        if (typeof companion !== "undefined") companion.interruptDelivery();
         if (this.playing) { this.stopPlayback(); this.epoch++; }
         this.wakeUntil = performance.now() + 10000;
         this.state("I'm listening…");
@@ -198,6 +201,15 @@ const voice = {
     }
   },
 
+  diagnostic(event, attemptId, stage) {
+    if (!this.token) return;
+    api("/api/voice/diagnostics", {
+      ...json({ event, attempt_id: attemptId, stage }),
+      headers: { ...this.headers(), "content-type": "application/json" },
+      signal: AbortSignal.timeout(3000),
+    }).catch(() => {});
+  },
+
   async hear(pcm, endedAt = performance.now()) {
     if (this.working || !this.token) return;
     this.working = true;
@@ -206,12 +218,14 @@ const voice = {
     const epoch = this.epoch;
     $("voice-play").hidden = true;
     const active = () => this.token && epoch === this.epoch;
+    const attemptId = crypto.randomUUID();
+    let stage = "transcription";
     try {
       const began = performance.now();
       if (!this.playing) this.state("Listening and understanding…");
-      const turn = await api("/api/voice/utterance", { method: "POST", headers: this.headers(), body: pcm.buffer, signal: AbortSignal.timeout(100000) });
+      const turn = await api("/api/voice/utterance", { method: "POST", headers: { ...this.headers(), "x-nyx-attempt": attemptId }, body: pcm.buffer, signal: AbortSignal.timeout(100000) });
       if (!active()) return;
-      if (turn.state === "listening") { if (!this.playing) this.state('Listening locally · say “Hey Nyx”'); return; }
+      if (turn.state === "listening") { if (!this.playing) this.state(turn.reason === "wake_not_recognized" ? 'Wake name not recognized. Say “Hey Nyx” again or click Listen now.' : 'Listening locally · say “Hey Nyx”'); return; }
       if (turn.state === "activated") {
         if (this.playing) this.stopPlayback();
         this.state("Yes? Ask your question…");
@@ -233,14 +247,17 @@ const voice = {
       let visualStarted = performance.now();
       let visualMs = 0;
       if (!["clarify", "chat"].includes(plan.mode)) {
-        $("object-query").value = plan.object_query;
-        const output = plan.mode === "current"
-          ? await inspectView(plan.object_query, (id) => { jobId = id; })
-          : await task("/api/answer", json({ object_query: plan.object_query, mode: plan.mode, seen_after: plan.seen_after, seen_before: plan.seen_before }), (id) => { jobId = id; });
+        if (plan.object_query) $("object-query").value = plan.object_query;
+        stage = "agent";
+        const response = await companion.request(turn.transcript, turn);
+        jobId = response.jobId;
+        $("voice-answer").textContent = `Nyx: ${response.result.answer}`;
+        const output = response.result.visual;
         if (!active()) return;
-        showAnswer(output);
+        if (output?.scope) showAnswer(output);
         visualMs = Math.round(performance.now() - visualStarted);
       }
+      stage = "speech";
       this.state("Preparing speech…");
       const reply = await api("/api/voice/reply", { ...json({ turn_id: turn.id, job_id: jobId }), headers: { ...this.headers(), "content-type": "application/json" }, signal: AbortSignal.timeout(45000) });
       if (!active()) return;
@@ -250,6 +267,7 @@ const voice = {
       this.refresh().catch(() => {});
       if (!active()) return;
       if (reply.audio) {
+        stage = "playback";
         const bytes = Uint8Array.from(atob(reply.audio), (c) => c.charCodeAt(0));
         this.url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
         const player = new Audio(this.url);
@@ -263,17 +281,20 @@ const voice = {
           $("voice-cancel").hidden = true;
           this.listen(turn.id).catch(() => this.state('Listening locally · say “Hey Nyx”'));
         };
-        player.onerror = () => { if (active()) { this.stopPlayback(); this.state("Audio could not play. The answer is shown above."); } };
+        player.onerror = () => { if (active()) { this.diagnostic("playback_failed", attemptId, stage); this.stopPlayback(); this.state("Audio could not play. The answer is shown above."); } };
         try {
           await player.play();
+          this.diagnostic("playback_started", attemptId, stage);
           timings.end_of_speech_to_playback_ms = Math.round(performance.now() - endedAt);
           $("voice-timing").textContent = Object.entries(timings).map(([name, ms]) => `${name.replace(/_ms$/, "").replaceAll("_", " ")}: ${(ms / 1000).toFixed(2)}s`).join(" · ");
         }
-        catch { this.playing = false; this.state("Browser blocked speech playback. Click Play answer."); $("voice-play").hidden = false; }
+        catch { this.diagnostic("playback_blocked", attemptId, stage); this.playing = false; this.state("Browser blocked speech playback. Click Play answer."); $("voice-play").hidden = false; }
       } else { this.state(reply.warning || 'Listening locally · say “Hey Nyx”'); await this.listen(turn.id); }
     } catch (error) {
+      this.diagnostic("browser_turn_failed", attemptId, stage);
+      this.refresh().catch(() => {});
       if (active()) {
-        await api("/api/voice/cancel", { method: "POST", headers: this.headers() }).catch(() => {});
+        if (stage !== "transcription") await api("/api/voice/cancel", { method: "POST", headers: { ...this.headers(), "x-nyx-cancel-reason": "error_cleanup" } }).catch(() => {});
         this.state(`${error.message} Say “Hey Nyx” to retry.`);
       }
     } finally {
@@ -323,3 +344,17 @@ window.addEventListener("pagehide", () => voice.stop("Page closed."));
     await Promise.all([startCapture(), voice.start()]);
   } catch (error) { voice.state(`Could not start automatically: ${error.message}`); }
 })();
+
+$("voice-listen-now").onclick = async () => {
+  try {
+    if (!voice.token) await voice.start();
+    if (voice.working || companion.working) { voice.state("A request is running. Stop it first if you want to start another."); return; }
+    await voice.cancel("listen_now");
+    const result = await api("/api/voice/activate", { method: "POST", headers: voice.headers() });
+    voice.wakeUntil = performance.now() + result.seconds * 1000;
+    voice.state("I'm listening. Tell me what you're showing or where you're putting it.");
+    voice.acknowledge();
+    clearTimeout(voice.activation);
+    voice.activation = setTimeout(() => { if (!voice.working && !voice.playing) voice.state('Listening locally · say “Hey Nyx”'); }, result.seconds * 1000);
+  } catch (error) { voice.state(error.message); }
+};

@@ -78,3 +78,26 @@ Wake comparison: `data/runs/voice-fixes-002/wake-comparison.json`. Three positiv
 Final deterministic/browser validation: 109 tests; `data/runs/web-voice-chat-003/` verifies greeting without a visual request, and `data/runs/web-voice-fixes-003/` verifies object dispatch. Both exercise real local wake recognition, synthetic playback interruption, quieter speech segmentation, a pending utterance while busy, and permission/mute cleanup. Cloud requests and visual judgments are mocked in these browser checks; no actual webcam/microphone was opened. Real-room voice/noise/echo and measured p95 remain open.
 
 Real provider + local Qwen integration after preload: `data/runs/voice-fixes-integrated-001/results.json`. The startup visual preload took 7.688 s in this run. After submitting permitted generated audio, a greeting took 1.948 s including the first local recognizer construction. Two current-view questions on a permitted public fixture produced concise uncertainty plus valid Sarvam speech in 4.678 s and 3.139 s; visual work took 2.736 s and 1.965 s. The repeated identical uncertainty answer reused a RAM speech cache entry on the second trial (1 ms). These samples exclude browser silence/actual playback, are not a controlled speedup comparison, and do not establish p95. First preload still costs startup time; unseen answers may require a fresh TTS call. Detailed evidence stays in the existing visual panel.
+
+## MVP wrap-up voice check — 2026-10-28
+
+The documented four-file tiny.en cache initially failed offline startup under the
+locked Hugging Face client: an unrestricted snapshot request also required the
+repository README and .gitattributes. Wake loading now restricts the local-only
+snapshot to config.json, model.bin, tokenizer.json and vocabulary.txt, matching
+setup instructions. A regression checks this partial-cache contract.
+
+`tests/voice_browser_smoke.py --audio data/runs/voice-fixtures/variant-0.wav
+--output data/runs/mvp-voice-wake-20261028` passed with Chrome 156.0.8078.48,
+actual pinned tiny.en CPU/int8 wake recognition and generated speech. It covers
+local wake interruption of playback, current-view dispatch, playback, queued
+quiet utterance, mute/stop cleanup, history reload, denied permission and late
+permission cleanup. Provider STT/TTS, planner and visual judgments are doubles;
+no actual camera/microphone or Sarvam call occurred.
+
+Failures retained: first attempt failed on incomplete cache; after the loader
+fix, `question.wav` failed the wake-interruption assertion. Isolated recognition
+of its first 2.5 s and full audio returned only “Where are my glasses?” with no
+wake name. Variant 2 also omitted the name; variants 0/1/3 retained “Hey Nyx” in
+the 2.5 s probe. The variant-0 browser pass does not establish robust wake
+recognition across pronunciations, room noise or speaker echo. Those remain open.

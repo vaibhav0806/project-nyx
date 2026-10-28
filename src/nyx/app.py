@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import sqlite3
+import time
 import uuid
 from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime
@@ -40,6 +41,7 @@ class SearchRequest(BaseModel):
 
 
 class AnswerRequest(BaseModel):
+    excluded_frame_ids: list[int] = Field(default_factory=list, max_length=32)
     object_query: str = Field(min_length=1, max_length=200, pattern=r"\S")
     mode: Literal["latest", "relevance"] = "latest"
     video_id: str | None = None
@@ -64,6 +66,11 @@ class Workspace:
         self.verifier_factory = verifier_factory
         self.verifier = None
         self.queue = PriorityQueue()
+        self.ingest_queue = PriorityQueue()
+        self.model_lock = Lock()
+        self.ingest_thread = Thread(
+            target=lambda: self.run(self.ingest_queue), name="nyx-ingestion", daemon=True
+        )
         self.order = count()
         self.thread = Thread(target=self.run, name="nyx-inference", daemon=True)
         self.lock = Lock()
@@ -85,14 +92,16 @@ class Workspace:
             return Store(self.root, identity["encoder"], identity["dimensions"])
 
     def model_store(self):
-        if self.encoder is None:
-            self.encoder = self.encoder_factory()
+        with self.model_lock:
+            if self.encoder is None:
+                self.encoder = self.encoder_factory()
         with self.store_lock:
             return Store(self.root, self.encoder.fingerprint, self.encoder.dimensions)
 
     def visual_verifier(self):
-        if self.verifier is None:
-            self.verifier = self.verifier_factory()
+        with self.model_lock:
+            if self.verifier is None:
+                self.verifier = self.verifier_factory()
         return self.verifier
 
     def reserve(self, kind, job_id=None):
@@ -123,27 +132,52 @@ class Workspace:
                 self.scheduled.discard(job_id)
 
     def submit(self, job_id, action):
-        priority = 0 if self.jobs[job_id]["kind"] in {"search", "answer"} else 1
-        self.queue.put((priority, next(self.order), job_id, action))
+        priority = 0 if self.jobs[job_id]["kind"] in {"search", "answer", "agent", "observe"} else 1
+        queue = (
+            self.ingest_queue if self.jobs[job_id]["kind"] in {"capture", "index"} else self.queue
+        )
+        self.jobs[job_id]["queued_clock"] = time.perf_counter()
+        queue.put((priority, next(self.order), job_id, action))
 
-    def run(self):
+    def run(self, queue=None):
+        queue = self.queue if queue is None else queue
         while True:
-            _, _, job_id, work = self.queue.get()
+            _, _, job_id, work = queue.get()
             if job_id is None:
                 return
+            started = time.perf_counter()
+            if "queue_ms" not in self.jobs[job_id]:
+                self.update(
+                    job_id,
+                    queue_ms=round(
+                        (started - self.jobs[job_id].get("queued_clock", started)) * 1000
+                    ),
+                )
             self.update(job_id, status="running")
             try:
                 result = work() if callable(work) else work
                 if isinstance(result, GeneratorType):
                     progress = next(result)
                     self.update(job_id, progress=progress)
-                    self.queue.put((1, next(self.order), job_id, result))
+                    queue.put((1, next(self.order), job_id, result))
                 else:
                     self.update(job_id, status="succeeded", result=result)
             except StopIteration as done:
                 self.update(job_id, status="succeeded", result=done.value)
             except Exception as exc:  # noqa: BLE001 — worker failures must reach the task UI
                 self.update(job_id, status="failed", error=str(exc))
+            finally:
+                elapsed = round((time.perf_counter() - started) * 1000)
+                self.update(job_id, work_ms=self.jobs[job_id].get("work_ms", 0) + elapsed)
+                if self.conversations:
+                    self.conversations.event(
+                        "job_slice",
+                        job_id=job_id,
+                        kind=self.jobs[job_id]["kind"],
+                        status=self.jobs[job_id]["status"],
+                        elapsed_ms=elapsed,
+                        queue_ms=self.jobs[job_id].get("queue_ms", 0),
+                    )
 
     def submit_segment(self, segment):
         with self.lock:
@@ -162,6 +196,8 @@ class Workspace:
                     recorded_at=None if segment["timing_uncertain"] else segment["recorded_at"],
                     video_id=segment["id"],
                     name=f"Recording {segment['recorded_at']} · part {segment['sequence'] + 1}",
+                    adaptive=True,
+                    batch_size=8,
                 )
             except Exception as exc:
                 self.capture.mark(segment["id"], "failed", str(exc))
@@ -184,7 +220,9 @@ class Workspace:
 
     def close(self):
         self.queue.put((99, next(self.order), None, None))
+        self.ingest_queue.put((99, next(self.order), None, None))
         self.thread.join()
+        self.ingest_thread.join()
 
     def delete_video(self, video_id):
         deletion = self.capture.deletion(video_id)
@@ -256,22 +294,28 @@ def create_app(
     if encoder_factory is None:
 
         def encoder_factory():
-            from nyx.perception import SiglipEncoder
+            from nyx.perception import CloudEncoder
 
-            return SiglipEncoder(device)
+            return CloudEncoder()
 
     if verifier_factory is None:
 
         def verifier_factory():
-            from nyx.verification import LocalVerifier
+            from nyx.verification import CloudVerifier
 
-            return LocalVerifier(device)
+            return CloudVerifier()
 
     workspace = Workspace(root, encoder_factory, video_budget_bytes, verifier_factory)
-    from nyx.voice import MAX_PCM, Conversations, Sarvam, Voice, VoiceError
+    from nyx.voice import MAX_PCM, CloudVoice, Conversations, Voice, VoiceError
 
-    key = os.environ.get("SARVAM_API_KEY")
-    voice = voice_factory(root) if voice_factory else Voice(root, Sarvam(key)) if key else None
+    key = os.environ.get("OPENROUTER_API_KEY")
+    voice = (
+        voice_factory(root)
+        if voice_factory
+        else Voice(root, CloudVoice(), agent_mode=True)
+        if key
+        else None
+    )
     workspace.conversations = (
         voice.conversations
         if voice
@@ -285,6 +329,7 @@ def create_app(
         for segment in workspace.capture.pending():
             workspace.submit_segment(segment)
         workspace.thread.start()
+        workspace.ingest_thread.start()
         if voice:
             job_id = workspace.reserve("warmup")
 
@@ -300,6 +345,9 @@ def create_app(
     app.add_middleware(
         TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"]
     )
+    from nyx.companion import install_companion
+
+    install_companion(app, workspace, voice)
 
     @app.exception_handler(ValueError)
     async def bad_input(request, exc):
@@ -361,7 +409,7 @@ def create_app(
     def voice_token(request):
         if voice is None:
             raise HTTPException(
-                503, "Configure Sarvam and install the voice extra to enable listening."
+                503, "Configure OpenRouter and install the voice extra to enable listening."
             )
         return request.headers.get("x-nyx-voice")
 
@@ -372,7 +420,10 @@ def create_app(
 
     @app.delete("/api/voice/session")
     def voice_stop(request: Request):
-        voice.stop(voice_token(request))
+        reason = request.headers.get("x-nyx-stop-reason", "session_stopped")
+        if reason not in {"page_closed", "camera_stopped", "heartbeat_failed", "session_stopped"}:
+            reason = "session_stopped"
+        voice.stop(voice_token(request), reason)
         return {"state": "muted"}
 
     @app.post("/api/voice/heartbeat")
@@ -381,7 +432,10 @@ def create_app(
 
     @app.post("/api/voice/cancel")
     def voice_cancel(request: Request):
-        voice.cancel(voice_token(request))
+        reason = request.headers.get("x-nyx-cancel-reason", "unspecified")
+        if reason not in {"user_stop", "listen_now", "error_cleanup", "unspecified"}:
+            reason = "unspecified"
+        voice.cancel(voice_token(request), reason)
         return {"state": "listening"}
 
     @app.post("/api/voice/listen")
@@ -406,7 +460,32 @@ def create_app(
             raw.extend(chunk)
             if len(raw) > MAX_PCM:
                 raise HTTPException(413, "Spoken questions must be at most 25 seconds.")
-        return await run_in_threadpool(voice.utterance, token, bytes(raw))
+        return await run_in_threadpool(
+            voice.utterance, token, bytes(raw), request.headers.get("x-nyx-attempt")
+        )
+
+    @app.get("/api/voice/diagnostics")
+    def voice_diagnostics(request: Request):
+        voice.check(voice_token(request))
+        return {"events": voice.conversations.diagnostics()}
+
+    @app.post("/api/voice/diagnostics")
+    def voice_browser_diagnostic(request: Request, body: dict):
+        voice.check(voice_token(request))
+        event = body.get("event")
+        stage = body.get("stage")
+        if event not in {
+            "browser_turn_failed",
+            "playback_started",
+            "playback_blocked",
+            "playback_failed",
+        } or stage not in {"transcription", "agent", "speech", "playback"}:
+            raise ValueError("Unsupported voice diagnostic")
+        if not isinstance(body.get("attempt_id"), str):
+            raise HTTPException(400, "Voice diagnostic needs an attempt UUID")
+        attempt = str(uuid.UUID(body["attempt_id"]))
+        voice.conversations.event(event, attempt_id=attempt, stage=stage)
+        return {"recorded": True}
 
     @app.post("/api/voice/reply")
     def voice_reply(request: Request, body: dict):
@@ -422,14 +501,19 @@ def create_app(
         else:
             with workspace.lock:
                 job = workspace.jobs.get(body.get("job_id"), {})
-                if job.get("kind") != "answer" or job.get("status") != "succeeded":
+                if job.get("kind") not in {"answer", "agent"} or job.get("status") != "succeeded":
                     raise VoiceError("The visual check has not completed. Try again.")
                 if job["created_at"] < turn["at"]:
                     raise VoiceError("Capture new evidence for this voice question.")
                 result = job["result"]
-                if result.get("object_query") != plan["object_query"]:
+                if job["kind"] == "agent":
+                    if result.get("voice_turn_id") != turn["id"] or job.get("cancelled"):
+                        raise VoiceError(
+                            "That companion result belongs to another or cancelled turn"
+                        )
+                elif result.get("object_query") != plan["object_query"]:
                     raise VoiceError("That visual check belongs to a different question.")
-                if (plan["mode"] == "current") != (result["kind"] == "snapshot"):
+                elif (plan["mode"] == "current") != (result["kind"] == "snapshot"):
                     raise VoiceError("The visual check has the wrong evidence type.")
                 if result["kind"] == "history" and any(
                     result["scope"].get(field) != plan.get(field)
@@ -443,6 +527,25 @@ def create_app(
     @app.get("/style.css")
     def stylesheet():
         return FileResponse(WEB / "style.css", media_type="text/css")
+
+    @app.get("/api/videos/{video_id}/window")
+    def video_window(video_id: str, offset: float = Query(ge=0, allow_inf_nan=False)):
+        from nyx.context import playback_window
+
+        store = workspace.store()
+        if not store or not store.video(video_id) or store.video(video_id)["status"] == "deleting":
+            raise HTTPException(404, "Source unavailable")
+        return playback_window(workspace.capture, video_id, offset)
+
+    @app.post("/api/voice/activate")
+    def activate_voice(request: Request):
+        token = voice_token(request)
+        with voice.lock:
+            voice.check(token)
+            voice._cancel("explicit_activation")
+            voice.awake_until = time.monotonic() + 30
+            voice.conversations.event("listening_activated_by_user")
+        return {"seconds": 30}
 
     @app.get("/api/videos")
     def videos():
@@ -495,6 +598,8 @@ def create_app(
 
     @app.post("/api/capture/{session_id}/state")
     def capture_state(session_id: str, body: CaptureState):
+        if body.state != "recording":
+            workspace.observer.reset()
         return workspace.capture.transition(
             session_id, body.state, body.at.isoformat(), body.reason
         )
@@ -627,6 +732,7 @@ def create_app(
                 video_id=body.video_id,
                 seen_after=body.seen_after.isoformat() if body.seen_after else None,
                 seen_before=body.seen_before.isoformat() if body.seen_before else None,
+                excluded_frame_ids=body.excluded_frame_ids,
             )
             coverage = workspace.capture.snapshot()
             result["coverage"] = {
@@ -676,7 +782,8 @@ def create_app(
             verifier = workspace.visual_verifier()
             snapshot_age(captured_at)
             judgment = verifier.inspect(image, object_query)
-            seen = judgment["visibility"] == "visible"
+            ambiguous = bool(judgment.get("ambiguous"))
+            seen = judgment["visibility"] == "visible" and not ambiguous
             description = (
                 f"The model identified {object_query} {judgment['location'] or 'in the image'}."
                 if seen
@@ -685,8 +792,10 @@ def create_app(
             return {
                 "kind": "snapshot",
                 "object_query": object_query,
-                "status": "seen" if seen else "uncertain",
-                "answer": f"In the snapshot captured at {captured_at.astimezone(UTC).isoformat()}: {description} The scene may have changed since capture.",
+                "status": "clarify" if ambiguous else "seen" if seen else "uncertain",
+                "answer": "Which one do you mean? Please describe its color, position, or another distinguishing detail."
+                if ambiguous
+                else f"In the snapshot captured at {captured_at.astimezone(UTC).isoformat()}: {description} The scene may have changed since capture.",
                 "captured_at": captured_at.astimezone(UTC).isoformat(),
                 "age_seconds": (datetime.now(UTC) - captured_at).total_seconds(),
                 "judgment": judgment,

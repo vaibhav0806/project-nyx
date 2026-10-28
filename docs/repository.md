@@ -1,5 +1,16 @@
 # Repository structure
 
+## Cloud runtime update — 2026-10-28
+
+`cloud.py` is the single OpenRouter HTTP boundary. `perception.py` supplies cloud
+multimodal embeddings; `verification.py` uses cloud generation with existing
+agent/vision contracts. `voice.py` uses cloud STT/TTS plus local wake recognition.
+`mlx_runtime.py` was removed. The local detector still uses the optional vision
+extra; Transformers and MLX are no longer application dependencies. Tests in
+`test_cloud.py` cover wire shapes, safe failures, vector validation, voice formats
+and atomic index rebuilds. Historical descriptions below are retained as history.
+
+
 Status: working structure; M1 implementation started after the user requested it. Create implementation folders only when their milestone needs them. This is one product repository, not a collection of independently deployed services.
 
 ## Proposed layout
@@ -80,6 +91,30 @@ An experiment should not be imported by production code. When its approach is se
 
 The interrupted dependency/test drafts have been reconciled with `src/nyx/`. The package now contains `capture.py`, `perception.py`, `memory.py`, `retrieval.py`, `report.py`, and `cli.py`. `tests/test_nyx.py` exercises the real storage/import/search boundaries and uses a deterministic encoder double only at the external inference boundary.
 
-`experiments/image-text-retrieval/` runs the real pinned model and optional crop comparison separately. `app.py` and packaged `src/nyx/web/` implement continuous local recording, automatic indexing and interactive candidate search. `recording.py` owns the durable capture journal; `tests/test_recording.py` covers admission, storage and recovery. Packaging the plain assets avoids a separate frontend build or source-tree dependency; move to a separate frontend only if actual complexity warrants it. `tests/test_app.py` covers API behavior; opt-in `tests/browser_smoke.py` checks the real model and browser with synthetic camera frames. M3 uses `verification.py` and `answers.py` for local model-checked temporal answers; `voice.py` owns local wake recognition, Sarvam and conversation storage; `web/voice.js` and `web/audio-worklet.js` own hands-free audio. Reminders have not been implemented. The HTML gallery remains a separate generated artifact.
+`experiments/image-text-retrieval/` runs the real pinned model and optional crop comparison separately. `app.py` and packaged `src/nyx/web/` implement continuous local recording, automatic indexing and interactive candidate search. `recording.py` owns the durable capture journal; `tests/test_recording.py` covers admission, storage and recovery. Packaging the plain assets avoids a separate frontend build or source-tree dependency; move to a separate frontend only if actual complexity warrants it. `tests/test_app.py` covers API behavior; opt-in `tests/browser_smoke.py` checks the real model and browser with synthetic camera frames. M3 uses `verification.py` and `answers.py` for local model-checked temporal answers; `voice.py` owns local wake recognition, Sarvam and conversation storage; `web/voice.js` and `web/audio-worklet.js` own hands-free audio. General scheduled reminders remain unimplemented; the bounded next-departure slice is described below. The HTML gallery remains a separate generated artifact.
 
 Earlier files under `docs/superpowers/` now point to the canonical documents above. New project documentation belongs in the named `docs/` locations; avoid competing designs or milestone lists.
+
+
+## Companion/event additions — 2026-10-20
+
+The actual package now also contains `agent.py` (bounded tool decisions), `attention.py` (cheap adaptive selection), `observation.py` (ephemeral live sequences), `intentions.py` (durable next-departure and delivery state), and `companion.py` (API/tool integration). `web/companion.js` is packaged with the existing plain assets. General `reminders.py` scheduling remains a proposed ownership boundary, not an implemented module.
+
+`activity.py` owns the shared temporal window used before automatic embeddings and
+live model inspection. Its coverage is in `tests/test_activity.py` alongside the
+attention/observer tests. `experiments/companion/planner.py` separates
+real query/tool-decision checks from controlled tool observations; `window.py` replays
+cheap temporal nomination and `live.py` exercises dense local-model API replay.
+
+`events.py` owns the lazy local object detector, normalized observed boxes and
+generic entity/region-relative motion. It contains no reminder text, clip IDs or
+predefined room layout. `tests/test_events.py` covers its evidence boundaries;
+`experiments/companion/grounding.py` tests actual scene grounding and geometry,
+and `detectors.py` compares two small detector candidates independently of Qwen.
+
+`tests/test_agent.py`, `test_attention.py`, `test_observation.py`, `test_tracking.py`, `test_intentions.py` and `test_companion.py` exercise behavior with deterministic inference boundaries. `tests/companion_browser_smoke.py` uses generated media; real local experiments live in `experiments/companion/`. Follow [its README](../experiments/companion/README.md) for source/license and storage limits. Local databases now also include `intentions.sqlite3`; raw media and model outputs remain ignored.
+
+`mlx_runtime.py` is the small lazy Apple Silicon generation boundary for the pinned
+Qwen3.5 8-bit model. `verification.py` retains shared prompts, parsing, evidence and
+legacy diagnostics. `test_mlx_runtime.py` checks ordered media, text-only routing and
+load parameters without loading real weights.

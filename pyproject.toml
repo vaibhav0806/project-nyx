@@ -1,7 +1,7 @@
 [project]
 name = "project-nyx"
 version = "0.1.0"
-description = "Local visual-memory retrieval prototype for Nyx"
+description = "Cloud-assisted visual-memory companion for Nyx"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "numpy>=2,<3",
@@ -13,8 +13,6 @@ dependencies = [
 vision = [
     "torch>=2.6,<3",
     "torchvision>=0.21,<1",
-    "transformers>=4.57.1,<5",
-    "sentencepiece>=0.2,<1",
 ]
 web = [
     "fastapi>=0.115,<1",
