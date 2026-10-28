@@ -21,7 +21,7 @@
     <div class="intro"><h1>Keep a little history.<br>Find a moment.</h1><p>Ask about your current view or find an item in recorded moments.<br>Review possible matches and refine your request.</p></div>
     <section class="voice-panel" aria-label="Nyx companion">
       <h2>Talk to Nyx</h2>
-      <p class="help">Describe the item you want to find. If a match is wrong, say “That’s not it” or add a distinguishing detail. Nyx checks the current view and recorded history locally; review the image before relying on a result.</p>
+      <p class="help">Describe the item you want to find. If a match is wrong, say “That’s not it” or add a distinguishing detail. Selected frames are sent to OpenRouter and its model providers for search and interpretation. Recordings stay on this device. Nyx checks the current view and recorded history using cloud models; review the image before relying on a result.</p>
       <form id="companion-form"><label for="companion-message">Your request</label><div class="search-row"><input id="companion-message" maxlength="1500" placeholder="Where did you last see my reading glasses?" required><button id="companion-send" class="primary">Ask Nyx</button><button id="companion-stop" type="button" hidden>Stop</button></div></form>
       <p id="companion-status" role="status" aria-live="polite">Ready. Camera and microphone have separate controls.</p>
       <div id="companion-thread" aria-live="polite"></div>
@@ -31,7 +31,7 @@
     <section id="voice-panel" class="voice-panel" aria-label="Hands-free voice" hidden>
       <h2>Hey Nyx</h2>
       <p id="voice-state" role="status" aria-live="polite">Starting local wake listening…</p>
-      <p class="help">Say “Hey Nyx, where are my glasses?” or call its name, then ask. Idle speech stays on this laptop. Activated questions and the ten-second follow-up window use Sarvam. Say “Hey Nyx” to interrupt playback. English wake name and replies for this first demo.</p>
+      <p class="help">Say “Hey Nyx, where are my glasses?” or call its name, then ask. Idle speech stays on this laptop. Activated questions and the ten-second follow-up window use OpenRouter. Say “Hey Nyx” to interrupt playback. English wake name and replies for this first demo.</p>
       <div class="controls"><button id="voice-enable">Enable listening</button><button id="voice-mute" hidden>Mute microphone</button><button id="voice-cancel" hidden>Stop response</button><button id="voice-play" hidden>Play answer</button></div>
       <label class="help" for="voice-level">Microphone level <meter id="voice-level" min="0" max="1" value="0"></meter></label>
       <p id="voice-question"></p><p id="voice-answer"></p>

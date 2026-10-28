@@ -1,5 +1,37 @@
 # Technical architecture
 
+## Cloud MVP architecture — 2026-10-28 (current)
+
+This supersedes the local-inference model/runtime sections below, which record
+how the prototype evolved. One Python server and browser remain; no new service
+framework or dual local/cloud inference stack is introduced.
+
+Camera -> local temporal activity filtering -> selected images -> OpenRouter
+multimodal embeddings -> local SQLite vectors and source timestamps. User message
+-> cloud agent -> local tools for current image/history/reminders -> cloud visual
+interpretation -> evidence-linked answer -> cloud TTS -> browser playback.
+
+`cloud.py` owns bounded HTTPS transport, image encoding, safe errors and response
+validation. `verification.py` owns cloud agent/vision prompts and judgment parsing.
+`perception.py` owns cloud image/text embeddings and their identity. `voice.py`
+retains local wake/turn/cancellation state with OpenRouter activated STT/TTS.
+The tiny CPU detector and inexpensive image-change window remain local. MLX/Qwen,
+local SigLIP inference and Sarvam runtime paths have been removed.
+
+The models and run commands are in README. Vector dimensions and preprocessing
+are fingerprinted; `nyx reindex` rebuilds saved sample vectors atomically while
+preserving source IDs, times and files. Failed rebuilds leave the original index
+usable. Run it with the server stopped. No implicit startup rebuild or private
+media upload occurs in developer tests.
+
+Calls have a 45-second network timeout, bounded outputs, no automatic retry and
+no local fallback. Provider errors become visible failures/uncertainty. Existing
+job/voice cancellation discards late results; it cannot cancel a billed upstream
+request already sent. Keys stay backend-only. Selected images and activated audio
+leave the device; full recordings and idle audio do not. Requests set
+`provider.data_collection=deny`, which is not a zero-retention guarantee.
+
+
 Status: working architecture, 2026-10-19. M1 has local clip import/sampling, encoder inference, SQLite retrieval, a CLI and an HTML gallery. The M2 localhost interface adds enabled rolling recording, automatic background indexing, interactive search and separate source playback. M3 now adds bounded temporal retrieval and local model checking; M4 adds local wake listening with Sarvam activated-question voice; a bounded companion/event-request slice was added on 2026-10-20. [Decisions](decisions.md) distinguishes established preferences from open selections.
 
 ## Shape of the system

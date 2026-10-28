@@ -91,7 +91,7 @@ def test_dense_inference_selects_observed_images_and_reuses_only_same_view_detec
 
     from PIL import Image
 
-    from nyx.verification import LocalVerifier
+    from nyx.verification import CloudVerifier
 
     class Detector:
         fingerprint: ClassVar = {"model": "synthetic-dense"}
@@ -109,7 +109,7 @@ def test_dense_inference_selects_observed_images_and_reuses_only_same_view_detec
                 for image in images
             ]
 
-    verifier = LocalVerifier.__new__(LocalVerifier)
+    verifier = CloudVerifier.__new__(CloudVerifier)
     verifier.detector = Detector()
     inspected = []
 

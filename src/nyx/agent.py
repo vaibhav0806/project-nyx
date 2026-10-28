@@ -1,3 +1,5 @@
+from nyx.cloud import CloudError
+
 """A bounded observe/act loop. Visual claims come from tool results, never final prose."""
 
 import json
@@ -140,6 +142,8 @@ def agent_steps(
                 raise ValueError(
                     "That tool was already checked; choose an untried search or finish"
                 )
+        except CloudError:
+            raise
         except (ValueError, TypeError, KeyError) as exc:
             result["answer"] = (
                 "I couldn't interpret the next step reliably. Please clarify your request."
@@ -248,6 +252,8 @@ def agent_steps(
                         yield progress
                 finally:
                     steps.close()
+        except CloudError:
+            raise
         except ValueError as exc:
             if cancelled():
                 raise

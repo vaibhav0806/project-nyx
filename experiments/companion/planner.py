@@ -11,7 +11,7 @@ from importlib.metadata import version
 from pathlib import Path
 
 from nyx.agent import agent_steps
-from nyx.verification import LocalVerifier
+from nyx.verification import CloudVerifier
 
 CASES = [
     {
@@ -297,58 +297,14 @@ def main():
         action="store_true",
         help="Compare putting the latest request in its own user message",
     )
-    parser.add_argument(
-        "--thinking-tokens", type=int, default=0, help="Experimental MLX reasoning token budget"
-    )
-    parser.add_argument(
-        "--model-id", help="Experimental MLX model override; requires a pinned revision"
-    )
-    parser.add_argument("--revision", help="Exact 40-character model commit")
     args = parser.parse_args()
-    if bool(args.model_id) != bool(args.revision):
-        parser.error("--model-id and --revision must be supplied together")
-    if args.revision and (
-        len(args.revision) != 40 or any(c not in "0123456789abcdef" for c in args.revision)
-    ):
-        parser.error("--revision must be an exact lowercase hexadecimal commit")
-    if args.model_id:
-        # Override only in this experiment process; application defaults stay pinned.
-        from nyx import mlx_runtime
-
-        mlx_runtime.MODEL, mlx_runtime.REVISION = args.model_id, args.revision
     cases = json.loads(args.case_file.read_text()) if args.case_file else CASES
     selected = [case for case in cases if not args.cases or case["name"] in args.cases]
     if args.cases and len(selected) != len(set(args.cases)):
         parser.error("Every requested case must exist")
     args.output.mkdir(parents=True, exist_ok=False)
-    model = LocalVerifier()
-    original = model.generate_json
-    if args.thinking_tokens:
-        from mlx_vlm import generate
-
-        def thinking_generate(messages, max_tokens=240):
-            prompt = model.runtime.processor.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True, enable_thinking=True
-            )
-            result = generate(
-                model.runtime.model,
-                model.runtime.processor,
-                prompt,
-                max_tokens=args.thinking_tokens + max_tokens,
-                thinking_budget=args.thinking_tokens,
-                thinking_start_token="<think>",
-                thinking_end_token="</think>",
-                temperature=0.0,
-                enable_thinking=True,
-                verbose=False,
-            ).text
-            with (args.output / "thinking.jsonl").open("a") as file:
-                file.write(json.dumps({"raw": result}) + "\n")
-            if "</think>" not in result:
-                raise ValueError("Reasoning did not finish within its token budget")
-            return result.split("</think>", 1)[1].strip()
-
-        original = thinking_generate
+    model = CloudVerifier()
+    original = model.generate_decision
 
     def record(messages, max_tokens=240):
         if args.natural_user_turn:
@@ -368,7 +324,7 @@ def main():
             file.write(json.dumps({"messages": messages, "raw": raw}) + "\n")
         return raw
 
-    model.generate_json = record
+    model.generate_decision = record
     results = {
         "platform": platform.platform(),
         "python": platform.python_version(),
@@ -376,7 +332,6 @@ def main():
         "model": model.fingerprint,
         "load_seconds": model.load_seconds,
         "natural_user_turn": args.natural_user_turn,
-        "thinking_tokens": args.thinking_tokens,
         "tools": "controlled observations; no actual retrieval or mutations",
         "scoring": "Query concept/contradiction checks and expected tool paths; manual review still required",
         "cases": [],
@@ -435,10 +390,6 @@ def main():
             "passed": all(checks.values()),
             "seconds": time.perf_counter() - started,
         }
-        if model.device == "mlx":
-            import mlx.core as mx
-
-            results["mlx_peak_bytes"] = mx.get_peak_memory()
         results["cases"].append(row)
         (args.output / "results.json").write_text(json.dumps(results, indent=2))
         print(

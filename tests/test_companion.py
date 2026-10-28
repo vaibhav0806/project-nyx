@@ -733,18 +733,18 @@ def test_cancellation_requires_unambiguous_reminder_target(tmp_path, message, ex
 
 
 def test_ambiguous_current_view_asks_user_without_searching_history(tmp_path):
-    from nyx.verification import LocalVerifier
+    from nyx.verification import CloudVerifier
 
     class Ambiguous(Planner):
         def decide(self, state):
             if state["observations"]:
-                return LocalVerifier.decide(self, state)
+                return CloudVerifier.decide(self, state)
             return {"action": "inspect_current", "query": "mug"}
 
         def inspect(self, image, query):
             return {"visibility": "uncertain", "location": None, "ambiguous": True}
 
-        def generate_json(self, *args):
+        def generate_decision(self, *args):
             pytest.fail("A clarification result needs no additional model call")
 
     with TestClient(

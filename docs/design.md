@@ -1,5 +1,14 @@
 # Product design
 
+## Current implementation direction — 2026-10-28
+
+Cloud inference is the primary MVP path. Keep capture, wake recognition,
+inexpensive observation and evidence storage on-device; use OpenRouter for agent
+reasoning, selected-image interpretation/embeddings and activated speech. The
+mission and evidence/uncertainty principles remain unchanged. Older references
+to local model checks describe the preceding prototype, not the current runtime.
+
+
 Status: working design, 2026-10-19; the user reviewed the package and resumed the first implementation milestone. Product intent comes from the working discussion and approved application pitch; implementation choices are tracked separately in [Decisions](decisions.md).
 
 ## Mission

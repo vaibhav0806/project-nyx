@@ -258,25 +258,25 @@ def create_app(
     if encoder_factory is None:
 
         def encoder_factory():
-            from nyx.perception import SiglipEncoder
+            from nyx.perception import CloudEncoder
 
-            return SiglipEncoder(device)
+            return CloudEncoder()
 
     if verifier_factory is None:
 
         def verifier_factory():
-            from nyx.verification import LocalVerifier
+            from nyx.verification import CloudVerifier
 
-            return LocalVerifier(device)
+            return CloudVerifier()
 
     workspace = Workspace(root, encoder_factory, video_budget_bytes, verifier_factory)
-    from nyx.voice import MAX_PCM, Conversations, Sarvam, Voice, VoiceError
+    from nyx.voice import MAX_PCM, CloudVoice, Conversations, Voice, VoiceError
 
-    key = os.environ.get("SARVAM_API_KEY")
+    key = os.environ.get("OPENROUTER_API_KEY")
     voice = (
         voice_factory(root)
         if voice_factory
-        else Voice(root, Sarvam(key), agent_mode=True)
+        else Voice(root, CloudVoice(), agent_mode=True)
         if key
         else None
     )
@@ -372,7 +372,7 @@ def create_app(
     def voice_token(request):
         if voice is None:
             raise HTTPException(
-                503, "Configure Sarvam and install the voice extra to enable listening."
+                503, "Configure OpenRouter and install the voice extra to enable listening."
             )
         return request.headers.get("x-nyx-voice")
 

@@ -1,5 +1,20 @@
 # Decisions and open choices
 
+## 2026-10-28 — Cloud is the primary MVP inference path
+
+**Approved by the user and implemented in this branch.** Replace local Qwen/MLX
+and SigLIP inference with OpenRouter reasoning/vision and multimodal embeddings;
+consolidate activated STT/TTS onto OpenRouter. Retain local Whisper wake recognition,
+activity filtering, the small event detector and recording/database storage.
+No equally supported offline LLM/VLM path. User supplied a key with a $2 test cap.
+
+The development index may be rebuilt without production compatibility machinery.
+Preserve recordings and evidence timestamps. The explicit reindex command replaces
+vectors transactionally; cloud models cannot query the old vector space. Current
+model selections and measured limits are in [R9](research/R9-cloud-mvp.md).
+Older local-only/Sarvam decisions below are historical and superseded by this decision.
+
+
 Updated: 2026-10-20. This records discussion outcomes and engineering choices. The user explicitly resumed work on 2026-10-19; M1 retrieval and continuous recording/background indexing are authorized. Unmeasured model choices remain experiments.
 
 ## Status vocabulary

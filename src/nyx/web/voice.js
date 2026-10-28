@@ -1,6 +1,6 @@
 "use strict";
 
-// Microphone samples go only to this localhost app. Sarvam is called after local activation.
+// Microphone samples go only to this localhost app. OpenRouter is called after local activation.
 const voice = {
   token: null, epoch: 0, mic: null, context: null, node: null, timer: null,
   working: false, playing: false, player: null, url: null, activation: null,

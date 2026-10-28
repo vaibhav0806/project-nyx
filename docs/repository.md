@@ -1,5 +1,16 @@
 # Repository structure
 
+## Cloud runtime update — 2026-10-28
+
+`cloud.py` is the single OpenRouter HTTP boundary. `perception.py` supplies cloud
+multimodal embeddings; `verification.py` uses cloud generation with existing
+agent/vision contracts. `voice.py` uses cloud STT/TTS plus local wake recognition.
+`mlx_runtime.py` was removed. The local detector still uses the optional vision
+extra; Transformers and MLX are no longer application dependencies. Tests in
+`test_cloud.py` cover wire shapes, safe failures, vector validation, voice formats
+and atomic index rebuilds. Historical descriptions below are retained as history.
+
+
 Status: working structure; M1 implementation started after the user requested it. Create implementation folders only when their milestone needs them. This is one product repository, not a collection of independently deployed services.
 
 ## Proposed layout

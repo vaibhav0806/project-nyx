@@ -1,7 +1,3 @@
-import hashlib
-import json
-import time
-
 MODEL_ID = "google/siglip2-base-patch16-224"
 MODEL_REVISION = "75de2d55ec2d0b4efc50b3e9ad70dba96a7b2fa2"
 
@@ -26,69 +22,60 @@ def compatible_fingerprints(left, right):
     )
 
 
-class SiglipEncoder:
-    def __init__(self, device="auto"):
-        import torch
-        from transformers import AutoModel, AutoProcessor
+class CloudEncoder:
+    def __init__(self, client=None):
+        import os
 
-        started = time.perf_counter()
-        if device == "auto":
-            device = "mps" if torch.backends.mps.is_available() else "cpu"
-        if device == "mps" and not torch.backends.mps.is_available():
-            raise ValueError("Apple MPS is unavailable; select --device cpu")
-        self.device = device
-        self.processor = AutoProcessor.from_pretrained(
-            MODEL_ID, revision=MODEL_REVISION, token=False, trust_remote_code=False, use_fast=False
-        )
-        self.model = (
-            AutoModel.from_pretrained(
-                MODEL_ID,
-                revision=MODEL_REVISION,
-                token=False,
-                trust_remote_code=False,
-                use_safetensors=True,
-            )
-            .eval()
-            .to(device)
-        )
-        self.dimensions = self.model.config.vision_config.hidden_size
-        preprocessing = {
-            "image": self.processor.image_processor.to_dict(),
-            "text_padding": "max_length",
-            "text_length": 64,
-            "text_template": "This is a photo of {query}.",
-            "tokenizer": type(self.processor.tokenizer).__name__,
-            "image_mode": "RGB",
-        }
+        from nyx.cloud import OpenRouter
+
+        self.client = client or OpenRouter()
+        self.model = os.environ.get("NYX_EMBEDDING_MODEL", "google/gemini-embedding-2")
+        self.dimensions = int(os.environ.get("NYX_EMBEDDING_DIMENSIONS", "768"))
+        if not 1 <= self.dimensions <= 4096:
+            raise ValueError("Embedding dimensions must be between 1 and 4096")
+        self.device = "cloud"
+        self.load_seconds = 0
         self.fingerprint = {
-            "model": MODEL_ID,
-            "revision": MODEL_REVISION,
-            "preprocessing": hashlib.sha256(
-                json.dumps(preprocessing, sort_keys=True).encode()
-            ).hexdigest(),
+            "model": self.model,
+            "dimensions": self.dimensions,
+            "preprocessing": "rgb-jpeg90-768-v1",
+            "runtime": "openrouter",
         }
-        self.load_seconds = time.perf_counter() - started
+
+    def _encode(self, inputs):
+        import numpy as np
+
+        from nyx.cloud import CloudError
+
+        if not inputs:
+            return np.empty((0, self.dimensions), dtype=np.float32)
+        result = self.client.request(
+            "embeddings",
+            {
+                "model": self.model,
+                "input": inputs,
+                "dimensions": self.dimensions,
+                "encoding_format": "float",
+            },
+        )
+        try:
+            rows = sorted(result["data"], key=lambda row: row["index"])
+            if [r["index"] for r in rows] != list(range(len(inputs))):
+                raise ValueError
+            vectors = np.asarray([row["embedding"] for row in rows], dtype=np.float32)
+            if vectors.shape != (len(inputs), self.dimensions) or not np.isfinite(vectors).all():
+                raise ValueError
+            norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+            if not np.isfinite(norms).all() or (norms == 0).any():
+                raise ValueError
+            return vectors / norms
+        except (KeyError, TypeError, ValueError):
+            raise CloudError("Cloud embeddings were invalid; the index was not updated.") from None
 
     def encode_images(self, images):
-        import torch
+        from nyx.cloud import image_part
 
-        inputs = self.processor(images=images, return_tensors="pt").to(self.device)
-        with torch.inference_mode():
-            features = self.model.get_image_features(**inputs)
-            features = getattr(features, "pooler_output", features)
-            return (features / features.norm(dim=-1, keepdim=True)).float().cpu().numpy()
+        return self._encode([{"content": [image_part(image)]} for image in images])
 
     def encode_text(self, query):
-        import torch
-
-        inputs = self.processor(
-            text=[f"This is a photo of {query}."],
-            padding="max_length",
-            max_length=64,
-            truncation=True,
-            return_tensors="pt",
-        ).to(self.device)
-        with torch.inference_mode():
-            features = self.model.get_text_features(**inputs)
-            features = getattr(features, "pooler_output", features)
-            return (features / features.norm(dim=-1, keepdim=True)).float().cpu().numpy()[0]
+        return self._encode([{"content": [{"type": "text", "text": query}]}])[0]

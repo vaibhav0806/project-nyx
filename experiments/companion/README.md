@@ -1,3 +1,11 @@
+# Current cloud experiments
+
+`planner.py`, `mvp_objects.py` and `cloud_voice.py` now use the OpenRouter runtime and require
+`uv run --env-file .env`. They spend API credits. Use synthetic/public fixtures.
+Other local-model experiments below are historical: reproduce them at commit
+`79efbfb` with its dependencies. They are not a supported local runtime fallback.
+See [R9](../../docs/research/R9-cloud-mvp.md) for current results.
+
 # Companion and event experiments
 
 These are opt-in local model experiments, separate from deterministic tests. They open no real camera/microphone and call no cloud provider. Use fresh output directories. Raw data, model generations and databases stay under ignored `data/`.

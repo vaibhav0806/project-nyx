@@ -16,6 +16,7 @@ Research should answer a bounded question that changes a decision. Keep product 
 | R6 | Which cloud voice path works for the chosen user/language? | Trial comprehension, follow-ups, interruptions, echo and backend tool calls. | Short recordings where permitted, latency breakdown, observed limitations and usage | [Initial hands-free findings](R6-handsfree-voice.md) / in progress |
 | R7 | What alternatives and adoption constraints matter? | Compare about five relevant products/current workarounds from primary sources and actual user evidence. Explore who chooses, installs, maintains and pays. | Dated capability/pricing matrix, user objections, buyer/adoption hypothesis and gaps | [Initial Instinct UX findings](R7-instinct-ux.md); broader comparison/adoption work open |
 | R8 | Can conversation-aware local tools and continuous observation support useful next-departure assistance? | Exercise contextual query construction, adaptive selection, local sequence judgments and durable event delivery. | [Measured prototype findings](R8-companion-loop.md), failures and remaining gates | In progress / inline implementation |
+| R9 | Can cloud inference replace the constrained local stack? | Real provider calls, planner regressions, public-image finding flow and synthetic voice | [Cloud MVP findings](R9-cloud-mvp.md) | Implemented; household validation open |
 
 R1/R2 can run alongside early technical feasibility work once separately authorized. R5 does not block the initial R3 retrieval baseline. Do not assign a person or deadline without their agreement.
 

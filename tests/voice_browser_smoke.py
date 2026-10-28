@@ -95,7 +95,7 @@ def run(audio, output, conversation=False):
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
-    env = {k: v for k, v in os.environ.items() if k != "SARVAM_API_KEY"}
+    env = {k: v for k, v in os.environ.items() if k not in {"SARVAM_API_KEY", "OPENROUTER_API_KEY"}}
     env["HF_HUB_OFFLINE"] = "1"
     process = subprocess.Popen(
         [sys.executable, __file__, "--serve", str(output / "data"), "--port", str(port)]
@@ -267,7 +267,7 @@ def run(audio, output, conversation=False):
                     "mute during permission request releases late-arriving microphone tracks",
                 ],
                 "limitations": [
-                    "Sarvam STT/TTS, agent decisions and visual judgment mocked in this browser check",
+                    "Cloud STT/TTS, agent decisions and visual judgment mocked in this browser check",
                     "this check makes no hosted-provider calls; provider validation is separate",
                     "no actual webcam or microphone opened",
                 ],

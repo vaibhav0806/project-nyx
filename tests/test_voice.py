@@ -3,12 +3,11 @@ import json
 import time
 from io import BytesIO
 from typing import ClassVar
-from urllib.error import HTTPError
 
 import numpy as np
 import pytest
 
-from nyx.voice import Conversations, Sarvam, Voice, VoiceError, wake_command
+from nyx.voice import Conversations, Voice, VoiceError, wake_command
 
 
 @pytest.mark.parametrize(
@@ -117,55 +116,6 @@ def test_conversations_reopen_interrupt_and_invalidate_sources(tmp_path):
     assert rows[1]["id"] == pending and rows[1]["status"] == "interrupted"
     reopened.invalidate("abc")
     assert reopened.recent()[0]["sources_available"] is False
-
-
-def test_sarvam_shapes_routing_validation_and_safe_errors():
-    calls = []
-
-    def transport(request, timeout):
-        calls.append(request)
-        if request.full_url.endswith("speech-to-text"):
-            data = {"transcript": "where are my glasses?"}
-        elif request.full_url.endswith("text-to-speech"):
-            data = {"audios": [base64.b64encode(b"RIFFtest").decode()]}
-        else:
-            args = {
-                "mode": "current",
-                "object_query": "glasses",
-                "seen_after": None,
-                "seen_before": None,
-            }
-            data = {
-                "choices": [
-                    {
-                        "message": {
-                            "tool_calls": [
-                                {"function": {"name": "inspect", "arguments": json.dumps(args)}}
-                            ]
-                        }
-                    }
-                ]
-            }
-        return BytesIO(json.dumps(data).encode())
-
-    sarvam = Sarvam("test-secret", transport=transport)
-    assert sarvam.transcribe(audio()) == "where are my glasses?"
-    assert b"RIFF" in calls[0].data
-    assert b"saaras:v4" in calls[0].data
-    assert b'name="keyterms"' in calls[0].data
-    assert calls[0].get_header("Api-subscription-key") == "test-secret"
-    assert sarvam.route("where?", [])["mode"] == "current"
-    assert sarvam.speak("I see glasses.")
-    assert json.loads(calls[-1].data)["model"] == "bulbul:v4-flash"
-
-    assert json.loads(calls[-1].data)["speaker"] == "shubh_enhi_companion"
-
-    def denied(request, timeout):
-        raise HTTPError(request.full_url, 403, "test-secret", {}, None)
-
-    with pytest.raises(VoiceError, match="403") as error:
-        Sarvam("test-secret", transport=denied).speak("hello")
-    assert "test-secret" not in str(error.value)
 
 
 @pytest.mark.parametrize(
@@ -534,38 +484,6 @@ def test_spoken_replies_keep_unknown_clock_and_current_uncertainty():
             {"kind": "history", "status": "uncertain", "object_query": "pen", "evidence": None}
         ).lower()
     )
-
-
-def test_router_wire_schema_uses_strings_for_optional_fields():
-    def transport(request, timeout):
-        payload = json.loads(request.data)
-        parameters = payload["tools"][0]["function"]["parameters"]
-        assert parameters["properties"]["reply"]["type"] == "string"
-        args = {
-            "mode": "chat",
-            "object_query": "",
-            "reply": "Want to talk about your day?",
-            "seen_after": "",
-            "seen_before": "",
-        }
-        return BytesIO(
-            json.dumps(
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "tool_calls": [
-                                    {"function": {"name": "inspect", "arguments": json.dumps(args)}}
-                                ]
-                            }
-                        }
-                    ]
-                }
-            ).encode()
-        )
-
-    plan = Sarvam("fake", transport=transport).route("I feel tired", [])
-    assert plan["mode"] == "chat" and plan["object_query"] is None
 
 
 def test_followup_after_playback_does_not_need_another_wake_decode(tmp_path):

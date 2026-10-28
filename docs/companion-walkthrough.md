@@ -1,5 +1,12 @@
 # How the current Nyx companion works
 
+**Cloud update (2026-10-28):** agent reasoning, visual inspection, embeddings and
+activated speech now use OpenRouter. Local models described below refer to the
+previous prototype. Wake recognition, activity filtering and storage remain local.
+Use [README](../README.md) for current setup and [R9](research/R9-cloud-mvp.md) for
+cloud verification evidence.
+
+
 Nyx is being built as a physical companion that helps people stay independent as they age. The laptop is the development setting. The current slice concentrates on two interactions: finding an object through conversation, and remembering a request to speak at the next departure.
 
 ## Asking a question

@@ -163,3 +163,49 @@ def search(query, store, encoder, **filters):
         raise ValueError("Search query must not be blank")
     _check_encoder(store, encoder)
     return store.search(encoder.encode_text(query.strip()), **filters)
+
+
+def rebuild_embeddings(store, encoder, batch_size=8):
+    """Re-embed saved samples atomically; preserve media, IDs and recording times.
+
+    Run with the app stopped. A failed cloud batch rolls back all vector changes.
+    """
+    import json
+
+    from nyx.memory import _vector
+
+    if batch_size < 1:
+        raise ValueError("Batch size must be positive")
+    count = 0
+    with store.connection() as db:
+        db.execute("BEGIN IMMEDIATE")
+        rows = db.execute("SELECT id, thumbnail FROM frames ORDER BY id").fetchall()
+        for start in range(0, len(rows), batch_size):
+            batch = rows[start : start + batch_size]
+            images = []
+            for row in batch:
+                with Image.open(store.root / row["thumbnail"]) as image:
+                    images.append(image.convert("RGB"))
+            vectors = encoder.encode_images(images)
+            if len(vectors) != len(batch):
+                raise ValueError("Frame and vector counts differ")
+            db.executemany(
+                "UPDATE frames SET embedding=? WHERE id=?",
+                [
+                    (_vector(vector, encoder.dimensions), row["id"])
+                    for row, vector in zip(batch, vectors, strict=True)
+                ],
+            )
+            count += len(batch)
+        db.execute(
+            "UPDATE meta SET value=? WHERE key='encoder'",
+            (
+                json.dumps(
+                    {"encoder": encoder.fingerprint, "dimensions": encoder.dimensions},
+                    sort_keys=True,
+                ),
+            ),
+        )
+    store.fingerprint = encoder.fingerprint
+    store.dimensions = encoder.dimensions
+    return {"reembedded_frames": count, "encoder": encoder.fingerprint}

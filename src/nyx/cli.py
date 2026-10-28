@@ -1,6 +1,7 @@
 import argparse
 import json
 import math
+import os
 import sqlite3
 import sys
 from datetime import UTC, datetime
@@ -36,9 +37,9 @@ def _positive_int(value):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Nyx local visual-retrieval baseline")
+    parser = argparse.ArgumentParser(description="Nyx cloud-assisted companion")
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
-    parser.add_argument("--device", choices=["auto", "mps", "cpu"], default="auto")
+    parser.add_argument("--device", choices=["auto"], default="auto")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("doctor", help="Check local runtime without downloading weights")
     index = commands.add_parser("index", help="Copy and index a local video")
@@ -56,6 +57,9 @@ def main():
     commands.add_parser("list", help="List indexed clips without loading the model")
     serve = commands.add_parser("serve", help="Open the manual local recording/search interface")
     serve.add_argument("--port", type=_positive_int, default=8000)
+    commands.add_parser(
+        "reindex", help="Rebuild saved frame embeddings through OpenRouter; stop the app first"
+    )
     args = parser.parse_args()
     if args.command == "search":
         if not args.query.strip():
@@ -72,7 +76,6 @@ def main():
             return
         if args.command == "doctor":
             import sqlite_vec
-            import torch
 
             with sqlite3.connect(":memory:") as db:
                 db.enable_load_extension(True)
@@ -85,14 +88,13 @@ def main():
                         "python": sys.version.split()[0],
                         "sqlite": sqlite3.sqlite_version,
                         "sqlite_vec": version,
-                        "torch": torch.__version__,
-                        "mps_available": torch.backends.mps.is_available(),
+                        "cloud_configured": bool(os.environ.get("OPENROUTER_API_KEY")),
                     },
                     indent=2,
                 )
             )
             return
-        if args.command == "list":
+        if args.command in {"list", "reindex"}:
             path = args.data_dir / "index.sqlite3"
             if not path.is_file():
                 raise ValueError("No index exists here; run nyx index first")
@@ -101,15 +103,21 @@ def main():
                     db.execute("SELECT value FROM meta WHERE key='encoder'").fetchone()[0]
                 )
             store = Store(args.data_dir, identity["encoder"], identity["dimensions"])
-            print(json.dumps(store.list_videos(), indent=2))
+            if args.command == "reindex":
+                from nyx.perception import CloudEncoder
+                from nyx.retrieval import rebuild_embeddings
+
+                print(json.dumps(rebuild_embeddings(store, CloudEncoder()), indent=2))
+            else:
+                print(json.dumps(store.list_videos(), indent=2))
             return
         if args.command == "index" and not args.video.is_file():
             raise ValueError(f"Video does not exist: {args.video}")
         if args.command == "search" and not (args.data_dir / "index.sqlite3").is_file():
             raise ValueError("No index exists here; run nyx index first")
-        from nyx.perception import SiglipEncoder
+        from nyx.perception import CloudEncoder
 
-        encoder = SiglipEncoder(args.device)
+        encoder = CloudEncoder()
         store = Store(args.data_dir, encoder.fingerprint, encoder.dimensions)
         if args.command == "index":
             output = index_video(

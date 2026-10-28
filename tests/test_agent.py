@@ -109,10 +109,12 @@ def test_still_there_followup_checks_fresh_view_before_historical_evidence():
 
 
 def test_planner_rejects_an_already_checked_visual_tool():
-    from nyx.verification import LocalVerifier
+    from nyx.verification import CloudVerifier
 
-    verifier = object.__new__(LocalVerifier)
-    verifier.generate_json = lambda *args: '{"action":"inspect_current","query":"reading glasses"}'
+    verifier = object.__new__(CloudVerifier)
+    verifier.generate_decision = lambda *args: (
+        '{"action":"inspect_current","query":"reading glasses"}'
+    )
     with pytest.raises(ValueError, match="already|available"):
         verifier.decide(
             {
@@ -251,10 +253,10 @@ def test_explicit_last_seen_question_cannot_be_answered_from_current_view_only()
 
 
 def test_schema_placeholder_is_not_a_resolved_visual_query():
-    from nyx.verification import LocalVerifier
+    from nyx.verification import CloudVerifier
 
-    verifier = object.__new__(LocalVerifier)
-    verifier.generate_json = lambda *args: (
+    verifier = object.__new__(CloudVerifier)
+    verifier.generate_decision = lambda *args: (
         '{"action":"inspect_current","query":"resolved object description"}'
     )
     with pytest.raises(ValueError, match="description|query"):
@@ -420,10 +422,10 @@ def test_invalid_completion_gets_one_bounded_correction_before_a_real_tool_resul
     "status", ["seen", "candidate", "armed", "cancelled", "complete", "clarify"]
 )
 def test_completed_tool_result_needs_no_additional_model_generation(status):
-    from nyx.verification import LocalVerifier
+    from nyx.verification import CloudVerifier
 
-    verifier = object.__new__(LocalVerifier)
-    verifier.generate_json = lambda *args: pytest.fail(
+    verifier = object.__new__(CloudVerifier)
+    verifier.generate_decision = lambda *args: pytest.fail(
         "Completed evidence needs no more generation"
     )
     action = verifier.decide(
@@ -440,9 +442,9 @@ def test_completed_tool_result_needs_no_additional_model_generation(status):
 def test_changed_object_query_has_its_own_search_windows_without_loading_model():
     import json
 
-    from nyx.verification import LocalVerifier
+    from nyx.verification import CloudVerifier
 
-    verifier = LocalVerifier.__new__(LocalVerifier)
+    verifier = CloudVerifier.__new__(CloudVerifier)
 
     def generate(messages, *args):
         state = json.loads(messages[1]["content"])
@@ -451,7 +453,7 @@ def test_changed_object_query_has_its_own_search_windows_without_loading_model()
         assert state["message"] == "No, the blue bottle, not the red one"
         return '{"action":"search_history","query":"blue bottle","hours":2}'
 
-    verifier.generate_json = generate
+    verifier.generate_decision = generate
     result = verifier.decide(
         {
             "message": "No, the blue bottle, not the red one",
@@ -500,10 +502,10 @@ def test_corrected_query_survives_time_widening_and_old_answer_is_not_evidence()
 
 
 def test_planner_can_inspect_a_changed_query_after_an_uncertain_current_check():
-    from nyx.verification import LocalVerifier
+    from nyx.verification import CloudVerifier
 
-    verifier = object.__new__(LocalVerifier)
-    verifier.generate_json = lambda *args: (
+    verifier = object.__new__(CloudVerifier)
+    verifier.generate_decision = lambda *args: (
         '{"action":"inspect_current","query":"silver reading glasses"}'
     )
     action = verifier.decide(
@@ -522,9 +524,9 @@ def test_planner_can_inspect_a_changed_query_after_an_uncertain_current_check():
 def test_followup_planner_receives_last_corrected_tool_query_without_old_evidence():
     import json
 
-    from nyx.verification import LocalVerifier
+    from nyx.verification import CloudVerifier
 
-    verifier = object.__new__(LocalVerifier)
+    verifier = object.__new__(CloudVerifier)
 
     def generate(messages):
         state = json.loads(messages[1]["content"])
@@ -536,7 +538,7 @@ def test_followup_planner_receives_last_corrected_tool_query_without_old_evidenc
             {"action": "search_history", "query": turn["previous_tool_query"], "hours": 2}
         )
 
-    verifier.generate_json = generate
+    verifier.generate_decision = generate
     action = verifier.decide(
         {
             "message": "Where did you last see it?",
@@ -626,9 +628,9 @@ def test_search_rejects_invalid_exclusion_ids(ids):
 def test_planner_receives_candidate_and_rejections_without_image_payloads():
     import json
 
-    from nyx.verification import LocalVerifier
+    from nyx.verification import CloudVerifier
 
-    verifier = object.__new__(LocalVerifier)
+    verifier = object.__new__(CloudVerifier)
 
     def generate(messages):
         state = json.loads(messages[1]["content"])
@@ -644,7 +646,7 @@ def test_planner_receives_candidate_and_rejections_without_image_payloads():
             }
         )
 
-    verifier.generate_json = generate
+    verifier.generate_decision = generate
     action = verifier.decide(
         {
             "message": "nah, not that one",
@@ -727,16 +729,16 @@ def test_history_policy_adjustment_preserves_model_selected_exclusions():
 def test_newer_visual_work_or_confirmation_does_not_resurrect_old_review(newer):
     import json
 
-    from nyx.verification import LocalVerifier
+    from nyx.verification import CloudVerifier
 
-    verifier = object.__new__(LocalVerifier)
+    verifier = object.__new__(CloudVerifier)
 
     def generate(messages):
         state = json.loads(messages[1]["content"])
         assert "review_context" not in state
         return '{"action":"clarify","message":"Which item do you mean?"}'
 
-    verifier.generate_json = generate
+    verifier.generate_decision = generate
     verifier.decide(
         {
             "message": "Not that one",
@@ -751,9 +753,9 @@ def test_newer_visual_work_or_confirmation_does_not_resurrect_old_review(newer):
 def test_clarification_preserves_pending_candidate_and_explicit_display_takes_precedence():
     import json
 
-    from nyx.verification import LocalVerifier
+    from nyx.verification import CloudVerifier
 
-    verifier = object.__new__(LocalVerifier)
+    verifier = object.__new__(CloudVerifier)
     context = [
         {"plan": {"candidate": {"frame_id": 74, "object_query": "glasses"}}},
         {"plan": {"steps": [{"action": "clarify", "message": "What differs?"}]}},
@@ -765,7 +767,7 @@ def test_clarification_preserves_pending_candidate_and_explicit_display_takes_pr
         assert state["review_context"]["candidate"]["frame_id"] == expected
         return '{"action":"clarify","message":"Which item?"}'
 
-    verifier.generate_json = generate
+    verifier.generate_decision = generate
     verifier.decide({"message": "Not that one", "conversation": context})
     expected = 82
     verifier.decide(

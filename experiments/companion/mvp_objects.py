@@ -9,12 +9,11 @@ from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
-import mlx.core as mx
 from fastapi.testclient import TestClient
 from PIL import Image
 
 from nyx.app import create_app
-from nyx.verification import LocalVerifier
+from nyx.verification import CloudVerifier
 
 
 def wait(client, identifier):
@@ -59,18 +58,16 @@ def main():
     if args.review_history and args.current_only:
         parser.error("History review requires the history turn")
     args.output.mkdir(parents=True, exist_ok=False)
-    mx.set_memory_limit(6 * 1024**3)
-    mx.set_cache_limit(128 * 1024**2)
     model = None
 
     def factory():
         nonlocal model
         if model is None:
-            model = LocalVerifier()
+            model = CloudVerifier()
         return model
 
     results = {
-        "scope": "Real local API/models, public-image synthetic video, simulated recording dates; no devices or voice",
+        "scope": "Real localhost API/cloud models, public-image synthetic video, simulated recording dates; no devices or voice",
         "current_only": args.current_only,
         "cases": [],
     }
@@ -108,7 +105,7 @@ def main():
                 "seconds": time.perf_counter() - started,
                 "job": job,
                 "model": model.fingerprint if model else None,
-                "mlx_peak_bytes": mx.get_peak_memory(),
+                "mlx_peak_bytes": 0,
             }
             (args.output / "results.json").write_text(json.dumps(report, indent=2))
             print(
@@ -157,7 +154,6 @@ def main():
             row = {"name": name, "seconds": time.perf_counter() - started, "job": job}
             results["cases"].append(row)
             results["model"] = model.fingerprint if model else None
-            results["mlx_peak_bytes"] = mx.get_peak_memory()
             (args.output / "results.json").write_text(json.dumps(results, indent=2))
             result = job.get("result", {})
             print(
@@ -218,7 +214,6 @@ def main():
                 review["attempts"][-1]["rejection_job"] = review_job
                 candidate = review_job.get("result", {}).get("visual") or {}
             results["review"] = review
-            results["mlx_peak_bytes"] = mx.get_peak_memory()
             (args.output / "results.json").write_text(json.dumps(results, indent=2))
             print(json.dumps(review), flush=True)
 
@@ -298,7 +293,6 @@ def main():
                 "passed": all(checks.values()),
                 "limits": "Public still/slideshow and simulated user review; manual visual/answer review still required. Not household or voice acceptance.",
             }
-            results["mlx_peak_bytes"] = mx.get_peak_memory()
             (args.output / "results.json").write_text(json.dumps(results, indent=2))
             print(json.dumps(results["acceptance"]), flush=True)
             if not all(checks.values()):

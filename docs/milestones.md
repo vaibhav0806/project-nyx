@@ -1,5 +1,30 @@
 # Milestones
 
+## Cloud MVP switch — 2026-10-28 (current)
+
+Cloud inference is now the primary runtime; prior local-only status below is
+historical. OpenRouter supplies planner/vision, multimodal embeddings and activated
+STT/TTS. Local wake, inexpensive observation, the small detector and storage remain.
+MLX/Qwen/SigLIP generation/embedding runtime dependencies were removed; original
+media remains intact. No dual inference stack or provider framework was added.
+
+**Measured:** 21/21 planner regression, 10/10 feedback and 12/12 additional cases;
+7/7 guided real-model API flow with full GPT-5.4 vision and GPT-5.4 Mini planner.
+The synthetic 24-frame index rebuild preserved media hashes/source metadata.
+Companion browser and real-local-wake voice browser checks passed with fake devices.
+The actual cloud STT/agent/vision/TTS API chain passed on synthetic input (9.11 s).
+See [R9](research/R9-cloud-mvp.md) for methods, earlier failures and limitations.
+
+The installed-environment suite passes **324 tests**, lint/format, JS syntax and
+offline packaging. Approximately $0.33 of the $2 test cap was used; 4.16 GB of
+retired Qwen/SigLIP weights were removed.
+
+The MVP cloud wiring is implemented. Independent household validation, real-room
+voice/echo, timely departure detection and intended-user evaluation remain open.
+General long-term memory and time-based reminders remain later work. These results
+do not establish merge readiness or production reliability. No push or merge.
+
+
 Updated: 2026-10-28. **M1 household validation is pending; M2 continuous recording and background indexing are implemented locally. User authorized this expansion after successful manual retrieval.**
 
 This is the single project progress tracker. Detailed implementation tasks are written for the approved next milestone when the user asks to build. Research can inform the plan without silently changing scope.

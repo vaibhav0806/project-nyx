@@ -1,5 +1,13 @@
 # Guided object-finding demo
 
+**Cloud runtime update (2026-10-28):** use the [README cloud setup](../README.md),
+`OPENROUTER_API_KEY`, and a fresh or explicitly reindexed workspace. Local Qwen,
+MLX and Sarvam setup below is historical. No local LLM/VLM fallback remains.
+Selected frames and activated speech go to OpenRouter/model providers. Prior
+local-model demo results below do not establish cloud performance; see
+[R9](research/R9-cloud-mvp.md).
+
+
 The current MVP is a local, guided finding experience: ask about an object,
 clarify which one, search recorded moments, then reject or confirm a possible
 match. It is ready for guided developer testing. Household reliability and

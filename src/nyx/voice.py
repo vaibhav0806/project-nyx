@@ -9,8 +9,6 @@ from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from threading import Lock
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
 import numpy as np
 
@@ -170,37 +168,16 @@ def validate_plan(plan):
     return plan
 
 
-class Sarvam:
-    def __init__(self, key, transport=urlopen):
-        self.key = key
-        self.transport = transport
-        self.audio_cache = {}
+class CloudVoice:
+    def __init__(self, client=None):
+        import os
 
-    def request(self, path, body, content_type="application/json"):
-        request = Request(
-            "https://api.sarvam.ai/" + path,
-            data=body,
-            headers={
-                "api-subscription-key": self.key,
-                "content-type": content_type,
-            },
-        )
-        try:
-            with self.transport(request, timeout=40) as response:
-                raw = response.read(8 * 1024**2 + 1)
-                if len(raw) > 8 * 1024**2:
-                    raise VoiceError("Sarvam response was too large. Try a shorter question.")
-                return json.loads(raw)
-        except HTTPError as exc:
-            raise VoiceError(
-                f"Sarvam request failed ({exc.code}). Check the key, credits or provider status."
-            ) from None
-        except (URLError, TimeoutError, OSError, ValueError) as exc:
-            if isinstance(exc, VoiceError):
-                raise
-            raise VoiceError(
-                "Sarvam could not complete the request. Check the connection and retry."
-            ) from None
+        from nyx.cloud import OpenRouter
+
+        self.client = client or OpenRouter()
+        self.stt_model = os.environ.get("NYX_STT_MODEL", "openai/gpt-4o-mini-transcribe")
+        self.tts_model = "google/gemini-3.8-flash-lite-tts"
+        self.audio_cache = {}
 
     def transcribe(self, pcm):
         wav = BytesIO()
@@ -209,131 +186,56 @@ class Sarvam:
             file.setsampwidth(2)
             file.setframerate(16000)
             file.writeframes(pcm)
-        boundary = uuid.uuid4().hex
-        parts = []
-        for key, value in {
-            "model": "saaras:v4",
-            "keyterms": json.dumps(["Nyx"]),
-            "language_code": "unknown",
-        }.items():
-            parts.append(
-                f'--{boundary}\r\nContent-Disposition: form-data; name="{key}"\r\n\r\n{value}\r\n'.encode()
-            )
-        parts += [
-            f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="question.wav"\r\nContent-Type: audio/wav\r\n\r\n'.encode(),
-            wav.getvalue(),
-            f"\r\n--{boundary}--\r\n".encode(),
-        ]
-        result = self.request(
-            "speech-to-text", b"".join(parts), f"multipart/form-data; boundary={boundary}"
-        )
-        text = result.get("transcript")
-        if not isinstance(text, str) or not 1 <= len(text.strip()) <= 1500:
-            raise VoiceError("I could not hear a question. Say Hey Nyx and try again.")
-        return text.strip()
-
-    def route(self, transcript, context):
-        schema = {
-            "type": "object",
-            "properties": {
-                "mode": {
-                    "type": "string",
-                    "enum": ["current", "latest", "relevance", "clarify", "chat", "agent"],
-                },
-                "object_query": {"type": "string"},
-                "reply": {"type": "string"},
-                "seen_after": {"type": "string"},
-                "seen_before": {"type": "string"},
-            },
-            "required": ["mode", "object_query", "seen_after", "seen_before", "reply"],
-            "additionalProperties": False,
-        }
-        prompt = (
-            "You are Nyx, a friendly, concise voice companion. Decide intent first. "
-            "chat = greetings, small talk and ordinary conversation: reply naturally in at most two short sentences. "
-            "Never send a greeting such as what's up or how are you to the camera as an object. "
-            "current = find a concrete object in the current view. latest = last seen in recorded history. "
-            "relevance = best matching past moments. clarify = ambiguous object/time or unsupported action. "
-            "For visual modes, reply MUST be an empty string; a local visual tool supplies all observations. "
-            "For chat/clarify, object_query and time bounds MUST be empty strings. "
-            "No unsupported claims about seeing, hearing, remembering, people or the room in chat replies. "
-            "agent = requests to remind on departure, list/cancel departure reminders, or refine an ongoing search. "
-            "For agent, reply/object_query/time bounds are empty strings; the local agent chooses tools. "
-            "Time-based reminders and general saved-fact recall are not available yet. "
-            "For clarify, ask one brief useful question. Don't invent an object. "
-            "Object descriptions are in English. Resolve them using prior object queries only. "
-            "Dates must be explicit aware ISO times or empty strings; clarify ambiguous dates. "
-            "Do not inherit date bounds unless requested. Wake name may be transcribed Nix or Nick. "
-            'Examples: Where are my glasses? -> mode=current, object_query=glasses, reply="". '
-            'Where did you last see them? (prior object glasses) -> mode=latest, object_query=glasses, reply="". '
-            'What is up? -> mode=chat, object_query="", reply="Hey! What can I help with?". '
-            'I feel tired today -> mode=chat, object_query="", reply="Want to talk about your day?". '
-            "All unspecified time bounds are empty strings."
-        )
-        payload = {
-            "model": "sarvam-105b",
-            "messages": [
-                {"role": "system", "content": prompt},
-                {
-                    "role": "user",
-                    "content": json.dumps({"prior_questions": context, "question": transcript}),
-                },
-            ],
-            "tools": [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "inspect",
-                        "description": "Choose conversation, a visual lookup or a useful clarification",
-                        "parameters": schema,
-                    },
-                }
-            ],
-            "tool_choice": {"type": "function", "function": {"name": "inspect"}},
-            "reasoning_effort": None,
-            "max_tokens": 350,
-            "temperature": 0,
-        }
-        result = self.request("v1/chat/completions", json.dumps(payload).encode())
         try:
-            calls = result["choices"][0]["message"]["tool_calls"]
-            if len(calls) != 1 or calls[0]["function"]["name"] != "inspect":
-                raise ValueError
-            plan = json.loads(calls[0]["function"]["arguments"])
-            for field in ["object_query", "reply", "seen_after", "seen_before"]:
-                if plan.get(field) == "":
-                    plan[field] = None
-            return validate_plan(plan)
-        except (KeyError, TypeError, IndexError, ValueError):
-            raise VoiceError(
-                "Please name an object and ask about the current view or its last sighting."
-            ) from None
+            result = self.client.request(
+                "audio/transcriptions",
+                {
+                    "model": self.stt_model,
+                    "input_audio": {
+                        "data": base64.b64encode(wav.getvalue()).decode(),
+                        "format": "wav",
+                    },
+                },
+            )
+            text = result.get("text")
+            if not isinstance(text, str) or not 1 <= len(text.strip()) <= 1500:
+                raise ValueError("I could not hear a question. Say Hey Nyx and try again.")
+            return text.strip()
+        except ValueError as exc:
+            raise VoiceError(str(exc)) from None
 
     def speak(self, text):
         if text in self.audio_cache:
             return self.audio_cache[text]
-        payload = {
-            "text": text[:2200],
-            "language_code": "en-IN",
-            "model": "bulbul:v4-flash",
-            "speaker": "shubh_enhi_companion",
-            "speech_sample_rate": 16000,
-            "output_audio_codec": "wav",
-        }
-        result = self.request("text-to-speech", json.dumps(payload).encode())
         try:
-            audio = result["audios"][0]
-            raw = base64.b64decode(audio, validate=True)
-            if len(raw) > 4 * 1024**2 or not raw.startswith(b"RIFF"):
-                raise ValueError
+            pcm = self.client.request(
+                "audio/speech",
+                {
+                    "model": self.tts_model,
+                    "input": text[:2200],
+                    "voice": "Kore",
+                    "instructions": "Speak warmly and clearly.",
+                    "response_format": "pcm",
+                },
+                binary=True,
+            )
+            if not pcm or len(pcm) % 2 or len(pcm) > 4 * 1024**2:
+                raise ValueError(
+                    "Speech response was invalid. The answer is still shown on screen."
+                )
+            wav = BytesIO()
+            with wave.open(wav, "wb") as file:
+                file.setnchannels(1)
+                file.setsampwidth(2)
+                file.setframerate(24000)
+                file.writeframes(pcm)
+            audio = base64.b64encode(wav.getvalue()).decode()
             self.audio_cache[text] = audio
             if len(self.audio_cache) > 16:
                 self.audio_cache.pop(next(iter(self.audio_cache)))
             return audio
-        except (KeyError, IndexError, TypeError, ValueError):
-            raise VoiceError(
-                "Speech playback was unavailable. The answer is still shown on screen."
-            ) from None
+        except ValueError as exc:
+            raise VoiceError(str(exc)) from None
 
 
 class Conversations:

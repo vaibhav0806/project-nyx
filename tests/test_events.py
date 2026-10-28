@@ -103,7 +103,7 @@ def test_model_region_is_validated_before_using_it_for_geometry():
 
 
 def test_local_inspection_retains_independent_geometry_even_when_semantics_disagree():
-    from nyx.verification import LocalVerifier
+    from nyx.verification import CloudVerifier
 
     class Detector:
         fingerprint: ClassVar = {"model": "synthetic-box-observations"}
@@ -111,7 +111,7 @@ def test_local_inspection_retains_independent_geometry_even_when_semantics_disag
         def detect(self, images):
             return observations([(0.82, 0.6), (0.5, 0.6), (0.2, 0.6)])
 
-    verifier = LocalVerifier.__new__(LocalVerifier)
+    verifier = CloudVerifier.__new__(CloudVerifier)
     verifier.detector = Detector()
     verifier.generate_json = lambda *args: json.dumps(
         {
@@ -138,7 +138,7 @@ def test_local_inspection_retains_independent_geometry_even_when_semantics_disag
 
 
 def test_missing_entity_does_not_spend_a_semantic_inference_or_establish_absence():
-    from nyx.verification import LocalVerifier
+    from nyx.verification import CloudVerifier
 
     class Detector:
         fingerprint: ClassVar = {"model": "synthetic-missed-detection"}
@@ -146,7 +146,7 @@ def test_missing_entity_does_not_spend_a_semantic_inference_or_establish_absence
         def detect(self, images):
             return [[], [], []]
 
-    verifier = LocalVerifier.__new__(LocalVerifier)
+    verifier = CloudVerifier.__new__(CloudVerifier)
     verifier.detector = Detector()
 
     def unexpected(*args):
@@ -160,7 +160,7 @@ def test_missing_entity_does_not_spend_a_semantic_inference_or_establish_absence
 
 
 def test_stationary_subject_preserves_semantic_capacity_for_later_movement():
-    from nyx.verification import LocalVerifier
+    from nyx.verification import CloudVerifier
 
     class Detector:
         fingerprint: ClassVar = {"model": "synthetic-stationary-detection"}
@@ -168,7 +168,7 @@ def test_stationary_subject_preserves_semantic_capacity_for_later_movement():
         def detect(self, images):
             return observations([(0.4, 0.6), (0.41, 0.6), (0.4, 0.6)])
 
-    verifier = LocalVerifier.__new__(LocalVerifier)
+    verifier = CloudVerifier.__new__(CloudVerifier)
     verifier.detector = Detector()
     verifier.generate_json = lambda *args: pytest.fail(
         "Stationary positions cannot establish approach"

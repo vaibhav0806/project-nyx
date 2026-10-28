@@ -82,7 +82,7 @@ async function task(path, options, onJob = () => {}) {
       const state = await api(`/api/jobs/${job.id}`);
       if (state.status === "succeeded") return state.result;
       if (state.status === "failed") throw new Error(state.error);
-      message(state.kind === "index" ? "Indexing your imported clip locally…" : state.kind === "answer" ? `Checking visual evidence locally${state.progress?.checked ? ` · ${state.progress.checked} frames checked` : " · first use loads the visual model"}…` : "Searching saved moments…");
+      message(state.kind === "index" ? "Indexing selected frames through OpenRouter…" : state.kind === "answer" ? `Checking visual evidence${state.progress?.checked ? ` · ${state.progress.checked} frames checked` : " · using cloud vision"}…` : "Searching saved moments…");
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
   } finally {
@@ -619,7 +619,7 @@ $("inspect-now").onclick = async () => {
   $("answer-panel").hidden = true;
   try {
     showAnswer(await inspectView(objectQuery));
-    message("Snapshot checked locally. Its capture time is shown with the answer.");
+    message("Snapshot checked through cloud vision. Its capture time is shown with the answer.");
   } catch (error) { message(""); message(error.message, true); }
 };
 

@@ -1,6 +1,6 @@
 "use strict";
 
-// Shares the existing camera; never opens another device or uploads images off localhost.
+// Shares the existing camera; never opens another device; selected images are sent to cloud inference by the server.
 const companion = {
   epoch: 0, job: null, working: false, observing: false, delivering: false,
   armed: false, refreshBusy: false, player: null, delivery: null, deliveryIntention: null,
@@ -32,7 +32,7 @@ const companion = {
     $("answer-panel").hidden = true;
     this.job = null;
     try {
-      $("companion-status").textContent = "Preparing local reasoning…";
+      $("companion-status").textContent = "Preparing cloud reasoning…";
       await task("/api/companion/warmup", { method: "POST" });
       if (epoch !== this.epoch) throw new Error("Request stopped");
       const body = { ...this.reviewCandidate, message: text, request_id: turn?.id || crypto.randomUUID(), ...this.snapshot(), voice_turn_id: turn?.id || null };

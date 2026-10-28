@@ -1,5 +1,18 @@
 # Scope
 
+## Current cloud boundary — 2026-10-28
+
+The user approved cloud as the primary MVP path, including OpenRouter reasoning,
+vision, multimodal embeddings and activated STT/TTS. This supersedes local-only
+visual inference and Sarvam-only language elsewhere in this document. Selected
+frames/sequences, bounded conversation context, activated questions and answer
+text may reach OpenRouter/model providers. Idle audio and full recording files
+remain local. Local wake recognition, activity filtering and the small object
+detector remain. Developer tests use synthetic/public fixtures and never open real
+hardware; no private household footage is uploaded as part of testing. The supplied
+key has a $2 test cap. No push or merge is authorized.
+
+
 Status: working scope. The user explicitly resumed implementation on 2026-10-19. The first retrieval slice exists; continuous local capture/background retrieval is authorized and implemented. The user has also explicitly authorized M3 temporal retrieval and visual answers; M4 hands-free Sarvam voice is now authorized and implemented as an initial slice; a bounded next-departure action slice was authorized on 2026-10-20.
 
 ## First engineering slice
