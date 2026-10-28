@@ -622,3 +622,27 @@ def test_browser_diagnostics_require_session_and_accept_only_bounded_metadata(tm
         events = client.get("/api/voice/diagnostics", headers=headers).json()["events"]
         assert events[-1]["event"] == "browser_turn_failed"
         assert token not in json.dumps(events)
+
+
+def test_explicit_listen_accepts_statement_without_wake_name(tmp_path):
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from nyx.app import create_app
+
+    class StatementProvider(Provider):
+        def transcribe(self, pcm):
+            return "I will put my glasses on the table."
+
+    provider = StatementProvider()
+    voice = Voice(tmp_path, provider, lambda _: "no wake name", agent_mode=True)
+    with TestClient(
+        create_app(tmp_path, voice_factory=lambda _: voice, verifier_factory=lambda: object())
+    ) as client:
+        token = client.post("/api/voice/session").json()["token"]
+        headers = {"x-nyx-voice": token}
+        assert client.post("/api/voice/activate").status_code == 400
+        assert client.post("/api/voice/activate", headers=headers).json()["seconds"] == 30
+        turn = client.post("/api/voice/utterance", headers=headers, content=audio()).json()
+        assert turn["state"] == "question" and turn["transcript"].startswith("I will put")
+        assert voice.conversations.recent()[-1]["transcript"] == turn["transcript"]

@@ -1,5 +1,20 @@
 # Decisions and open choices
 
+## Speech-linked finding and surrounding replay — 2026-10-28
+
+Historical matches now replay up to ten seconds before and after the sighting,
+across available segments in the same reliably timed capture session. Gaps are
+not reconstructed. Imported or uncertain recordings use clip-local bounds.
+
+The history tool searches captured user transcripts by object words or within
+90 seconds of the sighting (30 candidates). The visual model selects at most two
+existing transcript IDs. Exact quotes are attributed separately from visual
+findings; intended placement is not confirmed placement. This bounded feature
+is not general long-term semantic memory. Listen now (30 seconds) bypasses missed
+wake activation; ignored wake attempts now display a warning. Idle audio is not
+archived, so missed statements cannot be recovered.
+
+
 ## 2026-10-28 — Cloud is the primary MVP inference path
 
 **Approved by the user and implemented in this branch.** Replace local Qwen/MLX

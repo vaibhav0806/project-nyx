@@ -374,6 +374,25 @@ def install_companion(app, workspace, voice):
                 result["scope"]["hours"] = action.get("hours")
                 result["scope"]["before_frame_id"] = action.get("before_frame_id")
                 result["answer"] = spoken_answer(result)
+                if result.get("evidence") and hasattr(workspace.visual_verifier(), "generate_json"):
+                    from nyx.capture import frame_image
+                    from nyx.cloud import CloudError
+                    from nyx.context import attach_statements
+
+                    try:
+                        evidence_image = frame_image(
+                            store.root / result["evidence"]["video_path"],
+                            result["evidence"]["offset_seconds"],
+                        )
+                        attach_statements(
+                            result,
+                            conversations,
+                            workspace.visual_verifier(),
+                            evidence_image,
+                            identifier,
+                        )
+                    except CloudError:
+                        result["answer"] += " Spoken context could not be checked right now."
                 return result
             if name == "remind_on_departure":
                 item = tasks.create(body.request_id, action["message"])

@@ -1,5 +1,15 @@
 # Scope
 
+## Latest authorized exception — 2026-10-28
+
+The user authorized reusing recent saved glasses footage/audio for this fix with
+the configured cloud path. Selected frames were tested; originals remain local.
+No raw audio archive exists. This exception does not authorize other private media
+or developer access to real camera/microphone. Branch publishing was separately
+authorized earlier; merging remains unapproved. Captured location statements may
+now be retrieved and quoted alongside visual matches, with explicit attribution.
+
+
 ## Current cloud boundary — 2026-10-28
 
 The user approved cloud as the primary MVP path, including OpenRouter reasoning,

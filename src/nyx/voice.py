@@ -68,6 +68,8 @@ def spoken_answer(result):
         if result.get("status") == "seen":
             return f"I can see {query} {result['judgment'].get('location') or 'in this view'}."
         return f"I can't clearly see {query} in this view."
+    if kind == "history" and result.get("spoken_context"):
+        return result["answer"]
     if kind == "history":
         evidence = result.get("evidence")
         if evidence:
@@ -487,7 +489,7 @@ class Voice:
                     self.conversations.event(
                         "utterance_ignored", attempt_id=attempt_id, reason="wake_not_recognized"
                     )
-                    return {"state": "listening"}
+                    return {"state": "listening", "reason": "wake_not_recognized"}
                 self.awake_until = 0
             started = time.perf_counter()
             stage = "transcription"

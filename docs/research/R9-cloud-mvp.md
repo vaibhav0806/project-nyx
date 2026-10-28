@@ -125,3 +125,26 @@ do not play late results, but a sent provider request may still complete and bil
 Household accuracy, small/occluded objects, intended-user evaluation, real acoustic
 echo, standalone hardware and reliable timely departure detection remain open.
 No merge/push or CI/review readiness is asserted by these local checks.
+
+## Speech-linked finding and surrounding replay — 2026-10-28
+
+Historical matches now replay up to ten seconds before and after the sighting,
+across available segments in the same reliably timed capture session. Gaps are
+not reconstructed. Imported or uncertain recordings use clip-local bounds.
+
+The history tool searches captured user transcripts by object words or within
+90 seconds of the sighting (30 candidates). The visual model selects at most two
+existing transcript IDs. Exact quotes are attributed separately from visual
+findings; intended placement is not confirmed placement. This bounded feature
+is not general long-term semantic memory. Listen now (30 seconds) bypasses missed
+wake activation; ignored wake attempts now display a warning. Idle audio is not
+archived, so missed statements cannot be recovered.
+
+Verification: 334 deterministic tests and companion/voice synthetic browser checks
+passed. User-authorized saved glasses footage replayed three segments totaling
+20 seconds and stopped correctly in the browser. Full cloud API retrieval passed
+with that footage and a synthetic location statement in an isolated database.
+The actual saved transcripts had no placement statement and yielded no false
+citation. No real camera/microphone opened. Private artifacts remain ignored in
+`data/runs/glasses-context-evaluation/`. Wake accuracy remains an open limitation;
+these results do not establish perfect household accuracy or merge readiness.

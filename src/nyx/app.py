@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import sqlite3
+import time
 import uuid
 from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime
@@ -484,6 +485,25 @@ def create_app(
     @app.get("/style.css")
     def stylesheet():
         return FileResponse(WEB / "style.css", media_type="text/css")
+
+    @app.get("/api/videos/{video_id}/window")
+    def video_window(video_id: str, offset: float = Query(ge=0, allow_inf_nan=False)):
+        from nyx.context import playback_window
+
+        store = workspace.store()
+        if not store or not store.video(video_id) or store.video(video_id)["status"] == "deleting":
+            raise HTTPException(404, "Source unavailable")
+        return playback_window(workspace.capture, video_id, offset)
+
+    @app.post("/api/voice/activate")
+    def activate_voice(request: Request):
+        token = voice_token(request)
+        with voice.lock:
+            voice.check(token)
+            voice._cancel()
+            voice.awake_until = time.monotonic() + 30
+            voice.conversations.event("listening_activated_by_user")
+        return {"seconds": 30}
 
     @app.get("/api/videos")
     def videos():

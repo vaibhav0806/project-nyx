@@ -224,7 +224,7 @@ const voice = {
       if (!this.playing) this.state("Listening and understanding…");
       const turn = await api("/api/voice/utterance", { method: "POST", headers: { ...this.headers(), "x-nyx-attempt": attemptId }, body: pcm.buffer, signal: AbortSignal.timeout(100000) });
       if (!active()) return;
-      if (turn.state === "listening") { if (!this.playing) this.state('Listening locally · say “Hey Nyx”'); return; }
+      if (turn.state === "listening") { if (!this.playing) this.state(turn.reason === "wake_not_recognized" ? 'Wake name not recognized. Say “Hey Nyx” again or click Listen now.' : 'Listening locally · say “Hey Nyx”'); return; }
       if (turn.state === "activated") {
         if (this.playing) this.stopPlayback();
         this.state("Yes? Ask your question…");
@@ -342,3 +342,16 @@ window.addEventListener("pagehide", () => voice.stop("Page closed."));
     await Promise.all([startCapture(), voice.start()]);
   } catch (error) { voice.state(`Could not start automatically: ${error.message}`); }
 })();
+
+$("voice-listen-now").onclick = async () => {
+  try {
+    if (!voice.token) await voice.start();
+    await voice.cancel();
+    const result = await api("/api/voice/activate", { method: "POST", headers: voice.headers() });
+    voice.wakeUntil = performance.now() + result.seconds * 1000;
+    voice.state("I'm listening. Tell me what you're showing or where you're putting it.");
+    voice.acknowledge();
+    clearTimeout(voice.activation);
+    voice.activation = setTimeout(() => { if (!voice.working && !voice.playing) voice.state('Listening locally · say “Hey Nyx”'); }, result.seconds * 1000);
+  } catch (error) { voice.state(error.message); }
+};

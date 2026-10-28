@@ -91,12 +91,36 @@ async function task(path, options, onJob = () => {}) {
   }
 }
 
-function play(source, offset, caption) {
+function play(source, offset, caption, keepWindow = false) {
+  if (!keepWindow) replayGeneration++;
   const replay = $("replay");
+  replay.onended = null; replay.ontimeupdate = null;
   replay.src = `${source}#t=${offset}`;
   $("replay-panel").hidden = false;
   $("replay-caption").textContent = caption;
   replay.play().catch(() => {});
+}
+
+let replayGeneration = 0;
+async function playMoment(row, caption) {
+  const generation = ++replayGeneration;
+  try {
+    const window = await api(`/api/videos/${row.video_id}/window?offset=${row.offset_seconds}`);
+    if (generation !== replayGeneration) return;
+    let index = 0;
+    const replay = $("replay");
+    const next = () => {
+      if (generation !== replayGeneration) return;
+      const part = window.parts[index++];
+      if (!part) { replay.pause(); replay.onended = null; replay.ontimeupdate = null; return; }
+      play(part.media_url, part.start, `${caption} · ${window.note}`, true);
+      let advanced = false;
+      const advance = () => { if (!advanced) { advanced = true; next(); } };
+      replay.onended = advance;
+      replay.ontimeupdate = () => { if (replay.currentTime >= part.end - 0.05) advance(); };
+    };
+    next();
+  } catch (error) { message(`Could not load playback context: ${error.message}`, true); }
 }
 
 async function refreshLibrary() {
@@ -491,7 +515,7 @@ $("search-form").onsubmit = async (event) => {
       score.textContent = `Similarity ${result.similarity.toFixed(3)} · Unverified`;
       text.append(title, name, score);
       button.append(image, text);
-      button.onclick = () => play(result.media_url, result.offset_seconds, `${result.name} · Candidate at ${timestamp(result.offset_seconds)}`);
+      button.onclick = () => playMoment(result, `${result.name} · Candidate at ${timestamp(result.offset_seconds)}`);
       $("results").append(button);
     }
     message(output.results.length ? "Select a candidate to replay it. Recording can keep running." : "No searchable frames yet for these filters. Recording and indexing can keep running.");
@@ -507,7 +531,7 @@ function answerEvidence(row, label) {
   const text = document.createElement("span");
   text.textContent = `${label} · ${timestamp(row.offset_seconds)} · ${row.observed_at ? new Date(row.observed_at).toLocaleString() : "Capture clock time unknown"}`;
   button.append(image, text);
-  button.onclick = () => play(row.media_url, row.offset_seconds, `${row.name || "Source"} · ${label} at ${timestamp(row.offset_seconds)}`);
+  button.onclick = () => playMoment(row, `${row.name || "Source"} · ${label} at ${timestamp(row.offset_seconds)}`);
   return button;
 }
 
