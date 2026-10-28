@@ -497,3 +497,15 @@ minimal v38 schema addition. Do not adopt the tested prompt rewrites, larger mod
 native adapter, review-choice mapping or extra LLM reviewer without better evidence.
 They did not resolve the feedback failures consistently; several regressed existing
 flows. See R8. Reliable semantic planning and merge readiness remain open.
+
+## 2026-10-28 — Trace activated speech before routing
+
+Activated cloud transcripts are persisted immediately after STT, before cancellation
+checks or routing. Later failures leave an interrupted conversation record instead
+of dropping the transcript. Local SQLite diagnostics link attempt/turn IDs across
+activation, STT, routing, agent/tools, speech generation and browser playback.
+Diagnostics retain the latest 2,000 events; that cap does not delete conversation
+transcripts. Idle speech text, raw audio/images, credentials/session tokens and raw
+provider error bodies are not logged. User requested this after a live statement
+was absent from saved history; the original cause is not recoverable retrospectively.
+This is observability, not statement-to-visual association or long-term recall.

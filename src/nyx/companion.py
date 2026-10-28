@@ -284,6 +284,7 @@ def install_companion(app, workspace, voice):
                     )
 
         def tool(action):
+            conversations.event("tool_started", turn_id=identifier, action=action)
             authorize(action)
             name = action["action"]
             if name == "inspect_current":
@@ -433,9 +434,16 @@ def install_companion(app, workspace, voice):
                     return result
 
                 def decide(state):
-                    return workspace.visual_verifier().decide(
-                        {**state, "reminders": tasks.active()}
+                    verifier = workspace.visual_verifier()
+                    action = verifier.decide({**state, "reminders": tasks.active()})
+                    conversations.event(
+                        "agent_decision",
+                        turn_id=identifier,
+                        action=action,
+                        context_turns=len(context),
+                        model=verifier.fingerprint,
                     )
+                    return action
 
                 result = yield from agent_steps(
                     body.message,
@@ -480,10 +488,21 @@ def install_companion(app, workspace, voice):
                         else None,
                     },
                 )
+                conversations.event(
+                    "agent_completed",
+                    turn_id=identifier,
+                    status=result["status"],
+                    steps=result["steps"],
+                    sources=result["sources"],
+                    answer=result["answer"],
+                )
                 if not body.voice_turn_id:
                     conversations.finish(identifier, result["answer"], result["sources"])
                 return result
-            except Exception:
+            except Exception as exc:
+                conversations.event(
+                    "agent_failed", turn_id=identifier, error_type=type(exc).__name__
+                )
                 conversations.finish(identifier, status="interrupted")
                 raise
 

@@ -131,3 +131,19 @@ Older research experiments use dependencies removed from the current runtime;
 reproduce them at their recorded historical commits, not as a second supported stack.
 See [architecture](docs/architecture.md), [scope](docs/scope.md), and
 [milestones](docs/milestones.md) for the current contracts.
+
+## Voice diagnostics
+
+Activated transcripts save immediately after transcription, even if routing or a
+later stage fails. Conversation history shows interrupted turns. Local
+`conversations.sqlite3` also retains the latest 2,000 diagnostic events, linked by
+attempt and turn IDs: activation, transcription, agent/tool decisions, speech
+creation and browser playback/failures. Transcripts have separate retention and
+are not deleted by this diagnostic cap. Idle speech text, raw audio/images,
+credentials and raw provider errors are excluded. The authenticated
+`/api/voice/diagnostics` endpoint exposes the latest 100 events for debugging;
+no diagnostic content is sent to a hosted logging service.
+
+These records distinguish a missed wake, a failed transcription, an agent failure
+and a playback failure. They cannot recover speech dropped before this logging
+was installed, nor automatically connect an utterance to an object in a frame.

@@ -531,3 +531,12 @@ These are distinct evidence layers, not a completed household/conversation gate.
 See [R8](research/R8-companion-loop.md) for all iterations, failures and resource
 limits. No hosted-planner credentials are configured; any paid/provider change
 needs the applicable authorization. No merge or push.
+
+### Activated speech diagnostics — 2026-10-28
+
+Added durable, bounded local attempt/turn diagnostics and immediate activated STT
+transcript persistence. Failed routing/cancelled turns remain inspectable; browser
+failure stage and actual playback-start reports are distinct from TTS generation.
+329 tests and synthetic real-wake browser integration passed. No private media
+was uploaded for verification. Statement-to-image linking and grounded response
+synthesis remain next work; this change does not implement that product behavior.

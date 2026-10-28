@@ -247,11 +247,33 @@ class Conversations:
                 (id TEXT PRIMARY KEY, at TEXT, transcript TEXT, plan TEXT, answer TEXT,
                 sources TEXT, sources_available INTEGER DEFAULT 1, status TEXT)""")
             db.execute("UPDATE turns SET status='interrupted' WHERE status='pending'")
+            db.execute("""CREATE TABLE IF NOT EXISTS diagnostics
+                (id INTEGER PRIMARY KEY, at TEXT NOT NULL, event TEXT NOT NULL,
+                 attempt_id TEXT, turn_id TEXT, details TEXT NOT NULL)""")
 
     def connect(self):
         db = sqlite3.connect(self.path)
         db.row_factory = sqlite3.Row
         return db
+
+    def event(self, event, *, attempt_id=None, turn_id=None, **details):
+        """Bounded local diagnostics. Callers must never pass audio, tokens or idle text."""
+        encoded = json.dumps(details, ensure_ascii=False)
+        if len(encoded) > 32000:
+            raise ValueError("Diagnostic event is too large")
+        with self.connect() as db:
+            db.execute(
+                "INSERT INTO diagnostics(at,event,attempt_id,turn_id,details) VALUES (?,?,?,?,?)",
+                (datetime.now(UTC).isoformat(), event, attempt_id, turn_id, encoded),
+            )
+            db.execute("DELETE FROM diagnostics WHERE id <= (SELECT MAX(id)-2000 FROM diagnostics)")
+
+    def diagnostics(self, limit=100):
+        with self.connect() as db:
+            rows = db.execute(
+                "SELECT * FROM diagnostics ORDER BY id DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [{**dict(row), "details": json.loads(row["details"])} for row in reversed(rows)]
 
     def begin(self, transcript, plan, identifier=None):
         identifier = identifier or uuid.uuid4().hex
@@ -329,6 +351,7 @@ class Voice:
             if self.token and time.monotonic() < self.expires:
                 raise VoiceError("Another tab is listening. Mute it before starting here.")
             self._cancel()
+            self.conversations.event("voice_session_started")
             self.token = uuid.uuid4().hex
             self.expires = time.monotonic() + 30
             return {"token": self.token}
@@ -343,6 +366,7 @@ class Voice:
         self.awake_until = 0
         self.probed = False
         if self.turn:
+            self.conversations.event("turn_cancelled", turn_id=self.turn["id"])
             self.conversations.finish(self.turn["id"], status="interrupted")
         self.turn = None
 
@@ -386,6 +410,10 @@ class Voice:
             ):
                 return {"state": "listening"}
             command = wake_command(self.recognize(pcm))
+            if command is not None:
+                self.conversations.event(
+                    "wake_detected", source="probe", duration_seconds=len(pcm) / 32000
+                )
             with self.lock:
                 self.check(token)
                 if epoch != self.epoch:
@@ -413,15 +441,24 @@ class Voice:
             self.probed = False
         return {"state": "activated", "seconds": 10}
 
-    def utterance(self, token, pcm):
+    def utterance(self, token, pcm, attempt_id=None):
+        attempt_id = str(uuid.UUID(attempt_id)) if attempt_id else str(uuid.uuid4())
+        identifier = None
+        stage = "activation"
         if not 6400 <= len(pcm) <= MAX_PCM or len(pcm) % 2:
             raise VoiceError("Use a spoken question between 0.2 and 25 seconds.")
         if not self.gate.acquire(blocking=False):
+            with self.lock:
+                self.check(token)
+            self.conversations.event("utterance_rejected", attempt_id=attempt_id, reason="busy")
             raise VoiceError("Still processing speech. Wait and try again.")
         try:
             with self.lock:
                 self.check(token)
                 epoch = self.epoch
+                self.conversations.event(
+                    "utterance_received", attempt_id=attempt_id, duration_seconds=len(pcm) / 32000
+                )
                 if self.turn:
                     raise VoiceError("Wait for the answer or stop the response first.")
                 awake = time.monotonic() < self.awake_until
@@ -429,6 +466,9 @@ class Voice:
             timings = {}
             started = time.perf_counter()
             if np.sqrt(np.mean(samples**2)) < 0.001:
+                self.conversations.event(
+                    "utterance_ignored", attempt_id=attempt_id, reason="silence"
+                )
                 return {"state": "listening"}
             recognize = not awake or self.probed
             local = self.recognize(pcm) if recognize else ""
@@ -440,13 +480,34 @@ class Voice:
                 if epoch != self.epoch:
                     raise VoiceError("Speech was cancelled.")
                 if command == "":
+                    self.conversations.event("wake_only", attempt_id=attempt_id)
                     self.awake_until = time.monotonic() + 10
                     return {"state": "activated"}
                 if command is None and not awake:
+                    self.conversations.event(
+                        "utterance_ignored", attempt_id=attempt_id, reason="wake_not_recognized"
+                    )
                     return {"state": "listening"}
                 self.awake_until = 0
             started = time.perf_counter()
+            stage = "transcription"
+            self.conversations.event(
+                "transcription_started",
+                attempt_id=attempt_id,
+                model=getattr(self.provider, "stt_model", type(self.provider).__name__),
+                activation="wake" if command is not None else "followup",
+            )
             transcript = self.provider.transcribe(pcm)
+            identifier = self.conversations.begin(
+                transcript, {"mode": "unresolved", "attempt_id": attempt_id}
+            )
+            self.conversations.event(
+                "transcription_completed",
+                attempt_id=attempt_id,
+                turn_id=identifier,
+                transcript=transcript,
+                elapsed_ms=round((time.perf_counter() - started) * 1000),
+            )
             timings["stt_ms"] = round((time.perf_counter() - started) * 1000)
             with self.lock:
                 self.check(token)
@@ -466,6 +527,7 @@ class Voice:
                 if row["status"] == "complete"
             ]
             started = time.perf_counter()
+            stage = "routing"
             plan = validate_plan(
                 conversational_plan(transcript)
                 or (
@@ -479,7 +541,14 @@ class Voice:
                 self.check(token)
                 if epoch != self.epoch:
                     raise VoiceError("Speech was cancelled.")
-                identifier = self.conversations.begin(transcript, plan)
+                self.conversations.update_plan(identifier, plan)
+                self.conversations.event(
+                    "voice_turn_ready",
+                    attempt_id=attempt_id,
+                    turn_id=identifier,
+                    plan=plan,
+                    timings=timings,
+                )
                 self.turn = {
                     "id": identifier,
                     "at": datetime.now(UTC).isoformat(),
@@ -488,6 +557,17 @@ class Voice:
                     "timings": timings,
                 }
                 return {"state": "question", **self.turn}
+        except Exception as exc:
+            self.conversations.event(
+                "utterance_failed",
+                attempt_id=attempt_id,
+                turn_id=identifier,
+                stage=stage,
+                error_type=type(exc).__name__,
+            )
+            if identifier:
+                self.conversations.finish(identifier, status="interrupted")
+            raise
         finally:
             self.gate.release()
 
@@ -511,8 +591,21 @@ class Voice:
         warning = None
         started = time.perf_counter()
         try:
+            self.conversations.event(
+                "speech_started",
+                turn_id=identifier,
+                model=getattr(self.provider, "tts_model", type(self.provider).__name__),
+            )
             audio = self.provider.speak(answer)
+            self.conversations.event(
+                "speech_generated",
+                turn_id=identifier,
+                elapsed_ms=round((time.perf_counter() - started) * 1000),
+            )
         except VoiceError as exc:
+            self.conversations.event(
+                "speech_failed", turn_id=identifier, error_type=type(exc).__name__
+            )
             warning = str(exc)
         with self.lock:
             self.check(token)

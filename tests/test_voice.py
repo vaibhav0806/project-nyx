@@ -524,3 +524,101 @@ def test_wake_loads_only_documented_cached_files(monkeypatch):
     monkeypatch.setitem(sys.modules, "huggingface_hub", SimpleNamespace(snapshot_download=snapshot))
     monkeypatch.setitem(sys.modules, "faster_whisper", SimpleNamespace(WhisperModel=whisper))
     assert WakeRecognizer().model == "loaded"
+
+
+def test_transcript_survives_routing_failure_without_logging_provider_secrets(tmp_path):
+    class Broken(Provider):
+        def transcribe(self, pcm):
+            return "Hey Nix, I will put this bottle on the centre table."
+
+        def route(self, transcript, context):
+            raise ValueError("secret-provider-payload")
+
+    voice = Voice(
+        tmp_path, Broken(), lambda _: "Hey Nix, I will put this bottle on the centre table."
+    )
+    token = voice.start()["token"]
+    with pytest.raises(ValueError):
+        voice.utterance(token, audio(), "00000000-0000-0000-0000-000000000001")
+    rows = Conversations(tmp_path).recent()
+    assert rows[-1]["transcript"].endswith("centre table.")
+    assert rows[-1]["status"] == "interrupted"
+    events = voice.conversations.diagnostics()
+    assert events[-1]["event"] == "utterance_failed"
+    assert events[-1]["details"]["stage"] == "routing"
+    assert events[-1]["turn_id"] == rows[-1]["id"]
+    assert "secret-provider-payload" not in json.dumps(events)
+    assert token not in json.dumps(events)
+
+
+def test_completed_transcription_survives_cancellation_during_provider_call(tmp_path):
+    class Cancelling(Provider):
+        def transcribe(self, pcm):
+            voice.cancel(token)
+            return "I put my bottle on the centre table."
+
+    voice = Voice(tmp_path, Cancelling(), lambda _: "Hey Nyx, remember this")
+    token = voice.start()["token"]
+    with pytest.raises(VoiceError, match="cancelled"):
+        voice.utterance(token, audio())
+    rows = voice.conversations.recent()
+    assert rows[-1]["transcript"] == "I put my bottle on the centre table."
+    assert rows[-1]["status"] == "interrupted"
+
+
+def test_idle_speech_records_reason_but_no_content_or_cloud_call(tmp_path):
+    provider = Provider()
+    voice = Voice(tmp_path, provider, lambda _: "private unrelated conversation")
+    token = voice.start()["token"]
+    assert voice.utterance(token, audio())["state"] == "listening"
+    events = voice.conversations.diagnostics()
+    assert events[-1]["details"]["reason"] == "wake_not_recognized"
+    assert "private unrelated" not in json.dumps(events)
+    assert not voice.conversations.recent() and not provider.calls
+
+
+def test_diagnostics_retention_does_not_delete_transcripts(tmp_path):
+    store = Conversations(tmp_path)
+    turn = store.begin("Keep my statement", {"mode": "agent"})
+    with store.connect() as db:
+        db.executemany(
+            "INSERT INTO diagnostics(at,event,details) VALUES ('now','test','{}')", [()] * 2001
+        )
+    store.event("last")
+    with store.connect() as db:
+        assert db.execute("SELECT count(*) FROM diagnostics").fetchone()[0] == 2000
+    assert store.recent()[-1]["id"] == turn
+
+
+def test_browser_diagnostics_require_session_and_accept_only_bounded_metadata(tmp_path):
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from nyx.app import create_app
+
+    voice = Voice(tmp_path, Provider(), lambda _: "Hey Nyx")
+    with TestClient(
+        create_app(tmp_path, voice_factory=lambda root: voice, verifier_factory=lambda: object())
+    ) as client:
+        assert client.get("/api/voice/diagnostics").status_code == 400
+        token = client.post("/api/voice/session").json()["token"]
+        headers = {"x-nyx-voice": token}
+        payload = {
+            "event": "browser_turn_failed",
+            "stage": "transcription",
+            "attempt_id": "00000000-0000-0000-0000-000000000001",
+        }
+        assert (
+            client.post("/api/voice/diagnostics", headers=headers, json=payload).status_code == 200
+        )
+        for bad in [
+            {**payload, "attempt_id": None},
+            {**payload, "stage": "arbitrary"},
+            {**payload, "event": "arbitrary"},
+        ]:
+            assert (
+                client.post("/api/voice/diagnostics", headers=headers, json=bad).status_code == 400
+            )
+        events = client.get("/api/voice/diagnostics", headers=headers).json()["events"]
+        assert events[-1]["event"] == "browser_turn_failed"
+        assert token not in json.dumps(events)

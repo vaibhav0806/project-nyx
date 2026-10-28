@@ -417,7 +417,32 @@ def create_app(
             raw.extend(chunk)
             if len(raw) > MAX_PCM:
                 raise HTTPException(413, "Spoken questions must be at most 25 seconds.")
-        return await run_in_threadpool(voice.utterance, token, bytes(raw))
+        return await run_in_threadpool(
+            voice.utterance, token, bytes(raw), request.headers.get("x-nyx-attempt")
+        )
+
+    @app.get("/api/voice/diagnostics")
+    def voice_diagnostics(request: Request):
+        voice.check(voice_token(request))
+        return {"events": voice.conversations.diagnostics()}
+
+    @app.post("/api/voice/diagnostics")
+    def voice_browser_diagnostic(request: Request, body: dict):
+        voice.check(voice_token(request))
+        event = body.get("event")
+        stage = body.get("stage")
+        if event not in {
+            "browser_turn_failed",
+            "playback_started",
+            "playback_blocked",
+            "playback_failed",
+        } or stage not in {"transcription", "agent", "speech", "playback"}:
+            raise ValueError("Unsupported voice diagnostic")
+        if not isinstance(body.get("attempt_id"), str):
+            raise HTTPException(400, "Voice diagnostic needs an attempt UUID")
+        attempt = str(uuid.UUID(body["attempt_id"]))
+        voice.conversations.event(event, attempt_id=attempt, stage=stage)
+        return {"recorded": True}
 
     @app.post("/api/voice/reply")
     def voice_reply(request: Request, body: dict):
