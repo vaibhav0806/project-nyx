@@ -247,3 +247,16 @@ def test_batch_keeps_candidate_order_and_stops_after_first_decisive_batch(
         assert result["status"] == "clarify" and result["evidence"] is None
     else:
         assert result["evidence"]["id"] == result["checked"][0]["id"]
+
+
+def test_diverse_history_candidates_spread_moments_and_keep_sparse_neighbors():
+    from nyx.answers import diverse_candidates
+
+    rows = [
+        {"id": i, "video_id": "clip", "offset_seconds": offset}
+        for i, offset in enumerate([0, 1, 2, 8, 16])
+    ]
+    assert [r["offset_seconds"] for r in diverse_candidates(rows, 3)] == [0, 8, 16]
+    assert [r["offset_seconds"] for r in diverse_candidates(rows[:3], 3)] == [0, 1, 2]
+    other = {"id": 6, "video_id": "other", "offset_seconds": 0}
+    assert diverse_candidates([rows[0], other], 2) == [rows[0], other]

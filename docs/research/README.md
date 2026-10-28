@@ -74,3 +74,6 @@ Dated primary links, permitted fixtures, commands, and private-artifact referenc
 - Avoid asking only “would you use this?” Ask about actual incidents and observe interaction.
 - Keep benchmark inputs, versions, and evaluation method stable across model comparisons.
 - Findings become decisions through review in [Decisions](../decisions.md); promising research is not shipped capability.
+
+[R10 — Cheap models and multi-day retrieval](R10-low-cost-retrieval.md): model
+comparison, bounded concurrency, candidate diversity and local scaling evidence.

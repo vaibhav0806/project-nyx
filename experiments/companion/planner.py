@@ -328,7 +328,7 @@ def main():
     results = {
         "platform": platform.platform(),
         "python": platform.python_version(),
-        "runtime": {name: version(name) for name in ["torch", "transformers"]},
+        "runtime": {name: version(name) for name in ["numpy", "fastapi"]},
         "model": model.fingerprint,
         "load_seconds": model.load_seconds,
         "natural_user_turn": args.natural_user_turn,

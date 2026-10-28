@@ -93,8 +93,13 @@ class CloudVerifier:
         from nyx.cloud import OpenRouter
 
         self.client = client or OpenRouter()
-        self.model = model or os.environ.get("NYX_REASONING_MODEL", "openai/gpt-5.4-mini")
-        self.vision_model = model or os.environ.get("NYX_VISION_MODEL", "openai/gpt-5.4")
+        self.model = model or os.environ.get("NYX_REASONING_MODEL", "openai/gpt-6-luna")
+        self.vision_model = model or os.environ.get(
+            "NYX_VISION_MODEL", "google/gemini-3.5-flash-lite"
+        )
+        self.history_concurrency = int(os.environ.get("NYX_HISTORY_CONCURRENCY", "6"))
+        if not 1 <= self.history_concurrency <= 8:
+            raise ValueError("History concurrency must be between 1 and 8")
         self.device = "cloud"
         self.load_seconds = 0
         self.fingerprint = {
@@ -102,7 +107,7 @@ class CloudVerifier:
             "vision_model": self.vision_model,
             "runtime": "openrouter",
             "prompt_version": 6,
-            "history_parallel_checks": 3,
+            "history_parallel_checks": self.history_concurrency,
             "planner_prompt_version": 42,
             "spoken_context_prompt_version": 1,
             "departure_prompt_version": 4,
@@ -125,12 +130,14 @@ class CloudVerifier:
         return parse_judgment(self.generate_json(messages, 180))
 
     def inspect_batch(self, images, object_query):
-        """Overlap at most three independent checks; preserve source order."""
+        """Overlap a bounded set of independent checks; preserve source order."""
         from concurrent.futures import ThreadPoolExecutor
 
-        if not 1 <= len(images) <= 3:
-            raise ValueError("History batches require one to three frames")
-        with ThreadPoolExecutor(max_workers=3, thread_name_prefix="nyx-visual") as pool:
+        if not 1 <= len(images) <= self.history_concurrency:
+            raise ValueError("History batch exceeds configured concurrency")
+        with ThreadPoolExecutor(
+            max_workers=self.history_concurrency, thread_name_prefix="nyx-visual"
+        ) as pool:
             return list(pool.map(lambda image: self.inspect(image, object_query), images))
 
     def generate_json(self, messages, max_tokens=240):

@@ -27,7 +27,7 @@ Cloud inference through **OpenRouter** is the primary path. There is no local
 LLM/VLM fallback. The custom Python agent chooses tools, constructs contextual
 queries, reviews observations, and asks for clarification. No LangChain is needed.
 
-- **Reasoning:** `openai/gpt-5.4-mini`; **vision:** `openai/gpt-5.4`.
+- **Reasoning:** `openai/gpt-6-luna`; **vision:** `google/gemini-3.5-flash-lite`.
 - **Image/text embeddings:** `google/gemini-embedding-2`, 768 dimensions.
 - **Activated transcription:** `openai/gpt-4o-mini-transcribe`.
 - **Speech:** `google/gemini-3.8-flash-lite-tts`, Kore voice.
@@ -117,7 +117,7 @@ uv run --no-sync nyx --data-dir data/cloud-demo list
 uv run --env-file .env --no-sync nyx doctor
 ```
 
-Optional server settings: `NYX_REASONING_MODEL`, `NYX_VISION_MODEL`, `NYX_EMBEDDING_MODEL`,
+Optional server settings: `NYX_HISTORY_CONCURRENCY` (default 6, range 1–8), `NYX_REASONING_MODEL`, `NYX_VISION_MODEL`, `NYX_EMBEDDING_MODEL`,
 `NYX_EMBEDDING_DIMENSIONS`, `NYX_STT_MODEL`. Changing embedding model
 or dimensions requires rebuilding. TTS is pinned to the tested Gemini Kore,
 24 kHz mono PCM contract.

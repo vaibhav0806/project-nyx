@@ -540,3 +540,14 @@ same verification model and prompt; allow three concurrent frame checks with
 ordered result consumption and explicit extra-request cost. Discard the multi-image
 single-call trial because it did not improve measured latency. Do not replace
 uncertainty handling or agent decisions with scenario-specific routing.
+
+## 2026-10-29 — Cheaper cloud models and broader candidate nomination
+
+User requested newer inexpensive models and higher concurrency. Adopt GPT-6 Luna
+for planning and Gemini 3.5 Flash-Lite for vision/context after small visual,
+planner and actual saved-data checks. Six concurrent single-frame checks, configurable
+1–8. Semantic latest-history nomination spreads a 64-frame pool into up to 12
+candidates before chronological checking. Preserve embeddings, original files,
+1 GiB cap and evidence semantics. No new vector service: local scale scans remain
+subsecond at 129,600 synthetic frames. See [R10](research/R10-low-cost-retrieval.md)
+for measured limits, prices, storage constraints and unproven multi-day recall.

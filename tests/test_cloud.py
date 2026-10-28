@@ -285,7 +285,7 @@ def test_parallel_history_preserves_order_and_bounds_concurrency():
     verifier = Verifier(client=object())
     assert verifier.inspect_batch([3, 1, 2], "object") == [{"value": 3}, {"value": 1}, {"value": 2}]
     with pytest.raises(ValueError):
-        verifier.inspect_batch([1, 2, 3, 4], "object")
+        verifier.inspect_batch(list(range(9)), "object")
 
 
 def test_parallel_history_does_not_hide_provider_failure():

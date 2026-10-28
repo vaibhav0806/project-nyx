@@ -430,3 +430,12 @@ policy above; ingestion still has a separate worker. The same model and single-f
 prompt remain. Up to two extra frames may be billed before early termination.
 See R9 for measured 14–15 s answer readiness and 20–22 s including TTS on the saved
 phone development replay; microphone and playback latency are excluded.
+
+### Current low-cost retrieval configuration — 2026-10-29
+
+Luna plans; Gemini 3.5 Flash-Lite verifies images and associates transcripts.
+Semantic latest-history searches retrieve 64 similarity candidates, nominate up to
+12 while spreading nearby moments within clips, then verify in timestamp order.
+Six concurrent checks replace the previous three; NYX_HISTORY_CONCURRENCY bounds
+this from 1 to 8. Same embedding index and SQL exact scan. See
+[R10](research/R10-low-cost-retrieval.md) for scale measurements and retention limits.

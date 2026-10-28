@@ -647,3 +647,15 @@ Lint/format pass. The model and semantic verification rules are unchanged.
 Full-response TTS still delays first audio; streaming or shorter conversational
 wording remains future work. These changes improve latency but do not make the
 experience instantaneous.
+
+### Lower-cost models and retrieval scale review — 2026-10-29
+
+Adopted Luna planning, Gemini 3.5 Flash-Lite vision/context, configurable six-way
+visual checks and diversified semantic candidate nomination. Embeddings unchanged.
+341 deterministic tests, 39 real planner cases (21 main + 12 holdout + 6 feedback),
+4 public visual cases per model, and synthetic companion browser regression passed.
+Actual saved-data replay returned the correct statement-linked answer in 9.41 s,
+14.83 s including TTS. Synthetic 129,600-frame exact-vector scans stayed under 0.5 s.
+This does not establish multi-day recall: current video rate and 1 GiB stop budget
+cannot retain days. No raw recordings deleted, budget increased or index rebuilt.
+See [R10](research/R10-low-cost-retrieval.md) for full evidence and limits.

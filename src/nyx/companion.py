@@ -367,7 +367,7 @@ def install_companion(app, workspace, voice):
                 )
                 result["scope"]["note"] = (
                     (
-                        "Semantic candidates within the selected recent window, checked newest first. This is bounded sampled evidence, not an exhaustive last sighting. Unknown recording dates are excluded."
+                        "Up to 64 semantic candidates within the selected window nominate up to 12 frames, spreading nearby frames within each clip before checking newest first. This is bounded sampled evidence, not an exhaustive last sighting. Unknown recording dates are excluded."
                     )
                     if name == "search_history"
                     else "Best matching sampled candidates, including unknown recording dates. This establishes neither the latest sighting nor the current location."

@@ -5,6 +5,24 @@ from nyx.memory import aware_time
 from nyx.retrieval import search
 
 
+def diverse_candidates(rows, limit, spacing_seconds=4):
+    """Nominate distinct nearby moments; keep deferred neighbors if needed."""
+    chosen, deferred = [], []
+    for row in rows:
+        nearby = any(
+            row["video_id"] == other["video_id"]
+            and abs(row["offset_seconds"] - other["offset_seconds"]) < spacing_seconds
+            for other in chosen
+        )
+        if nearby:
+            deferred.append(row)
+        else:
+            chosen.append(row)
+        if len(chosen) == limit:
+            break
+    return (chosen + deferred)[:limit]
+
+
 def evidence_links(row):
     return {
         **row,
@@ -34,7 +52,7 @@ def history_steps(
         object_query,
         store,
         encoder,
-        limit=limit,
+        limit=64 if semantic_latest else limit,
         video_id=video_id,
         seen_after=seen_after,
         seen_before=seen_before,
@@ -43,9 +61,10 @@ def history_steps(
         excluded_frame_ids=excluded_frame_ids,
     )
     if semantic_latest and mode == "latest":
+        candidates = diverse_candidates(candidates, limit)
         candidates.sort(key=lambda row: row["observed_at"], reverse=True)
     recent_count = len(candidates)
-    if mode == "latest":
+    if mode == "latest" and not semantic_latest:
         known_ids = {row["id"] for row in candidates}
         fallback = search(
             object_query,
@@ -70,7 +89,11 @@ def history_steps(
     selected = None
     verifier = None
     verifier = verifier_factory() if candidates else None
-    batch_size = 3 if callable(getattr(verifier, "inspect_batch", None)) else 1
+    batch_size = (
+        getattr(verifier, "history_concurrency", 3)
+        if callable(getattr(verifier, "inspect_batch", None))
+        else 1
+    )
     stop = False
     ambiguous = False
     timings["vision_requests"] = 0
@@ -135,9 +158,11 @@ def history_steps(
         "verifier": verifier.fingerprint if verifier else None,
         "scope": {
             "mode": mode,
+            "candidate_pool_limit": 64 if semantic_latest else limit,
+            "diversity_seconds": 4 if semantic_latest else 0,
             "video_id": video_id,
             "excluded_frame_ids": list(excluded_frame_ids),
-            "candidate_limit": 17 if mode == "latest" else limit,
+            "candidate_limit": 17 if mode == "latest" and not semantic_latest else limit,
             "candidates_retrieved": len(candidates),
             "checked_count": len(checked),
             "fallback_used": mode == "latest" and len(checked) > recent_count,
