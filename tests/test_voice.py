@@ -646,3 +646,34 @@ def test_explicit_listen_accepts_statement_without_wake_name(tmp_path):
         turn = client.post("/api/voice/utterance", headers=headers, content=audio()).json()
         assert turn["state"] == "question" and turn["transcript"].startswith("I will put")
         assert voice.conversations.recent()[-1]["transcript"] == turn["transcript"]
+
+
+def test_failed_transcription_preserves_explicit_activation_and_cancel_reason(tmp_path):
+    import time
+
+    class RetryProvider(Provider):
+        attempts = 0
+
+        def transcribe(self, pcm):
+            self.attempts += 1
+            if self.attempts == 1:
+                raise VoiceError("No speech recognized")
+            return "I will put this on the table."
+
+    voice = Voice(tmp_path, RetryProvider(), lambda _: "", agent_mode=True)
+    token = voice.start()["token"]
+    deadline = time.monotonic() + 30
+    voice.awake_until = deadline
+    with pytest.raises(VoiceError):
+        voice.utterance(token, audio())
+    assert voice.awake_until == deadline
+    turn = voice.utterance(token, audio())
+    assert turn["transcript"] == "I will put this on the table."
+    voice.cancel(token, "user_stop")
+    events = voice.conversations.diagnostics()
+    assert any(
+        e["event"] == "voice_cancelled"
+        and e["details"]["reason"] == "user_stop"
+        and e["turn_id"] == turn["id"]
+        for e in events
+    )

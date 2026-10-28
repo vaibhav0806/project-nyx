@@ -384,7 +384,10 @@ def create_app(
 
     @app.delete("/api/voice/session")
     def voice_stop(request: Request):
-        voice.stop(voice_token(request))
+        reason = request.headers.get("x-nyx-stop-reason", "session_stopped")
+        if reason not in {"page_closed", "camera_stopped", "heartbeat_failed", "session_stopped"}:
+            reason = "session_stopped"
+        voice.stop(voice_token(request), reason)
         return {"state": "muted"}
 
     @app.post("/api/voice/heartbeat")
@@ -393,7 +396,10 @@ def create_app(
 
     @app.post("/api/voice/cancel")
     def voice_cancel(request: Request):
-        voice.cancel(voice_token(request))
+        reason = request.headers.get("x-nyx-cancel-reason", "unspecified")
+        if reason not in {"user_stop", "listen_now", "error_cleanup", "unspecified"}:
+            reason = "unspecified"
+        voice.cancel(voice_token(request), reason)
         return {"state": "listening"}
 
     @app.post("/api/voice/listen")
@@ -500,7 +506,7 @@ def create_app(
         token = voice_token(request)
         with voice.lock:
             voice.check(token)
-            voice._cancel()
+            voice._cancel("explicit_activation")
             voice.awake_until = time.monotonic() + 30
             voice.conversations.event("listening_activated_by_user")
         return {"seconds": 30}

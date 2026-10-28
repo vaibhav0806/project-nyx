@@ -81,7 +81,8 @@ const voice = {
     this.context = null;
     const token = this.token;
     this.token = null;
-    if (token) api("/api/voice/session", { method: "DELETE", headers: { "x-nyx-voice": token }, keepalive: true }).catch(() => {});
+    const reason = text === "Page closed." ? "page_closed" : text.startsWith("Camera stopped") ? "camera_stopped" : text.startsWith("Voice connection lost") ? "heartbeat_failed" : "session_stopped";
+    if (token) api("/api/voice/session", { method: "DELETE", headers: { "x-nyx-voice": token, "x-nyx-stop-reason": reason }, keepalive: true }).catch(() => {});
     $("voice-enable").hidden = false;
     $("voice-mute").hidden = true;
     $("voice-cancel").hidden = true;
@@ -95,7 +96,7 @@ const voice = {
     this.playing = false;
   },
 
-  async cancel() {
+  async cancel(reason = "user_stop") {
     this.epoch++;
     if (typeof companion !== "undefined" && companion.working) await companion.cancel();
     this.stopPlayback();
@@ -103,7 +104,7 @@ const voice = {
     this.wakeUntil = 0;
     this.reset();
     clearTimeout(this.activation);
-    if (this.token) await api("/api/voice/cancel", { method: "POST", headers: this.headers() }).catch(() => {});
+    if (this.token) await api("/api/voice/cancel", { method: "POST", headers: { ...this.headers(), "x-nyx-cancel-reason": reason } }).catch(() => {});
     $("voice-cancel").hidden = true;
     this.state('Response stopped · say “Hey Nyx” when ready');
   },
@@ -292,7 +293,7 @@ const voice = {
       this.diagnostic("browser_turn_failed", attemptId, stage);
       this.refresh().catch(() => {});
       if (active()) {
-        await api("/api/voice/cancel", { method: "POST", headers: this.headers() }).catch(() => {});
+        if (stage !== "transcription") await api("/api/voice/cancel", { method: "POST", headers: { ...this.headers(), "x-nyx-cancel-reason": "error_cleanup" } }).catch(() => {});
         this.state(`${error.message} Say “Hey Nyx” to retry.`);
       }
     } finally {
@@ -346,7 +347,8 @@ window.addEventListener("pagehide", () => voice.stop("Page closed."));
 $("voice-listen-now").onclick = async () => {
   try {
     if (!voice.token) await voice.start();
-    await voice.cancel();
+    if (voice.working || companion.working) { voice.state("A request is running. Stop it first if you want to start another."); return; }
+    await voice.cancel("listen_now");
     const result = await api("/api/voice/activate", { method: "POST", headers: voice.headers() });
     voice.wakeUntil = performance.now() + result.seconds * 1000;
     voice.state("I'm listening. Tell me what you're showing or where you're putting it.");

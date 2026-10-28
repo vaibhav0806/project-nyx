@@ -3,6 +3,7 @@ import json
 import re
 import sqlite3
 import time
+import traceback
 import uuid
 import wave
 from datetime import UTC, datetime
@@ -352,7 +353,7 @@ class Voice:
         with self.lock:
             if self.token and time.monotonic() < self.expires:
                 raise VoiceError("Another tab is listening. Mute it before starting here.")
-            self._cancel()
+            self._cancel("session_started")
             self.conversations.event("voice_session_started")
             self.token = uuid.uuid4().hex
             self.expires = time.monotonic() + 30
@@ -363,7 +364,13 @@ class Voice:
             self.check(token)
         return {"state": "listening"}
 
-    def _cancel(self):
+    def _cancel(self, reason="internal"):
+        self.conversations.event(
+            "voice_cancelled",
+            reason=reason,
+            epoch=self.epoch,
+            turn_id=self.turn["id"] if self.turn else None,
+        )
         self.epoch += 1
         self.awake_until = 0
         self.probed = False
@@ -372,15 +379,15 @@ class Voice:
             self.conversations.finish(self.turn["id"], status="interrupted")
         self.turn = None
 
-    def cancel(self, token):
+    def cancel(self, token, reason="cancel_endpoint"):
         with self.lock:
             self.check(token)
-            self._cancel()
+            self._cancel(reason)
 
-    def stop(self, token):
+    def stop(self, token, reason="session_stopped"):
         with self.lock:
             self.check(token)
-            self._cancel()
+            self._cancel(reason)
             self.token = None
 
     def recognize(self, pcm):
@@ -490,6 +497,7 @@ class Voice:
                         "utterance_ignored", attempt_id=attempt_id, reason="wake_not_recognized"
                     )
                     return {"state": "listening", "reason": "wake_not_recognized"}
+                activation_deadline = self.awake_until
                 self.awake_until = 0
             started = time.perf_counter()
             stage = "transcription"
@@ -560,12 +568,22 @@ class Voice:
                 }
                 return {"state": "question", **self.turn}
         except Exception as exc:
+            if stage == "transcription" and identifier is None:
+                with self.lock:
+                    if epoch == self.epoch:
+                        self.awake_until = max(
+                            self.awake_until, locals().get("activation_deadline", 0)
+                        )
             self.conversations.event(
                 "utterance_failed",
                 attempt_id=attempt_id,
                 turn_id=identifier,
                 stage=stage,
                 error_type=type(exc).__name__,
+                failure_site=[
+                    f"{frame.name}:{frame.lineno}"
+                    for frame in traceback.extract_tb(exc.__traceback__)
+                ][-8:],
             )
             if identifier:
                 self.conversations.finish(identifier, status="interrupted")

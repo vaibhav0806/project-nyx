@@ -4,6 +4,7 @@ import base64
 import json
 import re
 import time
+import traceback
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
@@ -520,7 +521,15 @@ def install_companion(app, workspace, voice):
                 return result
             except Exception as exc:
                 conversations.event(
-                    "agent_failed", turn_id=identifier, error_type=type(exc).__name__
+                    "agent_failed",
+                    turn_id=identifier,
+                    job_id=job_id,
+                    error_type=type(exc).__name__,
+                    cancelled=cancelled(),
+                    failure_site=[
+                        f"{frame.name}:{frame.lineno}"
+                        for frame in traceback.extract_tb(exc.__traceback__)
+                    ][-8:],
                 )
                 conversations.finish(identifier, status="interrupted")
                 raise
@@ -535,6 +544,7 @@ def install_companion(app, workspace, voice):
             if job is None or job["kind"] != "agent":
                 raise HTTPException(404, "Companion request not found")
             job["cancelled"] = True
+        conversations.event("agent_cancel_requested", job_id=job_id, reason="agent_cancel_endpoint")
         return {"cancelled": True}
 
     @app.delete("/api/reminders/{identifier}")

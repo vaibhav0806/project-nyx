@@ -563,3 +563,16 @@ The actual saved transcripts had no placement statement and yielded no false
 citation. No real camera/microphone opened. Private artifacts remain ignored in
 `data/runs/glasses-context-evaluation/`. Wake accuracy remains an open limitation;
 these results do not establish perfect household accuracy or merge readiness.
+
+### Voice cancellation diagnostics and activation retry — 2026-10-28
+
+Real test transcripts confirm placement speech persisted and acknowledgment
+playback began. Subsequent history jobs lost their active voice turn and cancelled;
+previous logs cannot establish which caller cleared the turn. Do not claim that
+historical root cause is proven. Fixed transcription failure consuming explicit
+activation, error cleanup cancelling that window, and Listen now replacing an
+active request. Added bounded cancellation source/epoch/turn diagnostics, explicit
+job-cancel events, job IDs and stack function/line locations for agent failures,
+and stack locations for transcription failures (no raw exception/provider payload).
+335 tests and synthetic voice browser smoke pass. Historical cancellation cause
+and a fresh real-user complete test remain open; no merge readiness claim.
