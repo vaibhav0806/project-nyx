@@ -100,6 +100,7 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                                 window.reminderAudioStarts++;return originalPlay.call(this);
                             };""")
                     page.add_init_script("""navigator.mediaDevices.getUserMedia = async constraints => {
+                        if (constraints.video) window.requestedVideoConstraints = constraints.video;
                         if (constraints.audio && constraints.video===false) {
                             window.fakeMicContext=new AudioContext({sampleRate:16000});
                             return window.fakeMicContext.createMediaStreamDestination().stream;
@@ -128,6 +129,9 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                     if not args.speech:
                         page.locator("#start").click()
                     expect(page.locator("#camera-state")).to_have_text("Recording video")
+                    assert page.evaluate("current.recorder.videoBitsPerSecond") == 1000000
+                    assert page.evaluate("window.requestedVideoConstraints.frameRate.max") == 15
+                    assert page.evaluate("stream.getAudioTracks().length") == 0
                     # A brief disturbance followed by the same scene must never invoke
                     # the positive vision fixture or create a notification.
                     page.wait_for_timeout(400)

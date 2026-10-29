@@ -1,5 +1,15 @@
 # Scope
 
+## Latest authorization — 2026-10-29
+
+The user authorized merging the companion MVP (completed via PR #1), then working
+directly on main on bounded compression/retention MVP work. New recordings may
+use a tested lower-bitrate/frame-rate profile. Continuous coverage, existing files
+and the 1 GiB stop-without-delete rule remain. No automatic expiry or destructive
+recompression. This supersedes older no-merge language for the completed merge;
+future publication follows the user's actual instruction.
+
+
 ## Latest authorized exception — 2026-10-28
 
 The user authorized reusing recent saved glasses footage/audio for this fix with

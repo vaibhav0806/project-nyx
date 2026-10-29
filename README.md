@@ -21,6 +21,14 @@ Nyx is a conversational companion intended to help older adults stay independent
 The development target is a laptop with one camera view. It connects current images,
 saved visual history, conversation and experimental departure reminders.
 
+## Recording and storage
+
+New browser recordings request 720p at up to 15 fps and target 1 Mbps video,
+using the existing VP8-first codec selection. Actual size depends on the browser
+and scene. Continuous recording stops at the existing 1 GiB budget; clips never
+expire automatically. Old recordings are preserved. Refresh and restart capture
+to apply the new profile. Imported media is unchanged.
+
 ## Current MVP
 
 Cloud inference through **OpenRouter** is the primary path. There is no local

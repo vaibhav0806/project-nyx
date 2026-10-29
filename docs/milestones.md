@@ -659,3 +659,18 @@ Actual saved-data replay returned the correct statement-linked answer in 9.41 s,
 This does not establish multi-day recall: current video rate and 1 GiB stop budget
 cannot retain days. No raw recordings deleted, budget increased or index rebuilt.
 See [R10](research/R10-low-cost-retrieval.md) for full evidence and limits.
+
+### Recording compression MVP — 2026-10-29
+
+Direct work on main authorized. New browser recordings request 720p/up to 15 fps
+and target 1 Mbps rather than 2.5 Mbps. Continuous ten-second segments and codec
+fallbacks remain. UI explicitly states no automatic expiry and stop on full budget.
+Old recordings/imports, timestamps and the 1 GiB byte budget are unchanged.
+
+Saved-footage browser replay measured 2.52 MB versus 0.64 MB for the same ~10-second
+clip (74.5% smaller); compact playback retained 720p and expected duration. Cloud
+vision recognized glasses at the tested offset in both profiles. This is a narrow
+quality check, not proof for small/distant objects or fast motion. 341 deterministic
+tests passed; synthetic browser regression covers capture, new profile requests,
+video-only recording, evidence review, cancellation and reminders. Details and
+reproduction command in [R11](research/R11-recording-compression.md).

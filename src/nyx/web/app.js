@@ -343,7 +343,7 @@ async function pumpUploads() {
 
 function makeSegment() {
   const mimeType = ["video/webm;codecs=vp8", "video/webm", "video/mp4"].find((type) => MediaRecorder.isTypeSupported(type));
-  const recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), videoBitsPerSecond: 2500000 });
+  const recorder = new MediaRecorder(stream, { ...(mimeType ? { mimeType } : {}), videoBitsPerSecond: 1000000 });
   const segment = { recorder, sessionId: captureSession.id, sequence: sequence++, recordedAt: new Date().toISOString(), endedAt: null, chunks: [], size: 0 };
   recorder.ondataavailable = (event) => {
     if (event.data.size) { segment.chunks.push(event.data); segment.size += event.data.size; }
@@ -415,7 +415,7 @@ async function startCapture(resume = false) {
       startedAt = Date.now();
     }
     if (generation !== ownGeneration) return;
-    const acquired = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    const acquired = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 15, max: 15 } }, audio: false });
     if (generation !== ownGeneration) { acquired.getTracks().forEach((track) => track.stop()); return; }
     stream = acquired;
     const viewer = $("viewer");

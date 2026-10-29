@@ -77,3 +77,6 @@ Dated primary links, permitted fixtures, commands, and private-artifact referenc
 
 [R10 — Cheap models and multi-day retrieval](R10-low-cost-retrieval.md): model
 comparison, bounded concurrency, candidate diversity and local scaling evidence.
+
+[R11 — Recording compression](R11-recording-compression.md): browser encoding
+comparison, saved-footage recognition check and unchanged stop-without-delete policy.

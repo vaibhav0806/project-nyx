@@ -551,3 +551,11 @@ candidates before chronological checking. Preserve embeddings, original files,
 1 GiB cap and evidence semantics. No new vector service: local scale scans remain
 subsecond at 129,600 synthetic frames. See [R10](research/R10-low-cost-retrieval.md)
 for measured limits, prices, storage constraints and unproven multi-day recall.
+
+## 2026-10-29 — Bounded recording compression
+
+User approved the compression MVP and direct work on main. For new browser
+recordings, retain requested 1280x720 resolution and VP8-first codec support,
+request at most 15 fps and target 1 Mbps rather than 2.5 Mbps. No post-upload
+transcoding worker, automatic expiry, deletion or changes to originals. Preserve
+continuous segments and the 1 GiB stop policy. See R11 for measured replay limits.

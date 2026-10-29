@@ -439,3 +439,11 @@ Semantic latest-history searches retrieve 64 similarity candidates, nominate up 
 Six concurrent checks replace the previous three; NYX_HISTORY_CONCURRENCY bounds
 this from 1 to 8. Same embedding index and SQL exact scan. See
 [R10](research/R10-low-cost-retrieval.md) for scale measurements and retention limits.
+
+### Recording profile — 2026-10-29
+
+Browser capture requests 1280x720, ideal/max 15 fps; MediaRecorder targets
+1,000,000 video bits/second. VP8/WebM then browser fallback selection stays unchanged.
+This profile applies only to new recordings. Segments, capture timestamps, sampling,
+source replay and quota admission are unchanged. No background transcoding or
+retention scheduler. Imports and old recordings preserve their original encoding.
