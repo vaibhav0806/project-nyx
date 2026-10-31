@@ -90,6 +90,8 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
             expect(page.locator("#view-source")).to_be_focused()
             page.evaluate("voice.playing = true; voice.state('Speaking');")
             expect(page.locator("#talk")).to_have_attribute("aria-label", "Stop speaking")
+            expect(page.locator("#talk svg")).to_be_visible()
+            assert page.locator(".stop-symbol").count() == 0
             page.locator("#talk").click()
             expect(page.locator("#talk")).to_have_attribute("aria-label", "Talk to Nyx")
             page.evaluate(
@@ -116,6 +118,19 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
             expect(page.locator("#talk")).to_have_attribute("aria-label", "Talk to Nyx")
             page.evaluate("voice.stop('Microphone muted.')")
             expect(page.locator("#conversation-state")).to_have_text("Microphone muted.")
+            expect(page.locator("#mute .mic-slash")).to_be_visible()
+            expect(page.locator("#talk .mic-slash")).to_be_visible()
+            page.route(
+                "**/api/voice/utterance",
+                lambda route: route.fulfill(
+                    content_type="application/json",
+                    body=json.dumps({"state": "listening", "reason": "wake_not_recognized"}),
+                ),
+            )
+            page.evaluate(
+                "async () => { voice.token = 'fixture'; await voice.hear(new Int16Array(1600)); }"
+            )
+            expect(page.locator("#conversation-state")).not_to_contain_text("not recognized")
             page.set_viewport_size({"width": 390, "height": 844})
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
             page.screenshot(path=str(tmp_path / "conversation-mobile.png"))

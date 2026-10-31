@@ -7,7 +7,7 @@ button:hover, .file-button:hover { background: #303538; }
 button:disabled { opacity: .45; cursor: not-allowed; }
 button.primary { background: #f1f0ec; color: #191b1d; border-color: #f1f0ec; }
 button.danger, .delete-clip { color: #efb3ad; }
-:focus-visible { outline: 2px solid #a9b7a4; outline-offset: 5px; }
+:focus-visible { outline: 1px solid #adb2b4; outline-offset: 3px; }
 [hidden] { display: none !important; }
 svg { width: 24px; height: 24px; flex-shrink: 0; }
 .topbar { display: flex; align-items: center; gap: 16px; padding: 28px 48px; }
@@ -42,7 +42,10 @@ h1 { max-width: 100%; margin: 0; font-size: clamp(30px, 3.2vw, 46px); line-heigh
 .talk-disc { display: grid; place-items: center; width: 76px; height: 76px; border-radius: 50%; color: #191b1d; background: #f1f0ec; transition: background 120ms; }
 .talk-action:hover .talk-disc { background: #dce2d8; }
 .talk-disc svg { width: 28px; height: 28px; }
-.stop-symbol { width: 20px; height: 20px; background: #191b1d; border-radius: 4px; }
+.mic-slash { display: none; }
+.is-muted .mic-slash { display: block; stroke: #c65b55; stroke-width: 2; }
+#mute.is-muted { color: #e4a29c; }
+#companion-message:focus { outline: none; border-color: #adb2b4; }
 #typing-panel { text-align: left; margin-top: 24px; }
 #companion-form label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .search-row { display: flex; gap: 8px; }

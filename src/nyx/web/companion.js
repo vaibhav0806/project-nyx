@@ -27,10 +27,11 @@ const conversation = {
     const label = speaking ? "Stop speaking" : working ? "Stop request" : !$("voice-play").hidden ? "Play answer" : "Talk to Nyx";
     $("talk").setAttribute("aria-label", label);
     $("talk-label").textContent = label;
-    $("talk").querySelector("svg").hidden = stopping;
-    $("talk").querySelector(".stop-symbol").hidden = !stopping;
     $("talk").disabled = !this.configured && !stopping;
     const micOn = Boolean(voice.mic);
+    $("talk").classList.toggle("is-muted", !micOn);
+    $("mute").classList.toggle("is-muted", !micOn);
+    $("mute").setAttribute("aria-pressed", String(!micOn));
     $("mute-label").textContent = micOn ? "Mute mic" : "Enable mic";
     $("mute").setAttribute("aria-label", micOn ? "Mute microphone" : "Enable microphone");
     $("mute").disabled = !this.configured;

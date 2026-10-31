@@ -20,7 +20,7 @@ The history tool searches captured user transcripts by object words or within
 existing transcript IDs. Exact quotes are attributed separately from visual
 findings; intended placement is not confirmed placement. This bounded feature
 is not general long-term semantic memory. Listen now (30 seconds) bypasses missed
-wake activation; ignored wake attempts now display a warning. Idle audio is not
+wake activation; ignored wake attempts stay quiet in the conversation UI. Idle audio is not
 archived, so missed statements cannot be recovered.
 
 

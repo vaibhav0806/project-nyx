@@ -222,10 +222,10 @@ const voice = {
     let stage = "transcription";
     try {
       const began = performance.now();
-      if (!this.playing) this.state("Listening and understanding…");
+      if (!this.playing && performance.now() < this.wakeUntil) this.state("Listening…");
       const turn = await api("/api/voice/utterance", { method: "POST", headers: { ...this.headers(), "x-nyx-attempt": attemptId }, body: pcm.buffer, signal: AbortSignal.timeout(100000) });
       if (!active()) return;
-      if (turn.state === "listening") { if (!this.playing) this.state(turn.reason === "wake_not_recognized" ? 'Wake name not recognized. Say “Hey Nyx” again or click Listen now.' : 'Listening locally · say “Hey Nyx”'); return; }
+      if (turn.state === "listening") { if (!this.playing) this.state('Ready when you are · say “Hey Nyx”'); return; }
       if (turn.state === "activated") {
         if (this.playing) this.stopPlayback();
         this.state("Yes? Ask your question…");

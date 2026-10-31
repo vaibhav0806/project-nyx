@@ -687,3 +687,10 @@ quality check, not proof for small/distant objects or fast motion. 341 determini
 tests passed; synthetic browser regression covers capture, new profile requests,
 video-only recording, evidence review, cancellation and reminders. Details and
 reproduction command in [R11](research/R11-recording-compression.md).
+
+### Conversation control polish — 2026-10-31
+
+Ignored wake attempts remain in diagnostics without a user-facing warning. The main
+microphone icon stays stable during work and playback; muted controls show a red
+slash. Typing uses a neutral border with keyboard focus retained on other controls.
+The synthetic browser regression passes, including ignored speech and mute state.
