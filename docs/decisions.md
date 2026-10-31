@@ -736,3 +736,13 @@ start/completion events. Do not layer another reveal timer over synchronized voi
 text. Keep a slower fixed cadence for typed-only results and a stable answer anchor.
 Sarvam does not provide native word timestamps through this plugin, so alignment is
 estimated. [LiveKit transcription behavior](https://docs.livekit.io/agents/multimodality/text/).
+
+## Product privacy direction — 2026-10-31
+
+The user selected fully local core assistance as the intended hardware product direction:
+recordings and personal memory on-device, with local vision, language, and speech models.
+Calls and online searches may require explicit external-service use. Hardware feasibility,
+quality, latency, encrypted storage, access control, and secure updates remain validation
+and implementation work. This supersedes cloud-first as the long-term product target,
+not the currently approved prototype runtime. No provider change is made by this decision.
+See [Product direction](../product.md#security-and-privacy).

@@ -6,6 +6,9 @@ The agreed [product direction](../product.md) positions Nyx around independence 
 older adults living at home, especially those living alone. Stationary hardware, lasting memory,
 familiar-person recognition, scheduled reminders, and requested contact calls are
 product goals, not newly implemented capabilities or expanded implementation permissions.
+The target product now calls for on-device storage and local vision, language, and
+speech processing for core assistance. The current prototype still uses the approved
+cloud path; this product direction does not implement or authorize a runtime migration.
 Existing capture, identity, retention, and action boundaries remain in force.
 
 ## Companion voice selection — 2026-10-31

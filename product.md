@@ -16,11 +16,35 @@ Nyx is being built as a small, stationary device with a camera, microphone, and 
 
 The starting promise is **“Help me remember what happened around me.”** Find belongings, recall useful moments, and spend less time searching or asking someone else for help.
 
-- “Where did you last see my glasses?”
-- “Where did I say I would keep my phone?”
-- “Hey Nyx, what's up?”
-
 One device can only answer from the room and moments it captured. Source recordings should be available when wanted, without becoming the main experience.
+
+## Features
+
+The full product should help you **find things, remember people and moments, get answers, and follow through on plans.** These are intended capabilities; current availability is described below.
+
+| Feature | What you can ask |
+| --- | --- |
+| Find your belongings | “Where did I keep my glasses?” |
+| Remember people and visits | “Who came by today?” Recognize familiar people with their consent and enrollment, within camera coverage. |
+| Recall what happened | “What happened in this room this morning?” |
+| Remember what you said | “Where did I say I would keep my phone?” or “Was there anything else I asked you to remember?” |
+| Answer everyday questions | “Can you explain how this works?” |
+| Keep reminders | “Remind me to call my daughter at six.” |
+| Reach trusted people | “Call my daughter.” |
+| Be there for a conversation | “Hey Nyx, what's up?” |
+
+## Security and privacy
+
+**The intended product keeps your recordings and personal memory on the device.** Core recall and conversation should use local vision models, local language models, and local speech recognition and generation, so private images, audio, and conversations do not need to leave the device for processing.
+
+- **Stored on your device:** recordings and personal history stay under your control, with no automatic cloud upload.
+- **Processed on your device:** the target is fully local core assistance, including seeing, understanding, listening, and speaking.
+- **Connected only when needed:** calls and online searches require external services. Make that clear and send only the information needed for the requested action.
+- **Control and protection:** simple pause, mute, and deletion controls, restricted access to history, encrypted storage, and secure updates are product requirements. Family access should follow the person's choices.
+
+Local processing reduces exposure to cloud services; device security and access controls still matter. Hardware performance, response quality, and these protections need validation before we promise them as delivered features.
+
+**Today:** the prototype saves full video recordings locally but uses cloud services for selected images, activated speech, and relevant conversation context. It is not yet fully local. This section defines the target product architecture, not a completed migration; see the [current data flow](README.md#privacy-and-control).
 
 ## Direction
 
