@@ -1,5 +1,14 @@
 # Nyx
 
+## Conversation demo
+
+Nyx opens to a minimal dark conversation screen. Say “Hey Nyx” or tap the microphone,
+or choose **Type instead**. The central button stops an active request or spoken reply.
+**Mute mic** controls listening; the camera indicator pauses/resumes recording independently.
+Answers appear as text and voice, with **View source** available for visual evidence.
+The settings button opens recording controls, saved history, source management and diagnostics.
+
+
 ## Speech-linked finding and surrounding replay — 2026-10-28
 
 Historical matches now replay up to ten seconds before and after the sighting,

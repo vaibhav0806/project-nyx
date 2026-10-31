@@ -1,5 +1,16 @@
 # Product design
 
+## Approved conversation UI — 2026-10-31
+
+The main experience is a conversation, not a recording dashboard. Show the current question
+and Nyx’s actual answer in large text on a charcoal background. A central control switches
+between talking and stopping; adjacent controls mute the microphone or reveal text input.
+“View source” opens supporting evidence only when requested. Camera status and a pause/resume
+action remain visible; settings contain recording management, history and diagnostics.
+No illustrative Paper answers are shipped as real findings. Uncertainty remains part of the
+actual answer. Desktop and narrow mobile layouts use the same flow without gradients.
+
+
 ## Current implementation direction — 2026-10-28
 
 Cloud inference is the primary MVP path. Keep capture, wake recognition,

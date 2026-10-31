@@ -1,5 +1,16 @@
 # Decisions and open choices
 
+## Conversation-first demo interface — 2026-10-31
+
+The user approved the “Just a conversation” Paper design and authorized implementation.
+Use a quiet dark screen with the latest question and answer, a combined talk/stop control,
+microphone mute, and optional typing. Evidence is available on demand through “View source”;
+recording previews, search tools, history, and diagnostics belong in Settings & history.
+Keep actual camera state visible and directly pausable. The visual redesign does not change
+retrieval claims, provider boundaries, storage policy, or inference models. Continue with
+packaged plain HTML/CSS/JavaScript and existing APIs. The user also authorized local commits.
+
+
 ## Speech-linked finding and surrounding replay — 2026-10-28
 
 Historical matches now replay up to ten seconds before and after the sighting,

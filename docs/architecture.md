@@ -1,5 +1,15 @@
 # Technical architecture
 
+## Conversation presentation — 2026-10-31
+
+Packaged web assets retain the existing capture, agent and voice APIs. `companion.js` renders
+the current conversational question/answer and shared controls; voice state and capture/evidence
+changes emit browser events to refresh those controls. Native dialogs provide focus handling
+for source inspection and settings. Closing a source pauses replay. New turns clear previous
+source access so evidence from an older answer is not attached to a new conversation.
+No framework, build process or additional provider is introduced.
+
+
 ## Speech-linked finding and surrounding replay — 2026-10-28
 
 Historical matches now replay up to ten seconds before and after the sighting,

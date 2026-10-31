@@ -1,5 +1,13 @@
 # Scope
 
+## Conversation presentation — 2026-10-31
+
+The approved demo now prioritizes listening, responding, and searching through conversation.
+Recording/evidence tooling remains available behind Settings & history and View source.
+This is a presentation change, not additional event recognition or general personal memory.
+Continuous recording and activation follow the existing permissions and provider boundaries.
+
+
 ## Latest authorization — 2026-10-29
 
 The user authorized merging the companion MVP (completed via PR #1), then working

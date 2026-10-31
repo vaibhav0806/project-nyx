@@ -1,5 +1,18 @@
 # Milestones
 
+## Conversation UI delivery — 2026-10-31
+
+Implemented the approved dark “Just a conversation” design in the packaged web interface:
+current question/answer, talk/stop, mute, typing, camera state/pause, optional source dialog,
+and settings/history. Existing recording, source review and deletion controls remain available.
+
+Validation: deterministic browser checks cover typed and voice-transcribed responses, source
+visibility, clearing previous evidence on a new voice turn, stop control, mute state, dialog
+Escape/focus behavior, and mobile overflow. The full suite passes 342 tests; Python lint/format
+and JavaScript syntax checks pass. Desktop and mobile screenshots were inspected. API replies are fixtures; no real camera/microphone
+or provider requests are used. Real-room voice and household accuracy remain separate gates.
+
+
 ## Cloud MVP switch — 2026-10-28 (current)
 
 Cloud inference is now the primary runtime; prior local-only status below is
