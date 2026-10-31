@@ -1,5 +1,21 @@
 # Decisions and open choices
 
+## Durable recall, spoken model and text appearance — 2026-10-31
+
+Use additive statement records instead of relying on recent conversational context. Resolve
+shown-object pronouns with the vision model; search saved claims independently of visual
+history, validate source IDs, and retain the distinction between intended and observed placement.
+Do not auto-complete a typed retrieval after its first successful visual result if more evidence
+is needed. Keep explicit ambiguity and mutation completion bounded.
+
+Per the user's instruction, Gemini 3.5 Flash is the main spoken agent/answer model. Luna remains
+the typed planner. A controlled first-decision comparison found faster alternatives but also
+routing errors; do not introduce an extra classifier without validating the full continuation.
+Fixed tool summaries remain grounding inputs; LiveKit generates natural final spoken wording.
+Use an opacity-only arrival treatment, preserving playback-controlled text timing and reduced
+motion. See [R6 comparison](research/R6-routing-and-durable-recall.md).
+
+
 ## Streaming speech latency update — 2026-10-31
 
 The running demo selects `NYX_TTS_MODEL=bulbul:v4-flash` with the existing server-only

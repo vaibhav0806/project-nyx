@@ -1,5 +1,34 @@
 # Technical architecture
 
+## Durable object statements — 2026-10-31
+
+The agent can call `remember_statement` on the actual persisted user turn. A schema-constrained
+vision response resolves a concrete placement/intention statement against a recent snapshot.
+SQLite stores the exact transcript link, inferred object description, claim kind, bounded
+768px JPEG, capture timestamp, encoder fingerprint and resolver fingerprint. Original text
+survives extraction/embedding failures. This is a recent snapshot association, not precise
+speech/video alignment or proof of physical placement.
+
+`search_statements` independently ranks persisted links with text embeddings, adds bounded
+legacy named-transcript candidates, then validates model-selected existing IDs. It does not
+need recent chat or a visual match. Legacy unresolved pronouns are not automatically backfilled.
+The typed agent can finish with both a visual and a statement observation; a successful visual
+check no longer forces early completion. Mutations and clarification retain their stop behavior.
+`identify_shown_object` returns the visible description before a pronoun-based lookup, avoiding
+the older present-view-to-history redirection. LiveKit exposes the same tools and composes its
+reply from their evidence. Calls are agent-selected, not a phone/kitchen-specific workflow.
+
+Spoken-agent default is now `google/gemini-3.5-flash` (`NYX_VOICE_MODEL` overrides it).
+It currently owns both tool choices and final spoken wording. Typed planning remains Luna;
+vision remains Flash Lite. The five-model routing experiment is preliminary; no separate
+routing stage was added. JSON schema constrains statement extraction; citation checks remain
+necessary because valid JSON alone does not establish truth.
+
+Newly released screen text fades from 65% to full opacity over 140ms, with no delay, transform
+or new timing loop. Speech still uses LiveKit playback synchronization. Reduced motion disables
+the fade. Markdown is retained and settled text is not reanimated.
+
+
 ## Speech-paced screen text — 2026-10-31
 
 The custom browser audio/text outputs now pass through LiveKit's exported

@@ -1,5 +1,10 @@
 # Repository structure
 
+`statements.py` owns the additive durable object-statement table, visual reference resolution,
+semantic candidate retrieval and citation checks. It shares the conversations database rather
+than introducing a separate service. Replay/comparison scripts stay under `experiments/companion/`;
+private outputs stay in ignored `data/runs/`. See the 2026-10-31 architecture update.
+
 ## Cloud runtime update — 2026-10-28
 
 `cloud.py` is the single OpenRouter HTTP boundary. `perception.py` supplies cloud

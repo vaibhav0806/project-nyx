@@ -11,6 +11,19 @@ speech processing for core assistance. The current prototype still uses the appr
 cloud path; this product direction does not implement or authorize a runtime migration.
 Existing capture, identity, retention, and action boundaries remain in force.
 
+## Durable placement-statement slice — 2026-10-31
+
+Authorized: agent-selected linking of activated user statements to a recent visible object,
+independent statement retrieval in fresh conversations, and combination with visual evidence.
+This is bounded object-location recall, not general personal memory or continuous transcription.
+Statements remain attributed user claims; intentions do not establish actual placement.
+A small selected snapshot is retained with the statement in the local conversations database,
+separate from the saved-video budget. No automatic expiry, recording deletion or destructive
+migration is introduced. Existing source invalidation excludes linked turns from retrieval.
+Old unlinked pronouns need an explicit replay/backfill with supported visual evidence.
+Developer replay uses isolated databases and explicitly authorized saved media or public fixtures.
+
+
 ## Companion voice selection — 2026-10-31
 
 The current voice is Shalini Companion: `shalini_en_companion` for English and

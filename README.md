@@ -52,6 +52,12 @@ Nyx connects saved visual moments with timestamps and relevant conversation. A r
 
 A last sighting describes the past. An object can move afterward. Nyx's answers are bounded by camera coverage, sampled observations, and retained history; conversation matching can miss relevant statements. Sources let you check an answer for yourself.
 
+The agent can save an object-location statement with a recent image-backed object description,
+then search those statements independently of recent chat and visual history. Showing an item
+and saying “this” uses visual identification; ambiguity asks for clarification. Saved intentions
+remain user claims, not proof of where an item is now. Existing recordings are preserved;
+older unlinked pronouns are not automatically reprocessed. See [architecture](docs/architecture.md).
+
 ### Easy to talk to, not clever to listen to
 
 Simple spoken language. Natural relative times. No technical vocabulary to learn, no need to read to follow the conversation, and no jokes at someone's expense for forgetting something.
@@ -151,6 +157,8 @@ The data directory holds saved recordings, indexes, and transcripts across resta
 | Local activation and observation | Whisper wake recognition, activity filtering, and a small person detector |
 
 LiveKit manages conversational turns, interruptions, streaming speech, and playback-paced text. No separate LiveKit room server or LiveKit account is required for this configuration. Speech/text alignment is estimated rather than exact word timing.
+
+Spoken turns and tool selection use Gemini 3.5 Flash (`NYX_VOICE_MODEL`); the typed planner uses GPT-6 Luna.
 
 See the [architecture](docs/architecture.md) for the pipeline and [decisions](docs/decisions.md) for why it is built this way.
 

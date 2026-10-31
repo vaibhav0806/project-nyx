@@ -2,6 +2,42 @@
 
 const answerMarkdown = window.markdownit({ html: false, breaks: true }).disable("image");
 
+
+// Playback synchronization owns *when* text arrives; this only softens its appearance.
+function renderAnswer(answer, text) {
+  const textNodes = () => {
+    const walker = document.createTreeWalker(answer, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      // Ignore Markdown's structural newline nodes, not meaningful inline spaces.
+      if (!node.data.trim() && node.data.includes("\n") && !node.parentElement.closest("pre, code")) continue;
+      nodes.push(node);
+    }
+    return nodes;
+  };
+  const previous = textNodes().map(node => node.data).join("");
+  answer.innerHTML = answerMarkdown.render(text);
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  // Markdown may reinterpret an earlier delimiter. Do not replay settled text then.
+  const nodes = textNodes();
+  if (!nodes.map(node => node.data).join("").startsWith(previous)) return;
+  const additions = [];
+  let offset = 0;
+  for (const node of nodes) {
+    const start = Math.max(0, previous.length - offset);
+    offset += node.length;
+    if (start < node.length && node.data.slice(start).trim()) additions.push([node, start]);
+  }
+  for (const [node, start] of additions) {
+    const fresh = start ? node.splitText(start) : node;
+    const span = document.createElement("span");
+    span.className = "spoken-arrival";
+    fresh.replaceWith(span);
+    span.append(fresh);
+  }
+}
+
 const conversation = {
   configured: false,
   status: "Connecting",
@@ -27,7 +63,7 @@ const conversation = {
     const words = remaining.match(/\S+\s*|\s+/gu) || [];
     const word = words[0] || remaining;
     this.shownAnswer += word;
-    $("conversation-answer").innerHTML = answerMarkdown.render(this.shownAnswer);
+    renderAnswer($("conversation-answer"), this.shownAnswer);
     const pause = /[.!?।]\s*$/.test(word) ? 500 : /[,;:]\s*$/.test(word) ? 380 : 260;
     this.revealTimer = setTimeout(() => this.reveal(), pause);
   },
@@ -65,12 +101,12 @@ const conversation = {
     this.answerTarget = text;
     if (!this.shownAnswer) {
       answer.replaceChildren();
-      answer.classList.add("answer-arriving");
+
     }
     if (synchronized || matchMedia("(prefers-reduced-motion: reduce)").matches) {
       this.stopReveal();
       this.answerTarget = this.shownAnswer = text;
-      answer.innerHTML = answerMarkdown.render(text);
+      renderAnswer(answer, text);
     } else if (this.revealTimer === null) {
       answer.setAttribute("aria-busy", "true");
       this.reveal();

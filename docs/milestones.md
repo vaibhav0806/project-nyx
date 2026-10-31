@@ -1,5 +1,28 @@
 # Milestones
 
+## Durable speech-linked recall and spoken response update — 2026-10-31
+
+Implemented agent-selected placement-statement persistence, recent-image pronoun resolution,
+independent semantic statement retrieval, validated transcript citations, and combined visual/
+statement completion without recent chat. Kept clarification and existing mutation boundaries.
+Original transcripts survive extraction failures; old recordings and indexes are preserved.
+
+Two explicitly authorized saved-recording replays exercised the real planner, saved visual
+index, cloud verification/embeddings and original transcripts in isolated databases. Both
+retrieved the hand sighting and the attributed intended placement with empty chat context.
+The harder original statement used “this”; its object link was reconstructed from the saved
+snapshot-time frame. This is replay validation, not a fresh microphone or full LiveKit test.
+Public-fixture restart and 30-turn eviction tests passed as well.
+
+Spoken model now defaults to user-selected Gemini 3.5 Flash. Five-model routing comparison
+measured faster first decisions but also errors; no separate classifier installed. New text
+uses a restrained 140ms fade while preserving speech-driven timing and reduced motion.
+Validation: 362 deterministic tests pass after the final changes; lint, formatting and diff
+checks pass. Headless browser verifies incremental fade,
+settled text, Markdown and reduced motion. See [R6](research/R6-routing-and-durable-recall.md)
+for failures, corrective changes, measured latency and remaining limits. Local work only.
+
+
 ## Faster streaming synthesis and overlapped frame checks — 2026-10-31
 
 The running demo selects Sarvam Bulbul v4 Flash using the existing private key; all

@@ -131,3 +131,8 @@ details { margin: 20px 0; } summary { cursor: pointer; padding: 10px 0; color: #
 #conversation-answer a { color: inherit; text-underline-offset: .15em; }
 #conversation-answer table { font-size: .6em; border-collapse: collapse; width: 100%; }
 #conversation-answer :is(th, td) { padding: .3em; border-bottom: 1px solid #34383a; }
+
+/* No delay or movement: text is readable as soon as the speech clock releases it. */
+.spoken-arrival { animation: spoken-arrival 140ms ease-out; }
+@keyframes spoken-arrival { from { opacity: .65; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .spoken-arrival { animation: none; } }
