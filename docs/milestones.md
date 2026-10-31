@@ -565,7 +565,7 @@ The history tool searches captured user transcripts by object words or within
 existing transcript IDs. Exact quotes are attributed separately from visual
 findings; intended placement is not confirmed placement. This bounded feature
 is not general long-term semantic memory. Listen now (30 seconds) bypasses missed
-wake activation; ignored wake attempts now display a warning. Idle audio is not
+wake activation; ignored wake attempts stay quiet in the conversation UI. Idle audio is not
 archived, so missed statements cannot be recovered.
 
 Verification: 334 deterministic tests and companion/voice synthetic browser checks
@@ -694,3 +694,18 @@ Ignored wake attempts remain in diagnostics without a user-facing warning. The m
 microphone icon stays stable during work and playback; muted controls show a red
 slash. Typing uses a neutral border with keyboard focus retained on other controls.
 The synthetic browser regression passes, including ignored speech and mute state.
+
+### Jev spoken routing and acknowledgements — 2026-10-31
+
+Implemented Jev 1.14 via the OpenRouter Decisions API, with a direct Luna reply for
+high-confidence general conversation and the existing agent for evidence/actions
+or uncertainty. Exact greetings retain their shortcut. A fixed acknowledgement
+runs alongside tool work; session/turn/epoch and browser completion guards reject
+stale playback. Typed requests keep their existing agent path.
+
+Validation: 354 tests pass, including typed decision parsing, uncertainty, responder
+deferral, acknowledgement authentication/cancellation, and browser late-audio
+suppression. Ruff lint/format, JS syntax and whitespace checks pass. Ten synthetic
+live text cases matched intended routes; see [R6](research/R6-handsfree-voice.md#jev-routing-check--2026-10-31)
+for timings, cost and limits. No real camera/microphone used. The 0.95 threshold
+needs broader calibration; full spoken latency and room echo remain open.

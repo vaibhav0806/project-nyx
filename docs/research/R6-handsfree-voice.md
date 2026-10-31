@@ -101,3 +101,42 @@ of its first 2.5 s and full audio returned only “Where are my glasses?” with
 wake name. Variant 2 also omitted the name; variants 0/1/3 retained “Hey Nyx” in
 the 2.5 s probe. The variant-0 browser pass does not establish robust wake
 recognition across pronunciations, room noise or speaker echo. Those remain open.
+
+## Jev routing check — 2026-10-31
+
+Decision: test whether a small typed gate can bypass the visual agent for general
+spoken questions, preserving evidence/actions and contextual follow-ups. Adapted
+the voice-only gate and concurrent filler pattern from
+[Kairo gateRouting.ts](https://github.com/vaibhav0806/kairo-tutor/blob/main/src/notch/gateRouting.ts)
+and its NotchApp caller. Kairo is a workflow reference, not evidence that it uses Jev.
+
+Source-reported: Jev is non-generative and returns typed decisions, so a separate
+responder is needed. Verified OpenRouter's [Decisions API](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request)
+and [Jev 1.14 listing](https://openrouter.ai/typesafe/jev-1.14) on 2026-10-31.
+Use existing OpenRouter credentials, a `noul` question and model `typesafe/jev-1.14`.
+The general-answer path uses `openai/gpt-6-luna`. No TypeSafe SDK/account added.
+
+Measured: ten synthetic text cases, sequential calls through `CloudVoice.route`,
+on macOS 15.7.2 arm64 with Python 3.12.12. No microphone, camera or household
+media. Three general questions (triangle sides, rainbows, small talk) returned
+chat in 1.96, 2.38 and 2.20 seconds respectively, including Luna generation.
+Seven tool/uncertain cases routed to agent in 0.50–0.61 seconds: last-seen glasses,
+departure reminder, ambiguous other pair, contextual blue pair, instruction to
+force a true decision while asking for keys, yesterday's conversation, door entry.
+All ten matched the intended route. Combined reported API cost: $0.000260552.
+Calls retained `provider.data_collection=deny`.
+
+Reproduce with `uv run --env-file .env --no-sync python` and
+`CloudVoice().route(question, context)` from `nyx.voice`, timing with
+`time.perf_counter()`. Context is a list of prior question/object_query dictionaries;
+the blue-pair case used a prior glasses question. Unit tests independently exercise
+wire shape, uncertain decisions, invalid probabilities and responder deferral.
+
+Limits: one small development smoke set, no baseline comparison or held-out
+calibration; 0.95 is a provisional conservative threshold, not 95% accuracy.
+Timings exclude activation, STT, TTS and playback. Jev adds a round trip to tool
+requests. Full spoken latency and live-room interruption/echo remain unmeasured.
+No claim that questions are answered instantaneously. Revisit the gate if larger
+labeled tests show personal questions bypassing evidence or added latency outweighs
+savings. Acknowledgement synthesis runs alongside the agent and is cached after
+first use; it may fail or arrive too late and be skipped.

@@ -1,5 +1,15 @@
 # Scope
 
+## Voice response polish — 2026-10-31
+
+The approved conversation interface keeps unrecognized ambient speech quiet and
+shows a red slash when muted. Activated spoken general questions may receive a
+short direct answer via Jev routing and Luna; evidence-dependent questions retain
+the agent and source-review flow. A brief acknowledgement can play while tools run.
+This does not add general personal memory, research tools or new reminder abilities.
+Typed input still uses the existing agent path. Idle audio stays local.
+
+
 ## Conversation presentation — 2026-10-31
 
 The approved demo now prioritizes listening, responding, and searching through conversation.

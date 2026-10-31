@@ -677,3 +677,51 @@ def test_failed_transcription_preserves_explicit_activation_and_cancel_reason(tm
         and e["turn_id"] == turn["id"]
         for e in events
     )
+
+
+def test_checking_acknowledgement_does_not_complete_turn(tmp_path):
+    provider = Provider()
+    voice = Voice(tmp_path, provider, lambda _: "Hey Nyx find my glasses", agent_mode=True)
+    token = voice.start()["token"]
+    turn = voice.utterance(token, audio())
+    assert voice.acknowledgement(token, turn["id"])["audio"]
+    assert voice.turn["id"] == turn["id"]
+    voice.cancel(token)
+    with pytest.raises(VoiceError):
+        voice.acknowledgement(token, turn["id"])
+
+
+def test_cancel_during_acknowledgement_drops_audio(tmp_path):
+    provider = Provider()
+    voice = Voice(tmp_path, provider, lambda _: "Hey Nyx find my glasses", agent_mode=True)
+    token = voice.start()["token"]
+    turn = voice.utterance(token, audio())
+
+    def speak(text):
+        voice.cancel(token)
+        return "stale-audio"
+
+    provider.speak = speak
+    with pytest.raises(VoiceError):
+        voice.acknowledgement(token, turn["id"])
+
+
+def test_acknowledgement_api_requires_session_and_matching_turn(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from nyx.app import create_app
+
+    voice = Voice(tmp_path, Provider(), lambda _: "Hey Nyx find glasses", agent_mode=True)
+    with TestClient(
+        create_app(tmp_path, voice_factory=lambda root: voice, verifier_factory=lambda: object())
+    ) as client:
+        token = client.post("/api/voice/session").json()["token"]
+        headers = {"x-nyx-voice": token}
+        turn = voice.utterance(token, audio())
+        endpoint = "/api/voice/acknowledgement"
+        assert client.post(endpoint, json={"turn_id": turn["id"]}).status_code == 400
+        assert client.post(endpoint, headers=headers, json={"turn_id": "wrong"}).status_code == 400
+        assert (
+            client.post(endpoint, headers=headers, json={"turn_id": turn["id"]}).status_code == 200
+        )
+        assert voice.turn["id"] == turn["id"]

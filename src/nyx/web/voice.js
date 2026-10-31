@@ -210,6 +210,21 @@ const voice = {
     }).catch(() => {});
   },
 
+  async sayChecking(turn, active) {
+    try {
+      const reply = await api("/api/voice/acknowledgement", { ...json({ turn_id: turn.id }), headers: { ...this.headers(), "content-type": "application/json" }, signal: AbortSignal.timeout(15000) });
+      if (!active() || !reply.audio) return;
+      const bytes = Uint8Array.from(atob(reply.audio), (c) => c.charCodeAt(0));
+      this.stopPlayback();
+      this.url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+      const player = new Audio(this.url);
+      this.player = player;
+      this.playing = true;
+      player.onended = player.onerror = () => { if (this.player === player) this.stopPlayback(); };
+      try { await player.play(); } catch { if (this.player === player) this.stopPlayback(); }
+    } catch { /* The answer can still finish if the brief acknowledgement fails. */ }
+  },
+
   async hear(pcm, endedAt = performance.now()) {
     if (this.working || !this.token) return;
     this.working = true;
@@ -250,7 +265,11 @@ const voice = {
       if (!["clarify", "chat"].includes(plan.mode)) {
         if (plan.object_query) $("object-query").value = plan.object_query;
         stage = "agent";
-        const response = await companion.request(turn.transcript, turn);
+        let checking = true;
+        this.sayChecking(turn, () => active() && checking);
+        let response;
+        try { response = await companion.request(turn.transcript, turn); }
+        finally { checking = false; this.stopPlayback(); }
         jobId = response.jobId;
         $("voice-answer").textContent = `Nyx: ${response.result.answer}`;
         const output = response.result.visual;

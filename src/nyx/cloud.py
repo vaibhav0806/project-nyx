@@ -35,12 +35,12 @@ class OpenRouter:
         self.transport = transport
         self.usage = []
 
-    def request(self, path, payload, *, binary=False):
+    def request(self, path, payload, *, binary=False, version="v1"):
         started = time.perf_counter()
         outcome = "failed"
         body = {**payload, "provider": {"data_collection": "deny", **payload.get("provider", {})}}
         request = Request(
-            "https://openrouter.ai/api/v1/" + path,
+            "https://openrouter.ai/api/" + version + "/" + path,
             data=json.dumps(body).encode(),
             headers={"Authorization": "Bearer " + self.key, "Content-Type": "application/json"},
         )

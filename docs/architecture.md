@@ -1,5 +1,36 @@
 # Technical architecture
 
+## Fast spoken turns — 2026-10-31
+
+```mermaid
+flowchart TD
+    A[Local wake or Talk button] --> B[Activated transcription]
+    B --> C{Exact greeting?}
+    C -->|Yes| D[Short reply]
+    C -->|No| E[Jev through OpenRouter]
+    E -->|General conversation probability at least 0.95| F[Luna short answer or defer]
+    E -->|Evidence, action or uncertain| G[Existing agent and tools]
+    F -->|Defer| G
+    F -->|Answer| D
+    G --> H[Grounded result and optional View source]
+    G -. concurrently .-> I[Let me check that for you]
+    D --> J[Speech and on-screen answer]
+    H --> J
+```
+
+`CloudVoice.route` owns this small voice-only gate. `OpenRouter.request` retains
+bounded transport and data-collection restrictions for both v1 and alpha APIs.
+Recent completed turn text supplies routing context. A direct reply has no images
+or tools and cannot intentionally claim a sighting or completed action; model
+misclassification remains possible. Personal recall and ambiguous follow-ups route
+to the agent. No capability is added to the agent itself.
+
+`/api/voice/acknowledgement` checks the live session, turn and cancellation epoch
+before and after synthesis, without completing the turn. The browser also checks
+that tool work is still pending before playing it. The fixed line uses the existing
+bounded speech cache. A failed acknowledgement does not prevent the actual answer.
+
+
 ## Conversation presentation — 2026-10-31
 
 Packaged web assets retain the existing capture, agent and voice APIs. `companion.js` renders
@@ -21,7 +52,7 @@ The history tool searches captured user transcripts by object words or within
 existing transcript IDs. Exact quotes are attributed separately from visual
 findings; intended placement is not confirmed placement. This bounded feature
 is not general long-term semantic memory. Listen now (30 seconds) bypasses missed
-wake activation; ignored wake attempts now display a warning. Idle audio is not
+wake activation; ignored wake attempts stay quiet in the conversation UI. Idle audio is not
 archived, so missed statements cannot be recovered.
 
 

@@ -44,6 +44,7 @@ Cloud inference through **OpenRouter** is the primary path. There is no local
 LLM/VLM fallback. The custom Python agent chooses tools, constructs contextual
 queries, reviews observations, and asks for clarification. No LangChain is needed.
 
+- **Spoken intent gate:** `typesafe/jev-1.14`; general replies use Luna directly.
 - **Reasoning:** `openai/gpt-6-luna`; **vision:** `google/gemini-3.5-flash-lite`.
 - **Image/text embeddings:** `google/gemini-embedding-2`, 768 dimensions.
 - **Activated transcription:** `openai/gpt-4o-mini-transcribe`.

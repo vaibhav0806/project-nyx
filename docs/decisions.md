@@ -1,5 +1,19 @@
 # Decisions and open choices
 
+## Jev voice routing — 2026-10-31
+
+User requested a Kairo-style fast voice gate and selected Jev through OpenRouter.
+Activated speech now uses `typesafe/jev-1.14` at `/api/alpha/decisions` after the
+existing exact-greeting shortcut. A typed boolean probability of at least 0.95
+permits a bounded Luna conversational answer; all other decisions use the existing
+agent. The responder can also defer to the agent. This provisional threshold is
+not a measured accuracy guarantee. Provider/invalid-response errors remain visible.
+Tool requests get a fixed spoken acknowledgement concurrently with agent work;
+late or cancelled acknowledgement audio is discarded. No new provider account,
+SDK, idle-audio upload, or image input to Jev. Typed requests retain their existing
+agent path. See [voice findings](research/R6-handsfree-voice.md#jev-routing-check--2026-10-31).
+
+
 ## Conversation-first demo interface — 2026-10-31
 
 The user approved the “Just a conversation” Paper design and authorized implementation.

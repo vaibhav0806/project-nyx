@@ -131,6 +131,28 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
                 "async () => { voice.token = 'fixture'; await voice.hear(new Int16Array(1600)); }"
             )
             expect(page.locator("#conversation-state")).not_to_contain_text("not recognized")
+            assert page.evaluate("""async () => {
+                const originalApi = api, OriginalAudio = window.Audio;
+                let resolve, active = true, played = 0;
+                api = () => new Promise(done => { resolve = done; });
+                window.Audio = class {
+                    async play() { played++; }
+                    pause() {}
+                    removeAttribute() {}
+                };
+                try {
+                    const first = voice.sayChecking({id: 'fixture'}, () => active);
+                    resolve({audio: btoa('synthetic audio')});
+                    await first;
+                    const started = played === 1 && voice.playing;
+                    voice.stopPlayback();
+                    const late = voice.sayChecking({id: 'fixture'}, () => active);
+                    active = false;
+                    resolve({audio: btoa('late synthetic audio')});
+                    await late;
+                    return started && played === 1 && !voice.playing;
+                } finally { api = originalApi; window.Audio = OriginalAudio; }
+            }""")
             page.set_viewport_size({"width": 390, "height": 844})
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
             page.screenshot(path=str(tmp_path / "conversation-mobile.png"))

@@ -309,13 +309,7 @@ def create_app(
     from nyx.voice import MAX_PCM, CloudVoice, Conversations, Voice, VoiceError
 
     key = os.environ.get("OPENROUTER_API_KEY")
-    voice = (
-        voice_factory(root)
-        if voice_factory
-        else Voice(root, CloudVoice(), agent_mode=True)
-        if key
-        else None
-    )
+    voice = voice_factory(root) if voice_factory else Voice(root, CloudVoice()) if key else None
     workspace.conversations = (
         voice.conversations
         if voice
@@ -486,6 +480,10 @@ def create_app(
         attempt = str(uuid.UUID(body["attempt_id"]))
         voice.conversations.event(event, attempt_id=attempt, stage=stage)
         return {"recorded": True}
+
+    @app.post("/api/voice/acknowledgement")
+    def voice_acknowledgement(request: Request, body: dict):
+        return voice.acknowledgement(voice_token(request), body.get("turn_id"))
 
     @app.post("/api/voice/reply")
     def voice_reply(request: Request, body: dict):
