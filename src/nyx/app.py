@@ -15,9 +15,8 @@ from threading import Lock, Thread
 from types import GeneratorType
 from typing import Literal
 
-from anyio import CancelScope
-from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket
+from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import AwareDatetime, BaseModel, Field
 from starlette.concurrency import run_in_threadpool
@@ -30,16 +29,6 @@ from nyx.retrieval import index_video_batches, search
 
 MAX_UPLOAD_BYTES = 256 * 1024 * 1024
 WEB = Path(__file__).with_name("web")
-
-
-class VoiceStreamResponse(StreamingResponse):
-    async def __call__(self, scope, receive, send):
-        try:
-            await super().__call__(scope, receive, send)
-        finally:
-            # A disconnect can leave an async iterator suspended at its last yield.
-            with CancelScope(shield=True):
-                await self.body_iterator.aclose()
 
 
 class SearchRequest(BaseModel):
@@ -317,10 +306,16 @@ def create_app(
             return CloudVerifier()
 
     workspace = Workspace(root, encoder_factory, video_budget_bytes, verifier_factory)
-    from nyx.voice import MAX_PCM, CloudVoice, Conversations, Voice, VoiceError
+    from nyx.voice import CloudVoice, Conversations, Voice
 
     key = os.environ.get("OPENROUTER_API_KEY")
-    voice = voice_factory(root) if voice_factory else Voice(root, CloudVoice()) if key else None
+    voice = (
+        voice_factory(root)
+        if voice_factory
+        else Voice(root, CloudVoice())
+        if key and os.environ.get("SARVAM_API_KEY")
+        else None
+    )
     workspace.conversations = (
         voice.conversations
         if voice
@@ -414,7 +409,8 @@ def create_app(
     def voice_token(request):
         if voice is None:
             raise HTTPException(
-                503, "Configure OpenRouter and install the voice extra to enable listening."
+                503,
+                "Configure OpenRouter and Sarvam, and install the voice extra to enable listening.",
             )
         return request.headers.get("x-nyx-voice")
 
@@ -443,10 +439,6 @@ def create_app(
         voice.cancel(voice_token(request), reason)
         return {"state": "listening"}
 
-    @app.post("/api/voice/listen")
-    def voice_listen(request: Request, body: dict):
-        return voice.listen(voice_token(request), body.get("turn_id"))
-
     @app.post("/api/voice/probe")
     async def voice_probe(request: Request):
         token = voice_token(request)
@@ -457,21 +449,15 @@ def create_app(
                 raise HTTPException(413, "Wake samples must be at most 3 seconds.")
         return await run_in_threadpool(voice.probe, token, bytes(raw))
 
-    @app.post("/api/voice/utterance")
-    async def voice_utterance(request: Request):
-        token = voice_token(request)
-        raw = bytearray()
-        async for chunk in request.stream():
-            raw.extend(chunk)
-            if len(raw) > MAX_PCM:
-                raise HTTPException(413, "Spoken questions must be at most 25 seconds.")
-        return await run_in_threadpool(
-            voice.utterance,
-            token,
-            bytes(raw),
-            request.headers.get("x-nyx-attempt"),
-            request.headers.get("x-nyx-timezone"),
-        )
+    if voice is not None:
+        from nyx.realtime import serve as serve_live_voice
+
+    @app.websocket("/api/voice/live")
+    async def live_voice(socket: WebSocket):
+        if voice is None:
+            await socket.close(code=1008)
+            return
+        await serve_live_voice(socket, voice)
 
     @app.get("/api/voice/diagnostics")
     def voice_diagnostics(request: Request):
@@ -497,71 +483,6 @@ def create_app(
         attempt = str(uuid.UUID(body["attempt_id"]))
         voice.conversations.event(event, attempt_id=attempt, stage=stage)
         return {"recorded": True}
-
-    @app.post("/api/voice/acknowledgement")
-    def voice_acknowledgement(request: Request, body: dict):
-        return voice.acknowledgement(voice_token(request), body.get("turn_id"))
-
-    @app.post("/api/voice/reply")
-    def voice_reply(request: Request, body: dict):
-        token = voice_token(request)
-        with voice.lock:
-            voice.check(token)
-            turn = voice.turn
-            if not turn or turn["id"] != body.get("turn_id"):
-                raise VoiceError("That voice response is no longer active.")
-            plan = turn["plan"]
-        if plan["mode"] == "direct":
-            result = None
-        elif plan["mode"] in {"chat", "clarify"}:
-            result = {"answer": plan.get("reply") or "Which object would you like me to look for?"}
-        else:
-            with workspace.lock:
-                job = workspace.jobs.get(body.get("job_id"), {})
-                if job.get("kind") not in {"answer", "agent"} or job.get("status") != "succeeded":
-                    raise VoiceError("The visual check has not completed. Try again.")
-                if job["created_at"] < turn["at"]:
-                    raise VoiceError("Capture new evidence for this voice question.")
-                result = job["result"]
-                if job["kind"] == "agent":
-                    if result.get("voice_turn_id") != turn["id"] or job.get("cancelled"):
-                        raise VoiceError(
-                            "That companion result belongs to another or cancelled turn"
-                        )
-                elif result.get("object_query") != plan["object_query"]:
-                    raise VoiceError("That visual check belongs to a different question.")
-                elif (plan["mode"] == "current") != (result["kind"] == "snapshot"):
-                    raise VoiceError("The visual check has the wrong evidence type.")
-                if result["kind"] == "history" and any(
-                    result["scope"].get(field) != plan.get(field)
-                    for field in ["seen_after", "seen_before"]
-                ):
-                    raise VoiceError("The visual check has a different time range.")
-                if result["kind"] == "history" and result["scope"]["mode"] != plan["mode"]:
-                    raise VoiceError("The history check has a different ordering.")
-        if body.get("stream"):
-
-            async def events():
-                stream = voice.reply_stream(token, body["turn_id"], result)
-                try:
-                    while not await request.is_disconnected():
-                        event = await run_in_threadpool(next, stream, None)
-                        if event is None:
-                            break
-                        yield json.dumps(event, ensure_ascii=False) + "\n"
-                except ValueError as exc:
-                    yield json.dumps({"type": "error", "message": str(exc)}) + "\n"
-                finally:
-                    await run_in_threadpool(stream.close)
-
-            return VoiceStreamResponse(
-                events(),
-                media_type="application/x-ndjson",
-                headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
-            )
-        if result is None:
-            result = {"answer": "".join(voice.provider.answer_tokens(turn, None, lambda: False))}
-        return voice.reply(token, body["turn_id"], result)
 
     @app.get("/style.css")
     def stylesheet():

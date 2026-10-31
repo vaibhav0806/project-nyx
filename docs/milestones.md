@@ -808,3 +808,25 @@ uses a separate 24 kHz audio context, preserving 16 kHz microphone processing.
 385 tests pass, including exact speech-payload parity and a browser assertion for
 separate capture/playback sample rates. Lint/format and JS syntax pass. Tests use
 synthetic audio; no claim of a completed human listening comparison.
+
+### LiveKit Agents and Sarvam realtime voice — 2026-10-31
+
+Replaced the custom spoken conversation loop with LiveKit Agents 1.8.10 over local
+browser WebSocket audio IO. Removed batch utterance/NDJSON reply APIs, Jev voice
+routing and custom sentence synthesis workers. Sarvam Saaras v4 realtime handles
+partials/VAD with Nyx hints; Bulbul v4 Flash streams female Ritu speech, matching
+12 regenerated English/Hindi acknowledgement clips. Detected speech language flows
+into the reply and TTS. Native speech connection keepalives send no idle audio.
+
+LiveKit controls turns, interruption and token-to-speech scheduling. Visual tools
+skip the duplicate planner; cached acknowledgement and tool work overlap. Existing
+frame decoding/verification concurrency is retained. Follow-up/session gating,
+source attribution, authorized reminder operations and cancellation remain.
+
+Validation: 353 tests, lint/format, JS syntax and whitespace checks pass; provider
+checks used generated English/Hindi speech only. Isolated Chrome exercised actual
+STT/LLM/TTS, local-time replies, separate 16/24 kHz capture/playback, muted cleanup
+and video-only fake-camera capture with no JS errors. Synthetic vision fixtures
+exercise the tool path without sending real images. R6 records exact measurements.
+Full room-noise/echo interruption quality, p95 latency and faster LLM generation
+remain unvalidated; this does not establish subsecond end-to-end responses.

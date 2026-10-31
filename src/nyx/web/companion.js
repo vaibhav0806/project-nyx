@@ -65,11 +65,11 @@ const companion = {
     return { snapshot: canvas.toDataURL("image/jpeg", 0.75).split(",")[1], captured_at: new Date().toISOString() };
   },
 
-  async request(text, turn = null) {
+  async request(text, turn = null, initialAction = null) {
     if (this.working) throw new Error("Finish or stop the current companion request first.");
     this.interruptDelivery();
     this.working = true;
-    if (!turn) conversation.begin(text);
+    if (!turn && !initialAction) conversation.begin(text);
     const epoch = ++this.epoch;
     $("companion-stop").hidden = false;
     $("companion-send").disabled = true;
@@ -77,7 +77,7 @@ const companion = {
     this.job = null;
     try {
       if (epoch !== this.epoch) throw new Error("Request stopped");
-      const body = { ...this.reviewCandidate, message: text, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, request_id: turn?.id || crypto.randomUUID(), ...this.snapshot(), voice_turn_id: turn?.id || null };
+      const body = { ...this.reviewCandidate, message: text, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, request_id: turn?.request_id || turn?.id || crypto.randomUUID(), ...this.snapshot(), voice_turn_id: turn?.id || null, initial_action: initialAction };
       const headers = turn ? { "x-nyx-voice": voice.token, "content-type": "application/json" } : { "content-type": "application/json" };
       $("companion-status").textContent = "Checking evidence and deciding the next step…";
       const result = await task("/api/agent", { method: "POST", headers, body: JSON.stringify(body) }, (id) => {
@@ -86,7 +86,7 @@ const companion = {
       });
       if (epoch !== this.epoch) throw new Error("Request stopped");
       $("companion-status").textContent = result.answer;
-      if (!turn) conversation.answer(result.answer);
+      if (!turn && !initialAction) conversation.answer(result.answer);
       $("companion-steps").replaceChildren();
       for (const step of result.steps) {
         const line = document.createElement("p");

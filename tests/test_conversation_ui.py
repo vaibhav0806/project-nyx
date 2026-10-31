@@ -121,97 +121,25 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
             page.locator("#type-toggle").click()
             page.evaluate("conversation.configured = true; conversation.render();")
             page.screenshot(path=str(tmp_path / "conversation-desktop.png"))
-            page.evaluate(
-                "async () => { voice.token = 'fixture'; await voice.hear(new Int16Array(1600)); }"
-            )
-            expect(page.locator("#conversation-answer")).to_have_text(
-                "Hello Vaibhav. What would you like to know?"
-            )
-            expect(page.locator("#conversation-question")).to_have_text("Hello Nyx")
-            assert acknowledgements == []
-            expect(page.locator("#view-source")).not_to_be_visible()
-            expect(page.locator("#talk")).to_have_attribute("aria-label", "Talk to Nyx")
-            page.evaluate("voice.stop('Microphone muted.')")
-            expect(page.locator("#conversation-state")).to_have_text("Microphone muted.")
+            assert page.evaluate(r"""async () => {
+                voice.outputContext = new AudioContext({sampleRate: 24000});
+                await voice.outputContext.resume();
+                const epoch = voice.epoch;
+                await voice.receive({type: 'state', state: 'listening'}, epoch);
+                const idle = voice.wakeUntil === 0;
+                await voice.receive({type: 'question', text: 'Hello Nyx'}, epoch);
+                await voice.receive({type: 'text', text: 'Hello. What is on your mind?'}, epoch);
+                await voice.receive({type: 'audio', segment: 0, pcm: btoa('\0'.repeat(48000)), sample_rate: 24000}, epoch);
+                const queued = voice.sources.size > 0;
+                await voice.receive({type: 'clear', segment: 1}, epoch);
+                await voice.receive({type: 'audio', segment: 0, pcm: btoa('\0'.repeat(480)), sample_rate: 24000}, epoch);
+                await voice.receive({type: 'text', text: 'STALE'}, epoch - 1);
+                const stopped = voice.sources.size === 0;
+                await voice.stop('Microphone muted.');
+                return idle && queued && stopped && !document.getElementById('conversation-answer').textContent.includes('STALE');
+            }""")
             expect(page.locator("#mute .mic-slash")).to_be_visible()
             expect(page.locator("#talk .mic-slash")).to_be_visible()
-            page.route(
-                "**/api/voice/utterance",
-                lambda route: route.fulfill(
-                    content_type="application/json",
-                    body=json.dumps({"state": "listening", "reason": "wake_not_recognized"}),
-                ),
-            )
-            page.evaluate(
-                "async () => { voice.token = 'fixture'; await voice.hear(new Int16Array(1600)); }"
-            )
-            expect(page.locator("#conversation-state")).not_to_contain_text("not recognized")
-            assert page.evaluate("""async () => {
-                const originalApi = api, OriginalAudio = window.Audio;
-                let resolve, active = true, played = 0;
-                api = () => new Promise(done => { resolve = done; });
-                window.Audio = class {
-                    async play() { played++; }
-                    pause() {}
-                    removeAttribute() {}
-                };
-                try {
-                    const first = voice.sayChecking({id: 'fixture'}, () => active);
-                    resolve({audio: btoa('synthetic audio')});
-                    await first;
-                    const started = played === 1 && voice.playing;
-                    voice.stopPlayback();
-                    const late = voice.sayChecking({id: 'fixture'}, () => active);
-                    active = false;
-                    resolve({audio: btoa('late synthetic audio')});
-                    await late;
-                    return started && played === 1 && !voice.playing;
-                } finally { api = originalApi; window.Audio = OriginalAudio; }
-            }""")
-            assert page.evaluate(r"""async () => {
-                const originalFetch = window.fetch;
-                const context = new AudioContext({sampleRate: 16000});
-                await context.resume();
-                voice.context = context;
-                voice.token = 'stream-fixture';
-                let controller;
-                const stream = new ReadableStream({start(c) { controller = c; }});
-                window.fetch = async () => new Response(stream, {headers: {'content-type': 'application/x-ndjson'}});
-                const encode = new TextEncoder();
-                const send = event => controller.enqueue(encode.encode(JSON.stringify(event) + '\n'));
-                const pending = voice.streamReply({id: 'stream-fixture'}, null, () => true, 'attempt', performance.now());
-                try {
-                    controller.enqueue(encode.encode('{"type":"te'));
-                    controller.enqueue(encode.encode('xt","text":"First sentence."}\n'));
-                    send({type: 'audio', pcm: btoa('\0'.repeat(480)), sample_rate: 24000});
-                    await new Promise(resolve => setTimeout(resolve, 40));
-                    const early = document.getElementById('conversation-answer').textContent === 'First sentence.' && voice.playing;
-                    send({type: 'text', text: ' Second sentence.'});
-                    send({type: 'done', answer: 'First sentence. Second sentence.', timings: {}});
-                    controller.close();
-                    const result = await pending;
-                    const completed = result.answer === 'First sentence. Second sentence.' && !voice.playing && voice.context.sampleRate === 16000 && voice.outputContext.sampleRate === 24000;
-                    let secondController, active = true;
-                    const second = new ReadableStream({start(c) { secondController = c; }});
-                    window.fetch = async () => new Response(second, {headers: {'content-type': 'application/x-ndjson'}});
-                    const cancelled = voice.streamReply({id: 'cancelled'}, null, () => active, 'attempt', performance.now()).then(() => false, () => true);
-                    secondController.enqueue(encode.encode(JSON.stringify({type: 'audio', pcm: btoa('\0'.repeat(48000)), sample_rate: 24000}) + '\n'));
-                    await new Promise(resolve => setTimeout(resolve, 30));
-                    const queued = voice.pcmSources.size > 0;
-                    active = false;
-                    voice.stopPlayback();
-                    secondController.enqueue(encode.encode(JSON.stringify({type: 'text', text: 'STALE'}) + '\n'));
-                    secondController.close();
-                    return early && completed && queued && await cancelled && !voice.playing && voice.pcmSources.size === 0 && !document.getElementById('conversation-answer').textContent.includes('STALE');
-                } finally {
-                    window.fetch = originalFetch;
-                    voice.stopPlayback();
-                    await context.close();
-                    voice.context = null;
-                    await voice.outputContext?.close();
-                    voice.outputContext = null;
-                }
-            }""")
             page.set_viewport_size({"width": 390, "height": 844})
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
             page.screenshot(path=str(tmp_path / "conversation-mobile.png"))

@@ -140,14 +140,13 @@ def test_voice_wire_formats_cache_and_safe_failure():
         return BytesIO(b"\0\0" * 24000)
 
     provider = CloudVoice(OpenRouter("fake", transport))
-    assert provider.transcribe(b"\0\0" * 16000) == "Where are my glasses?"
     audio = provider.speak("hello")
-    assert provider.speak("hello") == audio and len(calls) == 2
+    assert provider.speak("hello") == audio and len(calls) == 1
     with wave.open(BytesIO(base64.b64decode(audio))) as wav:
         assert wav.getframerate() == 24000 and wav.getnframes() == 24000
     provider.client = OpenRouter("fake", lambda *a, **k: response({"error": "private"}))
     with pytest.raises(VoiceError):
-        provider.transcribe(b"\0\0" * 16000)
+        provider.speak("different")
 
 
 @pytest.mark.parametrize("fail", [False, True])
@@ -299,95 +298,6 @@ def test_parallel_history_does_not_hide_provider_failure():
 
     with pytest.raises(CloudError, match="Provider unavailable"):
         Verifier(client=object()).inspect_batch([1, 2, 3], "object")
-
-
-def test_jev_routes_general_chat_without_visual_agent():
-    requests = []
-
-    def transport(request, timeout):
-        payload = json.loads(request.data)
-        requests.append((request.full_url, payload))
-        if request.full_url.endswith("/alpha/decisions"):
-            return response({"answers": {"direct": {"type": "noul", "noul": 0.99}}})
-        return response(
-            {
-                "choices": [
-                    {
-                        "finish_reason": "stop",
-                        "message": {
-                            "content": '{"mode":"chat","reply":"A triangle has three sides."}'
-                        },
-                    }
-                ]
-            }
-        )
-
-    provider = CloudVoice(OpenRouter("fake", transport))
-    assert provider.route("How many sides does a triangle have?", []) == {
-        "mode": "direct",
-        "language": "en",
-        "lookup": False,
-    }
-    assert requests[0][0] == "https://openrouter.ai/api/alpha/decisions"
-    assert requests[0][1]["model"] == "typesafe/jev-1.14"
-    assert all(payload["provider"]["data_collection"] == "deny" for _, payload in requests)
-    assert len(requests) == 1
-
-
-@pytest.mark.parametrize("probability", [0, 0.5, 0.94])
-def test_jev_uncertainty_keeps_evidence_path(probability):
-    calls = []
-
-    def transport(request, timeout):
-        calls.append(request)
-        return response({"answers": {"direct": {"type": "noul", "noul": probability}}})
-
-    provider = CloudVoice(OpenRouter("fake", transport))
-    assert provider.route("Where did you see my glasses?", []) == {
-        "mode": "agent",
-        "language": "en",
-        "lookup": True,
-    }
-    assert len(calls) == 1
-
-
-@pytest.mark.parametrize(
-    "decision",
-    [
-        {},
-        {"type": "choice", "noul": 1},
-        {"type": "noul", "noul": True},
-        {"type": "noul", "noul": 1.1},
-    ],
-)
-def test_jev_invalid_output_is_not_a_direct_answer(decision):
-    provider = CloudVoice(
-        OpenRouter("fake", lambda *a, **k: response({"answers": {"direct": decision}}))
-    )
-    with pytest.raises(VoiceError, match="routing"):
-        provider.route("Where are my glasses?", [])
-
-
-def test_jev_classifies_hindi_lookup_without_generating_a_reply():
-    provider = CloudVoice(
-        OpenRouter(
-            "fake",
-            lambda *a, **k: response(
-                {
-                    "answers": {
-                        "direct": {"type": "noul", "noul": 0.1},
-                        "lookup": {"type": "noul", "noul": 0.99},
-                        "language": {"type": "choice", "choice": "hi"},
-                    }
-                }
-            ),
-        )
-    )
-    assert provider.route("मेरा फोन कहाँ है?", []) == {
-        "mode": "agent",
-        "language": "hi",
-        "lookup": True,
-    }
 
 
 def test_sarvam_streams_raw_pcm_and_does_not_expose_key():

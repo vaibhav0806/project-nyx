@@ -1,17 +1,22 @@
 # Nyx
 
-## Low-latency speech
+## Realtime voice
 
-The current local demo uses `NYX_TTS_MODEL=bulbul:v4-flash` and `SARVAM_API_KEY` in the
-ignored `.env`. It streams Sarvam speech at 24 kHz, using the same voice for answers
-and acknowledgements. Prepare matching English/Hindi clips after changing the speech model:
+Install the `voice` and `web` extras and configure server-only `SARVAM_API_KEY`
+and `OPENROUTER_API_KEY`. Spoken conversations use **LiveKit Agents**, Sarvam
+**Saaras v4 realtime STT**, and **Bulbul v4 Flash WebSocket TTS**. Ritu is the
+female voice for both answers and cached acknowledgements; English/Hindi follows
+the detected input language. Nyx keyterm hints help transcription. Local wake
+recognition keeps idle audio on the laptop.
+
+The browser connects over the existing localhost WebSocket; no LiveKit account
+or separate room server is required. Prepare matching English/Hindi clips once:
 
 ```sh
 uv run --env-file .env --no-sync python -m nyx.speech --prepare data/cloud-demo
 ```
 
-Without `NYX_TTS_MODEL`, speech uses the existing OpenRouter Gemini/Kore configuration.
-Measured synthesis latency and remaining limits: [R6 voice findings](docs/research/R6-handsfree-voice.md).
+Measured timings and limits: [R6 voice findings](docs/research/R6-handsfree-voice.md).
 
 ## Conversation demo
 
@@ -57,11 +62,11 @@ Cloud inference through **OpenRouter** is the primary path. There is no local
 LLM/VLM fallback. The custom Python agent chooses tools, constructs contextual
 queries, reviews observations, and asks for clarification. No LangChain is needed.
 
-- **Spoken intent gate:** `typesafe/jev-1.14`; general replies use Luna directly.
+- **Spoken turns and tool selection:** LiveKit Agents with streaming Luna.
 - **Reasoning:** `openai/gpt-6-luna`; **vision:** `google/gemini-3.5-flash-lite`.
 - **Image/text embeddings:** `google/gemini-embedding-2`, 768 dimensions.
-- **Activated transcription:** `openai/gpt-4o-mini-transcribe`.
-- **Speech:** `google/gemini-3.8-flash-lite-tts`, Kore voice.
+- **Activated transcription:** Sarvam `saaras:v4` realtime WebSocket.
+- **Speech:** Sarvam `bulbul:v4-flash`, female Ritu voice.
 - **Local:** Whisper tiny.en CPU/int8 wake recognition, inexpensive activity
   filtering, small MobileNet person detector, recording files and SQLite storage.
 
@@ -116,9 +121,8 @@ speech credits; generated audio stays under the ignored data directory):
 uv run --env-file .env --no-sync python -m nyx.speech --prepare data/cloud-demo
 ```
 
-Voice replies now stream text and PCM speech after Jev routes the question.
-Cached acknowledgements play only for context lookups. See
-[streaming architecture](docs/architecture.md#streaming-speech-pipeline--2026-10-31).
+Voice replies stream through LiveKit Agents over `/api/voice/live`. The old
+batch utterance and NDJSON reply endpoints have been removed.
 
 Open **http://127.0.0.1:8000**. A configured page requests camera/microphone permission
 and starts capture and local wake listening automatically. The server process alone

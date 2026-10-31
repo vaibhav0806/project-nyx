@@ -684,3 +684,37 @@ recordings, retain requested 1280x720 resolution and VP8-first codec support,
 request at most 15 fps and target 1 Mbps rather than 2.5 Mbps. No post-upload
 transcoding worker, automatic expiry, deletion or changes to originals. Preserve
 continuous segments and the 1 GiB stop policy. See R11 for measured replay limits.
+
+## LiveKit Agents voice migration — 2026-10-31
+
+Spoken conversations now run through LiveKit Agents 1.8.10. The browser streams
+20 ms mono PCM frames over the authenticated local `/api/voice/live` WebSocket;
+custom LiveKit audio input/output adapters connect that socket to `AgentSession`.
+This uses LiveKit's conversation runtime without a separate LiveKit room server.
+LiveKit owns turn completion, interruption, LLM streaming, sentence-aware TTS and
+speech scheduling. The old utterance upload, Jev voice router, NDJSON reply loop,
+and custom sentence-synthesis workers have been removed. Typed requests retain
+the existing bounded visual agent.
+
+Sarvam `saaras:v4` uses `/speech-to-text-realtime/ws`, fast partial transcripts,
+server VAD (400 ms silence, 250 ms minimum speech), `Nyx` keyterms and a short
+English/Hindi terminology prompt. LiveKit adds no extra endpointing minimum.
+The small STT protocol adapter is necessary because the installed Sarvam plugin
+uses the legacy STT endpoint. Application pings keep the socket open without
+uploading idle audio. Auto language detection is not a hard two-language decoder
+restriction; English/Hindi are the supported response languages.
+
+Sarvam `bulbul:v4-flash` uses the LiveKit WebSocket TTS plugin at 24 kHz. Ritu
+(`ritu_en_reels`, `ritu_hi_conversation`) replaces Shubh. Twelve cached clips use
+the same voice settings. A lookup starts its cached acknowledgement alongside
+the tool; a general question has no checking filler. Missing clips skip filler
+rather than adding synthesis latency. The streamed LLM selects tools directly;
+visual tool calls bypass the old duplicate planner and return checked evidence.
+The existing authorization and evidence validation still apply.
+
+Local wake detection remains separate from conversational endpointing. Initial
+LiveKit listening does not activate cloud audio. Explicit activation/wake and a
+short follow-up window gate outgoing audio. Source checks, cancellation, playback
+segment IDs and browser epochs prevent obsolete results/audio from completing a
+new turn. Logs include provider request IDs, STT endpoint-to-final delay, LLM TTFT,
+TTS first-byte time and browser playback-start timing after the transcript.

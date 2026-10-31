@@ -29,6 +29,7 @@ class ConfirmMatchRequest(BaseModel):
 
 
 class AgentRequest(BaseModel):
+    initial_action: dict | None = None
     timezone: str | None = Field(default=None, max_length=100)
     message: str = Field(min_length=1, max_length=1500, pattern=r"\S")
     request_id: str = Field(min_length=1, max_length=100)
@@ -485,13 +486,21 @@ def install_companion(app, workspace, voice):
                 def decide(state):
                     decision_started = time.perf_counter()
                     verifier = workspace.visual_verifier()
-                    action = verifier.decide(
-                        {
-                            **state,
-                            "now": local_now(body.timezone).isoformat(),
-                            "user_timezone": body.timezone or str(now.tzinfo),
-                            "reminders": tasks.active(),
-                        }
+                    action = (
+                        (
+                            {"action": "finish", "observation": len(state["observations"]) - 1}
+                            if state["observations"]
+                            else body.initial_action
+                        )
+                        if body.initial_action
+                        else verifier.decide(
+                            {
+                                **state,
+                                "now": local_now(body.timezone).isoformat(),
+                                "user_timezone": body.timezone or str(now.tzinfo),
+                                "reminders": tasks.active(),
+                            }
+                        )
                     )
                     conversations.event(
                         "agent_decision",

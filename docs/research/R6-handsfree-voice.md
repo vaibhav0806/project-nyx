@@ -1,5 +1,52 @@
 # R6 — Initial hands-free voice findings
 
+## LiveKit and Sarvam realtime validation — 2026-10-31
+
+This section supersedes the older batch and custom streaming implementations below.
+Python 3.12; LiveKit Agents/Sarvam/OpenAI plugins 1.8.10; local macOS development
+machine. Only generated speech and isolated temporary data were used; no real
+microphone/camera or household images were used for these checks.
+
+Sources checked: [Sarvam realtime protocol](https://docs.sarvam.ai/api/api-guides-tutorials/speech-to-text/realtime-streaming),
+[keyterms](https://docs.sarvam.ai/api/api-guides-tutorials/speech-to-text/how-to/keyterms),
+[STT best practices](https://docs.sarvam.ai/api/api-guides-tutorials/speech-to-text/best-practices),
+[voice catalog](https://docs.sarvam.ai/api/api-guides-tutorials/text-to-speech/voices),
+[LiveKit turn tuning](https://docs.livekit.io/agents/logic/turns/tuning/).
+The supplied Libretto repository was cloned without installing dependencies at
+commit `843f85ebc8d9222cf891545641706492b6db9860`. It uses a custom runtime; its
+persistent provider streams and cancellation informed this review, but Nyx uses
+actual LiveKit Agents. The installed Sarvam STT plugin still targets the legacy
+endpoint, so a small SpeechStream adapter maps realtime VAD/partial/final events.
+The native LiveKit Sarvam TTS plugin supports the v4 streaming endpoint.
+
+Measured single-request synthesis: Ritu English first audio **335 ms**. Synthetic
+paced STT returned partials during input and final text **68 ms** after the provider
+end-of-speech event in one isolated test; **144 ms** in the integrated test. These
+numbers exclude the endpoint silence window and are not acoustic-end-to-answer.
+
+Integrated generated clock question: **2419 ms** from the end of paced input to
+first audio received on the browser socket, LLM TTFT **1251 ms**, TTS first byte
+**232 ms**, TTS connection reused. The answer used Asia/Kolkata local time.
+A separate Hindi turn returned a Hindi answer in **2552 ms** to first socket audio.
+This test acknowledges playback programmatically and does not measure speaker
+output or room echo. No claim of subsecond total latency or p95 is supported.
+The model generation delay remains material. Provider timings are logged locally.
+An isolated headless Chrome check additionally streamed generated audio through the
+real browser microphone pipeline, played the response, and released media on mute.
+Capture ran at 16 kHz, playback at 24 kHz, and synthetic video had no audio track.
+No browser JavaScript errors occurred. A synthetic visual-tool fixture also exposed
+an unhelpful standalone “in the center” location, which is now omitted while
+physical locations such as “the center of the table” remain intact.
+
+An early integration test invalidated speculative generation by mutating turn
+context in the completion hook; moving dynamic time/language context into the LLM
+node removed that redundant generation. Playback segment tests cover duplicate
+completion and late acknowledgements after cancellation. Initial listening is
+explicitly tested not to open the cloud-audio gate. Old batch-loop tests and the
+old standalone browser fixture were retired with those APIs; deterministic
+`tests/test_realtime.py` and the conversation browser test cover the new adapters.
+
+
 Date: 2026-10-19. Status: first developer smoke, not intended-user or room-noise validation. User selected Sarvam and explicitly wants automatic app/device startup with wake-by-name activation, like Alexa/Siri. Automated tests use synthetic camera/audio; that rule does not restrict product behavior.
 
 ## Setup and source-reported contracts
@@ -39,7 +86,7 @@ Ignored artifact: `data/runs/voice-integrated-001/results.json`. This used Saara
 
 `tests/test_voice.py` exercises wake-prefix boundaries, idle/silent audio staying local, name-only/name-plus-question activation, expiry, session ownership, bounds, cancelled cloud stages/audio, constrained plan validation, conversation restart/source invalidation and authoritative visual-result matching. The full suite includes existing capture/history/visual tests; see the implementation plan for the latest run count.
 
-`tests/voice_browser_smoke.py` starts a separate temporary server and isolated headless Chrome with synthetic camera/microphone devices. It uses real local wake ASR, with mocked cloud requests and visual judgments. No user's camera or microphone is opened. `data/runs/web-voice-003/` and the v4-generated-speech rerun `data/runs/web-voice-v4-001/` record automatic camera/mic startup, generated wake speech, current-view dispatch, reply playback, video-only recording streams, independent mute, camera stop also muting, conversation reload, permission denial and cleanup of microphone tracks arriving after cancellation. Chrome version: 155.0.8059.80. Provider behavior was exercised separately above.
+The now-retired `tests/voice_browser_smoke.py` started a separate temporary server and isolated headless Chrome with synthetic camera/microphone devices. It uses real local wake ASR, with mocked cloud requests and visual judgments. No user's camera or microphone is opened. `data/runs/web-voice-003/` and the v4-generated-speech rerun `data/runs/web-voice-v4-001/` record automatic camera/mic startup, generated wake speech, current-view dispatch, reply playback, video-only recording streams, independent mute, camera stop also muting, conversation reload, permission denial and cleanup of microphone tracks arriving after cancellation. Chrome version: 155.0.8059.80. Provider behavior was exercised separately above.
 
 Re-run with a generated permitted 16 kHz mono PCM WAV containing a wake-prefixed question:
 

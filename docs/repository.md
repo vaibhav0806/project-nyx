@@ -119,3 +119,7 @@ and `detectors.py` compares two small detector candidates independently of Qwen.
 Qwen3.5 8-bit model. `verification.py` retains shared prompts, parsing, evidence and
 legacy diagnostics. `test_mlx_runtime.py` checks ordered media, text-only routing and
 load parameters without loading real weights.
+
+`src/nyx/realtime.py` connects LiveKit Agents to browser PCM and the Sarvam realtime
+STT protocol. `speech.py` now only prepares cached acknowledgement clips; `voice.py`
+retains local wake/session gating, persistence, evidence wording and reminder speech.

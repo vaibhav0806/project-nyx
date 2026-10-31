@@ -17,6 +17,29 @@ from nyx.app import create_app
 pytest_plugins = ["test_nyx"]
 
 
+def test_livekit_selected_tool_skips_redundant_planner_calls(tmp_path):
+    class ToolOnly(Planner):
+        def decide(self, state):
+            raise AssertionError("LiveKit has already selected this tool")
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=ToolOnly)
+    ) as client:
+        response = client.post(
+            "/api/agent",
+            json={
+                "message": "Where is green?",
+                "request_id": "livekit-tool",
+                "initial_action": {"action": "inspect_current", "query": "green"},
+                "snapshot": snapshot(),
+                "captured_at": datetime.now(UTC).isoformat(),
+            },
+        )
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "succeeded"
+        assert job["result"]["answer"].startswith("I can see green")
+
+
 class Planner:
     fingerprint: ClassVar[dict] = {"model": "deterministic-fixture"}
 
@@ -419,13 +442,19 @@ def test_voice_agent_reply_requires_the_authoritative_matching_turn(tmp_path):
                 "captured_at": datetime.now(UTC).isoformat(),
             },
         ).json()
-        wait_for_job(client, job["id"])
-        reply = client.post(
-            "/api/voice/reply", headers=headers, json={"turn_id": identifier, "job_id": job["id"]}
+        result = wait_for_job(client, job["id"])
+        assert result["result"]["answer"].startswith("I can see green")
+        speaker.turn = None
+        rejected = client.post(
+            "/api/agent",
+            headers=headers,
+            json={
+                "message": "Where is green?",
+                "voice_turn_id": identifier,
+                "request_id": "expired",
+            },
         )
-        assert reply.status_code == 200, reply.text
-        assert reply.json()["answer"].startswith("I can see green")
-        assert reply.json()["audio"] == "fixture-audio"
+        assert rejected.status_code == 409
 
 
 def test_agent_falls_back_to_recent_verified_history_instead_of_an_old_match(tmp_path, video):

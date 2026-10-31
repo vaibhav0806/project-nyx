@@ -1,5 +1,16 @@
 # Product design
 
+## Voice runtime update — 2026-10-31
+
+The user explicitly requested replacing the custom conversation loop with LiveKit
+Agents and using Sarvam streaming STT/TTS. English/Hindi replies follow detected
+speech language; a cheerful female Ritu voice is shared by cached acknowledgements
+and streamed answers. Idle audio remains behind the local wake gate. Transport is
+the existing local browser WebSocket, with LiveKit custom audio IO; no room server
+or additional cloud account is needed. This supersedes older batch/NDJSON/Jev voice
+loop descriptions below. See [architecture](architecture.md#livekit-agents-voice-migration--2026-10-31)
+and [R6](research/R6-handsfree-voice.md) for implementation and measured limits.
+
 ## Companion character — 2026-10-31
 
 Nyx is calm, relaxed, attentive and a little witty: a perceptive friend with a dry
