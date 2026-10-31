@@ -1,5 +1,13 @@
 # Scope
 
+## Product direction — 2026-10-31
+
+The agreed [product direction](../product.md) positions Nyx around independence for
+older adults living alone or in senior living. Stationary hardware, lasting memory,
+familiar-person recognition, scheduled reminders, and requested contact calls are
+product goals, not newly implemented capabilities or expanded implementation permissions.
+Existing capture, identity, retention, and action boundaries remain in force.
+
 ## Companion voice selection — 2026-10-31
 
 The current voice is Shalini Companion: `shalini_en_companion` for English and

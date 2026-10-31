@@ -22,7 +22,7 @@ These moments interrupt everyday life. For older adults, repeated difficulty fin
 
 Nyx is being built to support that independence. Its starting point is practical help at home: let someone ask about their surroundings in their own words and get an answer they can act on. No need to remember a filename, scroll through recordings, or learn a set of commands.
 
-**The mission is to help people live on their own terms for longer.** Older adults living at home are the starting audience; the interaction is designed to be useful to anyone who could use a little help remembering everyday moments.
+**The mission is to help people live on their own terms for longer.** Older adults living alone at home or in senior living are the primary audience. The agreed [product direction](product.md) centers on independence, with everyday recall as the starting point.
 
 ## What you can do with Nyx
 
@@ -200,6 +200,8 @@ The local `conversations.sqlite3` database retains activated transcripts and the
 </details>
 
 ## Product and engineering docs
+
+- [Product direction](product.md): positioning, audience, promise, and intended hardware experience.
 
 - [Product design](docs/design.md): mission, interaction principles, and Nyx's personality.
 - [Scope](docs/scope.md): current capabilities, data boundaries, and planned work.
