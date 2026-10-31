@@ -722,3 +722,11 @@ Validation: 363 tests pass, including equivalent-offset elapsed times, 37-minute
 rounding, unknown/future timestamps, spoken/typed clock shortcuts, local planner
 context and browser timezone transport. Python lint/format and JS syntax pass.
 No real camera/microphone or paid model calls used for these changes.
+
+### Physical location wording — 2026-10-31
+
+Removed the vision prompt's invitation to use image position in the conversational
+location field. Current and historical reply formatting drops camera-coordinate
+clauses while preserving physical landmarks. Seven regression cases cover the
+reported right-hand example, coordinate-only locations and actual table positions.
+370 tests, lint, format and whitespace checks pass. No cloud or hardware calls.

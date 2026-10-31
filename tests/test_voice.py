@@ -780,3 +780,33 @@ def test_unknown_or_future_sightings_do_not_invent_elapsed_time():
     assert relative_time(None, now) is None
     assert relative_time("2026-10-31T13:00:00+00:00", now) is None
     assert relative_time("2026-10-31T11:00:00", now) is None
+
+
+@pytest.mark.parametrize(
+    "location, expected",
+    [
+        ("held in the right hand near the center of the image", "in the right hand"),
+        ("on the table, in the lower right corner of the frame", "on the table"),
+        ("near the center of the image, beside the laptop", "beside the laptop"),
+        ("on the right side of the table", "on the right side of the table"),
+        ("at the center of the image", ""),
+        ("center", ""),
+        ("on the center table", "on the center table"),
+    ],
+)
+def test_spoken_locations_keep_landmarks_not_image_coordinates(location, expected):
+    from nyx.voice import spoken_answer, spoken_location
+
+    assert spoken_location(location) == expected
+    result = {
+        "kind": "snapshot",
+        "status": "seen",
+        "object_query": "a phone",
+        "judgment": {"location": location},
+    }
+    answer = spoken_answer(result)
+    assert "image" not in answer and "frame" not in answer
+    if expected:
+        assert expected in answer
+    else:
+        assert answer == "I can see a phone."

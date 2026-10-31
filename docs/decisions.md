@@ -1,5 +1,14 @@
 # Decisions and open choices
 
+## Physical landmarks in conversation — 2026-10-31
+
+The vision location field now requests everyday physical landmarks rather than
+image coordinates. Candidate-selection reasoning may retain image positions in
+its description. Spoken current/history answers strip common image-coordinate
+phrases from existing results and omit a location when only a screen position is
+known. Preserve actual hand/table landmarks without inventing whose hand it is.
+
+
 ## Natural replies and browser-local time — 2026-10-31
 
 Use rounded elapsed time for spoken historical sightings, with the checked location when available. Remove the stock image-review and verification disclaimer from conversation; express candidate identity with a brief “I think”. Exact timestamps and evidence metadata remain available in View source. Unknown or future capture times must not become invented relative times. Attributed user statements remain quotes, without boilerplate. Browser IANA timezone accompanies typed and spoken requests. Simple current-clock questions are deterministic; other agent requests receive a local-offset current time and timezone. No model call is needed to read the clock.

@@ -109,6 +109,26 @@ def relative_time(value, now=None):
     return "about a day ago" if days == 1 else f"about {days} days ago"
 
 
+def spoken_location(location):
+    if not location:
+        return ""
+    location = re.sub(
+        r"\b(?:near|at|in|on|towards?)\s+(?:the\s+)?"
+        r"(?:(?:upper|lower|top|bottom|left|right|middle|center|centre)\s*)+"
+        r"(?:corner|side|part|portion)?\s+(?:of\s+)?(?:the\s+)?(?:image|frame|picture|photo|view)\b",
+        "",
+        location,
+        flags=re.IGNORECASE,
+    ).strip(" ,.;")
+    if re.fullmatch(
+        r"(?:the )?(?:center|centre|foreground|background|middle|top|bottom|left|right)",
+        location,
+        re.IGNORECASE,
+    ):
+        return ""
+    return re.sub(r"^held\s+(?=in\b)", "", location, flags=re.IGNORECASE)
+
+
 def spoken_answer(result, *, now=None):
     kind = result.get("kind")
     query = result.get("object_query", "that object")
@@ -118,7 +138,8 @@ def spoken_answer(result, *, now=None):
         return "Which one do you mean? What does it look like?"
     if kind == "snapshot":
         if result.get("status") == "seen":
-            return f"I can see {query} {result['judgment'].get('location') or 'in this view'}."
+            location = spoken_location(result["judgment"].get("location"))
+            return f"I can see {query}{' ' + location if location else ''}."
         return f"I can't clearly see {query} in this view."
     if kind == "history":
         evidence = result.get("evidence")
@@ -129,7 +150,7 @@ def spoken_answer(result, *, now=None):
                 if re.match(r"^(?:a|an|the|your|that|those)\b", query, re.IGNORECASE)
                 else f"your {query}"
             )
-            location = evidence.get("judgment", {}).get("location")
+            location = spoken_location(evidence.get("judgment", {}).get("location"))
             place = f", {location.rstrip('.')}" if location else ""
             answer = (
                 f"I think I saw {noun} {when}{place}."
