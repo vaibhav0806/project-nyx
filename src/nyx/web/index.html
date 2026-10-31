@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
   <script src="/voice.js" defer></script>
+  <script src="/markdown-it.js" defer></script>
   <script src="/companion.js" defer></script>
 </head>
 <body>
@@ -20,7 +21,7 @@
   <main class="conversation">
     <section class="conversation-stage" aria-label="Conversation">
       <p id="conversation-question" class="question" hidden></p>
-      <h1 id="conversation-answer" aria-live="polite">What would you like to know?</h1>
+      <div id="conversation-answer" aria-live="polite"><h1>What would you like to know?</h1></div>
       <p id="conversation-hint">Say “Hey Nyx” or tap the microphone.</p>
       <button id="view-source" class="quiet-button" hidden>View source <span aria-hidden="true">›</span></button>
     </section>

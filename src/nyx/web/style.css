@@ -21,7 +21,7 @@ button.quiet-button:hover, button.icon-button:hover { color: #f1f0ec; background
 .icon-button { width: 44px; padding: 10px; display: grid; place-items: center; }
 .conversation { min-height: calc(100svh - 100px); display: flex; flex-direction: column; align-items: center; padding: 20px 28px 44px; }
 .conversation-stage { flex: 1; width: min(100%, 900px); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 70px 0 56px; }
-h1 { max-width: 100%; margin: 0; font-size: clamp(30px, 3.2vw, 46px); line-height: 1.3; letter-spacing: -1.1px; font-weight: 400; overflow-wrap: anywhere; white-space: pre-line; text-wrap: balance; }
+h1, #conversation-answer { max-width: 100%; margin: 0; font-size: clamp(30px, 3.2vw, 46px); line-height: 1.3; letter-spacing: -1.1px; font-weight: 400; overflow-wrap: anywhere; white-space: pre-line; text-wrap: balance; }
 .question { color: var(--muted); font-size: 18px; line-height: 1.6; margin: 0 0 32px; max-width: 680px; overflow-wrap: anywhere; }
 #conversation-hint { color: var(--muted); font-size: 19px; line-height: 1.6; margin: 24px 0 0; }
 #view-source { font-size: 14px; margin-top: 24px; }
@@ -116,4 +116,18 @@ details { margin: 20px 0; } summary { cursor: pointer; padding: 10px 0; color: #
 }
 
 .conversation-stage.has-answer { justify-content: flex-start; padding-top: clamp(48px, 13vh, 120px); }
-.conversation-stage.has-answer h1 { width: 100%; min-height: 5.2em; text-wrap: wrap; }
+.conversation-stage.has-answer #conversation-answer { width: 100%; min-height: 5.2em; text-wrap: wrap; }
+
+#conversation-answer { white-space: normal; }
+#conversation-answer > :first-child { margin-top: 0; }
+#conversation-answer > :last-child { margin-bottom: 0; }
+#conversation-answer p { margin: 0 0 .6em; }
+#conversation-answer strong { font-weight: 600; }
+#conversation-answer :is(h1, h2, h3, h4, h5, h6) { font-size: 1em; line-height: inherit; }
+#conversation-answer :is(ul, ol, blockquote, pre) { text-align: left; font-size: .65em; margin: .7em 0; }
+#conversation-answer code { font-size: .8em; background: #232629; border-radius: 4px; padding: .08em .2em; }
+#conversation-answer pre { overflow-x: auto; padding: .7em; background: #232629; border-radius: 8px; }
+#conversation-answer pre code { font-size: 1em; padding: 0; }
+#conversation-answer a { color: inherit; text-underline-offset: .15em; }
+#conversation-answer table { font-size: .6em; border-collapse: collapse; width: 100%; }
+#conversation-answer :is(th, td) { padding: .3em; border-bottom: 1px solid #34383a; }

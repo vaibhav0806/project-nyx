@@ -123,3 +123,7 @@ load parameters without loading real weights.
 `src/nyx/realtime.py` connects LiveKit Agents to browser PCM and the Sarvam realtime
 STT protocol. `speech.py` now only prepares cached acknowledgement clips; `voice.py`
 retains local wake/session gating, persistence, evidence wording and reminder speech.
+
+`src/nyx/web/markdown-it.js` vendors the markdown-it 15.0.3 UMD browser bundle
+from its npm release (archive integrity checked), with the MIT license included.
+It is served locally; rendering answers requires no external CDN request.

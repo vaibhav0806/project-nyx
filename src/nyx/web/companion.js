@@ -1,5 +1,7 @@
 "use strict";
 
+const answerMarkdown = window.markdownit({ html: false, breaks: true }).disable("image");
+
 const conversation = {
   configured: false,
   status: "Connecting",
@@ -25,7 +27,7 @@ const conversation = {
     const words = remaining.match(/\S+\s*|\s+/gu) || [];
     const word = words[0] || remaining;
     this.shownAnswer += word;
-    $("conversation-answer").textContent = this.shownAnswer;
+    $("conversation-answer").innerHTML = answerMarkdown.render(this.shownAnswer);
     const pause = /[.!?।]\s*$/.test(word) ? 500 : /[,;:]\s*$/.test(word) ? 380 : 260;
     this.revealTimer = setTimeout(() => this.reveal(), pause);
   },
@@ -68,7 +70,7 @@ const conversation = {
     if (synchronized || matchMedia("(prefers-reduced-motion: reduce)").matches) {
       this.stopReveal();
       this.answerTarget = this.shownAnswer = text;
-      answer.textContent = text;
+      answer.innerHTML = answerMarkdown.render(text);
     } else if (this.revealTimer === null) {
       answer.setAttribute("aria-busy", "true");
       this.reveal();

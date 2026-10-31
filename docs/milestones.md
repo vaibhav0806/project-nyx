@@ -855,3 +855,11 @@ Anchored the answer area and disabled balanced rewrapping during replies. Regres
 checks verify no text before playback, interrupted text stops, fixed fallback pacing,
 and stable vertical position. Synthetic Chrome voice playback passed without JS
 errors. Timing is estimated because Sarvam exposes no exact word timestamps.
+
+### Render answer Markdown — 2026-10-31
+
+The answer frontend now renders Markdown instead of displaying literal formatting
+markers. Locally bundled markdown-it 15.0.3 handles emphasis, lists, code and links;
+raw HTML is disabled. Typed reveal and speech-synchronized updates share the same
+renderer. Browser checks cover the reported Halloween example, split streamed
+emphasis, lists/code, unsafe HTML/link rejection and mobile width.

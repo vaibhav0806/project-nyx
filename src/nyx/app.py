@@ -394,6 +394,10 @@ def create_app(
     def voice_javascript():
         return FileResponse(WEB / "voice.js", media_type="text/javascript")
 
+    @app.get("/markdown-it.js")
+    def markdown_javascript():
+        return FileResponse(WEB / "markdown-it.js", media_type="text/javascript")
+
     @app.get("/audio-worklet.js")
     def audio_worklet():
         return FileResponse(WEB / "audio-worklet.js", media_type="text/javascript")

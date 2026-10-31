@@ -163,6 +163,27 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
             hindi = "आपका फोन आपके हाथ में था।"
             page.evaluate("text => conversation.answer(text)", hindi)
             expect(page.locator("#conversation-answer")).to_have_text(hindi)
+            page.evaluate(
+                "conversation.answer('Yes—today is **Halloween**, on October 31. 🎃', true)"
+            )
+            expect(page.locator("#conversation-answer strong")).to_have_text("Halloween")
+            expect(page.locator("#conversation-answer")).not_to_contain_text("**")
+            page.evaluate(
+                "conversation.answer('Try *this* and `that`.\\n\\n- First\\n- Second', true)"
+            )
+            expect(page.locator("#conversation-answer em")).to_have_text("this")
+            expect(page.locator("#conversation-answer code")).to_have_text("that")
+            expect(page.locator("#conversation-answer li")).to_have_count(2)
+            page.evaluate(
+                "conversation.answer('A **streamed', true); conversation.answer('A **streamed answer**.', true)"
+            )
+            expect(page.locator("#conversation-answer strong")).to_have_text("streamed answer")
+            page.evaluate(
+                "conversation.answer('<img src=x onerror=alert(1)> [bad](javascript:alert(1))', true)"
+            )
+            expect(page.locator("#conversation-answer img")).to_have_count(0)
+            expect(page.locator("#conversation-answer a")).to_have_count(0)
+            page.evaluate("conversation.answer('Your **phone** was on the table.', true)")
             page.set_viewport_size({"width": 390, "height": 844})
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
             page.screenshot(path=str(tmp_path / "conversation-mobile.png"))
