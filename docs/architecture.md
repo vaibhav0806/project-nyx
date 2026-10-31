@@ -1,5 +1,48 @@
 # Technical architecture
 
+## Streaming speech pipeline — 2026-10-31
+
+```mermaid
+flowchart TD
+    A[Local activation and completed utterance] --> B[Activated STT]
+    B --> C[Jev: route, lookup, language]
+    C -->|Direct question| D[Luna token stream]
+    C -->|Lookup| E[Existing retrieval and evidence checks]
+    C -->|Action only| F[Existing authorized agent tools]
+    C -->|Lookup only| G[Cached English or Hindi acknowledgement]
+    E --> H[Checked answer]
+    F --> H
+    H -->|English| I[Ready answer text]
+    H -->|Hindi| D
+    D --> J[Sentence buffer]
+    I --> J
+    J --> K[Two concurrent TTS requests, ordered PCM output]
+    K --> L[NDJSON text and audio events]
+    L --> M[Bounded Web Audio playback queue]
+```
+
+`cloud.py` parses bounded SSE token streams and incrementally reads PCM responses.
+`speech.py` holds punctuation-aware sentence buffering (English/Hindi, decimal and
+abbreviation handling), three waiting sentences, two synthesis requests, bounded
+per-sentence audio queues and 16 outbound events. Long unpunctuated clauses split
+at whitespace. Playback schedules 24 kHz mono samples without dropping odd-byte
+transport fragments; the browser limits queued audio to roughly three seconds.
+
+`/api/voice/reply` accepts `stream: true` and returns NDJSON text/audio/done/error
+messages. Existing session, turn, job, source and cancellation checks still apply.
+A completed stream persists its answer; failed/cancelled streams are interrupted.
+A stop, wake interrupt or disconnect signals cancellation, drops queued audio and
+closes streaming iterators. Already-running provider calls may remain blocked
+until bytes arrive or the 30-second transport timeout; cancellation cannot undo
+provider billing. Browser playback has its own epoch guard and AbortController.
+
+Only voice output uses this pipeline. Typed input retains its agent flow. STT still
+accepts a completed activated utterance; no idle audio is streamed to the cloud.
+Tool/planner JSON and evidence checks must complete validation before their results
+can be spoken. Frame decoding and visual checks run in bounded parallel batches;
+ordering, candidate scope and timestamps are unchanged.
+
+
 ## Conversation time handling — 2026-10-31
 
 `voice.py` formats elapsed sightings by subtracting aware timestamps, so relative time is independent of timezone and DST. `local_now` uses the browser IANA zone; clients omitting it use the laptop local timezone. Typed requests carry `timezone`; voice requests carry `x-nyx-timezone`. Current-clock replies bypass generation. The companion supplies local `now` and `user_timezone` to the planner; storage and temporal filtering continue using UTC. Speech and main text share the same short historical answer; evidence metadata remains exact.

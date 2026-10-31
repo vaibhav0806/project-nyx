@@ -730,3 +730,24 @@ location field. Current and historical reply formatting drops camera-coordinate
 clauses while preserving physical landmarks. Seven regression cases cover the
 reported right-hand example, coordinate-only locations and actual table positions.
 370 tests, lint, format and whitespace checks pass. No cloud or hardware calls.
+
+### Two-stage streaming voice — 2026-10-31
+
+Implemented Jev route/lookup/language classification before stage-two generation
+or tool work; general questions and action-only requests have no lookup filler.
+Prepared twelve local acknowledgement clips, six English and six Hindi. Missing
+clips skip filler instead of synthesizing it during a turn. General replies and
+Hindi translation stream into sentence buffering and two concurrent, ordered TTS
+streams. Existing English evidence answers go directly to streaming speech.
+Browser PCM playback is bounded, interruptible, and starts before the full answer
+finishes. Removed per-turn warmup and parallelized independent frame decoding.
+
+Validation: 384 tests pass; lint/format, JS syntax and whitespace checks pass.
+Tests include real localhost HTTP delivery before generation completes, disconnect
+cleanup, wake/stop cancellation, no filler for QA, and ordered concurrent synthesis.
+A real-HTTP test exposed delayed cleanup on disconnect; the response now explicitly
+closes its iterator under cancellation shielding. Synthetic English/Hindi provider
+checks and limitations are recorded in [R6](research/R6-handsfree-voice.md#two-stage-streaming-checks--2026-10-31).
+No real camera/microphone or private-media inputs used in developer verification.
+Provider first-audio delay, real-room interruption quality and p95 latency remain
+open. Later chunks/requests cannot remove those provider or retrieval dependencies.

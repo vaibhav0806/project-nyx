@@ -684,26 +684,26 @@ def test_checking_acknowledgement_does_not_complete_turn(tmp_path):
     voice = Voice(tmp_path, provider, lambda _: "Hey Nyx find my glasses", agent_mode=True)
     token = voice.start()["token"]
     turn = voice.utterance(token, audio())
+    from nyx.speech import ACKNOWLEDGEMENTS, acknowledgement_path
+
+    path = acknowledgement_path(tmp_path, "", ACKNOWLEDGEMENTS["en"][0])
+    path.parent.mkdir()
+    path.write_bytes(b"RIFFcached")
     assert voice.acknowledgement(token, turn["id"])["audio"]
+    assert not any(isinstance(call, tuple) and call[0] == "tts" for call in provider.calls)
     assert voice.turn["id"] == turn["id"]
     voice.cancel(token)
     with pytest.raises(VoiceError):
         voice.acknowledgement(token, turn["id"])
 
 
-def test_cancel_during_acknowledgement_drops_audio(tmp_path):
+def test_missing_acknowledgement_never_synthesizes_on_request(tmp_path):
     provider = Provider()
-    voice = Voice(tmp_path, provider, lambda _: "Hey Nyx find my glasses", agent_mode=True)
+    voice = Voice(tmp_path, provider, lambda _: "Hey Nyx find glasses", agent_mode=True)
     token = voice.start()["token"]
     turn = voice.utterance(token, audio())
-
-    def speak(text):
-        voice.cancel(token)
-        return "stale-audio"
-
-    provider.speak = speak
-    with pytest.raises(VoiceError):
-        voice.acknowledgement(token, turn["id"])
+    assert voice.acknowledgement(token, turn["id"]) == {"audio": None}
+    assert provider.calls == ["stt"]
 
 
 def test_acknowledgement_api_requires_session_and_matching_turn(tmp_path):

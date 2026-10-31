@@ -1,5 +1,31 @@
 # Decisions and open choices
 
+## Two-stage streaming voice — 2026-10-31
+
+Jev now returns routing, lookup acknowledgement eligibility and English/Hindi
+language in one lightweight call. It no longer generates a direct answer before
+returning the route. Exact greetings and simple clock requests retain their local
+shortcuts. Only lookup requests play an acknowledgement; action-only and direct
+questions do not. Twelve prerecorded clips (six per language) are generated once
+on explicit preparation, keyed by text/model/voice under ignored local data.
+Missing clips are skipped rather than synthesized on the request path.
+
+Stage two streams generated conversational text into sentence-aware synthesis and
+streams 24 kHz PCM bytes to browser Web Audio. Two sentence synthesis requests can
+overlap, with bounded queues and audio emitted in sentence order. Tool-composed
+English answers go straight to synthesis: a redundant rewrite increased latency
+and changed unknown hand ownership in a synthetic check. Hindi translation streams
+from Luna with explicit attribution/ownership instructions. This remains model
+output and needs broader language/grounding evaluation.
+
+Use the existing Python application and OpenRouter, without adding LiveKit as a
+runtime dependency. Adopt its sentence-buffered streaming pattern. Remove serial
+per-question warmup; parallelize bounded independent frame decoding, preserve
+existing parallel visual checks, and play cached acknowledgements alongside tools.
+Actual search retains the resolved query/time constraints; no speculative visual
+verification or action runs before routing. See the updated R6 evidence.
+
+
 ## Physical landmarks in conversation — 2026-10-31
 
 The vision location field now requests everyday physical landmarks rather than

@@ -1,4 +1,5 @@
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from nyx.capture import frame_image
 from nyx.memory import aware_time
@@ -99,13 +100,21 @@ def history_steps(
     timings["vision_requests"] = 0
     for start in range(0, len(candidates), batch_size):
         batch = candidates[start : start + batch_size]
-        images = []
         phase = time.perf_counter()
-        for candidate in batch:
+
+        def decode(candidate):
             source = (store.root / candidate["video_path"]).resolve()
             if not source.is_relative_to(store.root):
                 raise ValueError("Source must remain inside the local workspace")
-            images.append(frame_image(source, candidate["offset_seconds"]))
+            return frame_image(source, candidate["offset_seconds"])
+
+        if len(batch) > 1:
+            with ThreadPoolExecutor(
+                max_workers=len(batch), thread_name_prefix="nyx-decode"
+            ) as pool:
+                images = list(pool.map(decode, batch))
+        else:
+            images = [decode(batch[0])]
         timings["decode_ms"] += round((time.perf_counter() - phase) * 1000)
         phase = time.perf_counter()
         judgments = (

@@ -21,10 +21,13 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
                 viewport={"width": 1440, "height": 900}, timezone_id="Asia/Kolkata"
             )
             errors = []
+            acknowledgements = []
             page.on("pageerror", lambda error: errors.append(str(error)))
 
             def respond(route):
                 path = route.request.url.split("/api/")[-1]
+                if path == "voice/acknowledgement":
+                    acknowledgements.append(path)
                 if path == "agent":
                     assert route.request.post_data_json["timezone"] in {
                         "Asia/Kolkata",
@@ -41,7 +44,7 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
                         "id": "voice-fixture",
                         "state": "question",
                         "transcript": "Hello Nyx",
-                        "plan": {"mode": "chat"},
+                        "plan": {"mode": "direct", "language": "en", "lookup": False},
                         "timings": {},
                     }
                 elif path == "voice/reply":
@@ -125,6 +128,7 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
                 "Hello Vaibhav. What would you like to know?"
             )
             expect(page.locator("#conversation-question")).to_have_text("Hello Nyx")
+            assert acknowledgements == []
             expect(page.locator("#view-source")).not_to_be_visible()
             expect(page.locator("#talk")).to_have_attribute("aria-label", "Talk to Nyx")
             page.evaluate("voice.stop('Microphone muted.')")
@@ -163,6 +167,48 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
                     await late;
                     return started && played === 1 && !voice.playing;
                 } finally { api = originalApi; window.Audio = OriginalAudio; }
+            }""")
+            assert page.evaluate(r"""async () => {
+                const originalFetch = window.fetch;
+                const context = new AudioContext({sampleRate: 16000});
+                await context.resume();
+                voice.context = context;
+                voice.token = 'stream-fixture';
+                let controller;
+                const stream = new ReadableStream({start(c) { controller = c; }});
+                window.fetch = async () => new Response(stream, {headers: {'content-type': 'application/x-ndjson'}});
+                const encode = new TextEncoder();
+                const send = event => controller.enqueue(encode.encode(JSON.stringify(event) + '\n'));
+                const pending = voice.streamReply({id: 'stream-fixture'}, null, () => true, 'attempt', performance.now());
+                try {
+                    controller.enqueue(encode.encode('{"type":"te'));
+                    controller.enqueue(encode.encode('xt","text":"First sentence."}\n'));
+                    send({type: 'audio', pcm: btoa('\0'.repeat(480)), sample_rate: 24000});
+                    await new Promise(resolve => setTimeout(resolve, 40));
+                    const early = document.getElementById('conversation-answer').textContent === 'First sentence.' && voice.playing;
+                    send({type: 'text', text: ' Second sentence.'});
+                    send({type: 'done', answer: 'First sentence. Second sentence.', timings: {}});
+                    controller.close();
+                    const result = await pending;
+                    const completed = result.answer === 'First sentence. Second sentence.' && !voice.playing;
+                    let secondController, active = true;
+                    const second = new ReadableStream({start(c) { secondController = c; }});
+                    window.fetch = async () => new Response(second, {headers: {'content-type': 'application/x-ndjson'}});
+                    const cancelled = voice.streamReply({id: 'cancelled'}, null, () => active, 'attempt', performance.now()).then(() => false, () => true);
+                    secondController.enqueue(encode.encode(JSON.stringify({type: 'audio', pcm: btoa('\0'.repeat(48000)), sample_rate: 24000}) + '\n'));
+                    await new Promise(resolve => setTimeout(resolve, 30));
+                    const queued = voice.pcmSources.size > 0;
+                    active = false;
+                    voice.stopPlayback();
+                    secondController.enqueue(encode.encode(JSON.stringify({type: 'text', text: 'STALE'}) + '\n'));
+                    secondController.close();
+                    return early && completed && queued && await cancelled && !voice.playing && voice.pcmSources.size === 0 && !document.getElementById('conversation-answer').textContent.includes('STALE');
+                } finally {
+                    window.fetch = originalFetch;
+                    voice.stopPlayback();
+                    await context.close();
+                    voice.context = null;
+                }
             }""")
             page.set_viewport_size({"width": 390, "height": 844})
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")

@@ -15,8 +15,9 @@ from threading import Lock, Thread
 from types import GeneratorType
 from typing import Literal
 
+from anyio import CancelScope
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from PIL import Image, UnidentifiedImageError
 from pydantic import AwareDatetime, BaseModel, Field
 from starlette.concurrency import run_in_threadpool
@@ -29,6 +30,16 @@ from nyx.retrieval import index_video_batches, search
 
 MAX_UPLOAD_BYTES = 256 * 1024 * 1024
 WEB = Path(__file__).with_name("web")
+
+
+class VoiceStreamResponse(StreamingResponse):
+    async def __call__(self, scope, receive, send):
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            # A disconnect can leave an async iterator suspended at its last yield.
+            with CancelScope(shield=True):
+                await self.body_iterator.aclose()
 
 
 class SearchRequest(BaseModel):
@@ -498,7 +509,9 @@ def create_app(
             if not turn or turn["id"] != body.get("turn_id"):
                 raise VoiceError("That voice response is no longer active.")
             plan = turn["plan"]
-        if plan["mode"] in {"chat", "clarify"}:
+        if plan["mode"] == "direct":
+            result = None
+        elif plan["mode"] in {"chat", "clarify"}:
             result = {"answer": plan.get("reply") or "Which object would you like me to look for?"}
         else:
             with workspace.lock:
@@ -524,6 +537,28 @@ def create_app(
                     raise VoiceError("The visual check has a different time range.")
                 if result["kind"] == "history" and result["scope"]["mode"] != plan["mode"]:
                     raise VoiceError("The history check has a different ordering.")
+        if body.get("stream"):
+
+            async def events():
+                stream = voice.reply_stream(token, body["turn_id"], result)
+                try:
+                    while not await request.is_disconnected():
+                        event = await run_in_threadpool(next, stream, None)
+                        if event is None:
+                            break
+                        yield json.dumps(event, ensure_ascii=False) + "\n"
+                except ValueError as exc:
+                    yield json.dumps({"type": "error", "message": str(exc)}) + "\n"
+                finally:
+                    await run_in_threadpool(stream.close)
+
+            return VoiceStreamResponse(
+                events(),
+                media_type="application/x-ndjson",
+                headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+            )
+        if result is None:
+            result = {"answer": "".join(voice.provider.answer_tokens(turn, None, lambda: False))}
         return voice.reply(token, body["turn_id"], result)
 
     @app.get("/style.css")

@@ -324,13 +324,14 @@ def test_jev_routes_general_chat_without_visual_agent():
 
     provider = CloudVoice(OpenRouter("fake", transport))
     assert provider.route("How many sides does a triangle have?", []) == {
-        "mode": "chat",
-        "reply": "A triangle has three sides.",
+        "mode": "direct",
+        "language": "en",
+        "lookup": False,
     }
     assert requests[0][0] == "https://openrouter.ai/api/alpha/decisions"
     assert requests[0][1]["model"] == "typesafe/jev-1.14"
     assert all(payload["provider"]["data_collection"] == "deny" for _, payload in requests)
-    assert len(requests) == 2
+    assert len(requests) == 1
 
 
 @pytest.mark.parametrize("probability", [0, 0.5, 0.94])
@@ -342,7 +343,11 @@ def test_jev_uncertainty_keeps_evidence_path(probability):
         return response({"answers": {"direct": {"type": "noul", "noul": probability}}})
 
     provider = CloudVoice(OpenRouter("fake", transport))
-    assert provider.route("Where did you see my glasses?", []) == {"mode": "agent"}
+    assert provider.route("Where did you see my glasses?", []) == {
+        "mode": "agent",
+        "language": "en",
+        "lookup": True,
+    }
     assert len(calls) == 1
 
 
@@ -363,14 +368,23 @@ def test_jev_invalid_output_is_not_a_direct_answer(decision):
         provider.route("Where are my glasses?", [])
 
 
-def test_quick_responder_can_defer_to_agent():
-    results = iter(
-        [
-            {"answers": {"direct": {"type": "noul", "noul": 0.99}}},
-            {"choices": [{"finish_reason": "stop", "message": {"content": '{"mode":"agent"}'}}]},
-        ]
+def test_jev_classifies_hindi_lookup_without_generating_a_reply():
+    provider = CloudVoice(
+        OpenRouter(
+            "fake",
+            lambda *a, **k: response(
+                {
+                    "answers": {
+                        "direct": {"type": "noul", "noul": 0.1},
+                        "lookup": {"type": "noul", "noul": 0.99},
+                        "language": {"type": "choice", "choice": "hi"},
+                    }
+                }
+            ),
+        )
     )
-    provider = CloudVoice(OpenRouter("fake", lambda *a, **k: response(next(results))))
-    assert provider.route("What about mine?", [{"question": "Where are my glasses?"}]) == {
-        "mode": "agent"
+    assert provider.route("मेरा फोन कहाँ है?", []) == {
+        "mode": "agent",
+        "language": "hi",
+        "lookup": True,
     }

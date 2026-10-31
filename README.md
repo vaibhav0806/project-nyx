@@ -96,6 +96,17 @@ Create ignored `.env` with `OPENROUTER_API_KEY=...`, restrict its permissions to
 uv run --env-file .env --no-sync nyx --data-dir data/cloud-demo serve
 ```
 
+Prepare the twelve reusable English/Hindi acknowledgement clips once (uses cloud
+speech credits; generated audio stays under the ignored data directory):
+
+```bash
+uv run --env-file .env --no-sync python -m nyx.speech --prepare data/cloud-demo
+```
+
+Voice replies now stream text and PCM speech after Jev routes the question.
+Cached acknowledgements play only for context lookups. See
+[streaming architecture](docs/architecture.md#streaming-speech-pipeline--2026-10-31).
+
 Open **http://127.0.0.1:8000**. A configured page requests camera/microphone permission
 and starts capture and local wake listening automatically. The server process alone
 does not open hardware. **Mute microphone**, **Pause recording**, **Stop recording**,

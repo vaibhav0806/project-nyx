@@ -4,6 +4,7 @@ import base64
 import json
 import logging
 import os
+import re
 import time
 from io import BytesIO
 from urllib.error import HTTPError, URLError
@@ -105,3 +106,96 @@ class OpenRouter:
             return raw
         except (KeyError, TypeError, IndexError, ValueError):
             raise CloudError("Cloud model did not finish a usable answer. Please retry.") from None
+
+    def stream_text(self, messages, model, cancelled=lambda: False):
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": True,
+            "max_tokens": 700,
+            "temperature": 0,
+            "reasoning": {"effort": "low", "exclude": True},
+            "stream_options": {"include_usage": True},
+            "provider": {"data_collection": "deny"},
+        }
+        request = Request(
+            "https://openrouter.ai/api/v1/chat/completions",
+            data=json.dumps(payload).encode(),
+            headers={"Authorization": "Bearer " + self.key, "Content-Type": "application/json"},
+        )
+        finished = False
+        size = 0
+        try:
+            with self.transport(request, timeout=30) as response:
+                while not cancelled():
+                    line = response.readline(65537)
+                    if not line:
+                        break
+                    size += len(line)
+                    if len(line) > 65536 or size > 1024**2:
+                        raise CloudError("Cloud text stream exceeded its limit.")
+                    if not line.startswith(b"data:"):
+                        continue
+                    raw = line[5:].strip()
+                    if raw == b"[DONE]":
+                        break
+                    event = json.loads(raw)
+                    if "error" in event:
+                        raise CloudError("Cloud text stream failed.")
+                    if event.get("usage"):
+                        self.usage.append(event["usage"])
+                        self.usage = self.usage[-100:]
+                    for choice in event.get("choices", []):
+                        text = choice.get("delta", {}).get("content")
+                        if text:
+                            if not isinstance(text, str):
+                                raise CloudError("Invalid cloud text stream.")
+                            yield text
+                        reason = choice.get("finish_reason")
+                        if reason:
+                            if reason != "stop":
+                                raise CloudError("Cloud answer did not finish.")
+                            finished = True
+            if not cancelled() and not finished:
+                raise CloudError("Cloud text stream ended before the answer finished.")
+        except HTTPError as exc:
+            raise CloudError(f"OpenRouter streaming request failed ({exc.code}).") from None
+        except (URLError, TimeoutError, OSError, ValueError, TypeError, AttributeError) as exc:
+            if isinstance(exc, CloudError):
+                raise
+            raise CloudError("Cloud text stream failed. Please retry.") from None
+
+    def stream_pcm(self, payload, cancelled=lambda: False):
+        request = Request(
+            "https://openrouter.ai/api/v1/audio/speech",
+            data=json.dumps({**payload, "provider": {"data_collection": "deny"}}).encode(),
+            headers={"Authorization": "Bearer " + self.key, "Content-Type": "application/json"},
+        )
+        size, pending = 0, b""
+        try:
+            with self.transport(request, timeout=30) as response:
+                content_type = response.headers.get("Content-Type", "").lower()
+                if not content_type.startswith(("audio/pcm", "application/octet-stream")):
+                    raise CloudError("Speech did not return PCM audio.")
+                rate = re.search(r"rate=(\d+)", content_type)
+                channels = re.search(r"channels=(\d+)", content_type)
+                if (rate and rate[1] != "24000") or (channels and channels[1] != "1"):
+                    raise CloudError("Speech returned an unsupported PCM format.")
+                while not cancelled():
+                    chunk = response.read1(4096)
+                    if not chunk:
+                        break
+                    size += len(chunk)
+                    if size > 4 * 1024**2:
+                        raise CloudError("Speech stream exceeded its limit.")
+                    pending += chunk
+                    complete = len(pending) // 2 * 2
+                    if complete:
+                        yield pending[:complete]
+                        pending = pending[complete:]
+            if not cancelled() and (not size or pending):
+                raise CloudError("Speech stream ended with invalid audio.")
+        except HTTPError as exc:
+            raise CloudError(f"OpenRouter speech request failed ({exc.code}).") from None
+        except (URLError, TimeoutError, OSError):
+            raise CloudError("Cloud speech stream failed. Please retry.") from None

@@ -90,6 +90,11 @@ const voice = {
   },
 
   stopPlayback() {
+    this.replyAbort?.abort();
+    this.replyAbort = null;
+    for (const source of this.pcmSources || []) { source.onended = null; source.stop(); }
+    this.pcmSources = new Set();
+    this.pcmEnd = 0;
     if (this.player) { this.player.onended = null; this.player.onerror = null; this.player.pause(); this.player.removeAttribute("src"); this.player = null; }
     if (this.url) URL.revokeObjectURL(this.url);
     this.url = null;
@@ -134,7 +139,7 @@ const voice = {
 
   maybeProbe() {
     const now = performance.now();
-    if (this.working || this.probePromise || now < this.wakeUntil || this.length < 0.6 * 16000 || now - this.lastProbe < 750) return;
+    if ((this.working && !this.playing) || this.probePromise || now < this.wakeUntil || this.length < 0.6 * 16000 || now - this.lastProbe < 750) return;
     const size = Math.min(this.length, 40000);
     const pcm = new Int16Array(size);
     let remaining = size;
@@ -210,6 +215,78 @@ const voice = {
     }).catch(() => {});
   },
 
+  async streamReply(turn, jobId, active, attemptId, endedAt) {
+    const controller = new AbortController();
+    this.replyAbort = controller;
+    const response = await fetch("/api/voice/reply", { ...json({ turn_id: turn.id, job_id: jobId, stream: true }), headers: { ...this.headers(), "content-type": "application/json" }, signal: controller.signal });
+    if (!response.ok) throw new Error((await response.json()).detail || "Speech request failed");
+    if (!response.headers.get("content-type")?.includes("application/x-ndjson")) return response.json();
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let pending = "", text = "", result = null, firstAudio = true, firstPlayedMs = null;
+    this.pcmSources = new Set();
+    this.pcmEnd = 0;
+    try {
+      while (active()) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        pending += decoder.decode(value, { stream: true });
+        let newline;
+        while ((newline = pending.indexOf("\n")) >= 0) {
+          const line = pending.slice(0, newline);
+          pending = pending.slice(newline + 1);
+          if (!line.trim() || !active()) continue;
+          const event = JSON.parse(line);
+          if (event.type === "error") throw new Error(event.message);
+          if (event.type === "text") {
+            text += event.text;
+            $("voice-answer").textContent = `Nyx: ${text}`;
+            $("conversation-answer").textContent = text;
+          }
+          if (event.type === "audio") {
+            if (!this.context || this.context.state !== "running") throw new Error("Audio is paused. Enable listening and try again.");
+            // Bound queued playback as well as the server's text/audio queues.
+            while (active() && this.pcmEnd - this.context.currentTime > 3) await new Promise(resolve => setTimeout(resolve, 30));
+            if (!active()) break;
+            const bytes = Uint8Array.from(atob(event.pcm), c => c.charCodeAt(0));
+            if (event.sample_rate !== 24000 || bytes.length % 2) throw new Error("Invalid speech audio");
+            const view = new DataView(bytes.buffer);
+            const buffer = this.context.createBuffer(1, bytes.length / 2, 24000);
+            const channel = buffer.getChannelData(0);
+            for (let i = 0; i < channel.length; i++) channel[i] = view.getInt16(i * 2, true) / 32768;
+            const source = this.context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(this.context.destination);
+            const at = Math.max(this.context.currentTime + 0.015, this.pcmEnd);
+            this.pcmEnd = at + buffer.duration;
+            this.pcmSources.add(source);
+            source.onended = () => { this.pcmSources.delete(source); source.disconnect(); };
+            source.start(at);
+            this.playing = true;
+            this.state('Speaking · say “Hey Nyx” to interrupt');
+            if (firstAudio) {
+              firstAudio = false;
+              firstPlayedMs = Math.round(performance.now() - endedAt);
+              this.diagnostic("playback_started", attemptId, "playback");
+              $("voice-timing").textContent = `First audio: ${((performance.now() - endedAt) / 1000).toFixed(2)}s`;
+            }
+          }
+          if (event.type === "done") result = { answer: event.answer, timings: event.timings, audio: null };
+        }
+      }
+      if (!active()) throw new Error("Response stopped");
+      if (!result) throw new Error("The response stream ended early. Please try again.");
+      while (active() && this.pcmSources.size) await new Promise(resolve => setTimeout(resolve, 30));
+      if (!active()) throw new Error("Response stopped");
+      this.playing = false;
+      if (firstPlayedMs !== null) result.timings.end_of_speech_to_playback_ms = firstPlayedMs;
+      return result;
+    } finally {
+      await reader.cancel().catch(() => {});
+      if (this.replyAbort === controller) this.replyAbort = null;
+    }
+  },
+
   async sayChecking(turn, active) {
     try {
       const reply = await api("/api/voice/acknowledgement", { ...json({ turn_id: turn.id }), headers: { ...this.headers(), "content-type": "application/json" }, signal: AbortSignal.timeout(15000) });
@@ -254,19 +331,19 @@ const voice = {
       this.wakeUntil = 0;
       clearTimeout(this.activation);
       $("voice-question").textContent = `You: ${turn.transcript}`;
-      conversation.begin(turn.transcript);
+      conversation.begin(turn.transcript, turn.plan.lookup === true);
       $("voice-cancel").hidden = false;
-      this.state(["chat", "clarify"].includes(turn.plan.mode) ? "Thinking…" : "Checking visual evidence…");
+      this.state(["chat", "clarify", "direct"].includes(turn.plan.mode) ? "Thinking…" : "Checking visual evidence…");
       let jobId = null;
       const plan = turn.plan;
-      if (["chat", "clarify"].includes(plan.mode)) $("answer-panel").hidden = true;
+      if (["chat", "clarify", "direct"].includes(plan.mode)) $("answer-panel").hidden = true;
       let visualStarted = performance.now();
       let visualMs = 0;
-      if (!["clarify", "chat"].includes(plan.mode)) {
+      if (!["clarify", "chat", "direct"].includes(plan.mode)) {
         if (plan.object_query) $("object-query").value = plan.object_query;
         stage = "agent";
         let checking = true;
-        this.sayChecking(turn, () => active() && checking);
+        if (plan.lookup !== false) this.sayChecking(turn, () => active() && checking);
         let response;
         try { response = await companion.request(turn.transcript, turn); }
         finally { checking = false; this.stopPlayback(); }
@@ -279,7 +356,7 @@ const voice = {
       }
       stage = "speech";
       this.state("Preparing speech…");
-      const reply = await api("/api/voice/reply", { ...json({ turn_id: turn.id, job_id: jobId }), headers: { ...this.headers(), "content-type": "application/json" }, signal: AbortSignal.timeout(45000) });
+      const reply = await this.streamReply(turn, jobId, active, attemptId, endedAt);
       if (!active()) return;
       $("voice-answer").textContent = `Nyx: ${reply.answer}`;
       conversation.answer(reply.answer);
@@ -315,8 +392,9 @@ const voice = {
       this.diagnostic("browser_turn_failed", attemptId, stage);
       this.refresh().catch(() => {});
       if (active()) {
-        if ($("conversation-answer").textContent === "Let me check…") conversation.answer("I couldn’t finish that request. Please try again.");
+        if (["Let me check…", "Thinking…"].includes($("conversation-answer").textContent)) conversation.answer("I couldn’t finish that request. Please try again.");
         if (stage !== "transcription") await api("/api/voice/cancel", { method: "POST", headers: { ...this.headers(), "x-nyx-cancel-reason": "error_cleanup" } }).catch(() => {});
+        this.stopPlayback();
         this.state(`${error.message} Say “Hey Nyx” to retry.`);
       }
     } finally {

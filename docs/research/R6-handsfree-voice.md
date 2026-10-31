@@ -140,3 +140,54 @@ No claim that questions are answered instantaneously. Revisit the gate if larger
 labeled tests show personal questions bypassing evidence or added latency outweighs
 savings. Acknowledgement synthesis runs alongside the agent and is cached after
 first use; it may fail or arrive too late and be skipped.
+
+## Two-stage streaming checks — 2026-10-31
+
+Decision affected: overlap text generation, sentence synthesis and playback, and
+remove acknowledgement synthesis from lookup latency. This supersedes the earlier
+Jev route that generated the entire direct reply before returning a plan.
+
+Primary references checked on this date:
+- [LiveKit pipeline nodes](https://docs.livekit.io/agents/logic/nodes/): asynchronous LLM/TTS pipeline with sentence adaptation for non-streaming text input.
+- [OpenRouter speech tutorial](https://openrouter.ai/blog/tutorials/text-to-speech/): audio/speech returns streamable audio bytes; PCM needs the correct rate/channels.
+
+Implementation: no new framework or SDK. Jev 1.14 classifies route/lookup/language;
+Luna streams general replies and Hindi translation. Existing English evidence
+answers bypass rewriting. Gemini 3.8 Flash-Lite TTS / Kore emits 24 kHz mono PCM.
+Two sentence synthesis requests overlap while output stays ordered. Planner JSON,
+visual checks and STT remain complete-result boundaries; idle audio stays local.
+
+Measured on macOS 15.7.2 arm64/Python 3.12.12 using synthetic text only:
+- General rainbow question: route 0.488 s; first text 1.385 s; first sentence ready
+  1.897 s; first PCM 5.131 s; complete 8.779 s. These times include routing but not
+  STT/browser playback. This run preceded two-sentence synthesis concurrency.
+- Synthetic phone evidence: initial English rewrite assigned an unknown hand to
+  the user. Removed that English rewrite. The final English ready-text path reached
+  first PCM in 3.311 s and completed in 3.501 s after context was already available.
+- Hindi phone evidence: initial translation also assigned hand ownership. Added
+  explicit translation constraints; retest said “किसी के दाहिने हाथ में” and retained
+  “मुझे लगता है”. First PCM 4.498 s; completion 4.742 s after context was available.
+- English/Hindi lookup routing took 0.876/0.500 s in the earlier synthetic run.
+- Prepared all twelve acknowledgement WAVs, six in each language: 1,119,888 bytes
+  total under ignored `data/cloud-demo/voice-acknowledgements`. No real recordings
+  or microphone/camera inputs were used. Re-running preparation reuses the files.
+
+These are individual smoke measurements, not a baseline/p95 study or a guarantee
+of response latency. Actual retrieval time and live browser playout are excluded
+from the context-ready figures. Provider first-audio delay remains several seconds.
+Hindi grounding/translation quality needs a larger held-out set; a single corrected
+example is not a reliability claim. Binary TTS usage was not returned as JSON usage,
+so no total spend claim is made for clip preparation.
+
+Deterministic checks cover simultaneous synthesis with a barrier, sentence order,
+text arriving while speech starts, English/Hindi boundaries, split PCM samples,
+truncated streams, failed synthesis, authorization, duplicate streams, wake/stop
+cancellation and transcript completion status. Isolated Chrome uses synthetic PCM
+to verify fragmented NDJSON, audio before response completion, cancellation of
+scheduled samples, stale-chunk suppression, and no acknowledgement for direct QA.
+
+Reproduce clip preparation with the README command. `tests/test_speech.py` and
+`tests/test_conversation_ui.py` exercise the offline pipeline. Live text-only checks
+call `CloudVoice.route`, then `speech_events(provider.answer_tokens(...),
+provider.speech_chunks, stopped)` with a synthetic checked answer and monotonic
+first-event timestamps. No private media is needed.

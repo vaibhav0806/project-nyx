@@ -4,7 +4,8 @@
 
 `cloud.py` is the single OpenRouter HTTP boundary. `perception.py` supplies cloud
 multimodal embeddings; `verification.py` uses cloud generation with existing
-agent/vision contracts. `voice.py` uses cloud STT/TTS plus local wake recognition.
+agent/vision contracts. `voice.py` uses cloud STT/TTS plus local wake recognition. `speech.py` owns sentence
+buffering, ordered streaming synthesis and reusable acknowledgement assets.
 `mlx_runtime.py` was removed. The local detector still uses the optional vision
 extra; Transformers and MLX are no longer application dependencies. Tests in
 `test_cloud.py` cover wire shapes, safe failures, vector validation, voice formats

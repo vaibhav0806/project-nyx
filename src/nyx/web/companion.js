@@ -3,10 +3,10 @@
 const conversation = {
   configured: false,
   status: "Getting ready…",
-  begin(text) {
+  begin(text, checking = false) {
     $("conversation-question").textContent = text;
     $("conversation-question").hidden = false;
-    $("conversation-answer").textContent = "Let me check…";
+    $("conversation-answer").textContent = checking ? "Let me check…" : "Thinking…";
     $("conversation-hint").hidden = true;
     $("answer-panel").hidden = true;
     $("replay-panel").hidden = true;
@@ -76,8 +76,6 @@ const companion = {
     $("answer-panel").hidden = true;
     this.job = null;
     try {
-      $("companion-status").textContent = "Preparing cloud reasoning…";
-      await task("/api/companion/warmup", { method: "POST" });
       if (epoch !== this.epoch) throw new Error("Request stopped");
       const body = { ...this.reviewCandidate, message: text, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, request_id: turn?.id || crypto.randomUUID(), ...this.snapshot(), voice_turn_id: turn?.id || null };
       const headers = turn ? { "x-nyx-voice": voice.token, "content-type": "application/json" } : { "content-type": "application/json" };
@@ -88,7 +86,7 @@ const companion = {
       });
       if (epoch !== this.epoch) throw new Error("Request stopped");
       $("companion-status").textContent = result.answer;
-      conversation.answer(result.answer);
+      if (!turn) conversation.answer(result.answer);
       $("companion-steps").replaceChildren();
       for (const step of result.steps) {
         const line = document.createElement("p");

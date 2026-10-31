@@ -1,5 +1,17 @@
 # Scope
 
+## Two-stage voice delivery — 2026-10-31
+
+Voice questions are classified before tool use. General answers have no spoken
+checking filler. Context lookups may play one of twelve cached English/Hindi lines
+while evidence is retrieved. Stream generated replies and speech incrementally;
+keep tool-composed English facts intact and translate Hindi replies with attribution.
+No additional retrieval capability, identity recognition or reminder authority is
+introduced. Cached clips are generic synthetic speech, stored locally. The voice
+pipeline still uses completed activated utterances; real-room echo, wake detection,
+Hindi language quality and p95 latency remain evaluation gates.
+
+
 ## Voice response polish — 2026-10-31
 
 The approved conversation interface keeps unrecognized ambient speech quiet and
