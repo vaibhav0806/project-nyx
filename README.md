@@ -1,174 +1,166 @@
 # Nyx
 
-## Realtime voice
+**Your everyday memory companion.**
 
-Install the `voice` and `web` extras and configure server-only `SARVAM_API_KEY`
-and `OPENROUTER_API_KEY`. Spoken conversations use **LiveKit Agents**, Sarvam
-**Saaras v4 realtime STT**, and **Bulbul v4 Flash WebSocket TTS**. Shalini Companion is the
-voice for both answers and cached acknowledgements; English/Hindi follows
-the detected input language. Nyx keyterm hints help transcription. Local wake
-recognition keeps idle audio on the laptop.
+Nyx helps you find the things you put down and recall the moments you might otherwise forget. Ask a question out loud, and Nyx looks through the current camera view or saved visual history, then answers in simple, natural language.
 
-The browser connects over the existing localhost WebSocket; no LiveKit account
-or separate room server is required. Prepare matching English/Hindi clips once:
+> “Hey Nyx, when did you last see my glasses?”
+>
+> “I think I saw them about half an hour ago, beside your laptop.”
+>
+> *An example of the experience. Actual answers depend on what Nyx captured and can find.*
 
-```sh
-uv run --env-file .env --no-sync python -m nyx.speech --prepare data/cloud-demo
-```
+The goal is simple: spend less time searching and more time getting on with your day.
 
-Measured timings and limits: [R6 voice findings](docs/research/R6-handsfree-voice.md).
+[How it works](#how-it-works) · [Privacy and control](#privacy-and-control) · [Run Nyx](#run-nyx) · [Product and engineering docs](#product-and-engineering-docs)
 
-## Conversation demo
+## Why Nyx exists
 
-Nyx opens to a minimal dark conversation screen. Say “Hey Nyx” or tap the microphone,
-or choose **Type instead**. The central button stops an active request or spoken reply.
-**Mute mic** controls listening; the camera indicator pauses/resumes recording independently.
-Answers appear as text and voice, with **View source** available for visual evidence.
-The settings button opens recording controls, saved history, source management and diagnostics.
+A phone left somewhere between rooms. Glasses put down during a conversation. A small detail that felt obvious a few minutes ago.
 
+These moments interrupt everyday life. For older adults, repeated difficulty finding things can also mean relying on someone else for tasks they want to handle themselves.
 
-## Speech-linked finding and surrounding replay — 2026-10-28
+Nyx is being built to support that independence. Its starting point is practical help at home: let someone ask about their surroundings in their own words and get an answer they can act on. No need to remember a filename, scroll through recordings, or learn a set of commands.
 
-Historical matches now replay up to ten seconds before and after the sighting,
-across available segments in the same reliably timed capture session. Gaps are
-not reconstructed. Imported or uncertain recordings use clip-local bounds.
+**The mission is to help people live on their own terms for longer.** Older adults living at home are the starting audience; the interaction is designed to be useful to anyone who could use a little help remembering everyday moments.
 
-The history tool searches captured user transcripts by object words or within
-90 seconds of the sighting (30 candidates). The visual model selects at most two
-existing transcript IDs. Exact quotes are attributed separately from visual
-findings; intended placement is not confirmed placement. This bounded feature
-is not general long-term semantic memory. Listen now (30 seconds) bypasses missed
-wake activation; ignored wake attempts stay quiet in the conversation UI. Idle audio is not
-archived, so missed statements cannot be recovered.
+## What you can do with Nyx
 
+### Find something in front of you
 
-**Personal intelligence for a longer, independent life.**
+Ask, “Can you see my phone?” Nyx checks the current view and describes what it can identify using ordinary places and landmarks. If it cannot find the item clearly, it can ask for more detail.
 
-Nyx is a conversational companion intended to help older adults stay independent.
-The development target is a laptop with one camera view. It connects current images,
-saved visual history, conversation and experimental departure reminders.
+### Look back for a last sighting
 
-## Recording and storage
+Ask, “Where did you last see my glasses?” Nyx searches saved observations, checks candidate matches, and gives a spoken answer with a rounded time such as “about thirty minutes ago.”
 
-New browser recordings request 720p at up to 15 fps and target 1 Mbps video,
-using the existing VP8-first codec selection. Actual size depends on the browser
-and scene. Continuous recording stops at the existing 1 GiB budget; clips never
-expire automatically. Old recordings are preserved. Refresh and restart capture
-to apply the new profile. Imported media is unchanged.
+A small **View source** button lets you inspect the supporting image and replay the surrounding recorded moment. The source is there when you need it; the main screen stays focused on the conversation.
 
-## Current MVP
+### Keep the conversation going
 
-Cloud inference through **OpenRouter** is the primary path. There is no local
-LLM/VLM fallback. The custom Python agent chooses tools, constructs contextual
-queries, reviews observations, and asks for clarification. No LangChain is needed.
+Ask follow-up questions, describe the object more precisely, or say that a match is wrong. Nyx can use that context to continue the search. You can interrupt a reply instead of waiting for it to finish.
 
-- **Spoken turns and tool selection:** LiveKit Agents with streaming Luna.
-- **Reasoning:** `openai/gpt-6-luna`; **vision:** `google/gemini-3.5-flash-lite`.
-- **Image/text embeddings:** `google/gemini-embedding-2`, 768 dimensions.
-- **Activated transcription:** Sarvam `saaras:v4` realtime WebSocket.
-- **Speech:** Sarvam `bulbul:v4-flash`, Shalini Companion voice.
-- **Local:** Whisper tiny.en CPU/int8 wake recognition, inexpensive activity
-  filtering, small MobileNet person detector, recording files and SQLite storage.
+### Speak in English or Hindi
 
-Selected frames are sent to OpenRouter/model providers for embedding and visual
-interpretation. Conversation context is sent for agent decisions. Activated speech
-(including the ten-second follow-up window) is sent for transcription, and answer
-text for speech. Idle audio stays local and is discarded. Full recordings stay on
-the device; no room-audio archive is created. Requests disallow providers collecting
-data for training; this is **not** a guarantee of zero retention. No automatic retry
-or silent local fallback hides an outage or exhausted API credits.
+Say **“Hey Nyx”**, tap the microphone, or choose **Type instead**. Nyx follows the detected speech language for its response and voice. Replies use short, familiar words, with a calm, relaxed personality and a little dry wit when it fits.
 
-The focused experience is **guided object finding**: ask, clarify, inspect the
-source image, reject a wrong match conversationally, and confirm with **This is the
-item**. Similarity is a candidate, not proof of identity or current location.
-Temporal queries retain recording times, coverage gaps and strict before-frame
-bounds. See [milestones](docs/milestones.md) for measured results and outstanding
-validation. Cloud migration does not establish household accuracy.
+The interface stays quiet: three dots while waiting, text paced with speech, and a few clear controls for talking, muting, and viewing sources.
 
-**Departure reminders remain experimental.** Activity filtering and trajectory
-checks precede selected-frame interpretation. Recognition can miss events or
-notify too late. General personal memory, clock-based reminders and standalone
-hardware remain later work. Conversation history persists, but only bounded recent
-context reaches the agent.
+## How it works
 
-## Setup
+1. **Capture useful context.** While recording is enabled, Nyx saves video locally and indexes selected, timestamped frames in the background.
+2. **Listen when activated.** Local wake recognition detects “Hey Nyx.” Activated speech is transcribed, including a short follow-up window.
+3. **Choose the right response.** General questions can receive a direct reply. Questions about objects and past sightings trigger a visual lookup.
+4. **Check the evidence.** Search identifies candidate moments; visual checks help determine what the answer can say.
+5. **Answer aloud.** Nyx streams its reply and speech, with supporting sources available separately.
 
-Requires Python 3.12, uv, FFmpeg and a browser with MediaRecorder support.
+Nyx also saves activated conversation transcripts. When relevant, a history lookup can attach something you said to a visual finding. A statement such as “I’m going to keep this in the kitchen” is an intention you expressed—not proof that the object reached the kitchen.
+
+That distinction matters: a useful memory companion should tell you whether an answer comes from a sighting or from something you told it.
+
+## Current release
+
+Nyx currently runs as a local browser application connected to a Python service. It supports one person and one camera view, with continuous recording, background indexing, visual search, source replay, and realtime voice conversation.
+
+The following limits are part of the current product:
+
+- **Coverage is limited to what the camera captured and what storage retains.** Indexing uses sampled frames; a search cannot account for every instant or anything outside the camera’s view.
+- **A past sighting is not a current location.** Objects may have moved, and similar-looking items can produce incorrect matches.
+- **Transcripts persist, but recall is still bounded.** Matching a spoken placement statement to the right sighting can miss relevant information. General, dependable long-term personal memory is not implemented yet.
+- **Next-departure reminders are experimental.** Nyx can work with requests such as “Remind me to take my bottle when I leave,” but departure detection can miss events or trigger incorrectly. Clock-based and recurring reminders are not available.
+- **Real-home reliability is still being evaluated.** Room noise, speaker echo, wake recognition, object visibility, and response latency need broader testing with intended users.
+
+The [milestone tracker](docs/milestones.md) and [research findings](docs/research/README.md) distinguish implemented behavior from measured results and planned capabilities.
+
+## Privacy and control
+
+Nyx stores recordings and its searchable history on your device. It uses cloud models for parts of understanding and conversation.
+
+| Data | How Nyx handles it |
+| --- | --- |
+| Full recordings | Stored locally. The current recordings contain video, not a continuous room-audio archive. |
+| Selected images | Sent to model providers through OpenRouter for embeddings and visual interpretation. |
+| Idle microphone audio | Processed locally for wake recognition and discarded. |
+| Activated speech | Sent to Sarvam for transcription. Transcripts are saved locally. |
+| Conversation and answer text | Relevant context goes to the language model; answer text goes to Sarvam for speech generation. |
+| Credentials | Kept on the server, outside the browser and Git. |
+
+A configured page requests camera and microphone permissions and starts recording and local wake listening. **Mute mic**, recording pause/stop, response interruption, source review, and explicit deletion are available in the interface.
+
+Saved video has a **1 GiB storage budget**. Capture stops at the limit; Nyx does not automatically delete older clips to make room. Frames, thumbnails, and databases use additional disk space. Deleting a clip removes its dependent search data and marks affected source references unavailable.
+
+OpenRouter requests disallow providers collecting data for training. This is not a guarantee of zero retention. See the [scope and data boundaries](docs/scope.md) for details.
+
+## Run Nyx
+
+### Requirements
+
+- Python 3.12 and [uv](https://docs.astral.sh/uv/).
+- FFmpeg, including `ffprobe`.
+- A browser with camera, microphone, AudioWorklet, and MediaRecorder support. Chrome is used for the browser checks.
+- OpenRouter and Sarvam API keys with available credit. Cloud inference incurs usage charges.
+
+### 1. Install
 
 ```bash
+git clone https://github.com/vaibhav0806/project-nyx.git
+cd project-nyx
 uv sync --python 3.12 --managed-python --extra web --extra voice --extra vision
 ```
 
-The `vision` extra is only for the small local event detector; embeddings and
-reasoning do not load Torch/Transformers/MLX models. The optional `voice` extra
-provides local wake recognition. Cache its pinned checkpoint once:
+Cache the pinned local wake-recognition model once:
 
 ```bash
 uv run --no-sync python -c 'from huggingface_hub import snapshot_download; snapshot_download("Systran/faster-whisper-tiny.en", revision="0d3d19a32d3338f10357c0889762bd8d64bbdeba", allow_patterns=["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"])'
 ```
 
-Create ignored `.env` with `OPENROUTER_API_KEY=...`, restrict its permissions to
-`0600`, and set a credit limit on the key. Never commit or expose it to the browser.
+### 2. Configure
 
-```bash
-uv run --env-file .env --no-sync nyx --data-dir data/cloud-demo serve
+Create an ignored `.env` file in the repository root:
+
+```dotenv
+OPENROUTER_API_KEY=your_openrouter_key
+SARVAM_API_KEY=your_sarvam_key
+NYX_TTS_MODEL=bulbul:v4-flash
 ```
 
-Prepare the twelve reusable English/Hindi acknowledgement clips once (uses cloud
-speech credits; generated audio stays under the ignored data directory):
+Keep this file private and out of Git. On macOS or Linux:
+
+```bash
+chmod 600 .env
+```
+
+### 3. Start
+
+Prepare the twelve reusable English/Hindi acknowledgement clips, then start Nyx:
 
 ```bash
 uv run --env-file .env --no-sync python -m nyx.speech --prepare data/cloud-demo
+uv run --env-file .env --no-sync nyx --data-dir data/cloud-demo serve
 ```
 
-Voice replies stream through LiveKit Agents over `/api/voice/live`. The old
-batch utterance and NDJSON reply endpoints have been removed.
+Open **http://127.0.0.1:8000** and allow camera and microphone access. Say **“Hey Nyx, where are my glasses?”** or use **Type instead**.
 
-Open **http://127.0.0.1:8000**. A configured page requests camera/microphone permission
-and starts capture and local wake listening automatically. The server process alone
-does not open hardware. **Mute microphone**, **Pause recording**, **Stop recording**,
-and **Stop response** remain available. “Hey Nyx” can interrupt playback; in-flight
-provider calls may finish, but cancelled results are not played. Real-room echo and
-wake accuracy still need testing.
+The data directory holds saved recordings, indexes, and transcripts across restarts. Reuse the same directory to keep that history. Starting the server alone does not activate the camera or microphone; the browser page manages hardware access.
 
-Say “Hey Nyx, where are my glasses?” or use **Talk to Nyx**. Review the displayed
-evidence. Say “That is not the right item” to let the agent search again, or supply
-more detail. Historical results show actual recording time when known, not import
-time. Unknown-date clips cannot establish a latest sighting.
+## Built with
 
-## Storage and rebuilding an old index
+| Layer | Technology |
+| --- | --- |
+| Application | Python, FastAPI, and a browser interface |
+| Voice conversation | LiveKit Agents with custom audio input/output over the local browser WebSocket |
+| Speech recognition and synthesis | Sarvam Saaras v4 realtime STT and Bulbul v4 Flash TTS, with Shalini Companion presets |
+| Language and visual understanding | Models accessed through OpenRouter |
+| Search and persistence | SQLite, sqlite-vec, timestamped frame embeddings, and local recording files |
+| Local activation and observation | Whisper wake recognition, activity filtering, and a small person detector |
 
-Original video storage has a **1 GiB** budget: capture stops at the limit and never
-automatically deletes saved clips. Selected samples/thumbnails use additional disk.
-Use explicit **Delete clip** to remove a source and its dependent vectors; source
-references become unavailable. Failed saves and coverage gaps remain visible.
+LiveKit manages conversational turns, interruptions, streaming speech, and playback-paced text. No separate LiveKit room server or LiveKit account is required for this configuration. Speech/text alignment is estimated rather than exact word timing.
 
-An old SigLIP index cannot be queried using cloud vectors. With Nyx stopped:
+See the [architecture](docs/architecture.md) for the pipeline and [decisions](docs/decisions.md) for why it is built this way.
 
-```bash
-uv run --env-file .env --no-sync nyx --data-dir data/manual-demo reindex
-```
+## Development
 
-This uploads saved sample images, replaces vectors and encoder metadata in one
-transaction, and preserves source files, frame IDs, timestamps and references. A
-failed batch rolls back the entire rebuild. It does not silently rebuild on startup.
-Alternatively choose a fresh development directory; there are no production users
-or compatibility requirements. Do not use private household footage in automated
-developer tests.
-
-```bash
-uv run --env-file .env --no-sync nyx --data-dir data/cloud-demo index /path/to/permitted.mp4 --interval 2
-uv run --env-file .env --no-sync nyx --data-dir data/cloud-demo search "a television remote control"
-uv run --no-sync nyx --data-dir data/cloud-demo list
-uv run --env-file .env --no-sync nyx doctor
-```
-
-Optional server settings: `NYX_HISTORY_CONCURRENCY` (default 6, range 1–8), `NYX_REASONING_MODEL`, `NYX_VISION_MODEL`, `NYX_EMBEDDING_MODEL`,
-`NYX_EMBEDDING_DIMENSIONS`, `NYX_STT_MODEL`. Changing embedding model
-or dimensions requires rebuilding. TTS is pinned to the tested Gemini Kore,
-24 kHz mono PCM contract.
-
-## Verification
+Run the deterministic checks:
 
 ```bash
 uv run --no-sync pytest -q
@@ -179,32 +171,39 @@ node --check src/nyx/web/voice.js
 node --check src/nyx/web/companion.js
 ```
 
-Automated unit/API tests use synthetic fixtures and fake inference, without API
-spending or model downloads. Real cloud evaluation is separate and costs credits:
+Browser tests use an installed Chrome. Automated developer verification uses synthetic inputs; real-provider evaluations are separate and can incur charges. Keep recordings, transcripts, generated audio, and credentials out of commits.
+
+<details>
+<summary>Index tools, migrations, and diagnostics</summary>
+
+Import permitted footage, search indexed frames, inspect saved sources, or check the runtime:
 
 ```bash
-uv run --env-file .env --no-sync python experiments/companion/planner.py --output data/runs/cloud-planner-new
+uv run --env-file .env --no-sync nyx --data-dir data/cloud-demo index /path/to/permitted.mp4 --interval 2
+uv run --env-file .env --no-sync nyx --data-dir data/cloud-demo search "a television remote control"
+uv run --no-sync nyx --data-dir data/cloud-demo list
+uv run --env-file .env --no-sync nyx doctor
 ```
 
-[Cloud findings](docs/research/R9-cloud-mvp.md) distinguish measured cloud results,
-controlled-tool planner tests and browser integration from household validation.
-Older research experiments use dependencies removed from the current runtime;
-reproduce them at their recorded historical commits, not as a second supported stack.
-See [architecture](docs/architecture.md), [scope](docs/scope.md), and
-[milestones](docs/milestones.md) for the current contracts.
+Imported footage needs a known capture time to support a dated last-sighting claim. Import time is not substituted for capture time; use the CLI's `--recorded-at` option when appropriate.
 
-## Voice diagnostics
+Changing the embedding model or dimensions requires an index rebuild. Stop Nyx first, then run:
 
-Activated transcripts save immediately after transcription, even if routing or a
-later stage fails. Conversation history shows interrupted turns. Local
-`conversations.sqlite3` also retains the latest 2,000 diagnostic events, linked by
-attempt and turn IDs: activation, transcription, agent/tool decisions, speech
-creation and browser playback/failures. Transcripts have separate retention and
-are not deleted by this diagnostic cap. Idle speech text, raw audio/images,
-credentials and raw provider errors are excluded. The authenticated
-`/api/voice/diagnostics` endpoint exposes the latest 100 events for debugging;
-no diagnostic content is sent to a hosted logging service.
+```bash
+uv run --env-file .env --no-sync nyx --data-dir data/cloud-demo reindex
+```
 
-These records distinguish a missed wake, a failed transcription, an agent failure
-and a playback failure. They cannot recover speech dropped before this logging
-was installed, nor automatically connect an utterance to an object in a frame.
+Reindexing sends saved sample images to the configured provider and replaces vectors in a transaction. Source files, frame IDs, timestamps, and references are preserved; a failed batch rolls back the rebuild.
+
+The local `conversations.sqlite3` database retains activated transcripts and the latest 2,000 diagnostic events. The authenticated `/api/voice/diagnostics` endpoint exposes recent events for troubleshooting. Diagnostics can identify transcription, retrieval, or playback failures; they cannot recover idle speech that was never captured.
+
+</details>
+
+## Product and engineering docs
+
+- [Product design](docs/design.md): mission, interaction principles, and Nyx's personality.
+- [Scope](docs/scope.md): current capabilities, data boundaries, and planned work.
+- [Architecture](docs/architecture.md): capture, retrieval, conversation, and speech.
+- [Milestones](docs/milestones.md): implementation status and validation evidence.
+- [Research](docs/research/README.md): experiments, measurements, limitations, and open questions.
+- [Repository guide](docs/repository.md): where the application and supporting work live.
