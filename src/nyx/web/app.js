@@ -45,7 +45,8 @@ function controls() {
   document.querySelectorAll(".delete-clip").forEach((button) => { button.disabled = busy || enabled || paused || requestingCamera || Boolean(remoteSession) || uploads.length > 0 || finalizing > 0; });
   $("recording-badge").hidden = !enabled;
   $("camera-state").classList.toggle("active", enabled);
-  $("camera-state").lastChild.textContent = enabled ? "Recording video" : paused ? "Recording paused" : "Camera off";
+  $("camera-state").lastChild.textContent = enabled ? "Camera on" : paused ? "Recording paused" : "Camera off";
+  window.dispatchEvent(new Event("nyx-ui-update"));
 }
 
 function timestamp(seconds) {
@@ -97,6 +98,7 @@ function play(source, offset, caption, keepWindow = false) {
   replay.onended = null; replay.ontimeupdate = null;
   replay.src = `${source}#t=${offset}`;
   $("replay-panel").hidden = false;
+  if (!$("source-dialog").open) $("source-dialog").showModal();
   $("replay-caption").textContent = caption;
   replay.play().catch(() => {});
 }
@@ -536,6 +538,7 @@ function answerEvidence(row, label) {
 }
 
 function showAnswer(output) {
+  queueMicrotask(() => window.dispatchEvent(new Event("nyx-ui-update")));
   if (typeof companion !== "undefined") companion.reviewCandidate = output.status === "candidate" && output.evidence
     ? { presented_frame_id: output.evidence.id, presented_query: output.object_query } : null;
   $("answer-panel").hidden = false;

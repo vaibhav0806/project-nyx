@@ -1,6 +1,48 @@
 "use strict";
 
-// Shares the existing camera; never opens another device; selected images are sent to cloud inference by the server.
+const conversation = {
+  configured: false,
+  status: "Getting ready…",
+  begin(text) {
+    $("conversation-question").textContent = text;
+    $("conversation-question").hidden = false;
+    $("conversation-answer").textContent = "Let me check…";
+    $("conversation-hint").hidden = true;
+    $("answer-panel").hidden = true;
+    $("replay-panel").hidden = true;
+    $("replay").pause();
+    $("source-dialog").close();
+    this.status = "Thinking…";
+    this.render();
+  },
+  answer(text) {
+    $("conversation-answer").textContent = text;
+    this.status = "Ready for your next question";
+    this.render();
+  },
+  render() {
+    const speaking = voice.playing || companion.delivering;
+    const working = voice.working || companion.working;
+    const stopping = speaking || working;
+    const label = speaking ? "Stop speaking" : working ? "Stop request" : !$("voice-play").hidden ? "Play answer" : "Talk to Nyx";
+    $("talk").setAttribute("aria-label", label);
+    $("talk-label").textContent = label;
+    $("talk").querySelector("svg").hidden = stopping;
+    $("talk").querySelector(".stop-symbol").hidden = !stopping;
+    $("talk").disabled = !this.configured && !stopping;
+    const micOn = Boolean(voice.mic);
+    $("mute-label").textContent = micOn ? "Mute mic" : "Enable mic";
+    $("mute").setAttribute("aria-label", micOn ? "Mute microphone" : "Enable microphone");
+    $("mute").disabled = !this.configured;
+    $("conversation-state").textContent = speaking ? "Nyx is speaking" : this.status;
+    document.querySelector(".wave").classList.toggle("active", speaking || (micOn && voice.wakeUntil > performance.now()));
+    $("view-source").hidden = $("answer-panel").hidden;
+    $("camera-toggle").setAttribute("aria-label", enabled ? "Pause camera" : paused ? "Resume camera" : "Start camera");
+    $("camera-toggle").disabled = requestingCamera || (!enabled && busy);
+  },
+};
+
+// Shares the existing camera; selected images are sent to cloud inference by the server.
 const companion = {
   epoch: 0, job: null, working: false, observing: false, delivering: false,
   armed: false, refreshBusy: false, player: null, delivery: null, deliveryIntention: null,
@@ -26,6 +68,7 @@ const companion = {
     if (this.working) throw new Error("Finish or stop the current companion request first.");
     this.interruptDelivery();
     this.working = true;
+    if (!turn) conversation.begin(text);
     const epoch = ++this.epoch;
     $("companion-stop").hidden = false;
     $("companion-send").disabled = true;
@@ -44,6 +87,7 @@ const companion = {
       });
       if (epoch !== this.epoch) throw new Error("Request stopped");
       $("companion-status").textContent = result.answer;
+      conversation.answer(result.answer);
       $("companion-steps").replaceChildren();
       for (const step of result.steps) {
         const line = document.createElement("p");
@@ -58,6 +102,7 @@ const companion = {
       this.working = false;
       $("companion-stop").hidden = true;
       $("companion-send").disabled = false;
+      conversation.render();
     }
   },
 
@@ -65,7 +110,9 @@ const companion = {
     this.interruptDelivery();
     this.epoch++;
     if (this.job) await api(`/api/agent/${this.job}/cancel`, { method: "POST" }).catch(() => {});
-    $("companion-status").textContent = "Request stopped. Departure reminders have separate Cancel controls.";
+    $("companion-status").textContent = "Request stopped.";
+    conversation.status = "Request stopped. You can ask again.";
+    conversation.render();
   },
 
   async observe() {
@@ -93,6 +140,7 @@ const companion = {
       this.deliveryIntention = reply.intention_id;
       if (epoch !== this.deliveryEpoch || !enabled) { outcome = "interrupted"; return; }
       $("companion-status").textContent = reply.message;
+      conversation.answer(reply.message);
       if (!reply.audio) {
         $("companion-status").textContent += " · Spoken reminder unavailable; displayed only.";
         return;
@@ -118,6 +166,7 @@ const companion = {
       this.delivery = null;
       this.deliveryIntention = null;
       this.delivering = false;
+      conversation.render();
       if (!this.working) $("companion-stop").hidden = true;
     }
   },
@@ -183,7 +232,12 @@ $("companion-form").onsubmit = async event => {
   event.preventDefault();
   if (busy || companion.working || voice.working) return;
   try { await companion.request($("companion-message").value.trim()); }
-  catch (error) { $("companion-status").textContent = error.message; }
+  catch (error) {
+    $("companion-status").textContent = error.message;
+    conversation.answer(error.message === "Request stopped" ? "Request stopped." : "I couldn’t finish that request. Please try again.");
+    conversation.status = error.message;
+    conversation.render();
+  }
 };
 $("companion-stop").onclick = () => { companion.cancel(); };
 window.addEventListener("nyx-camera-stopped", () => { companion.interruptDelivery(); });
@@ -191,3 +245,53 @@ window.addEventListener("pagehide", () => { companion.cancel(); });
 setInterval(() => companion.observe(), 100);
 setInterval(() => companion.refresh().catch(() => {}), 1000);
 companion.refresh().catch(error => { $("companion-status").textContent = error.message; });
+
+$("open-settings").onclick = () => $("settings-dialog").showModal();
+$("view-source").onclick = () => $("source-dialog").showModal();
+for (const button of document.querySelectorAll("[data-close]")) button.onclick = () => $(button.dataset.close).close();
+$("source-dialog").addEventListener("close", () => $("replay").pause());
+$("type-toggle").onclick = () => {
+  $("typing-panel").hidden = !$("typing-panel").hidden;
+  $("type-toggle").setAttribute("aria-expanded", String(!$("typing-panel").hidden));
+  if (!$("typing-panel").hidden) $("companion-message").focus();
+};
+$("talk").onclick = async () => {
+  if (voice.playing || voice.working || companion.working || companion.delivering) {
+    await voice.cancel();
+    if (companion.delivering) companion.interruptDelivery();
+  } else if (!$("voice-play").hidden) {
+    await $("voice-play").onclick();
+  } else {
+    await voice.enable();
+    if (voice.token && voice.context?.state === "running") await $("voice-listen-now").onclick();
+  }
+  conversation.render();
+};
+$("mute").onclick = async () => {
+  if (voice.mic) await voice.stop("Microphone muted. Tap Enable mic to listen again.");
+  else await voice.start();
+  conversation.render();
+};
+$("camera-toggle").onclick = async () => {
+  if (enabled) await stopCapture("Paused by user", "paused");
+  else if (paused) await $("resume").onclick();
+  else await startCapture();
+  conversation.render();
+};
+window.addEventListener("nyx-ui-update", () => conversation.render());
+window.addEventListener("nyx-voice-state", event => {
+  conversation.status = event.detail;
+  conversation.render();
+});
+window.addEventListener("nyx-source-deleted", () => {
+  $("view-source").hidden = true;
+  $("source-dialog").close();
+});
+api("/api/voice").then(status => {
+  conversation.configured = status.configured;
+  if (!status.configured) {
+    conversation.status = "Voice isn’t configured. You can type a question.";
+    $("conversation-hint").textContent = "Use Type instead to ask a question.";
+  } else if (conversation.status === "Getting ready…") conversation.status = "Starting microphone…";
+  conversation.render();
+}).catch(error => { conversation.status = error.message; conversation.render(); });

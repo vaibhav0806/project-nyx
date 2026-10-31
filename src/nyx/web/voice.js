@@ -7,7 +7,7 @@ const voice = {
   parts: [], length: 0, quiet: 0, pre: [], preLength: 0, speaking: false,
   noise: 0.001, voiced: 0, lastSpeech: 0, probePromise: null, lastProbe: 0, wakeUntil: 0, pending: null,
 
-  state(text) { $("voice-state").textContent = text; },
+  state(text) { $("voice-state").textContent = text; window.dispatchEvent(new CustomEvent("nyx-voice-state", { detail: text })); },
   headers() { return { "x-nyx-voice": this.token }; },
   reset() { this.parts = []; this.length = 0; this.quiet = 0; this.pre = []; this.preLength = 0; this.speaking = false; this.voiced = 0; },
 
@@ -239,6 +239,7 @@ const voice = {
       this.wakeUntil = 0;
       clearTimeout(this.activation);
       $("voice-question").textContent = `You: ${turn.transcript}`;
+      conversation.begin(turn.transcript);
       $("voice-cancel").hidden = false;
       this.state(["chat", "clarify"].includes(turn.plan.mode) ? "Thinking…" : "Checking visual evidence…");
       let jobId = null;
@@ -262,6 +263,7 @@ const voice = {
       const reply = await api("/api/voice/reply", { ...json({ turn_id: turn.id, job_id: jobId }), headers: { ...this.headers(), "content-type": "application/json" }, signal: AbortSignal.timeout(45000) });
       if (!active()) return;
       $("voice-answer").textContent = `Nyx: ${reply.answer}`;
+      conversation.answer(reply.answer);
       const timings = { ...turn.timings, visual_ms: visualMs, ...reply.timings, total_ms: Math.round(performance.now() - began) };
       $("voice-timing").textContent = Object.entries(timings).map(([name, ms]) => `${name.replace(/_ms$/, "").replaceAll("_", " ")}: ${(ms / 1000).toFixed(2)}s`).join(" · ");
       this.refresh().catch(() => {});
@@ -294,11 +296,13 @@ const voice = {
       this.diagnostic("browser_turn_failed", attemptId, stage);
       this.refresh().catch(() => {});
       if (active()) {
+        if ($("conversation-answer").textContent === "Let me check…") conversation.answer("I couldn’t finish that request. Please try again.");
         if (stage !== "transcription") await api("/api/voice/cancel", { method: "POST", headers: { ...this.headers(), "x-nyx-cancel-reason": "error_cleanup" } }).catch(() => {});
         this.state(`${error.message} Say “Hey Nyx” to retry.`);
       }
     } finally {
       this.working = false;
+      conversation.render();
       if (this.pending && this.token) { const next = this.pending; this.pending = null; this.hear(next.pcm, next.endedAt); }
       if (!this.playing) $("voice-cancel").hidden = true;
     }

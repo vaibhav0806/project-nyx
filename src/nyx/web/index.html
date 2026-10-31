@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="color-scheme" content="light">
-  <title>Nyx — Local visual memory</title>
+  <meta name="color-scheme" content="dark">
+  <title>Nyx — Your companion</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
@@ -13,20 +13,46 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="wordmark" href="/" aria-label="Nyx home">nyx<span aria-hidden="true">✳</span></a>
-    <span class="prototype">Local visual memory</span>
-    <span id="camera-state" role="status"><i aria-hidden="true"></i>Camera off</span>
+    <a class="wordmark" href="/" aria-label="Nyx home">nyx</a>
+    <button id="camera-toggle" class="quiet-button" aria-label="Start camera"><span id="camera-state" role="status"><i aria-hidden="true"></i>Camera off</span></button>
+    <button id="open-settings" class="icon-button" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1z"/></svg></button>
   </header>
-  <main>
-    <div class="intro"><h1>Keep a little history.<br>Find a moment.</h1><p>Ask about your current view or find an item in recorded moments.<br>Review possible matches and refine your request.</p></div>
+  <main class="conversation">
+    <section class="conversation-stage" aria-label="Conversation">
+      <p id="conversation-question" class="question" hidden></p>
+      <h1 id="conversation-answer" aria-live="polite">What would you like to know?</h1>
+      <p id="conversation-hint">Say “Hey Nyx” or tap the microphone.</p>
+      <button id="view-source" class="quiet-button" hidden>View source <span aria-hidden="true">›</span></button>
+    </section>
+    <section class="conversation-dock" aria-label="Voice controls">
+      <div class="conversation-state"><span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span id="conversation-state" role="status">Getting ready…</span></div>
+      <div class="voice-actions">
+        <button id="mute" class="secondary-action" aria-label="Mute microphone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg><span id="mute-label">Mute mic</span></button>
+        <button id="talk" class="talk-action" aria-label="Talk to Nyx"><span class="talk-disc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg><span class="stop-symbol" hidden></span></span><span id="talk-label">Talk to Nyx</span></button>
+        <button id="type-toggle" class="secondary-action" aria-expanded="false" aria-controls="typing-panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M5 9h2m2 0h2m2 0h2m2 0h2M5 12h2m2 0h2m2 0h2m2 0h2M7 15h10"/></svg><span>Type instead</span></button>
+      </div>
+      <div id="typing-panel" hidden><form id="companion-form"><label for="companion-message">Your request</label><div class="search-row"><input id="companion-message" maxlength="1500" placeholder="Where did you last see my reading glasses?" required><button id="companion-send" class="primary">Ask Nyx</button><button id="companion-stop" type="button" hidden>Stop</button></div></form></div>
+      <p id="error" role="alert" hidden></p>
+    </section>
+  </main>
+  <dialog id="source-dialog" aria-labelledby="source-title"><div class="dialog-heading"><h2 id="source-title">Source</h2><button data-close="source-dialog" aria-label="Close source">Close</button></div><section id="answer-panel" class="answer" aria-label="Visual answer" hidden>
+          <h3>Visual answer <span id="answer-source-label" class="model-label">Possible match</span></h3>
+          <p id="answer-text" role="status" aria-live="polite"></p>
+          <p id="answer-note" class="help"></p>
+          <div id="answer-evidence"></div>
+          <img id="snapshot-evidence" alt="Exact snapshot inspected by Nyx" hidden>
+          <details><summary>Checks and temporal context</summary><div id="answer-checks"></div></details>
+        </section><section id="replay-panel" hidden aria-label="Selected source moment"><h2>Selected moment</h2><video id="replay" playsinline controls aria-label="Source replay"></video><p id="replay-caption" class="caption"></p></section></dialog>
+  <dialog id="settings-dialog" aria-labelledby="settings-title"><div class="dialog-heading"><h2 id="settings-title">Settings &amp; history</h2><button data-close="settings-dialog" aria-label="Close settings">Close</button></div>
+    <p class="help">Nyx uses your camera to remember moments. Idle audio stays on this device. Selected images, activated speech and conversation context go to the configured cloud providers.</p>
     <section class="voice-panel" aria-label="Nyx companion">
       <h2>Talk to Nyx</h2>
       <p class="help">Describe the item you want to find. If a match is wrong, say “That’s not it” or add a distinguishing detail. Selected frames are sent to OpenRouter and its model providers for search and interpretation. Recordings stay on this device. Nyx checks the current view and recorded history using cloud models; review the image before relying on a result.</p>
-      <form id="companion-form"><label for="companion-message">Your request</label><div class="search-row"><input id="companion-message" maxlength="1500" placeholder="Where did you last see my reading glasses?" required><button id="companion-send" class="primary">Ask Nyx</button><button id="companion-stop" type="button" hidden>Stop</button></div></form>
+
       <p id="companion-status" role="status" aria-live="polite">Ready. Camera and microphone have separate controls.</p>
       <div id="companion-thread" aria-live="polite"></div>
       <details><summary>What Nyx checked</summary><div id="companion-steps"></div></details>
-      <details open><summary>Experimental departure reminders</summary><p id="observation-state" class="help">No departure monitoring while the camera is off.</p><div id="reminders"></div><p class="help">Experimental, single-person doorway demo. A model may miss or misread departure. Playback and acknowledgement are tracked separately.</p></details>
+      <details><summary>Experimental departure reminders</summary><p id="observation-state" class="help">No departure monitoring while the camera is off.</p><div id="reminders"></div><p class="help">Experimental, single-person doorway demo. A model may miss or misread departure. Playback and acknowledgement are tracked separately.</p></details>
     </section>
     <section id="voice-panel" class="voice-panel" aria-label="Hands-free voice" hidden>
       <h2>Hey Nyx</h2>
@@ -65,9 +91,9 @@
         </section>
         <div id="unsaved" hidden><p>A segment could not be saved to Nyx. Keep a copy before leaving this page.</p><button id="retry-upload">Retry saving</button> <a id="download-segment">Download unsaved segment</a></div>
         <div id="task" role="status" aria-live="polite" hidden></div>
-        <p id="error" role="alert" hidden></p>
+
         <details class="recording-tip"><summary>Make a useful first clip</summary><p>Keep the camera still. Show your glasses, keys or wallet for a few seconds, move one beside a landmark, then take it out of view. Search for each object and check the returned moments.</p></details>
-        <section id="replay-panel" hidden aria-label="Selected source moment"><h2>Selected moment</h2><video id="replay" playsinline controls aria-label="Source replay"></video><p id="replay-caption" class="caption"></p></section>
+
       </section>
       <section class="memory" aria-labelledby="search-heading">
         <h2 id="search-heading">Look through your history</h2>
@@ -88,14 +114,7 @@
           </form>
           <p class="help">Current view uses the active camera. Visual model checks can be wrong.</p>
         </section>
-        <section id="answer-panel" class="answer" aria-label="Visual answer" hidden>
-          <h3>Visual answer <span id="answer-source-label" class="model-label">Possible match</span></h3>
-          <p id="answer-text" role="status" aria-live="polite"></p>
-          <p id="answer-note" class="help"></p>
-          <div id="answer-evidence"></div>
-          <img id="snapshot-evidence" alt="Exact snapshot inspected by Nyx" hidden>
-          <details><summary>Checks and temporal context</summary><div id="answer-checks"></div></details>
-        </section>
+
         <div class="section-heading"><h3>Saved clips and segments</h3><span id="clip-count">0 clips</span></div>
         <div id="clips"><p class="empty-library">Your indexed clips will appear here.</p></div>
         <button id="show-older-clips" type="button" hidden>Show older clips</button>
@@ -106,7 +125,7 @@
         </section>
       </section>
     </div>
-  </main>
-  <footer>Nyx laptop prototype <span>Recorded moments, with their sources.</span></footer>
+
+  </dialog>
 </body>
 </html>
