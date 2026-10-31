@@ -1,5 +1,15 @@
 # Milestones
 
+## Companion wording correction — 2026-10-31
+
+Corrected internal third-person user labels and unattributed hand wording in checked
+answers; removed the redundant “in front of you” location for an already-described
+user activity. Updated planner/generated-speech style and Hindi address guidance.
+Recorded personality research and a concrete character brief in R7 and design.md.
+Validation: 390 deterministic tests pass, including screenshot reproduction, hand
+ownership, distinct visitors and unchanged evidence. No live camera/microphone or
+provider calls were used; broader conversational quality still needs listening feedback.
+
 ## Conversation UI delivery — 2026-10-31
 
 Implemented the approved dark “Just a conversation” design in the packaged web interface:

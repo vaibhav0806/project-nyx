@@ -1,5 +1,15 @@
 # Decisions and open choices
 
+## Personal-demo address and companion character — 2026-10-31
+
+The user explicitly authorized assuming otherwise unattributed hands belong to them for
+this demo. Presentation converts “the user” to “you” and “the user's” to “your”; raw
+retrieval queries and judgments remain unchanged. Explicit other people remain distinct.
+This supersedes the earlier spoken unknown-hand wording, including Hindi translation;
+vision observations still do not assert identity. The English checked-answer path stays
+deterministic with no additional model call. Planner and generated speech share the calm,
+attentive, practical, lightly warm character described in design.md.
+
 ## Consistent acknowledgement and answer voice — 2026-10-31
 
 The user prefers the cached acknowledgement voice. All speech requests now share

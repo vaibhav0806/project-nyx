@@ -785,7 +785,7 @@ def test_unknown_or_future_sightings_do_not_invent_elapsed_time():
 @pytest.mark.parametrize(
     "location, expected",
     [
-        ("held in the right hand near the center of the image", "in the right hand"),
+        ("held in the right hand near the center of the image", "in your right hand"),
         ("on the table, in the lower right corner of the frame", "on the table"),
         ("near the center of the image, beside the laptop", "beside the laptop"),
         ("on the right side of the table", "on the right side of the table"),
@@ -810,3 +810,40 @@ def test_spoken_locations_keep_landmarks_not_image_coordinates(location, expecte
         assert expected in answer
     else:
         assert answer == "I can see a phone."
+
+
+@pytest.mark.parametrize(
+    "query, location, expected",
+    [
+        (
+            "the user using a phone",
+            "in front of the user",
+            "you using a phone about 50 minutes ago.",
+        ),
+        (
+            "the user's phone",
+            "in the user's hand",
+            "your phone about 50 minutes ago, in your hand.",
+        ),
+        ("a phone", "held in the right hand", "a phone about 50 minutes ago, in your right hand."),
+        ("a visitor", "beside the table", "a visitor about 50 minutes ago, beside the table."),
+        ("a phone", "in a visitor's hand", "a phone about 50 minutes ago, in a visitor's hand."),
+    ],
+)
+def test_personal_demo_speaks_to_listener_without_changing_evidence(query, location, expected):
+    from datetime import datetime
+
+    from nyx.voice import spoken_answer
+
+    result = {
+        "kind": "history",
+        "object_query": query,
+        "evidence": {
+            "observed_at": "2026-10-31T12:00:00+00:00",
+            "judgment": {"location": location},
+        },
+    }
+    answer = spoken_answer(result, now=datetime.fromisoformat("2026-10-31T12:50:00+00:00"))
+    assert answer == "I think I saw " + expected
+    assert result["object_query"] == query
+    assert result["evidence"]["judgment"]["location"] == location

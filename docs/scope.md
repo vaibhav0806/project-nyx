@@ -1,5 +1,12 @@
 # Scope
 
+## Personal-demo wording — 2026-10-31
+
+By explicit user instruction, replies address the described user and otherwise
+unattributed hands as “you/your”. This is a demo presentation assumption, not biometric
+identification. Explicit visitors and other named people retain their attribution.
+Stored observations, uncertainty, timestamps and retrieval semantics are unchanged.
+
 ## Two-stage voice delivery — 2026-10-31
 
 Voice questions are classified before tool use. General answers have no spoken

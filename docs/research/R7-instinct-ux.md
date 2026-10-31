@@ -36,3 +36,17 @@ The current slice implements portions of these lessons through shared typed/voic
 Keep two narrow product demonstrations: contextual object finding, and a next-departure reminder. Define their success by the user's outcome, including how often Nyx speaks incorrectly, interrupts unnecessarily, fails silently, or needs repair. For each, observe whether a person can understand the answer and cancel/correct it without learning the implementation.
 
 Do not add WhatsApp, general errands or an elaborate memory framework solely to resemble Instinct. No public source reviewed establishes its memory engineering or a suitable architecture for continuous household vision. R1/R2 intended-user work and R8's independent event evaluation remain the next evidence needed. The broader five-alternative R7 comparison, buyer/installer questions and actual adoption research are still open.
+
+## Personality follow-up — 2026-10-31
+
+Question: how should Nyx sound familiar without leaking internal descriptions or adding
+performative banter? Method: public desk research; no competitor account/session tested.
+
+- **Source-reported:** [Instinct founder interview transcript](https://bidclub.ai/e/noah-shinn-building-instinct-personal-agent), episode dated 2026-09-28, describes social awareness and adapting communication to user preferences. This is a third-party, AI-processed transcript, not an independently verified implementation description. [Another interview rendering](https://www.ceoinsider.io/interview/noah-shinn) emphasizes putting useful information first. No private persona prompt was found.
+- **Primary design guidance:** Google's [Create a persona](https://developers.google.com/assistant/conversation-design/create-a-persona), updated 2024-09-18, recommends a small set of traits, a short character description and evaluating voice against sample dialogue. Its platform is retired; the conversation-design principle remains useful.
+- **Proposed and adopted for Nyx:** calm, attentive, practical, lightly warm; direct second-person address, useful fact first, brief uncertainty, no forced jokes or pet names. See design.md for examples. This is our design choice, not a claim to reproduce Instinct's implementation.
+- **Measured locally:** the screenshot phrase came from interpolation of a retrieval query into a deterministic English answer, so prompt changes alone could not fix it. Presentation normalization and regression cases fix that path without another model request. Broad preference learning and durable personality memory are not implemented by this change.
+
+Decision impact: establish a consistent character and correct the actual formatter before
+adding any extra rewriting model or latency. Remaining evaluation: listen to English/Hindi
+answers across successful searches, ambiguous findings, misses and corrections with the user.
