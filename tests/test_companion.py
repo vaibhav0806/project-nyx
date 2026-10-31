@@ -116,7 +116,7 @@ def test_live_dense_selection_keeps_exact_semantic_times_in_delivery_evidence(tm
                 },
             )
         job = wait_for_job(client, response.json()["id"])
-        assert job["status"] == "succeeded", job
+        assert job["status"] == "succeeded", json.dumps(job)
         expected = [(now + timedelta(seconds=x)).isoformat() for x in [0.2, 0.4, 0.6]]
         assert job["result"]["frame_times"] == expected
         evidence = json.loads(client.get("/api/companion").json()["pending"][0]["evidence"])
@@ -205,7 +205,7 @@ def test_live_observer_does_not_wait_for_recording_segment_and_requires_owner(tm
                 assert response.status_code == 200
         assert response.status_code == 202
         job = wait_for_job(client, response.json()["id"])
-        assert job["status"] == "succeeded", job
+        assert job["status"] == "succeeded", json.dumps(job)
         assert job["result"]["deliveries"]
         assert job["result"]["decision"]["act"]
         assert client.get("/api/videos").json() == []
@@ -829,3 +829,71 @@ def test_clock_and_agent_context_use_browser_timezone(tmp_path, monkeypatch):
         wait_for_job(client, job["id"])
         assert states[0]["now"] == now.isoformat()
         assert states[0]["user_timezone"] == "Asia/Kolkata"
+
+
+def test_statement_tools_persist_across_app_restart(tmp_path):
+    class StatementEncoder(ColorEncoder):
+        def encode_text(self, text):
+            return super().encode_text("green")
+
+    class StatementVerifier(Planner):
+        def generate_json(self, messages, limit, **kwargs):
+            from nyx.voice import Conversations
+
+            text = str(messages)
+            if "Extract a concrete" in text:
+                return '{"kind":"intention","object_description":"green phone"}'
+            with Conversations(tmp_path).connect() as db:
+                row = db.execute("SELECT turn_id FROM statements LIMIT 1").fetchone()
+            return json.dumps({"statement_ids": [row["turn_id"]]})
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=StatementEncoder, verifier_factory=StatementVerifier)
+    ) as client:
+        response = client.post(
+            "/api/agent",
+            json={
+                "message": "I'll put this in the kitchen",
+                "request_id": "remember",
+                "initial_action": {"action": "remember_statement"},
+                "snapshot": snapshot(),
+                "captured_at": datetime.now(UTC).isoformat(),
+            },
+        )
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "succeeded", json.dumps(job)
+        assert "linked" in job["result"]["answer"]
+    with TestClient(
+        create_app(tmp_path, encoder_factory=StatementEncoder, verifier_factory=StatementVerifier)
+    ) as client:
+        response = client.post(
+            "/api/agent",
+            json={
+                "message": "Where is my phone?",
+                "request_id": "recall",
+                "initial_action": {"action": "search_statements", "query": "green phone"},
+            },
+        )
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "succeeded", json.dumps(job)
+        assert "kitchen" in job["result"]["answer"]
+        assert "not visual confirmation" in job["result"]["answer"]
+
+
+def test_identify_shown_object_returns_description_for_subsequent_search(tmp_path):
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Planner)
+    ) as client:
+        response = client.post(
+            "/api/agent",
+            json={
+                "message": "Where did I put this?",
+                "request_id": "identify",
+                "initial_action": {"action": "identify_shown_object"},
+                "snapshot": snapshot(),
+                "captured_at": datetime.now(UTC).isoformat(),
+            },
+        )
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "succeeded"
+        assert job["result"]["answer"] == "Shown object: Green fixture"

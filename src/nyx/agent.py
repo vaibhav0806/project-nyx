@@ -20,6 +20,9 @@ def validate_action(value):
     action = value.get("action")
     fields = {
         "inspect_current": {"query"},
+        "remember_statement": set(),
+        "identify_shown_object": set(),
+        "search_statements": {"query"},
         "search_history": {"query", "hours"},
         "search_matches": {"query"},
         "remind_on_departure": {"message"},
@@ -34,6 +37,12 @@ def validate_action(value):
     optional = {"excluded_frame_ids"} if action in {"search_history", "search_matches"} else set()
     if action == "search_history":
         optional.add("before_frame_id")
+    if action == "finish":
+        optional.add("statement_observation")
+    if "statement_observation" in value and (
+        type(value["statement_observation"]) is not int or value["statement_observation"] < 0
+    ):
+        raise ValueError("Statement completion must identify a tool observation")
     allowed = fields[action] | {"action"}
     if set(value) - optional != allowed:
         raise ValueError(
@@ -104,6 +113,12 @@ def agent_steps(
             break
         try:
             action = validate_action(decide(state))
+            statement_index = action.get("statement_observation")
+            if statement_index is not None and (
+                statement_index >= len(observations)
+                or observations[statement_index].get("kind") != "statements"
+            ):
+                raise ValueError("Completion must cite a saved-statement observation")
             if validate_tool is not None:
                 validate_tool(action)
             if (
@@ -222,6 +237,13 @@ def agent_steps(
             index = action["observation"]
             if index < len(observations):
                 selected = observations[index]
+                statement_index = action.get("statement_observation")
+                if statement_index is not None:
+                    statement = observations[statement_index]
+                    selected = {
+                        **selected,
+                        "answer": selected["answer"] + " " + statement["answer"],
+                    }
                 result.update(
                     answer=selected["answer"],
                     status=selected.get("status", "complete"),

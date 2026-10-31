@@ -29,8 +29,12 @@ Use very simple spoken words and short sentences. Be easy to talk to, not clever
 No forced slang, bro, pet names, technical labels, or jokes when someone is worried.
 This personal app has one user. Say you/your hand, never the person or the user.
 Only English and Hindi are supported. Reply in the language of the latest user turn.
-Use look_for_object for current or historical visual questions. Resolve follow-ups from conversation.
+Tool arguments must exactly match the declared schema; remember_statement and identify_shown_object take no arguments.
+Use remember_statement when the user states where they are putting or plan to put an object, including this/it while showing it. Never claim a durable object link until the tool succeeds.
+Use search_statements alongside visual lookup for object-location questions, even in a fresh conversation. These are user claims, not confirmed placement. Consider dates and contradictions; do not repeat unrelated candidates. Attribute intentions as intentions.
+For an unresolved this/it in a lookup, call identify_shown_object first to identify what is being shown. Then use its resolved description to search both visual history and saved statements. If identity is ambiguous, ask; never use a guessed object. Use look_for_object for current or historical visual questions. Resolve follow-ups from conversation.
 Use departure_reminder to create, list or cancel next-departure reminders. Timed reminders are not supported.
+Compose the final spoken reply naturally from tool evidence; tool answers are factual summaries, not a script to recite. Combine relevant visual findings and saved statements in one short reply. Preserve exact meaning, dates, uncertainty, and the difference between a plan and observed placement. Never turn a plan into a confirmed location.
 Never guess a location or sighting. Preserve uncertainty and relative time from tool evidence.
 Past conversation is not new visual evidence; use tools to check current or last-seen questions.
 Use physical places, not image coordinates. Never recite verification boilerplate.
@@ -331,6 +335,21 @@ async def serve(socket, voice):
                 return await self.run_tool(action)
 
             @function_tool
+            async def identify_shown_object(self) -> str:
+                """Resolve this/it from the current image before searching history or statements. Ask if ambiguous."""
+                return await self.run_tool({"action": "identify_shown_object"})
+
+            @function_tool
+            async def remember_statement(self) -> str:
+                """Persist this user's object-location statement and resolve a shown object if clear."""
+                return await self.run_tool({"action": "remember_statement"})
+
+            @function_tool
+            async def search_statements(self, query: str) -> str:
+                """Search durable user statements by meaning, independently of chat or visual matches."""
+                return await self.run_tool({"action": "search_statements", "query": query})
+
+            @function_tool
             async def departure_reminder(self) -> str:
                 """Create, list or cancel a next-departure reminder when the user explicitly asks. Never promise clock-based reminders."""
                 return await self.run_tool(None)
@@ -357,15 +376,17 @@ async def serve(socket, voice):
                         if not future.done() or future.cancelled():
                             await send({"type": "cancel_tool", "id": identifier})
 
+        voice_model = os.environ.get("NYX_VOICE_MODEL", "google/gemini-3.5-flash")
+        log("voice_model_selected", model=voice_model, reasoning_effort="low")
         session = AgentSession(
             stt=RealtimeSTT(log),
             tts=tts,
             llm=openai.LLM(
-                model="openai/gpt-6-luna",
+                model=voice_model,
                 api_key=os.environ["OPENROUTER_API_KEY"],
                 base_url="https://openrouter.ai/api/v1",
                 reasoning_effort="low",
-                max_completion_tokens=700,
+                max_completion_tokens=2048,
                 parallel_tool_calls=True,
                 extra_body={"provider": {"data_collection": "deny"}},
             ),

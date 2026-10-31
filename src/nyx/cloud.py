@@ -80,7 +80,7 @@ class OpenRouter:
                 round((time.perf_counter() - started) * 1000),
             )
 
-    def generate(self, messages, model, max_tokens):
+    def generate(self, messages, model, max_tokens, *, schema=None):
         converted = []
         for message in messages:
             content = message["content"]
@@ -94,7 +94,14 @@ class OpenRouter:
                 "messages": converted,
                 "max_tokens": max(1024, max_tokens),
                 "temperature": 0,
-                "response_format": {"type": "json_object"},
+                "response_format": (
+                    {
+                        "type": "json_schema",
+                        "json_schema": {"name": "nyx_evidence", "strict": True, "schema": schema},
+                    }
+                    if schema
+                    else {"type": "json_object"}
+                ),
                 "reasoning": {"effort": "low", "exclude": True},
             },
         )
@@ -112,7 +119,7 @@ class OpenRouter:
             "model": model,
             "messages": messages,
             "stream": True,
-            "max_tokens": 700,
+            "max_tokens": 2048,
             "temperature": 0,
             "reasoning": {"effort": "low", "exclude": True},
             "stream_options": {"include_usage": True},
@@ -154,7 +161,7 @@ class OpenRouter:
                         reason = choice.get("finish_reason")
                         if reason:
                             if reason != "stop":
-                                raise CloudError("Cloud answer did not finish.")
+                                raise CloudError(f"Cloud answer did not finish ({reason}).")
                             finished = True
             if not cancelled() and not finished:
                 raise CloudError("Cloud text stream ended before the answer finished.")

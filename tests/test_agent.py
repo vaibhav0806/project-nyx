@@ -418,9 +418,7 @@ def test_invalid_completion_gets_one_bounded_correction_before_a_real_tool_resul
     assert len(result["decision_errors"]) == 1
 
 
-@pytest.mark.parametrize(
-    "status", ["seen", "candidate", "armed", "cancelled", "complete", "clarify"]
-)
+@pytest.mark.parametrize("status", ["armed", "cancelled", "clarify"])
 def test_completed_tool_result_needs_no_additional_model_generation(status):
     from nyx.verification import CloudVerifier
 
@@ -861,3 +859,57 @@ def test_unresolved_boundary_does_not_prevent_repairing_the_anchor():
     assert calls == [first, repaired]
     assert result["status"] == "candidate"
     assert result["decision_errors"] == []
+
+
+def test_combines_independent_statement_with_visual_evidence_without_chat():
+    from nyx.agent import agent_steps
+
+    decisions = iter(
+        [
+            {"action": "identify_shown_object"},
+            {"action": "search_history", "query": "black phone", "hours": 24},
+            {"action": "search_statements", "query": "black phone"},
+            {"action": "finish", "observation": 1, "statement_observation": 2},
+        ]
+    )
+    outputs = iter(
+        [
+            {"kind": "snapshot", "status": "seen", "answer": "A black phone."},
+            {
+                "kind": "history",
+                "status": "seen",
+                "answer": "Seen in your hand.",
+                "checked": [{"video_id": "clip"}],
+            },
+            {
+                "kind": "statements",
+                "status": "complete",
+                "answer": "You said you planned to leave it in the kitchen.",
+            },
+        ]
+    )
+    result = complete(
+        agent_steps("Where did I put this?", [], lambda _: next(decisions), lambda _: next(outputs))
+    )
+    assert result["steps"][0]["action"] == "identify_shown_object"
+    assert "Seen in your hand." in result["answer"]
+    assert "planned to leave it in the kitchen" in result["answer"]
+    assert result["sources"] == ["clip"]
+
+
+def test_visual_success_still_allows_independent_statement_search():
+    from nyx.verification import CloudVerifier
+
+    verifier = object.__new__(CloudVerifier)
+    verifier.generate_decision = lambda *_: '{"action":"search_statements","query":"black phone"}'
+    action = verifier.decide(
+        {
+            "message": "Where is my phone?",
+            "conversation": [],
+            "actions": [{"action": "search_history", "query": "black phone", "hours": 2}],
+            "observations": [
+                {"index": 0, "kind": "history", "status": "seen", "answer": "Seen in your hand."}
+            ],
+        }
+    )
+    assert action == {"action": "search_statements", "query": "black phone"}

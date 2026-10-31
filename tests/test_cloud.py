@@ -353,3 +353,26 @@ def test_frame_decode_and_verification_overlap_without_changing_order(monkeypatc
         {"frame": 0},
         {"frame": 1},
     ]
+
+
+def test_statement_schema_is_forwarded_as_strict_structured_output():
+    schema = {
+        "type": "object",
+        "properties": {"kind": {"type": "string"}},
+        "required": ["kind"],
+        "additionalProperties": False,
+    }
+
+    def transport(request, timeout):
+        format = json.loads(request.data)["response_format"]
+        assert format == {
+            "type": "json_schema",
+            "json_schema": {"name": "nyx_evidence", "strict": True, "schema": schema},
+        }
+        return response(
+            {"choices": [{"finish_reason": "stop", "message": {"content": '{"kind":"none"}'}}]}
+        )
+
+    assert (
+        OpenRouter("test", transport).generate([], "model", 240, schema=schema) == '{"kind":"none"}'
+    )

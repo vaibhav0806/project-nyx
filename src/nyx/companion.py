@@ -290,7 +290,29 @@ def install_companion(app, workspace, voice):
             conversations.event("tool_started", turn_id=identifier, action=action)
             authorize(action)
             name = action["action"]
-            if name == "inspect_current":
+            if name in {"remember_statement", "search_statements"}:
+                from nyx.statements import Statements
+
+                statements = Statements(conversations)
+                workspace.model_store()
+                if name == "remember_statement":
+                    if image is not None:
+                        fresh(body.captured_at.isoformat())
+                    return statements.remember(
+                        identifier,
+                        workspace.visual_verifier(),
+                        workspace.encoder,
+                        image,
+                        body.captured_at.isoformat() if body.captured_at else None,
+                    )
+                return statements.recall(
+                    action["query"], workspace.encoder, workspace.visual_verifier(), identifier
+                )
+            if name in {"inspect_current", "identify_shown_object"}:
+                if name == "identify_shown_object":
+                    action = {
+                        "query": "the single object deliberately being shown or held up to the camera; identify it with distinguishing visible attributes"
+                    }
                 if image is None:
                     return {
                         "kind": "unavailable",
@@ -320,6 +342,8 @@ def install_companion(app, workspace, voice):
                     "snapshot_url": f"data:{image.info['nyx_mime']};base64,{body.snapshot}",
                 }
                 result["answer"] = spoken_answer(result)
+                if name == "identify_shown_object" and result["status"] == "seen":
+                    result["answer"] = "Shown object: " + judgment["description"]
                 return result
             if name in {"search_history", "search_matches"}:
                 if workspace.store() is None:
