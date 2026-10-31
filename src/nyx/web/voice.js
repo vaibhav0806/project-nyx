@@ -182,7 +182,7 @@ const voice = {
     }
     if (event.type === "text") {
       this.answer += event.text;
-      conversation.answer(this.answer);
+      conversation.answer(this.answer, true);
       $("voice-answer").textContent = `Nyx: ${this.answer}`;
     }
     if (event.type === "state") {

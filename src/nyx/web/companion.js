@@ -23,15 +23,18 @@ const conversation = {
       return;
     }
     const words = remaining.match(/\S+\s*|\s+/gu) || [];
-    this.shownAnswer += words.slice(0, Math.max(1, Math.ceil(words.length / 12))).join("");
+    const word = words[0] || remaining;
+    this.shownAnswer += word;
     $("conversation-answer").textContent = this.shownAnswer;
-    this.revealTimer = setTimeout(() => this.reveal(), 40);
+    const pause = /[.!?।]\s*$/.test(word) ? 500 : /[,;:]\s*$/.test(word) ? 380 : 260;
+    this.revealTimer = setTimeout(() => this.reveal(), pause);
   },
   begin(text) {
     this.stopReveal();
     this.answerTarget = this.shownAnswer = "";
     const answer = $("conversation-answer");
     answer.classList.remove("answer-arriving");
+    document.querySelector(".conversation-stage").classList.add("has-answer");
     answer.setAttribute("aria-busy", "true");
     answer.setAttribute("aria-label", "Preparing reply");
     const dots = document.createElement("span");
@@ -49,7 +52,7 @@ const conversation = {
     this.status = "";
     this.render();
   },
-  answer(text) {
+  answer(text, synchronized = false) {
     if (!text) return;
     const answer = $("conversation-answer");
     answer.removeAttribute("aria-label");
@@ -62,7 +65,7 @@ const conversation = {
       answer.replaceChildren();
       answer.classList.add("answer-arriving");
     }
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (synchronized || matchMedia("(prefers-reduced-motion: reduce)").matches) {
       this.stopReveal();
       this.answerTarget = this.shownAnswer = text;
       answer.textContent = text;

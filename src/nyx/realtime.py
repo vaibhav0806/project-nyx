@@ -15,6 +15,7 @@ import aiohttp
 from livekit import rtc
 from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, Agent, AgentSession, function_tool, llm, stt
 from livekit.agents.voice import io
+from livekit.agents.voice.transcription import TranscriptSynchronizer
 from livekit.plugins import openai, sarvam
 from starlette.websockets import WebSocketDisconnect
 from websockets.asyncio.client import connect
@@ -238,6 +239,7 @@ async def serve(socket, voice):
         return
     await socket.accept()
     session = None
+    synchronizer = None
     writer = None
     http = None
     tts = None
@@ -313,6 +315,9 @@ async def serve(socket, voice):
                 if path.exists():
 
                     async def cached_audio():
+                        # The cached acknowledgement intentionally has no screen transcript.
+                        await synchronizer.text_output.capture_text("")
+                        synchronizer.text_output.flush()
                         with wave.open(str(path), "rb") as audio:
                             while pcm := audio.readframes(480):
                                 yield rtc.AudioFrame(pcm, 24000, 1, len(pcm) // 2)
@@ -377,8 +382,11 @@ async def serve(socket, voice):
             user_away_timeout=None,
         )
         session.input.audio = source
-        session.output.audio = sink
-        session.output.transcription = BrowserText(send)
+        synchronizer = TranscriptSynchronizer(
+            next_in_chain_audio=sink, next_in_chain_text=BrowserText(send)
+        )
+        session.output.audio = synchronizer.audio_output
+        session.output.transcription = synchronizer.text_output
 
         @session.on("user_input_transcribed")
         def transcribed(event):
@@ -500,6 +508,8 @@ async def serve(socket, voice):
                 await asyncio.gather(writer, return_exceptions=True)
             if session:
                 await session.aclose()
+            if synchronizer:
+                await synchronizer.aclose()
             if tts:
                 await tts.aclose()
             if http:

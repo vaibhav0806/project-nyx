@@ -727,3 +727,12 @@ v4 catalog has no Ritu companion ID. Select `shalini_en_companion` and
 and companion style. Keep LiveKit and Bulbul v4 Flash; regenerate the 12 cached
 acknowledgements using the new voice-dependent cache keys. Source:
 [Sarvam voice catalog](https://docs.sarvam.ai/api/api-guides-tutorials/text-to-speech/voices).
+
+## 2026-10-31 — Synchronize spoken screen text with playback
+
+User found the backlog-driven reveal too fast and distracting. Wrap our custom
+LiveKit audio/text sinks in `TranscriptSynchronizer`, driven by browser playback
+start/completion events. Do not layer another reveal timer over synchronized voice
+text. Keep a slower fixed cadence for typed-only results and a stable answer anchor.
+Sarvam does not provide native word timestamps through this plugin, so alignment is
+estimated. [LiveKit transcription behavior](https://docs.livekit.io/agents/multimodality/text/).

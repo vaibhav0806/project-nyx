@@ -110,7 +110,10 @@ details { margin: 20px 0; } summary { cursor: pointer; padding: 10px 0; color: #
 .reply-dots i:nth-child(3) { animation-delay: 280ms; }
 .answer-arriving { animation: answer-arrive 240ms ease-out; }
 @keyframes reply-dot { 0%, 60%, 100% { transform: translateY(0); opacity: .4; } 30% { transform: translateY(-6px); opacity: .9; } }
-@keyframes answer-arrive { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes answer-arrive { from { opacity: 0; transform: none; } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   .reply-dots i, .answer-arriving { animation: none; }
 }
+
+.conversation-stage.has-answer { justify-content: flex-start; padding-top: clamp(48px, 13vh, 120px); }
+.conversation-stage.has-answer h1 { width: 100%; min-height: 5.2em; text-wrap: wrap; }

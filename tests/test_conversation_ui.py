@@ -144,12 +144,16 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
             expect(page.locator(".reply-dots i")).to_have_count(3)
             expect(page.locator("#conversation-answer")).not_to_contain_text("Thinking")
             expect(page.locator("#conversation-state")).not_to_contain_text("Thinking")
+            answer_top = page.locator("#conversation-answer").bounding_box()["y"]
             answer = "I saw your phone in your hand about thirty minutes ago, just before you went into the bedroom."
             assert page.evaluate(
                 "text => { conversation.answer(text); return document.getElementById('conversation-answer').textContent !== text; }",
                 answer,
             )
-            expect(page.locator("#conversation-answer")).to_have_text(answer)
+            page.wait_for_timeout(500)
+            assert len(page.locator("#conversation-answer").inner_text().split()) <= 3
+            expect(page.locator("#conversation-answer")).to_have_text(answer, timeout=10000)
+            assert abs(page.locator("#conversation-answer").bounding_box()["y"] - answer_top) < 1
             page.evaluate(
                 "conversation.answer('This older reply should stop appearing once a new question starts.'); conversation.begin('And my keys?')"
             )

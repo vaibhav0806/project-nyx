@@ -11,6 +11,41 @@ from nyx import realtime
 from nyx.voice import Voice
 
 
+def test_text_waits_for_actual_playback_and_stops_on_interruption():
+    async def run():
+        events = []
+
+        async def send(event):
+            events.append(event)
+
+        sink = realtime.BrowserAudio(send, events.append)
+        sync = realtime.TranscriptSynchronizer(
+            next_in_chain_audio=sink, next_in_chain_text=realtime.BrowserText(send)
+        )
+        try:
+            await sync.text_output.capture_text("Your phone is on the table beside your glasses.")
+            sync.text_output.flush()
+            await sync.audio_output.capture_frame(
+                rtc.AudioFrame(bytes(24000 * 2 * 4), 24000, 1, 24000 * 4)
+            )
+            sync.audio_output.flush()
+            await asyncio.sleep(0.1)
+            assert not [e for e in events if e["type"] == "text"]
+            sink.on_playback_started(created_at=time.time())
+            async with asyncio.timeout(2):
+                while not any(e["type"] == "text" for e in events):
+                    await asyncio.sleep(0.02)
+            sync.audio_output.clear_buffer()
+            await asyncio.sleep(0.05)
+            count = sum(e["type"] == "text" for e in events)
+            await asyncio.sleep(0.2)
+            assert sum(e["type"] == "text" for e in events) == count
+        finally:
+            await sync.aclose()
+
+    asyncio.run(run())
+
+
 def test_sarvam_partials_language_and_vad_reach_livekit(monkeypatch):
     packets = [
         {"event": "session.begin", "request_id": "fixture"},

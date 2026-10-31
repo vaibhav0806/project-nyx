@@ -846,3 +846,12 @@ a short initial fade; display animation does not delay streaming audio. New turn
 and interruption cancel pending text updates. Reduced-motion preferences use static
 dots and immediate text. Conversation browser checks cover waiting, gradual reveal,
 new-turn cancellation, Hindi text and reduced motion.
+
+### Speech-paced screen text — 2026-10-31
+
+Replaced accelerated screen reveal with LiveKit playback-synchronized transcription
+for voice replies. Typed replies use one word at a time with punctuation pauses.
+Anchored the answer area and disabled balanced rewrapping during replies. Regression
+checks verify no text before playback, interrupted text stops, fixed fallback pacing,
+and stable vertical position. Synthetic Chrome voice playback passed without JS
+errors. Timing is estimated because Sarvam exposes no exact word timestamps.

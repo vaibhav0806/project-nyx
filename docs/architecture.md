@@ -1,5 +1,17 @@
 # Technical architecture
 
+## Speech-paced screen text — 2026-10-31
+
+The custom browser audio/text outputs now pass through LiveKit's exported
+`TranscriptSynchronizer`. It starts forwarding words when the browser reports
+actual playback start, tracks audio playback, and stops text on interruption.
+Sarvam's plugin does not expose exact word timestamps, so this uses LiveKit's
+estimated alignment rather than claiming letter-perfect synchronization. Spoken
+text bypasses the browser reveal timer. Typed answers use a fixed one-word cadence
+with punctuation pauses; neither path uses backlog-based acceleration. The answer
+area is top-anchored during a turn and balanced rewrapping is disabled to avoid
+vertical crawling as lines appear.
+
 ## Companion voice selection — 2026-10-31
 
 The current voice is Shalini Companion: `shalini_en_companion` for English and
