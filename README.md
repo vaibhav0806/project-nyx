@@ -2,6 +2,12 @@
 
 **Your own space. Your own routine. A little help from Nyx.**
 
+### Watch Nyx in action
+
+A 75-second demo: ask Nyx where you left your phone.
+
+https://github.com/user-attachments/assets/1d9ac21b-5d34-475e-90a4-0a07ea1fa875
+
 Nyx is a personal AI companion that **sees, listens, and talks with you**, helping older adults live independently at home. Through a camera, microphone, and speaker, it sees the space around you, listens when you ask for help, and answers aloud in simple, natural language.
 
 Say **“Hey Nyx, where did you last see my glasses?”** Nyx looks through what it captured and tells you what it finds. Ask a follow-up, ask an everyday question, or simply have a conversation—without scrolling through recordings or learning special commands.
