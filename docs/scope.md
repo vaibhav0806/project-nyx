@@ -1,5 +1,13 @@
 # Scope
 
+## Companion voice selection — 2026-10-31
+
+The current voice is Shalini Companion: `shalini_en_companion` for English and
+`shalini_hi_companion` for Hindi, using Bulbul v4 Flash. This replaces the Ritu
+Reels/conversation presets described below. Answers, reminder speech and cached
+acknowledgements use the matching language preset. “Companion” is a speaker persona,
+not an additional conversation engine or separate API mode.
+
 ## Voice runtime update — 2026-10-31
 
 The user explicitly requested replacing the custom conversation loop with LiveKit

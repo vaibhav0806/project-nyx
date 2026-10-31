@@ -4,8 +4,8 @@
 
 Install the `voice` and `web` extras and configure server-only `SARVAM_API_KEY`
 and `OPENROUTER_API_KEY`. Spoken conversations use **LiveKit Agents**, Sarvam
-**Saaras v4 realtime STT**, and **Bulbul v4 Flash WebSocket TTS**. Ritu is the
-female voice for both answers and cached acknowledgements; English/Hindi follows
+**Saaras v4 realtime STT**, and **Bulbul v4 Flash WebSocket TTS**. Shalini Companion is the
+voice for both answers and cached acknowledgements; English/Hindi follows
 the detected input language. Nyx keyterm hints help transcription. Local wake
 recognition keeps idle audio on the laptop.
 
@@ -66,7 +66,7 @@ queries, reviews observations, and asks for clarification. No LangChain is neede
 - **Reasoning:** `openai/gpt-6-luna`; **vision:** `google/gemini-3.5-flash-lite`.
 - **Image/text embeddings:** `google/gemini-embedding-2`, 768 dimensions.
 - **Activated transcription:** Sarvam `saaras:v4` realtime WebSocket.
-- **Speech:** Sarvam `bulbul:v4-flash`, female Ritu voice.
+- **Speech:** Sarvam `bulbul:v4-flash`, Shalini Companion voice.
 - **Local:** Whisper tiny.en CPU/int8 wake recognition, inexpensive activity
   filtering, small MobileNet person detector, recording files and SQLite storage.
 

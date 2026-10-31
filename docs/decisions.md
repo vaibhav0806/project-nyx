@@ -718,3 +718,12 @@ short follow-up window gate outgoing audio. Source checks, cancellation, playbac
 segment IDs and browser epochs prevent obsolete results/audio from completing a
 new turn. Logs include provider request IDs, STT endpoint-to-final delay, LLM TTFT,
 TTS first-byte time and browser playback-start timing after the transcript.
+
+## 2026-10-31 — Use an actual companion speech persona
+
+User requested a companion preset after reviewing the Ritu listing. The current
+v4 catalog has no Ritu companion ID. Select `shalini_en_companion` and
+`shalini_hi_companion` so both supported languages retain the same named speaker
+and companion style. Keep LiveKit and Bulbul v4 Flash; regenerate the 12 cached
+acknowledgements using the new voice-dependent cache keys. Source:
+[Sarvam voice catalog](https://docs.sarvam.ai/api/api-guides-tutorials/text-to-speech/voices).

@@ -830,3 +830,10 @@ and video-only fake-camera capture with no JS errors. Synthetic vision fixtures
 exercise the tool path without sending real images. R6 records exact measurements.
 Full room-noise/echo interruption quality, p95 latency and faster LLM generation
 remain unvalidated; this does not establish subsecond end-to-end responses.
+
+### Companion speech preset — 2026-10-31
+
+Selected Shalini's actual English/Hindi Companion presets after the user's request.
+Answers, reminders and all 12 cached acknowledgements match. Both streaming provider
+checks passed (357/338 ms first audio); 49 focused tests and lint passed. Listening
+preference remains for user review. See R6 for the measured scope.

@@ -202,9 +202,9 @@ class CloudVoice:
             return {
                 "model": self.tts_model,
                 "text": text[:2200],
-                "speaker": "ritu_hi_conversation"
+                "speaker": "shalini_hi_companion"
                 if re.search(r"[\u0900-\u097f]", text)
-                else "ritu_en_reels",
+                else "shalini_en_companion",
                 "language_code": "hi-IN" if re.search(r"[\u0900-\u097f]", text) else "en-IN",
                 "output_audio_codec": "linear16",
                 "speech_sample_rate": 24000,

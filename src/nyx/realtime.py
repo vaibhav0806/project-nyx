@@ -22,7 +22,7 @@ from websockets.asyncio.client import connect
 from nyx.speech import ACKNOWLEDGEMENTS, acknowledgement_path
 from nyx.voice import local_now
 
-VOICES = {"en": "ritu_en_reels", "hi": "ritu_hi_conversation"}
+VOICES = {"en": "shalini_en_companion", "hi": "shalini_hi_companion"}
 INSTRUCTIONS = """You are Nyx, a calm, relaxed, attentive companion with light dry wit.
 Use very simple spoken words and short sentences. Be easy to talk to, not clever to listen to.
 No forced slang, bro, pet names, technical labels, or jokes when someone is worried.

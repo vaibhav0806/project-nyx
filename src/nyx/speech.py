@@ -28,7 +28,7 @@ ACKNOWLEDGEMENTS = {
 
 def acknowledgement_path(root, model, text):
     voice = (
-        ("ritu_hi_conversation" if re.search(r"[\u0900-\u097f]", text) else "ritu_en_reels")
+        ("shalini_hi_companion" if re.search(r"[\u0900-\u097f]", text) else "shalini_en_companion")
         if model == "bulbul:v4-flash"
         else "Kore"
     )

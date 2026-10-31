@@ -283,3 +283,15 @@ English transcript candidates, retaining placement statements and mixed question
 turns; defer evidence-frame decoding until actual statement candidates exist. Add explicit
 planner elapsed time. End-to-end household latency and broader multilingual coverage are
 still open; no new household imagery was sent during developer verification.
+
+## Shalini companion preset check — 2026-10-31
+
+The user requested an actual Companion preset. The v4 voice catalog lists
+`shalini_en_companion` and `shalini_hi_companion`; Ritu has no v4 companion ID.
+Switched replies, reminder speech and acknowledgement cache keys to Shalini.
+Generated all 12 replacement clips successfully. Separate synthetic WebSocket
+checks through the LiveKit Sarvam plugin returned first audio in 357 ms (English)
+and 338 ms (Hindi), with complete streams. These are single-request synthesis
+measurements, not end-to-end latency or a human listening preference test.
+49 focused voice/streaming tests and lint passed. Sources: [voice catalog](https://docs.sarvam.ai/api/api-guides-tutorials/text-to-speech/voices)
+and [TTS best practices](https://docs.sarvam.ai/api/api-guides-tutorials/text-to-speech/best-practices).
