@@ -1,5 +1,23 @@
 # Decisions and open choices
 
+## Single-user wording and measured voice delay — 2026-10-31
+
+The user clarified that this demo has one person. Vision location instructions now use
+“your hand”; the presentation formatter also handles existing “the person's” and curly
+apostrophe variants. No recognition system is added, and stored past evidence is unchanged.
+
+Two recent local requests measured Jev routing at 609/525 ms, transcription at 1512/1017 ms,
+and approximately 6.6/8.8 seconds from route readiness to agent completion. First answer
+audio took 3054 ms after speech streaming started; cached audio on the second took 8 ms.
+These are two observations, not a latency benchmark. Keep Jev for now: replacing that
+half-second stage would not remove the larger planner/history delay. Cached acknowledgement
+read time/cache hit and browser playback success/blocking are now logged separately.
+
+The two distinct requests had identical final text because checked English search answers
+use the same factual template. Each had one stream-start and one playback-start diagnostic.
+That does not prove what was heard in the room; no duplicate playback was established.
+Do not add random wording or another model call just to disguise repeated evidence.
+
 ## Personal-demo address and companion character — 2026-10-31
 
 The user explicitly authorized assuming otherwise unattributed hands belong to them for

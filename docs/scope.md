@@ -2,8 +2,8 @@
 
 ## Personal-demo wording — 2026-10-31
 
-By explicit user instruction, replies address the described user and otherwise
-unattributed hands as “you/your”. This is a demo presentation assumption, not biometric
+By explicit user instruction, this demo has one user. Replies address the visible
+person and their hands as “you/your”, including older “the person” labels. This is a demo presentation assumption, not biometric
 identification. Explicit visitors and other named people retain their attribution.
 Stored observations, uncertainty, timestamps and retrieval semantics are unchanged.
 

@@ -1,5 +1,14 @@
 # Milestones
 
+## Single-user wording and latency diagnosis — 2026-10-31
+
+Fixed “the person’s hand” in existing answer formatting and new vision location prompts.
+Added acknowledgement cache-read and browser playback diagnostics. Two local requests
+showed Jev under 0.7 seconds; later planning/history dominated the delay. Identical
+answers came from two requests using deterministic English phrasing; duplicate delivery
+was not established. No claim of reduced retrieval latency. Validation: 393 tests pass,
+Python lint/format, JavaScript syntax and diff checks pass; no real media captured.
+
 ## Relaxed, plain-language personality — 2026-10-31
 
 Updated planner and generated-speech instructions for the approved calm, relaxed,

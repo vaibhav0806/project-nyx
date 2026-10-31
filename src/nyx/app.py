@@ -484,6 +484,8 @@ def create_app(
         event = body.get("event")
         stage = body.get("stage")
         if event not in {
+            "acknowledgement_playback_started",
+            "acknowledgement_playback_blocked",
             "browser_turn_failed",
             "playback_started",
             "playback_blocked",

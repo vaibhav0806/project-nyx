@@ -110,8 +110,8 @@ def relative_time(value, now=None):
 
 
 def personal_wording(text):
-    text = re.sub(r"\bthe user's\b", "your", text, flags=re.IGNORECASE)
-    return re.sub(r"\bthe user\b", "you", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bthe (?:user|person)['’]s\b", "your", text, flags=re.IGNORECASE)
+    return re.sub(r"\bthe (?:user|person)\b", "you", text, flags=re.IGNORECASE)
 
 
 def spoken_location(location):
@@ -846,6 +846,7 @@ class Voice:
             self.gate.release()
 
     def acknowledgement(self, token, identifier):
+        started = time.perf_counter()
         with self.lock:
             self.check(token)
             if not self.turn or self.turn["id"] != identifier:
@@ -868,6 +869,12 @@ class Voice:
             self.check(token)
             if epoch != self.epoch or not self.turn or self.turn["id"] != identifier:
                 raise VoiceError("That voice response is no longer active.")
+        self.conversations.event(
+            "acknowledgement_ready",
+            turn_id=identifier,
+            cached=audio is not None,
+            elapsed_ms=round((time.perf_counter() - started) * 1000),
+        )
         return {"audio": audio}
 
     def reply_stream(self, token, identifier, result):

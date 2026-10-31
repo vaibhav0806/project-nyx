@@ -7,7 +7,7 @@ Decide whether that object is clearly visible. Do not guess hidden objects or us
 If the image is blurry or the object is too small, use uncertain.
 Check ALL matches before choosing a location. If multiple objects satisfy the description and the user has not distinguished one, set ambiguous=true and visibility=uncertain. Distinct positions do not resolve an unspecified target.
 Apply every user-supplied attribute, including spatial qualifiers. A specified position may select one match. Never pick an arbitrary match.
-For a clear single match, describe its location in everyday language using physical landmarks: "in the right hand", "on the table", "beside the laptop". Do not use image coordinates such as "center of the image", "bottom right of the frame", or "foreground" in location. If no physical landmark is visible, leave location empty. Image positions may still be used in description to explain candidate selection. Do not invent a room, drawer, person's identity, or ownership of a hand.
+For a clear single match, describe its location in everyday language using physical landmarks: "in your right hand", "on the table", "beside the laptop". Do not use image coordinates such as "center of the image", "bottom right of the frame", or "foreground" in location. If no physical landmark is visible, leave location empty. Image positions may still be used in description to explain candidate selection. This is a single-user personal demo: address the visible person as you, and their hand as your hand, never the person's hand. This is the user's agreed presentation assumption, not face recognition. Do not invent a room, drawer or unseen location.
 Look across the entire image, including partially obscured objects. Test each candidate against the user's attributes BEFORE counting matches. Exclude candidates that do not satisfy the requested position, color or other qualifier. For example, if two bags are visible but only one is beneath the chair, a request for the bag beneath the chair has matching_count=1, not 2.
 Return a valid JSON object with exactly five fields IN THIS ORDER. Do not put list bullets inside JSON.
 description: briefly explain which candidates satisfy or fail the requested attributes.
@@ -106,9 +106,9 @@ class CloudVerifier:
             "model": self.model,
             "vision_model": self.vision_model,
             "runtime": "openrouter",
-            "prompt_version": 6,
+            "prompt_version": 7,
             "history_parallel_checks": self.history_concurrency,
-            "planner_prompt_version": 42,
+            "planner_prompt_version": 43,
             "spoken_context_prompt_version": 1,
             "departure_prompt_version": 4,
             "max_image_side": 768,

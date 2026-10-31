@@ -692,6 +692,10 @@ def test_checking_acknowledgement_does_not_complete_turn(tmp_path):
     assert voice.acknowledgement(token, turn["id"])["audio"]
     assert not any(isinstance(call, tuple) and call[0] == "tts" for call in provider.calls)
     assert voice.turn["id"] == turn["id"]
+    event = voice.conversations.diagnostics()[-1]
+    assert event["event"] == "acknowledgement_ready"
+    assert event["details"]["cached"] is True
+    assert event["details"]["elapsed_ms"] >= 0
     voice.cancel(token)
     with pytest.raises(VoiceError):
         voice.acknowledgement(token, turn["id"])
@@ -824,6 +828,17 @@ def test_spoken_locations_keep_landmarks_not_image_coordinates(location, expecte
             "the user's phone",
             "in the user's hand",
             "your phone about 50 minutes ago, in your hand.",
+        ),
+        ("your phone", "in the person's hand", "your phone about 50 minutes ago, in your hand."),
+        (
+            "the person’s phone",
+            "in the person’s right hand",
+            "your phone about 50 minutes ago, in your right hand.",
+        ),
+        (
+            "the person using a phone",
+            "in front of the person",
+            "you using a phone about 50 minutes ago.",
         ),
         ("a phone", "held in the right hand", "a phone about 50 minutes ago, in your right hand."),
         ("a visitor", "beside the table", "a visitor about 50 minutes ago, beside the table."),

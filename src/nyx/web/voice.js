@@ -299,7 +299,7 @@ const voice = {
     }
   },
 
-  async sayChecking(turn, active) {
+  async sayChecking(turn, active, attemptId) {
     try {
       const reply = await api("/api/voice/acknowledgement", { ...json({ turn_id: turn.id }), headers: { ...this.headers(), "content-type": "application/json" }, signal: AbortSignal.timeout(15000) });
       if (!active() || !reply.audio) return;
@@ -310,7 +310,13 @@ const voice = {
       this.player = player;
       this.playing = true;
       player.onended = player.onerror = () => { if (this.player === player) this.stopPlayback(); };
-      try { await player.play(); } catch { if (this.player === player) this.stopPlayback(); }
+      try {
+        await player.play();
+        this.diagnostic("acknowledgement_playback_started", attemptId, "playback");
+      } catch {
+        this.diagnostic("acknowledgement_playback_blocked", attemptId, "playback");
+        if (this.player === player) this.stopPlayback();
+      }
     } catch { /* The answer can still finish if the brief acknowledgement fails. */ }
   },
 
@@ -355,7 +361,7 @@ const voice = {
         if (plan.object_query) $("object-query").value = plan.object_query;
         stage = "agent";
         let checking = true;
-        if (plan.lookup !== false) this.sayChecking(turn, () => active() && checking);
+        if (plan.lookup !== false) this.sayChecking(turn, () => active() && checking, attemptId);
         let response;
         try { response = await companion.request(turn.transcript, turn); }
         finally { checking = false; this.stopPlayback(); }
