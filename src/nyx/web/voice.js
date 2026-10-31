@@ -91,7 +91,7 @@ const voice = {
       };
       $("voice-enable").hidden = true;
       $("voice-mute").hidden = false;
-      this.state("Connecting voice…");
+      this.state("Connecting");
     } catch (error) {
       await this.stop(error.message);
     } finally {
@@ -105,7 +105,7 @@ const voice = {
   },
   async activate() {
     if (!this.ready) {
-      this.state("Voice is connecting…");
+      this.state("Connecting");
       return;
     }
     await api("/api/voice/activate", {
@@ -116,7 +116,7 @@ const voice = {
     for (const part of this.pre) this.socket.send(part.buffer);
     this.pre = [];
     this.preLength = 0;
-    this.state("I'm listening…");
+    this.state("Listening");
   },
   samples(samples) {
     if (!this.token) return;
@@ -171,7 +171,7 @@ const voice = {
     if (epoch !== this.epoch) return;
     if (event.type === "ready") {
       this.ready = true;
-      this.state("Ready · say “Hey Nyx”");
+      this.state("Listening");
     }
     if (event.type === "question") {
       this.answer = "";
@@ -192,10 +192,10 @@ const voice = {
         this.wakeUntil = performance.now() + 10000;
       this.state(
         {
-          listening: "Listening · you can ask a follow-up",
-          thinking: "Thinking…",
-          speaking: "Nyx is speaking",
-        }[event.state] || "Connecting voice…",
+          listening: "Listening",
+          thinking: "Thinking",
+          speaking: "Speaking",
+        }[event.state] || "Connecting",
       );
       conversation.render();
     }
@@ -293,9 +293,9 @@ const voice = {
     this.stopPlayback();
     if (companion.working) await companion.cancel();
     this.working = false;
-    this.state("Stopped. I'm listening.");
+    this.state("Listening");
   },
-  async stop(text = "Microphone muted.") {
+  async stop(text = "Mic off") {
     this.epoch++;
     this.ready = false;
     this.lastTranscript = null;

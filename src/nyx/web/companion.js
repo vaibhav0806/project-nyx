@@ -2,7 +2,7 @@
 
 const conversation = {
   configured: false,
-  status: "Getting ready…",
+  status: "Connecting",
   begin(text, checking = false) {
     $("conversation-question").textContent = text;
     $("conversation-question").hidden = false;
@@ -12,12 +12,12 @@ const conversation = {
     $("replay-panel").hidden = true;
     $("replay").pause();
     $("source-dialog").close();
-    this.status = "Thinking…";
+    this.status = "Thinking";
     this.render();
   },
   answer(text) {
     $("conversation-answer").textContent = text;
-    this.status = "Ready for your next question";
+    this.status = voice.mic ? "Listening" : "Ready";
     this.render();
   },
   render() {
@@ -35,7 +35,7 @@ const conversation = {
     $("mute-label").textContent = micOn ? "Mute mic" : "Enable mic";
     $("mute").setAttribute("aria-label", micOn ? "Mute microphone" : "Enable microphone");
     $("mute").disabled = !this.configured;
-    $("conversation-state").textContent = speaking ? "Nyx is speaking" : this.status;
+    $("conversation-state").textContent = speaking ? "Speaking" : working ? "Thinking" : this.status;
     document.querySelector(".wave").classList.toggle("active", speaking || (micOn && voice.wakeUntil > performance.now()));
     $("view-source").hidden = $("answer-panel").hidden;
     $("camera-toggle").setAttribute("aria-label", enabled ? "Pause camera" : paused ? "Resume camera" : "Start camera");
@@ -110,7 +110,7 @@ const companion = {
     this.epoch++;
     if (this.job) await api(`/api/agent/${this.job}/cancel`, { method: "POST" }).catch(() => {});
     $("companion-status").textContent = "Request stopped.";
-    conversation.status = "Request stopped. You can ask again.";
+    conversation.status = voice.mic ? "Listening" : "Ready";
     conversation.render();
   },
 
@@ -267,7 +267,7 @@ $("talk").onclick = async () => {
   conversation.render();
 };
 $("mute").onclick = async () => {
-  if (voice.mic) await voice.stop("Microphone muted. Tap Enable mic to listen again.");
+  if (voice.mic) await voice.stop("Mic off");
   else await voice.start();
   conversation.render();
 };
@@ -291,6 +291,6 @@ api("/api/voice").then(status => {
   if (!status.configured) {
     conversation.status = "Voice isn’t configured. You can type a question.";
     $("conversation-hint").textContent = "Use Type instead to ask a question.";
-  } else if (conversation.status === "Getting ready…") conversation.status = "Starting microphone…";
+  }
   conversation.render();
 }).catch(error => { conversation.status = error.message; conversation.render(); });
