@@ -388,3 +388,58 @@ def test_jev_classifies_hindi_lookup_without_generating_a_reply():
         "language": "hi",
         "lookup": True,
     }
+
+
+def test_sarvam_streams_raw_pcm_and_does_not_expose_key():
+    from nyx.cloud import SarvamSpeech
+
+    class Audio(BytesIO):
+        def __init__(self, data):
+            super().__init__(data)
+            self.headers = {"Content-Type": "audio/pcm"}
+
+        def read1(self, size):
+            return super().read(3)
+
+    def transport(request, timeout):
+        assert timeout == 15
+        assert request.get_header("Api-subscription-key") == "private-test-key"
+        assert json.loads(request.data)["speech_sample_rate"] == 24000
+        return Audio(b"\x01\x00" * 5)
+
+    client = SarvamSpeech("private-test-key", transport)
+    assert b"".join(client.stream_pcm({"speech_sample_rate": 24000})) == b"\x01\x00" * 5
+    assert list(client.stream_pcm({"speech_sample_rate": 24000}, lambda: True)) == []
+
+    def rejected(request, timeout):
+        raise HTTPError(request.full_url, 401, "private-test-key", {}, None)
+
+    with pytest.raises(CloudError, match="401") as error:
+        list(SarvamSpeech("private-test-key", rejected).stream_pcm({}))
+    assert "private-test-key" not in str(error.value)
+
+
+def test_frame_decode_and_verification_overlap_without_changing_order(monkeypatch):
+    from threading import Event
+
+    from nyx.verification import CloudVerifier
+
+    first_check = Event()
+
+    def decode(path, offset):
+        if offset == 1:
+            assert first_check.wait(2), "First verification must not wait for every frame decode"
+        return offset
+
+    def inspect(image, query):
+        if image == 0:
+            first_check.set()
+        return {"frame": image}
+
+    monkeypatch.setattr("nyx.capture.frame_image", decode)
+    verifier = CloudVerifier(client=object())
+    monkeypatch.setattr(verifier, "inspect", inspect)
+    assert verifier.inspect_frames([("fixture", 0), ("fixture", 1)], "phone") == [
+        {"frame": 0},
+        {"frame": 1},
+    ]

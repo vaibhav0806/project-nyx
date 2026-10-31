@@ -140,6 +140,20 @@ class CloudVerifier:
         ) as pool:
             return list(pool.map(lambda image: self.inspect(image, object_query), images))
 
+    def inspect_frames(self, frames, object_query):
+        from concurrent.futures import ThreadPoolExecutor
+
+        from nyx.capture import frame_image
+
+        def inspect_frame(frame):
+            path, offset = frame
+            return self.inspect(frame_image(path, offset), object_query)
+
+        with ThreadPoolExecutor(
+            max_workers=self.history_concurrency, thread_name_prefix="nyx-frame-check"
+        ) as pool:
+            return list(pool.map(inspect_frame, frames))
+
     def generate_json(self, messages, max_tokens=240):
         return self.client.generate(messages, self.vision_model, max_tokens)
 

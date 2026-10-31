@@ -280,7 +280,12 @@ class CloudVoice:
 
         self.client = client or OpenRouter()
         self.stt_model = os.environ.get("NYX_STT_MODEL", "openai/gpt-4o-mini-transcribe")
-        self.tts_model = "google/gemini-3.8-flash-lite-tts"
+        self.tts_model = os.environ.get("NYX_TTS_MODEL", "google/gemini-3.8-flash-lite-tts")
+        self.speech_client = self.client
+        if self.tts_model == "bulbul:v4-flash":
+            from nyx.cloud import SarvamSpeech
+
+            self.speech_client = SarvamSpeech()
         self.answer_model = "openai/gpt-6-luna"
         self.audio_cache = {}
         self.audio_lock = Lock()
@@ -395,6 +400,15 @@ class CloudVoice:
         )
 
     def speech_payload(self, text):
+        if self.tts_model == "bulbul:v4-flash":
+            return {
+                "model": self.tts_model,
+                "text": text[:2200],
+                "speaker": "shubh_enhi_companion",
+                "language_code": "hi-IN" if re.search(r"[\u0900-\u097f]", text) else "en-IN",
+                "output_audio_codec": "linear16",
+                "speech_sample_rate": 24000,
+            }
         return {
             "model": self.tts_model,
             "input": text[:2200],
@@ -414,7 +428,7 @@ class CloudVoice:
                     yield chunk
             return
         complete = bytearray()
-        for chunk in self.client.stream_pcm(
+        for chunk in self.speech_client.stream_pcm(
             self.speech_payload(text),
             cancelled,
         ):
@@ -467,11 +481,14 @@ class CloudVoice:
         if cached:
             return cached
         try:
-            pcm = self.client.request(
-                "audio/speech",
-                self.speech_payload(text),
-                binary=True,
-            )
+            if self.tts_model == "bulbul:v4-flash":
+                pcm = b"".join(self.speech_client.stream_pcm(self.speech_payload(text)))
+            else:
+                pcm = self.client.request(
+                    "audio/speech",
+                    self.speech_payload(text),
+                    binary=True,
+                )
             if not pcm or len(pcm) % 2 or len(pcm) > 4 * 1024**2:
                 raise ValueError(
                     "Speech response was invalid. The answer is still shown on screen."

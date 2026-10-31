@@ -191,3 +191,48 @@ Reproduce clip preparation with the README command. `tests/test_speech.py` and
 call `CloudVoice.route`, then `speech_events(provider.answer_tokens(...),
 provider.speech_chunks, stopped)` with a synthetic checked answer and monotonic
 first-event timestamps. No private media is needed.
+
+
+## R6 latency comparison — 2026-10-31
+
+Decision: test whether switching synthesis reduces first-audio delay while retaining
+one voice for acknowledgements and final answers. macOS 15.7.2 arm64, Python 3.12.12,
+local urllib HTTP streaming; no camera/microphone used. Existing configured credentials
+were used without printing them. Two providers ran concurrently; each processed the
+same three synthetic phrases sequentially, with no application audio cache:
+
+1. “I saw your phone on the table about half an hour ago.”
+2. “Your glasses are beside the laptop.”
+3. “आपका फोन मेज़ पर था, करीब आधे घंटे पहले।”
+
+| Model / transport / voice | First PCM byte, milliseconds | Full stream, milliseconds |
+| --- | --- | --- |
+| Gemini 3.8 Flash-Lite TTS / OpenRouter HTTP / Kore | 2508, 2164, 2761 | 2669, 2333, 2945 |
+| Bulbul v4 Flash / Sarvam HTTP stream / shubh_enhi_companion | 390, 253, 285 | 924, 562, 831 |
+
+Measured: raw mono linear16 at 24 kHz, Sarvam Content-Type audio/pcm. A separate uncached
+sentence (“Your keys are beside the blue cup.”) through Nyx's actual sentence/TTS event
+pipeline produced first audio at 307 ms and completed at 566 ms (23 chunks). This excludes
+STT, retrieval, browser/network delivery and physical speaker latency. Three phrases are
+not p95 evidence or a voice-quality assessment. Hindi pronunciation still needs user review.
+
+Source-reported: Sarvam's [HTTP streaming guide](https://docs.sarvam.ai/api/api-guides-tutorials/text-to-speech/streaming-api/http-stream)
+returns binary audio incrementally. Its [transport comparison](https://docs.sarvam.ai/api/api-guides-tutorials/text-to-speech/which-api-to-use)
+recommends persistent WebSockets for repeated interactive utterances. We selected HTTP
+streaming because the existing sentence pipeline can use it directly and this local trial
+already starts audio below 400 ms; no claim that a persistent WebSocket is implemented.
+
+A separate three-case synthetic planner comparison used the full current planner prompt,
+empty conversation, current/history capabilities and no media. GPT-6 Luna: 2079/1735/1587 ms;
+GPT-4.1 mini: 1431/1064/1422 ms. Cases were last-seen phone, current glasses and greeting.
+Mini chose inspect_current for the last-seen request; Luna chose search_history. The agent
+has a historical-request guard, but this test does not establish Mini's follow-up quality.
+Keep Luna rather than changing planners based on this small sample.
+
+Implementation: enable Bulbul through NYX_TTS_MODEL=bulbul:v4-flash; rebuild all 12 generic
+acknowledgements with the same voice. Overlap per-frame decoding and verification in six
+bounded workers while preserving newest-first result order. Skip clearly interrogative
+English transcript candidates, retaining placement statements and mixed question/statement
+turns; defer evidence-frame decoding until actual statement candidates exist. Add explicit
+planner elapsed time. End-to-end household latency and broader multilingual coverage are
+still open; no new household imagery was sent during developer verification.

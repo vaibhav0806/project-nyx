@@ -1,5 +1,24 @@
 # Milestones
 
+## Faster streaming synthesis and overlapped frame checks — 2026-10-31
+
+The running demo selects Sarvam Bulbul v4 Flash using the existing private key; all
+12 generic acknowledgement clips use its same companion voice. Synthetic English/Hindi
+first audio measured 253–390 ms versus 2164–2761 ms for the former Gemini path. A separate
+uncached Nyx sentence pipeline test measured 307 ms to first audio. These exclude retrieval
+and browser playback, so end-to-end improvement is not yet measured.
+
+Independent frame decoding and verification overlap in bounded workers, preserving result
+order. Clear question-only transcript context skips the model and frame decode; mixed
+placement statements remain eligible. Added explicit planner timing. Kept Luna after a
+small GPT-4.1 mini trial made an incorrect initial last-seen tool choice.
+
+Validation: 397 deterministic tests pass; lint, format and diff checks pass. Regression
+coverage includes streaming PCM, cancellation, redacted provider failures, consistent
+acknowledgement/answer voices, frame-work overlap/order, and context-call avoidance.
+See R6 for models, texts, measured timings, source links and limitations. No developer
+camera/microphone capture or new household-image upload was used.
+
 ## Single-user wording and latency diagnosis — 2026-10-31
 
 Fixed “the person’s hand” in existing answer formatting and new vision location prompts.

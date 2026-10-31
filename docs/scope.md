@@ -1,5 +1,11 @@
 # Scope
 
+## Faster speech — 2026-10-31
+
+The user authorized switching to faster streaming synthesis and confirmed using the existing
+Sarvam key. Activated answer text and generic acknowledgements may be synthesized by Sarvam
+Bulbul v4 Flash. Idle audio remains local. No broader capture or data-sharing scope is added.
+
 ## Personal-demo wording — 2026-10-31
 
 By explicit user instruction, this demo has one user. Replies address the visible

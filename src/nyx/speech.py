@@ -29,7 +29,8 @@ ACKNOWLEDGEMENTS = {
 
 
 def acknowledgement_path(root, model, text):
-    key = hashlib.sha256(f"{model}/Kore/24000/v1/{text}".encode()).hexdigest()[:24]
+    voice = "shubh_enhi_companion" if model == "bulbul:v4-flash" else "Kore"
+    key = hashlib.sha256(f"{model}/{voice}/24000/v1/{text}".encode()).hexdigest()[:24]
     return Path(root) / "voice-acknowledgements" / f"{key}.wav"
 
 

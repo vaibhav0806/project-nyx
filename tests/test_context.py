@@ -85,3 +85,18 @@ def test_playback_window_crosses_segments_and_excludes_other_sessions(tmp_path):
 def test_unknown_time_playback_stays_in_clip(tmp_path):
     result = playback_window(CaptureJournal(tmp_path), "imported", 2)
     assert result["parts"][0]["start"] == 0 and result["parts"][0]["end"] == 12
+
+
+def test_question_only_history_skips_context_model_and_frame_decode(tmp_path):
+    c = Conversations(tmp_path)
+    c.begin("Hey Nyx, where is my phone?", {"mode": "agent"})
+    c.begin("When did you see my phone?", {"mode": "agent"})
+    result = {"object_query": "phone", "evidence": {"observed_at": None}, "answer": "Found."}
+
+    def unexpected(*args):
+        raise AssertionError("No frame decode or model call for question-only context")
+
+    attach_statements(result, c, SimpleNamespace(generate_json=unexpected), unexpected)
+    assert result["answer"] == "Found."
+    mixed = c.begin("Where is my phone? I left it on the table.", {"mode": "agent"})
+    assert [r["id"] for r in transcript_candidates(c, "phone", None)] == [mixed]

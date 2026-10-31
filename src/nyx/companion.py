@@ -382,16 +382,15 @@ def install_companion(app, workspace, voice):
                     from nyx.context import attach_statements
 
                     try:
-                        evidence_image = frame_image(
-                            store.root / result["evidence"]["video_path"],
-                            result["evidence"]["offset_seconds"],
-                        )
                         context_started = time.perf_counter()
                         attach_statements(
                             result,
                             conversations,
                             workspace.visual_verifier(),
-                            evidence_image,
+                            lambda: frame_image(
+                                store.root / result["evidence"]["video_path"],
+                                result["evidence"]["offset_seconds"],
+                            ),
                             identifier,
                         )
                         result["answer"] = spoken_answer(result)
@@ -484,6 +483,7 @@ def install_companion(app, workspace, voice):
                     return result
 
                 def decide(state):
+                    decision_started = time.perf_counter()
                     verifier = workspace.visual_verifier()
                     action = verifier.decide(
                         {
@@ -498,6 +498,7 @@ def install_companion(app, workspace, voice):
                         turn_id=identifier,
                         action=action,
                         context_turns=len(context),
+                        elapsed_ms=round((time.perf_counter() - decision_started) * 1000),
                         model=verifier.fingerprint,
                     )
                     return action

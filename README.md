@@ -1,5 +1,18 @@
 # Nyx
 
+## Low-latency speech
+
+The current local demo uses `NYX_TTS_MODEL=bulbul:v4-flash` and `SARVAM_API_KEY` in the
+ignored `.env`. It streams Sarvam speech at 24 kHz, using the same voice for answers
+and acknowledgements. Prepare matching English/Hindi clips after changing the speech model:
+
+```sh
+uv run --env-file .env --no-sync python -m nyx.speech --prepare data/cloud-demo
+```
+
+Without `NYX_TTS_MODEL`, speech uses the existing OpenRouter Gemini/Kore configuration.
+Measured synthesis latency and remaining limits: [R6 voice findings](docs/research/R6-handsfree-voice.md).
+
 ## Conversation demo
 
 Nyx opens to a minimal dark conversation screen. Say “Hey Nyx” or tap the microphone,

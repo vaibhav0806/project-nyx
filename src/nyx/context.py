@@ -7,6 +7,26 @@ from datetime import timedelta
 from nyx.memory import aware_time
 
 
+def question_only(text):
+    text = re.sub(
+        r"^(?:(?:hey|hi|okay)[ ,]+)?(?:nyx|nix|nex|next|nick)[ ,.!]*", "", text, flags=re.IGNORECASE
+    )
+    # Mixed question/statement turns may contain useful placement evidence.
+    if re.search(
+        r"\b(?:put|left|placed|moved|kept|took|leave|placing|putting|keeping)\b",
+        text,
+        re.IGNORECASE,
+    ) or re.search(r"[.;\n]\s*\w", text):
+        return False
+    return bool(
+        re.match(
+            r"^(?:(?:where|when|what)\s+(?:is|are|was|were|did|do|does|have|has|can|could)|(?:did|do|can|could|have|has|is|are)\s+(?:you|I|my|the|it|they|there))\b",
+            text,
+            re.IGNORECASE,
+        )
+    )
+
+
 def transcript_candidates(conversations, query, observed_at, exclude_turn=None):
     words = [
         word
@@ -35,6 +55,7 @@ def transcript_candidates(conversations, query, observed_at, exclude_turn=None):
         {"id": r["id"], "at": r["at"], "text": r["transcript"]}
         for r in rows
         if json.loads(r["plan"]).get("mode") != "user_confirmation"
+        and not question_only(r["transcript"])
     ]
 
 
@@ -54,6 +75,7 @@ Never select a question, an assistant answer, unrelated object, hypothetical exa
 For an unresolved 'this/it', select only if nearby timing AND the image support a single plausible object.
 Nearby time alone does not prove identity. On ambiguity return an empty list. At most two IDs.
 """
+    image = image() if callable(image) else image
     raw = verifier.generate_json(
         [
             {

@@ -199,3 +199,44 @@ class OpenRouter:
             raise CloudError(f"OpenRouter speech request failed ({exc.code}).") from None
         except (URLError, TimeoutError, OSError):
             raise CloudError("Cloud speech stream failed. Please retry.") from None
+
+
+class SarvamSpeech:
+    def __init__(self, key=None, transport=urlopen):
+        self.key = key or os.environ.get("SARVAM_API_KEY", "").strip()
+        if not self.key:
+            raise CloudError("Configure SARVAM_API_KEY for streaming speech.")
+        self.transport = transport
+
+    def stream_pcm(self, payload, cancelled=lambda: False):
+        request = Request(
+            "https://api.sarvam.ai/text-to-speech/stream",
+            data=json.dumps(payload).encode(),
+            headers={"api-subscription-key": self.key, "Content-Type": "application/json"},
+        )
+        size, pending = 0, b""
+        try:
+            with self.transport(request, timeout=15) as response:
+                content_type = response.headers.get("Content-Type", "").lower()
+                if not content_type.startswith(("audio/pcm", "application/octet-stream")):
+                    raise CloudError("Speech did not return audio.")
+                while not cancelled():
+                    chunk = response.read1(4096)
+                    if not chunk:
+                        break
+                    if not size and chunk.startswith((b"RIFF", b"ID3", b"OggS")):
+                        raise CloudError("Speech did not return raw PCM.")
+                    size += len(chunk)
+                    if size > 4 * 1024**2:
+                        raise CloudError("Speech stream exceeded its limit.")
+                    pending += chunk
+                    complete = len(pending) // 2 * 2
+                    if complete:
+                        yield pending[:complete]
+                        pending = pending[complete:]
+            if not cancelled() and (not size or pending):
+                raise CloudError("Speech stream ended with invalid audio.")
+        except HTTPError as exc:
+            raise CloudError(f"Sarvam speech request failed ({exc.code}).") from None
+        except (URLError, TimeoutError, OSError):
+            raise CloudError("Speech stream failed. Please retry.") from None

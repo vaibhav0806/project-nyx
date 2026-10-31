@@ -108,22 +108,34 @@ def history_steps(
                 raise ValueError("Source must remain inside the local workspace")
             return frame_image(source, candidate["offset_seconds"])
 
-        if len(batch) > 1:
-            with ThreadPoolExecutor(
-                max_workers=len(batch), thread_name_prefix="nyx-decode"
-            ) as pool:
-                images = list(pool.map(decode, batch))
+        if callable(getattr(verifier, "inspect_frames", None)):
+            frames = []
+            for candidate in batch:
+                source = (store.root / candidate["video_path"]).resolve()
+                if not source.is_relative_to(store.root):
+                    raise ValueError("Source must remain inside the local workspace")
+                frames.append((source, candidate["offset_seconds"]))
+            judgments = verifier.inspect_frames(frames, object_query)
+            timings["frame_checks_ms"] = timings.get("frame_checks_ms", 0) + round(
+                (time.perf_counter() - phase) * 1000
+            )
         else:
-            images = [decode(batch[0])]
-        timings["decode_ms"] += round((time.perf_counter() - phase) * 1000)
-        phase = time.perf_counter()
-        judgments = (
-            verifier.inspect_batch(images, object_query)
-            if batch_size > 1
-            else [verifier.inspect(images[0], object_query)]
-        )
-        timings["verification_ms"] += round((time.perf_counter() - phase) * 1000)
-        timings["vision_requests"] += len(images) if batch_size > 1 else 1
+            if len(batch) > 1:
+                with ThreadPoolExecutor(
+                    max_workers=len(batch), thread_name_prefix="nyx-decode"
+                ) as pool:
+                    images = list(pool.map(decode, batch))
+            else:
+                images = [decode(batch[0])]
+            timings["decode_ms"] += round((time.perf_counter() - phase) * 1000)
+            phase = time.perf_counter()
+            judgments = (
+                verifier.inspect_batch(images, object_query)
+                if batch_size > 1
+                else [verifier.inspect(images[0], object_query)]
+            )
+            timings["verification_ms"] += round((time.perf_counter() - phase) * 1000)
+        timings["vision_requests"] += len(batch)
         for candidate, judgment in zip(batch, judgments, strict=True):
             item = {**evidence_links(candidate), "judgment": judgment, "model_checked": True}
             checked.append(item)

@@ -1,5 +1,22 @@
 # Technical architecture
 
+## Streaming speech latency update — 2026-10-31
+
+The running demo selects `NYX_TTS_MODEL=bulbul:v4-flash` with the existing server-only
+`SARVAM_API_KEY`. Sarvam HTTP streaming supplies mono 24 kHz linear16 through the same
+bounded sentence/audio pipeline. Both full acknowledgement generation and streamed
+answers use `shubh_enhi_companion`; all 12 English/Hindi clips were regenerated locally.
+This supersedes the earlier Kore preference for the user's requested speed improvement.
+The existing OpenRouter speech option remains the default when NYX_TTS_MODEL is unset.
+No silent provider fallback is used. Measured synthesis first audio was 253–390 ms versus
+2164–2761 ms previously; this is a small synthetic comparison, not end-to-end latency.
+
+Frame decode and verification now overlap per frame with bounded concurrency and ordered
+results. Context-only questions skip the statement-check model; actual statement checking
+depends on the selected frame and remains after verification. Retrieval depends on the
+resolved query, and speech depends on the checked answer. Existing acknowledgement/tool
+work and token generation/sentence synthesis already overlap. See R6 for evidence.
+
 ## Streaming speech pipeline — 2026-10-31
 
 ```mermaid

@@ -353,3 +353,23 @@ def test_acknowledgements_and_streamed_answers_use_identical_voice_settings():
             "response_format": "pcm",
         }
     ] * 2
+
+
+def test_sarvam_acknowledgements_and_answers_share_voice(monkeypatch):
+    from nyx.voice import CloudVoice
+
+    payloads = []
+
+    class Speech:
+        def stream_pcm(self, payload, cancelled=lambda: False):
+            payloads.append(payload)
+            yield b"\x00\x00" * 10
+
+    monkeypatch.setenv("NYX_TTS_MODEL", "bulbul:v4-flash")
+    monkeypatch.setattr("nyx.cloud.SarvamSpeech", Speech)
+    provider = CloudVoice(client=object())
+    provider.speak("Let me check.")
+    list(provider.speech_chunks("Your phone is on the table.", lambda: False))
+    assert payloads[0]["speaker"] == payloads[1]["speaker"] == "shubh_enhi_companion"
+    assert payloads[0]["speech_sample_rate"] == payloads[1]["speech_sample_rate"] == 24000
+    assert provider.speech_payload("आपका फोन मेज़ पर है।")["language_code"] == "hi-IN"
