@@ -140,6 +140,25 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
             }""")
             expect(page.locator("#mute .mic-slash")).to_be_visible()
             expect(page.locator("#talk .mic-slash")).to_be_visible()
+            page.evaluate("conversation.begin('Where is my phone?')")
+            expect(page.locator(".reply-dots i")).to_have_count(3)
+            expect(page.locator("#conversation-answer")).not_to_contain_text("Thinking")
+            expect(page.locator("#conversation-state")).not_to_contain_text("Thinking")
+            answer = "I saw your phone in your hand about thirty minutes ago, just before you went into the bedroom."
+            assert page.evaluate(
+                "text => { conversation.answer(text); return document.getElementById('conversation-answer').textContent !== text; }",
+                answer,
+            )
+            expect(page.locator("#conversation-answer")).to_have_text(answer)
+            page.evaluate(
+                "conversation.answer('This older reply should stop appearing once a new question starts.'); conversation.begin('And my keys?')"
+            )
+            page.wait_for_timeout(100)
+            expect(page.locator(".reply-dots i")).to_have_count(3)
+            page.emulate_media(reduced_motion="reduce")
+            hindi = "आपका फोन आपके हाथ में था।"
+            page.evaluate("text => conversation.answer(text)", hindi)
+            expect(page.locator("#conversation-answer")).to_have_text(hindi)
             page.set_viewport_size({"width": 390, "height": 844})
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
             page.screenshot(path=str(tmp_path / "conversation-mobile.png"))

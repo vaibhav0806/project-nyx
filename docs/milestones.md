@@ -837,3 +837,12 @@ Selected Shalini's actual English/Hindi Companion presets after the user's reque
 Answers, reminders and all 12 cached acknowledgements match. Both streaming provider
 checks passed (357/338 ms first audio); 49 focused tests and lint passed. Listening
 preference remains for user review. See R6 for the measured scope.
+
+### Quiet waiting and gradual answer text — 2026-10-31
+
+Replaced the central Thinking placeholder with three softly moving dots and hid
+Thinking from the conversation status. Answer text now appears progressively with
+a short initial fade; display animation does not delay streaming audio. New turns
+and interruption cancel pending text updates. Reduced-motion preferences use static
+dots and immediate text. Conversation browser checks cover waiting, gradual reveal,
+new-turn cancellation, Hindi text and reduced motion.

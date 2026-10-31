@@ -193,9 +193,9 @@ const voice = {
       this.state(
         {
           listening: "Listening",
-          thinking: "Thinking",
+          thinking: "",
           speaking: "Speaking",
-        }[event.state] || "Connecting",
+        }[event.state] ?? "Connecting",
       );
       conversation.render();
     }
@@ -280,6 +280,7 @@ const voice = {
     if (event.type === "error") await this.stop(event.message);
   },
   stopPlayback() {
+    conversation.stopReveal();
     for (const source of this.sources) {
       source.onended = null;
       source.stop();

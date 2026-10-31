@@ -3,20 +3,73 @@
 const conversation = {
   configured: false,
   status: "Connecting",
-  begin(text, checking = false) {
+  answerTarget: "", shownAnswer: "", revealTimer: null,
+  stopReveal() {
+    clearTimeout(this.revealTimer);
+    this.revealTimer = null;
+    this.answerTarget = this.shownAnswer;
+    const answer = $("conversation-answer");
+    answer.setAttribute("aria-busy", "false");
+    if (answer.querySelector(".reply-dots")) {
+      answer.replaceChildren();
+      answer.removeAttribute("aria-label");
+    }
+  },
+  reveal() {
+    this.revealTimer = null;
+    const remaining = this.answerTarget.slice(this.shownAnswer.length);
+    if (!remaining) {
+      $("conversation-answer").setAttribute("aria-busy", "false");
+      return;
+    }
+    const words = remaining.match(/\S+\s*|\s+/gu) || [];
+    this.shownAnswer += words.slice(0, Math.max(1, Math.ceil(words.length / 12))).join("");
+    $("conversation-answer").textContent = this.shownAnswer;
+    this.revealTimer = setTimeout(() => this.reveal(), 40);
+  },
+  begin(text) {
+    this.stopReveal();
+    this.answerTarget = this.shownAnswer = "";
+    const answer = $("conversation-answer");
+    answer.classList.remove("answer-arriving");
+    answer.setAttribute("aria-busy", "true");
+    answer.setAttribute("aria-label", "Preparing reply");
+    const dots = document.createElement("span");
+    dots.className = "reply-dots";
+    dots.setAttribute("aria-hidden", "true");
+    for (let i = 0; i < 3; i++) dots.append(document.createElement("i"));
+    answer.replaceChildren(dots);
     $("conversation-question").textContent = text;
     $("conversation-question").hidden = false;
-    $("conversation-answer").textContent = checking ? "Let me check…" : "Thinking…";
     $("conversation-hint").hidden = true;
     $("answer-panel").hidden = true;
     $("replay-panel").hidden = true;
     $("replay").pause();
     $("source-dialog").close();
-    this.status = "Thinking";
+    this.status = "";
     this.render();
   },
   answer(text) {
-    $("conversation-answer").textContent = text;
+    if (!text) return;
+    const answer = $("conversation-answer");
+    answer.removeAttribute("aria-label");
+    if (!text.startsWith(this.shownAnswer)) {
+      this.stopReveal();
+      this.shownAnswer = "";
+    }
+    this.answerTarget = text;
+    if (!this.shownAnswer) {
+      answer.replaceChildren();
+      answer.classList.add("answer-arriving");
+    }
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      this.stopReveal();
+      this.answerTarget = this.shownAnswer = text;
+      answer.textContent = text;
+    } else if (this.revealTimer === null) {
+      answer.setAttribute("aria-busy", "true");
+      this.reveal();
+    }
     this.status = voice.mic ? "Listening" : "Ready";
     this.render();
   },
@@ -35,7 +88,7 @@ const conversation = {
     $("mute-label").textContent = micOn ? "Mute mic" : "Enable mic";
     $("mute").setAttribute("aria-label", micOn ? "Mute microphone" : "Enable microphone");
     $("mute").disabled = !this.configured;
-    $("conversation-state").textContent = speaking ? "Speaking" : working ? "Thinking" : this.status;
+    $("conversation-state").textContent = speaking ? "Speaking" : working || this.status === "Thinking" ? "" : this.status;
     document.querySelector(".wave").classList.toggle("active", speaking || (micOn && voice.wakeUntil > performance.now()));
     $("view-source").hidden = $("answer-panel").hidden;
     $("camera-toggle").setAttribute("aria-label", enabled ? "Pause camera" : paused ? "Resume camera" : "Start camera");
