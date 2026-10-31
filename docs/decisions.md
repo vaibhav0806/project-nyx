@@ -7,8 +7,12 @@ this demo. Presentation converts “the user” to “you” and “the user's�
 retrieval queries and judgments remain unchanged. Explicit other people remain distinct.
 This supersedes the earlier spoken unknown-hand wording, including Hindi translation;
 vision observations still do not assert identity. The English checked-answer path stays
-deterministic with no additional model call. Planner and generated speech share the calm,
-attentive, practical, lightly warm character described in design.md.
+deterministic with no additional model call. The user subsequently approved a calm, relaxed, attentive and lightly witty character
+with very simple spoken language. Planner and generated speech now use that direction:
+brief, useful replies; occasional dry humor only in a playful exchange; no literacy,
+tech knowledge or internet slang required. English checked findings stay short and
+factual rather than adding a rewriting call or a joke to every sighting. Preferred
+Kore synthesis settings and cached acknowledgements are unchanged. See design.md.
 
 ## Consistent acknowledgement and answer voice — 2026-10-31
 

@@ -1,5 +1,15 @@
 # Milestones
 
+## Relaxed, plain-language personality — 2026-10-31
+
+Updated planner and generated-speech instructions for the approved calm, relaxed,
+attentive and lightly witty character. Everyday spoken words and short sentences
+are required in English and Hindi/Hinglish. Humor follows a playful mood and stays
+out of worried, frustrated or serious exchanges. Updated the design and decision
+records. Existing checked findings remain brief and factual with no added model call.
+Validation: Python lint/format and the 390-test deterministic suite pass. These
+checks protect the existing pipeline; actual model tone still needs listening review.
+
 ## Companion wording correction — 2026-10-31
 
 Corrected internal third-person user labels and unattributed hand wording in checked
