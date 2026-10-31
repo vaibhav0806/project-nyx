@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from threading import Lock
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import numpy as np
 
@@ -58,35 +59,88 @@ def conversational_plan(text):
     return None
 
 
-def spoken_answer(result):
+def local_now(timezone=None):
+    if not timezone:
+        return datetime.now().astimezone()
+    try:
+        return datetime.now(ZoneInfo(timezone))
+    except (ZoneInfoNotFoundError, ValueError):
+        raise VoiceError(
+            "Your timezone wasn't recognized. Refresh the page and try again."
+        ) from None
+
+
+def clock_reply(text, now):
+    text = wake_command(text) if wake_command(text) is not None else text
+    if re.fullmatch(
+        r"(?:please[ ,]+)?(?:what(?:'s| is) the (?:current )?time|what time is it|tell me (?:the )?time)"
+        r"(?:\s+(?:right now|now))?(?:[ ,]+(?:please|nyx|ma'am|mam))?[?.! ]*",
+        text.strip(),
+        re.IGNORECASE,
+    ):
+        return f"It's {now.strftime('%I:%M %p').lstrip('0').lower()}."
+    return None
+
+
+def relative_time(value, now=None):
+    if not value:
+        return None
+    observed = datetime.fromisoformat(value)
+    if observed.tzinfo is None:
+        return None
+    seconds = ((now or datetime.now(UTC)) - observed).total_seconds()
+    if seconds < -60:
+        return None
+    if seconds < 90:
+        return "just now"
+    minutes = seconds / 60
+    if minutes < 3:
+        return "a couple of minutes ago"
+    if minutes < 10:
+        return "a few minutes ago"
+    if minutes < 55:
+        return f"about {int((minutes + 2.5) // 5) * 5} minutes ago"
+    if minutes < 90:
+        return "about an hour ago"
+    hours = int((minutes + 30) // 60)
+    if hours < 24:
+        return f"about {hours} hours ago"
+    days = max(1, int((hours + 12) // 24))
+    return "about a day ago" if days == 1 else f"about {days} days ago"
+
+
+def spoken_answer(result, *, now=None):
     kind = result.get("kind")
     query = result.get("object_query", "that object")
     if result.get("status") == "confirmed":
         return result["answer"]
     if result.get("status") == "clarify":
-        return "Which one do you mean? Please describe its color, position, or another distinguishing detail."
+        return "Which one do you mean? What does it look like?"
     if kind == "snapshot":
         if result.get("status") == "seen":
             return f"I can see {query} {result['judgment'].get('location') or 'in this view'}."
         return f"I can't clearly see {query} in this view."
-    if kind == "history" and result.get("spoken_context"):
-        return result["answer"]
     if kind == "history":
         evidence = result.get("evidence")
         if evidence:
-            when = evidence.get("observed_at")
-            when = (
-                datetime.fromisoformat(when).astimezone().strftime("%I:%M %p on %d %B")
+            when = relative_time(evidence.get("observed_at"), now)
+            noun = (
+                query
+                if re.match(r"^(?:a|an|the|your|that|those)\b", query, re.IGNORECASE)
+                else f"your {query}"
+            )
+            location = evidence.get("judgment", {}).get("location")
+            place = f", {location.rstrip('.')}" if location else ""
+            answer = (
+                f"I think I saw {noun} {when}{place}."
                 if when
-                else f"{evidence['offset_seconds']:.0f} seconds into a clip with an unknown recording time"
+                else (f"I think I saw {noun}{place}, but I don't know when that was.")
             )
-            qualifier = (
-                "A possible match I found was"
-                if result.get("scope", {}).get("mode") == "relevance"
-                else "The latest possible match I found was"
-            )
-            return f"{qualifier} in footage from {when}. Is this the item you mean? Please check the image; I have not verified its identity or current location."
-        return f"I couldn't confirm {query} in the moments I checked. Other footage may still contain it."
+            statements = result.get("spoken_context") or []
+            if statements:
+                answer += " " + " ".join(f"You said, “{row['text']}”" for row in statements)
+            return answer
+        return f"I haven't found {query} yet. I can look further back."
     return result["answer"]
 
 
@@ -226,7 +280,7 @@ class CloudVoice:
                 [
                     {
                         "role": "system",
-                        "content": "You are Nyx, a concise spoken companion. Return JSON only: "
+                        "content": "You are Nyx, a warm, concise spoken companion. Never call the user bro. Return JSON only: "
                         '{"mode":"chat","reply":"..."} for general conversation, at most '
                         '350 characters. Otherwise return {"mode":"agent"}. You have no camera, '
                         "recordings, personal memory, tools or live information in this call. "
@@ -516,7 +570,7 @@ class Voice:
             self.probed = False
         return {"state": "activated", "seconds": 10}
 
-    def utterance(self, token, pcm, attempt_id=None):
+    def utterance(self, token, pcm, attempt_id=None, timezone=None):
         attempt_id = str(uuid.UUID(attempt_id)) if attempt_id else str(uuid.uuid4())
         identifier = None
         stage = "activation"
@@ -604,8 +658,10 @@ class Voice:
             ]
             started = time.perf_counter()
             stage = "routing"
+            clock = clock_reply(transcript, local_now(timezone))
             plan = validate_plan(
-                conversational_plan(transcript)
+                ({"mode": "chat", "reply": clock} if clock else None)
+                or conversational_plan(transcript)
                 or (
                     {"mode": "agent"}
                     if self.agent_mode

@@ -19,7 +19,7 @@ from nyx.answers import history_steps
 from nyx.intentions import Intentions
 from nyx.memory import aware_time
 from nyx.observation import Observer, departure_action
-from nyx.voice import Conversations, spoken_answer
+from nyx.voice import Conversations, clock_reply, local_now, spoken_answer
 
 
 class ConfirmMatchRequest(BaseModel):
@@ -29,6 +29,7 @@ class ConfirmMatchRequest(BaseModel):
 
 
 class AgentRequest(BaseModel):
+    timezone: str | None = Field(default=None, max_length=100)
     message: str = Field(min_length=1, max_length=1500, pattern=r"\S")
     request_id: str = Field(min_length=1, max_length=100)
     snapshot: str | None = Field(default=None, max_length=2_800_000)
@@ -393,6 +394,7 @@ def install_companion(app, workspace, voice):
                             evidence_image,
                             identifier,
                         )
+                        result["answer"] = spoken_answer(result)
                         result["timings"]["spoken_context_ms"] = round(
                             (time.perf_counter() - context_started) * 1000
                         )
@@ -438,6 +440,23 @@ def install_companion(app, workspace, voice):
 
         def run():
             try:
+                now = local_now(body.timezone)
+                clock = clock_reply(body.message, now)
+                if clock:
+                    result = {
+                        "kind": "agent",
+                        "status": "answered",
+                        "answer": clock,
+                        "steps": [],
+                        "sources": [],
+                        "checked": [],
+                        "turn_id": identifier,
+                        "voice_turn_id": body.voice_turn_id,
+                    }
+                    if not body.voice_turn_id:
+                        conversations.finish(identifier, clock)
+                    return result
+
                 if re.search(r"\bremind\b", body.message, re.IGNORECASE) and (
                     re.search(
                         r"\b(?:at|by)\s+(?:\d|one\b|two\b|three\b|four\b|five\b|six\b|seven\b|eight\b|nine\b|ten\b|eleven\b|twelve\b|noon\b|midnight\b)",
@@ -466,7 +485,14 @@ def install_companion(app, workspace, voice):
 
                 def decide(state):
                     verifier = workspace.visual_verifier()
-                    action = verifier.decide({**state, "reminders": tasks.active()})
+                    action = verifier.decide(
+                        {
+                            **state,
+                            "now": local_now(body.timezone).isoformat(),
+                            "user_timezone": body.timezone or str(now.tzinfo),
+                            "reminders": tasks.active(),
+                        }
+                    )
                     conversations.event(
                         "agent_decision",
                         turn_id=identifier,

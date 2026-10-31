@@ -88,15 +88,8 @@ Nearby time alone does not prove identity. On ambiguity return an empty list. At
         selected = []
     result["spoken_context"] = selected
     if selected:
-        quotes = " ".join(
-            f"You said at {aware_time(row['at']).astimezone().strftime('%I:%M %p')}: “{row['text']}”"
-            for row in selected
-        )
-        result["answer"] += (
-            " "
-            + quotes
-            + " That is your statement, not visual confirmation that the item was placed there."
-        )
+        quotes = " ".join(f"You said, “{row['text']}”" for row in selected)
+        result["answer"] += " " + quotes
     return result
 
 

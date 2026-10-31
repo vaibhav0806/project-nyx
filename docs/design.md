@@ -1,5 +1,10 @@
 # Product design
 
+## Natural companion wording — 2026-10-31
+
+Keep answers conversational: “I think I saw your phone about 35 minutes ago, on the table.” Use checked location details, rounded relative times and short uncertainty where needed. Do not recite “please check the image”, “not verified”, or “approximately”; do not address the user as “bro”. Quote a remembered statement as “You said…” rather than claiming its intended action happened. Clock answers use the browser local timezone without saying UTC by default.
+
+
 ## Approved conversation UI — 2026-10-31
 
 The main experience is a conversation, not a recording dashboard. Show the current question

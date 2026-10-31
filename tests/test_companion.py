@@ -631,7 +631,7 @@ def test_imported_unknown_time_media_can_be_checked_without_claiming_latest(tmp_
         output = wait_for_job(client, job["id"])["result"]
         assert output["status"] == "candidate"
         assert output["visual"]["evidence"]["observed_at"] is None
-        assert "unknown recording time" in output["answer"]
+        assert "don't know when" in output["answer"]
         assert "latest" not in output["answer"].lower()
 
 
@@ -763,3 +763,40 @@ def test_ambiguous_current_view_asks_user_without_searching_history(tmp_path):
         assert result["status"] == "clarify"
         assert "Which one" in result["answer"]
         assert [step["action"] for step in result["steps"]] == ["inspect_current", "finish"]
+
+
+def test_clock_and_agent_context_use_browser_timezone(tmp_path, monkeypatch):
+    now = datetime.fromisoformat("2026-10-31T19:39:00+05:30")
+
+    def local_clock(zone):
+        assert zone == "Asia/Kolkata"
+        return now
+
+    monkeypatch.setattr("nyx.companion.local_now", local_clock)
+    states = []
+
+    class LocalPlanner(Planner):
+        def decide(self, state):
+            states.append(state)
+            return {"action": "chat", "reply": "Hello."}
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=LocalPlanner)
+    ) as client:
+        job = client.post(
+            "/api/agent",
+            json={
+                "message": "What's the time right now, ma'am?",
+                "request_id": "clock",
+                "timezone": "Asia/Kolkata",
+            },
+        ).json()
+        assert wait_for_job(client, job["id"])["result"]["answer"] == "It's 7:39 pm."
+        assert states == []
+        job = client.post(
+            "/api/agent",
+            json={"message": "Hello", "request_id": "local-context", "timezone": "Asia/Kolkata"},
+        ).json()
+        wait_for_job(client, job["id"])
+        assert states[0]["now"] == now.isoformat()
+        assert states[0]["user_timezone"] == "Asia/Kolkata"

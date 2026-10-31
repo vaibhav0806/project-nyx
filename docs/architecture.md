@@ -1,5 +1,10 @@
 # Technical architecture
 
+## Conversation time handling — 2026-10-31
+
+`voice.py` formats elapsed sightings by subtracting aware timestamps, so relative time is independent of timezone and DST. `local_now` uses the browser IANA zone; clients omitting it use the laptop local timezone. Typed requests carry `timezone`; voice requests carry `x-nyx-timezone`. Current-clock replies bypass generation. The companion supplies local `now` and `user_timezone` to the planner; storage and temporal filtering continue using UTC. Speech and main text share the same short historical answer; evidence metadata remains exact.
+
+
 ## Fast spoken turns — 2026-10-31
 
 ```mermaid

@@ -24,7 +24,8 @@ def test_transcripts_search_beyond_recent_turns_and_keep_sources(tmp_path):
     v = SimpleNamespace(generate_json=lambda *args: json.dumps({"statement_ids": [first]}))
     attach_statements(result, c, v, object())
     assert "You said" in spoken_answer(result)
-    assert "will put" in result["answer"] and "not visual confirmation" in result["answer"]
+    assert "You said" in result["answer"] and "will put" in result["answer"]
+    assert "not visual confirmation" not in result["answer"]
 
 
 def test_nearby_pronouns_and_unknown_citations(tmp_path):

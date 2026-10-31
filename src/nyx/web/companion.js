@@ -79,7 +79,7 @@ const companion = {
       $("companion-status").textContent = "Preparing cloud reasoning…";
       await task("/api/companion/warmup", { method: "POST" });
       if (epoch !== this.epoch) throw new Error("Request stopped");
-      const body = { ...this.reviewCandidate, message: text, request_id: turn?.id || crypto.randomUUID(), ...this.snapshot(), voice_turn_id: turn?.id || null };
+      const body = { ...this.reviewCandidate, message: text, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, request_id: turn?.id || crypto.randomUUID(), ...this.snapshot(), voice_turn_id: turn?.id || null };
       const headers = turn ? { "x-nyx-voice": voice.token, "content-type": "application/json" } : { "content-type": "application/json" };
       $("companion-status").textContent = "Checking evidence and deciding the next step…";
       const result = await task("/api/agent", { method: "POST", headers, body: JSON.stringify(body) }, (id) => {

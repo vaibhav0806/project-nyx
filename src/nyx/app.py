@@ -455,7 +455,11 @@ def create_app(
             if len(raw) > MAX_PCM:
                 raise HTTPException(413, "Spoken questions must be at most 25 seconds.")
         return await run_in_threadpool(
-            voice.utterance, token, bytes(raw), request.headers.get("x-nyx-attempt")
+            voice.utterance,
+            token,
+            bytes(raw),
+            request.headers.get("x-nyx-attempt"),
+            request.headers.get("x-nyx-timezone"),
         )
 
     @app.get("/api/voice/diagnostics")

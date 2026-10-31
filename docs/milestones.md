@@ -709,3 +709,16 @@ suppression. Ruff lint/format, JS syntax and whitespace checks pass. Ten synthet
 live text cases matched intended routes; see [R6](research/R6-handsfree-voice.md#jev-routing-check--2026-10-31)
 for timings, cost and limits. No real camera/microphone used. The 0.95 threshold
 needs broader calibration; full spoken latency and room echo remain open.
+
+### Natural speech and local time — 2026-10-31
+
+Historical replies now use rounded elapsed time and checked location details,
+with a short identity qualifier instead of the image-review disclaimer. User
+statements remain explicitly attributed. Browser timezone reaches both voice and
+typed requests; simple clock questions use deterministic local time, and planner
+context includes the local offset and zone. Exact source metadata is unchanged.
+
+Validation: 363 tests pass, including equivalent-offset elapsed times, 37-minute
+rounding, unknown/future timestamps, spoken/typed clock shortcuts, local planner
+context and browser timezone transport. Python lint/format and JS syntax pass.
+No real camera/microphone or paid model calls used for these changes.

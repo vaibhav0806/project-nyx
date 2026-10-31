@@ -8,7 +8,7 @@ const voice = {
   noise: 0.001, voiced: 0, lastSpeech: 0, probePromise: null, lastProbe: 0, wakeUntil: 0, pending: null,
 
   state(text) { $("voice-state").textContent = text; window.dispatchEvent(new CustomEvent("nyx-voice-state", { detail: text })); },
-  headers() { return { "x-nyx-voice": this.token }; },
+  headers() { return { "x-nyx-voice": this.token, "x-nyx-timezone": Intl.DateTimeFormat().resolvedOptions().timeZone }; },
   reset() { this.parts = []; this.length = 0; this.quiet = 0; this.pre = []; this.preLength = 0; this.speaking = false; this.voiced = 0; },
 
   async start() {

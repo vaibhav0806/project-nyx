@@ -17,15 +17,20 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(channel="chrome", headless=True)
-            page = browser.new_page(viewport={"width": 1440, "height": 900})
+            page = browser.new_page(
+                viewport={"width": 1440, "height": 900}, timezone_id="Asia/Kolkata"
+            )
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
 
             def respond(route):
                 path = route.request.url.split("/api/")[-1]
+                if path == "agent":
+                    assert route.request.post_data_json["timezone"] == "Asia/Kolkata"
                 if path == "voice":
                     body = {"configured": False, "conversations": []}
                 elif path == "voice/utterance":
+                    assert route.request.headers["x-nyx-timezone"] == "Asia/Kolkata"
                     body = {
                         "id": "voice-fixture",
                         "state": "question",

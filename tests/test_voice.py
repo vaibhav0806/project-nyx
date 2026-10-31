@@ -366,10 +366,10 @@ def test_spoken_answer_is_brief_but_keeps_historical_uncertainty():
         },
     }
     text = spoken_answer(result)
-    assert "beside the laptop" not in text
-    assert "possible match" in text
-    assert "found" in text
-    assert "current location" in text
+    assert "beside the laptop" in text
+    assert "I think I saw" in text
+    assert "not verified" not in text
+    assert "check the image" not in text
     assert "2026-10-19T" not in text
     assert len(text) < 240
     assert "can't clearly see" in spoken_answer(
@@ -476,10 +476,10 @@ def test_spoken_replies_keep_unknown_clock_and_current_uncertainty():
             "judgment": {"location": "on the table"},
         },
     }
-    assert "unknown recording time" in spoken_answer(result)
-    assert "current location" in spoken_answer(result)
+    assert "don't know when" in spoken_answer(result)
+    assert "on the table" in spoken_answer(result)
     assert (
-        "other footage"
+        "look further back"
         in spoken_answer(
             {"kind": "history", "status": "uncertain", "object_query": "pen", "evidence": None}
         ).lower()
@@ -725,3 +725,58 @@ def test_acknowledgement_api_requires_session_and_matching_turn(tmp_path):
             client.post(endpoint, headers=headers, json={"turn_id": turn["id"]}).status_code == 200
         )
         assert voice.turn["id"] == turn["id"]
+
+
+@pytest.mark.parametrize(
+    "minutes, expected",
+    [
+        (0, "just now"),
+        (7, "a few minutes ago"),
+        (37, "about 35 minutes ago"),
+        (62, "about an hour ago"),
+        (125, "about 2 hours ago"),
+        (1440, "about a day ago"),
+    ],
+)
+def test_relative_sightings_use_rounded_elapsed_time(minutes, expected):
+    from datetime import UTC, datetime, timedelta
+
+    from nyx.voice import relative_time
+
+    now = datetime.fromisoformat("2026-10-31T19:39:00+05:30")
+    observed = now - timedelta(minutes=minutes)
+    assert relative_time(observed.isoformat(), now) == expected
+    assert relative_time(observed.astimezone(UTC).isoformat(), now) == expected
+
+
+def test_clock_questions_use_local_time_and_skip_models(tmp_path):
+    from datetime import datetime
+
+    from nyx.voice import clock_reply, local_now
+
+    now = datetime.fromisoformat("2026-10-31T19:39:00+05:30")
+    assert clock_reply("What's the time right now, ma'am?", now) == "It's 7:39 pm."
+    assert clock_reply("What time is it in London?", now) is None
+    assert clock_reply("What time is it UTC?", now) is None
+    assert str(local_now("Asia/Kolkata").tzinfo) == "Asia/Kolkata"
+    with pytest.raises(VoiceError):
+        local_now("invalid/place")
+    provider = Provider()
+    provider.transcribe = lambda _: "What time is it?"
+    voice = Voice(tmp_path, provider, lambda _: "Hey Nyx what time is it?")
+    token = voice.start()["token"]
+    turn = voice.utterance(token, audio(), timezone="Asia/Kolkata")
+    assert turn["plan"]["mode"] == "chat"
+    assert "UTC" not in turn["plan"]["reply"]
+    assert provider.calls == []
+
+
+def test_unknown_or_future_sightings_do_not_invent_elapsed_time():
+    from datetime import datetime
+
+    from nyx.voice import relative_time
+
+    now = datetime.fromisoformat("2026-10-31T12:00:00+00:00")
+    assert relative_time(None, now) is None
+    assert relative_time("2026-10-31T13:00:00+00:00", now) is None
+    assert relative_time("2026-10-31T11:00:00", now) is None
