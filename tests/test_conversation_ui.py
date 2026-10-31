@@ -26,11 +26,17 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
             def respond(route):
                 path = route.request.url.split("/api/")[-1]
                 if path == "agent":
-                    assert route.request.post_data_json["timezone"] == "Asia/Kolkata"
+                    assert route.request.post_data_json["timezone"] in {
+                        "Asia/Kolkata",
+                        "Asia/Calcutta",
+                    }
                 if path == "voice":
                     body = {"configured": False, "conversations": []}
                 elif path == "voice/utterance":
-                    assert route.request.headers["x-nyx-timezone"] == "Asia/Kolkata"
+                    assert route.request.headers["x-nyx-timezone"] in {
+                        "Asia/Kolkata",
+                        "Asia/Calcutta",
+                    }
                     body = {
                         "id": "voice-fixture",
                         "state": "question",
