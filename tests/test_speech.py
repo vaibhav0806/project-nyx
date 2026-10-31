@@ -325,3 +325,31 @@ def test_streamed_speech_reuses_cache_without_another_provider_call():
     first = b"".join(provider.speech_chunks("Hello.", lambda: False))
     assert b"".join(provider.speech_chunks("Hello.", lambda: False)) == first
     assert len(calls) == 1
+
+
+def test_acknowledgements_and_streamed_answers_use_identical_voice_settings():
+    from nyx.voice import CloudVoice
+
+    payloads = []
+
+    class Client:
+        def request(self, path, payload, *, binary):
+            assert path == "audio/speech" and binary
+            payloads.append(payload)
+            return b"\x00\x00" * 10
+
+        def stream_pcm(self, payload, cancelled):
+            payloads.append(payload)
+            yield b"\x00\x00" * 10
+
+    provider = CloudVoice(Client())
+    provider.speak("Let me check that for you.")
+    list(provider.speech_chunks("I saw your phone on the table.", lambda: False))
+    assert [{k: v for k, v in payload.items() if k != "input"} for payload in payloads] == [
+        {
+            "model": "google/gemini-3.8-flash-lite-tts",
+            "voice": "Kore",
+            "instructions": "Speak warmly and clearly.",
+            "response_format": "pcm",
+        }
+    ] * 2

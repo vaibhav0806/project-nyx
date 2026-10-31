@@ -751,3 +751,12 @@ checks and limitations are recorded in [R6](research/R6-handsfree-voice.md#two-s
 No real camera/microphone or private-media inputs used in developer verification.
 Provider first-audio delay, real-room interruption quality and p95 latency remain
 open. Later chunks/requests cannot remove those provider or retrieval dependencies.
+
+### Consistent voice settings — 2026-10-31
+
+Shared the preferred acknowledgement synthesis settings across complete and
+streamed speech. Retained the existing twelve cached clips. Answer playback now
+uses a separate 24 kHz audio context, preserving 16 kHz microphone processing.
+385 tests pass, including exact speech-payload parity and a browser assertion for
+separate capture/playback sample rates. Lint/format and JS syntax pass. Tests use
+synthetic audio; no claim of a completed human listening comparison.

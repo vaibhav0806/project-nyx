@@ -190,7 +190,7 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
                     send({type: 'done', answer: 'First sentence. Second sentence.', timings: {}});
                     controller.close();
                     const result = await pending;
-                    const completed = result.answer === 'First sentence. Second sentence.' && !voice.playing;
+                    const completed = result.answer === 'First sentence. Second sentence.' && !voice.playing && voice.context.sampleRate === 16000 && voice.outputContext.sampleRate === 24000;
                     let secondController, active = true;
                     const second = new ReadableStream({start(c) { secondController = c; }});
                     window.fetch = async () => new Response(second, {headers: {'content-type': 'application/x-ndjson'}});
@@ -208,6 +208,8 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
                     voice.stopPlayback();
                     await context.close();
                     voice.context = null;
+                    await voice.outputContext?.close();
+                    voice.outputContext = null;
                 }
             }""")
             page.set_viewport_size({"width": 390, "height": 844})

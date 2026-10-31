@@ -1,5 +1,16 @@
 # Decisions and open choices
 
+## Consistent acknowledgement and answer voice — 2026-10-31
+
+The user prefers the cached acknowledgement voice. All speech requests now share
+its exact Gemini 3.8 Flash-Lite TTS / Kore / “Speak warmly and clearly.” settings,
+including streamed answers. Existing acknowledgement files remain unchanged.
+Streamed playback has a dedicated 24 kHz output context; the 16 kHz microphone
+context remains solely for capture and wake processing. This aligns synthesis
+settings and avoids lowering answer playback bandwidth to the microphone rate;
+perceptual consistency still needs the user's listening feedback.
+
+
 ## Two-stage streaming voice — 2026-10-31
 
 Jev now returns routing, lookup acknowledgement eligibility and English/Hindi

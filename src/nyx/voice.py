@@ -371,6 +371,15 @@ class CloudVoice:
             cancelled,
         )
 
+    def speech_payload(self, text):
+        return {
+            "model": self.tts_model,
+            "input": text[:2200],
+            "voice": "Kore",
+            "instructions": "Speak warmly and clearly.",
+            "response_format": "pcm",
+        }
+
     def speech_chunks(self, text, cancelled):
         cached = self.audio_cache.get(text)
         if cached:
@@ -383,13 +392,7 @@ class CloudVoice:
             return
         complete = bytearray()
         for chunk in self.client.stream_pcm(
-            {
-                "model": self.tts_model,
-                "input": text,
-                "voice": "Kore",
-                "instructions": "Speak naturally and warmly in the language of the text.",
-                "response_format": "pcm",
-            },
+            self.speech_payload(text),
             cancelled,
         ):
             complete.extend(chunk)
@@ -443,13 +446,7 @@ class CloudVoice:
         try:
             pcm = self.client.request(
                 "audio/speech",
-                {
-                    "model": self.tts_model,
-                    "input": text[:2200],
-                    "voice": "Kore",
-                    "instructions": "Speak warmly and clearly.",
-                    "response_format": "pcm",
-                },
+                self.speech_payload(text),
                 binary=True,
             )
             if not pcm or len(pcm) % 2 or len(pcm) > 4 * 1024**2:

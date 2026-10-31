@@ -2,7 +2,7 @@
 
 // Microphone samples go only to this localhost app. OpenRouter is called after local activation.
 const voice = {
-  token: null, epoch: 0, mic: null, context: null, node: null, timer: null,
+  token: null, epoch: 0, mic: null, context: null, outputContext: null, node: null, timer: null,
   working: false, playing: false, player: null, url: null, activation: null,
   parts: [], length: 0, quiet: 0, pre: [], preLength: 0, speaking: false,
   noise: 0.001, voiced: 0, lastSpeech: 0, probePromise: null, lastProbe: 0, wakeUntil: 0, pending: null,
@@ -79,6 +79,8 @@ const voice = {
     this.node = null;
     this.context?.close().catch(() => {});
     this.context = null;
+    this.outputContext?.close().catch(() => {});
+    this.outputContext = null;
     const token = this.token;
     this.token = null;
     const reason = text === "Page closed." ? "page_closed" : text.startsWith("Camera stopped") ? "camera_stopped" : text.startsWith("Voice connection lost") ? "heartbeat_failed" : "session_stopped";
@@ -215,6 +217,14 @@ const voice = {
     }).catch(() => {});
   },
 
+  async playbackContext() {
+    if (!this.outputContext || this.outputContext.state === "closed") this.outputContext = new AudioContext({ sampleRate: 24000 });
+    const output = this.outputContext;
+    if (output.state === "suspended") await output.resume();
+    if (output.state !== "running") throw new Error("Audio is paused. Enable listening and try again.");
+    return output;
+  },
+
   async streamReply(turn, jobId, active, attemptId, endedAt) {
     const controller = new AbortController();
     this.replyAbort = controller;
@@ -245,19 +255,21 @@ const voice = {
           }
           if (event.type === "audio") {
             if (!this.context || this.context.state !== "running") throw new Error("Audio is paused. Enable listening and try again.");
+            const output = await this.playbackContext();
+            if (!active()) break;
             // Bound queued playback as well as the server's text/audio queues.
-            while (active() && this.pcmEnd - this.context.currentTime > 3) await new Promise(resolve => setTimeout(resolve, 30));
+            while (active() && this.pcmEnd - output.currentTime > 3) await new Promise(resolve => setTimeout(resolve, 30));
             if (!active()) break;
             const bytes = Uint8Array.from(atob(event.pcm), c => c.charCodeAt(0));
             if (event.sample_rate !== 24000 || bytes.length % 2) throw new Error("Invalid speech audio");
             const view = new DataView(bytes.buffer);
-            const buffer = this.context.createBuffer(1, bytes.length / 2, 24000);
+            const buffer = output.createBuffer(1, bytes.length / 2, 24000);
             const channel = buffer.getChannelData(0);
             for (let i = 0; i < channel.length; i++) channel[i] = view.getInt16(i * 2, true) / 32768;
-            const source = this.context.createBufferSource();
+            const source = output.createBufferSource();
             source.buffer = buffer;
-            source.connect(this.context.destination);
-            const at = Math.max(this.context.currentTime + 0.015, this.pcmEnd);
+            source.connect(output.destination);
+            const at = Math.max(output.currentTime + 0.015, this.pcmEnd);
             this.pcmEnd = at + buffer.duration;
             this.pcmSources.add(source);
             source.onended = () => { this.pcmSources.delete(source); source.disconnect(); };
