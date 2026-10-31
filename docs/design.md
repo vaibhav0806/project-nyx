@@ -75,7 +75,7 @@ Status: working design, 2026-10-19; the user reviewed the package and resumed th
 
 Nyx exists to extend the years people can live with agency, dignity, and independence.
 
-We’re building a personal AI companion that sees, listens, and remembers, so people can keep living on their own terms as they age. Older adults living alone at home and residents in senior living are the primary audience. The intended product is a stationary camera, microphone, and speaker companion; the prototype runs on a laptop. See the agreed [product direction](../product.md) for positioning, audience, and planned capabilities.
+We’re building a personal AI companion that sees, listens, and remembers, so people can keep living on their own terms as they age. Older adults living at home, especially those living alone, are the primary audience. The intended product is a stationary camera, microphone, and speaker companion; the prototype runs on a laptop. See the agreed [product direction](../product.md) for positioning, audience, and planned capabilities.
 
 ## Experience
 

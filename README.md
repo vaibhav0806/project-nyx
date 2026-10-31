@@ -22,7 +22,7 @@ These moments interrupt everyday life. For older adults, repeated difficulty fin
 
 Nyx is being built to support that independence. Its starting point is practical help at home: let someone ask about their surroundings in their own words and get an answer they can act on. No need to remember a filename, scroll through recordings, or learn a set of commands.
 
-**The mission is to help people live on their own terms for longer.** Older adults living alone at home or in senior living are the primary audience. The agreed [product direction](product.md) centers on independence, with everyday recall as the starting point.
+**The mission is to help people live on their own terms for longer.** Older adults living at home, especially those living alone, are the primary audience. The agreed [product direction](product.md) centers on independence, with everyday recall as the starting point.
 
 ## What you can do with Nyx
 
