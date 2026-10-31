@@ -43,6 +43,7 @@ def history_steps(
     seen_before=None,
     semantic_latest=False,
     excluded_frame_ids=(),
+    reference_image=None,
 ):
     if mode not in {"latest", "relevance"}:
         raise ValueError("Choose latest or relevance history")
@@ -108,7 +109,20 @@ def history_steps(
                 raise ValueError("Source must remain inside the local workspace")
             return frame_image(source, candidate["offset_seconds"])
 
-        if callable(getattr(verifier, "inspect_frames", None)):
+        if reference_image is not None:
+            with ThreadPoolExecutor(
+                max_workers=len(batch), thread_name_prefix="nyx-reference"
+            ) as pool:
+                judgments = list(
+                    pool.map(
+                        lambda candidate: verifier.inspect_reference(
+                            decode(candidate), reference_image, object_query
+                        ),
+                        batch,
+                    )
+                )
+            timings["reference_checks_ms"] = round((time.perf_counter() - phase) * 1000)
+        elif callable(getattr(verifier, "inspect_frames", None)):
             frames = []
             for candidate in batch:
                 source = (store.root / candidate["video_path"]).resolve()

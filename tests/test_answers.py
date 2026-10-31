@@ -260,3 +260,48 @@ def test_diverse_history_candidates_spread_moments_and_keep_sparse_neighbors():
     assert [r["offset_seconds"] for r in diverse_candidates(rows[:3], 3)] == [0, 1, 2]
     other = {"id": 6, "video_id": "other", "offset_seconds": 0}
     assert diverse_candidates([rows[0], other], 2) == [rows[0], other]
+
+
+def test_history_checks_reference_image_instead_of_category_only(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from nyx.answers import history_steps
+
+    candidate = {
+        "id": 1,
+        "video_id": "video",
+        "video_path": "fixture.mp4",
+        "offset_seconds": 0,
+        "observed_at": "2026-10-31T12:00:00Z",
+    }
+    monkeypatch.setattr("nyx.answers.search", lambda *a, **k: [candidate])
+    image, reference = object(), object()
+    monkeypatch.setattr("nyx.answers.frame_image", lambda *a: image)
+    seen = []
+
+    class Verifier:
+        fingerprint = None
+
+        def inspect_reference(self, current, shown, query):
+            seen.append((current, shown, query))
+            return {"visibility": "not_visible", "location": "", "description": "Different object"}
+
+        def inspect(self, *args):
+            raise AssertionError("Category-only verification must not replace comparison")
+
+    steps = history_steps(
+        "phone",
+        SimpleNamespace(root=tmp_path),
+        None,
+        Verifier,
+        mode="relevance",
+        reference_image=reference,
+    )
+    while True:
+        try:
+            next(steps)
+        except StopIteration as done:
+            result = done.value
+            break
+    assert seen == [(image, reference, "phone")]
+    assert result["evidence"] is None

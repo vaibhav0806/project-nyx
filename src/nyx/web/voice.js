@@ -174,6 +174,7 @@ const voice = {
       this.state("Listening");
     }
     if (event.type === "question") {
+      this.turnVisual = { id: event.turn_id, context: companion.freezeContext(event.at) };
       this.answer = "";
       conversation.begin(event.text);
       $("voice-question").textContent = `You: ${event.text}`;
@@ -258,7 +259,7 @@ const voice = {
     }
     if (event.type === "tool") {
       companion
-        .request(event.message, { id: event.turn_id, request_id: event.id }, event.action)
+        .request(event.message, { id: event.turn_id, request_id: event.id, visualContext: this.turnVisual?.id === event.turn_id ? this.turnVisual.context : { visual_frames: [] } }, event.action)
         .then((response) => {
           if (epoch === this.epoch)
             this.send({
@@ -297,6 +298,7 @@ const voice = {
     this.state("Listening");
   },
   async stop(text = "Mic off") {
+    this.turnVisual = null;
     this.epoch++;
     this.ready = false;
     this.lastTranscript = null;

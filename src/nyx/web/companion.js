@@ -148,6 +148,20 @@ const companion = {
     this.player?.pause();
   },
 
+  recentFrames: [],
+  captureContext() {
+    if (!enabled || !stream) { this.recentFrames = []; return; }
+    const frame = this.snapshot(640, 480);
+    if (!frame.snapshot || frame.snapshot.length > 400000) return;
+    this.recentFrames.push(frame);
+    const cutoff = Date.now() - 12000;
+    while (this.recentFrames.length && (Date.parse(this.recentFrames[0].captured_at) < cutoff || this.recentFrames.length > 24 || this.recentFrames.reduce((sum, f) => sum + f.snapshot.length, 0) > 2000000)) this.recentFrames.shift();
+  },
+  freezeContext(at = new Date().toISOString()) {
+    const frames = this.recentFrames.filter(f => Date.parse(f.captured_at) <= Date.parse(at) + 1000 && Date.parse(f.captured_at) >= Date.parse(at) - 12000);
+    const selected = frames.length <= 6 ? frames : Array.from({length: 6}, (_, i) => frames[Math.round(i * (frames.length - 1) / 5)]);
+    return { context_at: at, visual_frames: selected.map(f => ({...f})) };
+  },
   snapshot(maxWidth = 1280, maxHeight = Infinity) {
     const viewer = $("viewer");
     if (!enabled || !stream || !viewer.videoWidth) return {};
@@ -171,7 +185,7 @@ const companion = {
     this.job = null;
     try {
       if (epoch !== this.epoch) throw new Error("Request stopped");
-      const body = { ...this.reviewCandidate, message: text, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, request_id: turn?.request_id || turn?.id || crypto.randomUUID(), ...this.snapshot(), voice_turn_id: turn?.id || null, initial_action: initialAction };
+      const body = { ...this.reviewCandidate, message: text, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, request_id: turn?.request_id || turn?.id || crypto.randomUUID(), ...this.snapshot(), ...(turn?.visualContext || this.freezeContext()), voice_turn_id: turn?.id || null, initial_action: initialAction };
       const headers = turn ? { "x-nyx-voice": voice.token, "content-type": "application/json" } : { "content-type": "application/json" };
       $("companion-status").textContent = "Checking evidence and deciding the next step…";
       const result = await task("/api/agent", { method: "POST", headers, body: JSON.stringify(body) }, (id) => {
@@ -333,8 +347,9 @@ $("companion-form").onsubmit = async event => {
   }
 };
 $("companion-stop").onclick = () => { companion.cancel(); };
-window.addEventListener("nyx-camera-stopped", () => { companion.interruptDelivery(); });
+window.addEventListener("nyx-camera-stopped", () => { companion.recentFrames = []; companion.interruptDelivery(); });
 window.addEventListener("pagehide", () => { companion.cancel(); });
+setInterval(() => companion.captureContext(), 500);
 setInterval(() => companion.observe(), 100);
 setInterval(() => companion.refresh().catch(() => {}), 1000);
 companion.refresh().catch(error => { $("companion-status").textContent = error.message; });

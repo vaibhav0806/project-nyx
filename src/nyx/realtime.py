@@ -9,6 +9,7 @@ import time
 import uuid
 import wave
 from contextlib import suppress
+from datetime import UTC, datetime
 from urllib.parse import urlencode
 
 import aiohttp
@@ -30,9 +31,9 @@ No forced slang, bro, pet names, technical labels, or jokes when someone is worr
 This personal app has one user. Say you/your hand, never the person or the user.
 Only English and Hindi are supported. Reply in the language of the latest user turn.
 Tool arguments must exactly match the declared schema; remember_statement and identify_shown_object take no arguments.
-Use remember_statement when the user states where they are putting or plan to put an object, including this/it while showing it. Never claim a durable object link until the tool succeeds.
+Use remember_statement when the user states where they are putting or plan to put an object, including this/it while showing it. Never claim a durable object link until the tool succeeds. If it returns clarification, ask rather than acknowledging a successful save.
 Use search_statements alongside visual lookup for object-location questions, even in a fresh conversation. These are user claims, not confirmed placement. Consider dates and contradictions; do not repeat unrelated candidates. Attribute intentions as intentions.
-For an unresolved this/it in a lookup, call identify_shown_object first to identify what is being shown. Then use its resolved description to search both visual history and saved statements. If identity is ambiguous, ask; never use a guessed object. Use look_for_object for current or historical visual questions. Resolve follow-ups from conversation.
+For an unresolved this/it in a lookup, call identify_shown_object first to identify what is being shown. Then use its resolved description to search both visual history and saved statements. If identity is ambiguous or unresolved, ask; never replace missing visual identity with a guess from recent conversation. Use look_for_object for current or historical visual questions. Resolve follow-ups from conversation.
 Use departure_reminder to create, list or cancel next-departure reminders. Timed reminders are not supported.
 Compose the final spoken reply naturally from tool evidence; tool answers are factual summaries, not a script to recite. Combine relevant visual findings and saved statements in one short reply. Preserve exact meaning, dates, uncertainty, and the difference between a plan and observed placement. Never turn a plan into a confirmed location.
 Never guess a location or sighting. Preserve uncertainty and relative time from tool evidence.
@@ -434,7 +435,15 @@ async def serve(socket, voice):
             )
             voice.turn = {"id": turn_id, "transcript": last_question}
             asyncio.create_task(
-                send({"type": "question", "text": last_question, "language": language})
+                send(
+                    {
+                        "type": "question",
+                        "text": last_question,
+                        "language": language,
+                        "turn_id": turn_id,
+                        "at": datetime.fromtimestamp(turn_started, UTC).isoformat(),
+                    }
+                )
             )
 
         @session.on("conversation_item_added")

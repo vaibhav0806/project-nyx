@@ -1,5 +1,19 @@
 # Technical architecture
 
+## Utterance visual context — 2026-10-31
+
+The browser buffers up to 12 seconds of local camera frames and freezes six chronological
+samples when a final transcript arrives. Every tool for that turn receives the same window.
+Backend checks turn ownership, timestamps and bounded payloads. Named current-view inspection
+still uses a fresh snapshot; reference resolution can use an earlier demonstrated object.
+`reference.py` separates object, destination, claim kind and visual/text support. Its stronger
+model defaults to Gemini 3.5 Flash (`NYX_REFERENCE_MODEL`). Historical and saved-statement
+checks can compare against the chosen reference image. A bounded eight-turn in-memory reference
+cache bridges individual LiveKit tools; it is not general conversational memory.
+Bad old links are not treated as verified semantic memory. Explicit repairs archive prior rows
+and preserve raw sources. See [R6](research/R6-turn-visual-context.md) for tests and limitations.
+
+
 ## Durable object statements — 2026-10-31
 
 The agent can call `remember_statement` on the actual persisted user turn. A schema-constrained

@@ -28,7 +28,14 @@ class ConfirmMatchRequest(BaseModel):
     request_id: UUID
 
 
+class TurnFrame(BaseModel):
+    snapshot: str = Field(min_length=1, max_length=400_000)
+    captured_at: AwareDatetime
+
+
 class AgentRequest(BaseModel):
+    visual_frames: list[TurnFrame] = Field(default_factory=list, max_length=6)
+    context_at: AwareDatetime | None = None
     initial_action: dict | None = None
     timezone: str | None = Field(default=None, max_length=100)
     message: str = Field(min_length=1, max_length=1500, pattern=r"\S")
@@ -75,6 +82,7 @@ def install_companion(app, workspace, voice):
     workspace.conversations = conversations
     workspace.observer = observer
     requests = {}
+    references = {}
     last_observation = {"state": "idle", "note": "Camera off; no departure monitoring"}
 
     @app.get("/companion.js")
@@ -189,6 +197,30 @@ def install_companion(app, workspace, voice):
         image = decode_image(body.snapshot) if body.snapshot else None
         if image is not None and body.captured_at is None:
             raise ValueError("Current view needs a capture time")
+        turn_frames = []
+        if body.visual_frames:
+            if body.context_at is None:
+                raise ValueError("Visual window requires a turn timestamp")
+            fresh(body.context_at.isoformat(), limit=90)
+            if body.voice_turn_id:
+                with conversations.connect() as db:
+                    at = db.execute(
+                        "SELECT at FROM turns WHERE id=?", (body.voice_turn_id,)
+                    ).fetchone()[0]
+                if abs((body.context_at - aware_time(at)).total_seconds()) > 3:
+                    raise ValueError("Visual window belongs to a different turn")
+            for frame in body.visual_frames:
+                delta = (body.context_at - frame.captured_at).total_seconds()
+                if not -2 <= delta <= 15:
+                    raise ValueError("Frame is outside the utterance window")
+                turn_frames.append(
+                    {
+                        "image": decode_image(frame.snapshot),
+                        "captured_at": frame.captured_at.isoformat(),
+                    }
+                )
+        elif image is not None:
+            turn_frames = [{"image": image, "captured_at": body.captured_at.isoformat()}]
         job_id = workspace.reserve("agent")
         requests[body.request_id] = (body.message, job_id)
         for key in list(requests):
@@ -296,22 +328,48 @@ def install_companion(app, workspace, voice):
                 statements = Statements(conversations)
                 workspace.model_store()
                 if name == "remember_statement":
-                    if image is not None:
-                        fresh(body.captured_at.isoformat())
                     return statements.remember(
                         identifier,
                         workspace.visual_verifier(),
                         workspace.encoder,
                         image,
                         body.captured_at.isoformat() if body.captured_at else None,
+                        frames=turn_frames,
                     )
                 return statements.recall(
-                    action["query"], workspace.encoder, workspace.visual_verifier(), identifier
+                    action["query"],
+                    workspace.encoder,
+                    workspace.visual_verifier(),
+                    identifier,
+                    reference_image=references.get(identifier),
                 )
             if name in {"inspect_current", "identify_shown_object"}:
                 if name == "identify_shown_object":
-                    action = {
-                        "query": "the single object deliberately being shown or held up to the camera; identify it with distinguishing visible attributes"
+                    from nyx.reference import resolve_reference
+
+                    reference = resolve_reference(
+                        workspace.visual_verifier(), body.message, turn_frames
+                    )
+                    conversations.event(
+                        "reference_resolved",
+                        turn_id=identifier,
+                        frame_times=[f["captured_at"] for f in turn_frames],
+                        reference=reference,
+                    )
+                    if reference["status"] != "resolved":
+                        return {"kind": "reference", **reference}
+                    if reference["source"] == "visual":
+                        with workspace.lock:
+                            references[identifier] = turn_frames[reference["frame_index"]]["image"]
+                            while len(references) > 8:
+                                del references[next(iter(references))]
+                    return {
+                        "kind": "reference",
+                        "status": "complete",
+                        "reference": reference,
+                        "answer": "Shown object: "
+                        + reference["object_description"]
+                        + ". Use this description to search visual history and saved user statements. This is turn evidence, not a current location.",
                     }
                 if image is None:
                     return {
@@ -390,6 +448,7 @@ def install_companion(app, workspace, voice):
                     mode="latest" if name == "search_history" else "relevance",
                     semantic_latest=name == "search_history",
                     excluded_frame_ids=action.get("excluded_frame_ids", []),
+                    reference_image=references.get(identifier),
                 )
                 result["scope"]["note"] = (
                     (
@@ -574,6 +633,8 @@ def install_companion(app, workspace, voice):
                         "decision_errors": result["decision_errors"],
                         "policy_adjustments": result["policy_adjustments"],
                         "model": workspace.verifier.fingerprint if workspace.verifier else None,
+                        "turn_context_at": body.context_at.isoformat() if body.context_at else None,
+                        "turn_frame_times": [frame["captured_at"] for frame in turn_frames],
                         "current_snapshot_at": body.captured_at.isoformat()
                         if body.captured_at
                         else None,

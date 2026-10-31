@@ -52,7 +52,9 @@ Nyx connects saved visual moments with timestamps and relevant conversation. A r
 
 A last sighting describes the past. An object can move afterward. Nyx's answers are bounded by camera coverage, sampled observations, and retained history; conversation matching can miss relevant statements. Sources let you check an answer for yourself.
 
-The agent can save an object-location statement with a recent image-backed object description,
+A bounded local camera buffer freezes a recent visual window at final transcription, so an item
+can be identified even if it has been lowered before tool execution. The agent can save an
+object-location statement with an image-backed object description,
 then search those statements independently of recent chat and visual history. Showing an item
 and saying “this” uses visual identification; ambiguity asks for clarification. Saved intentions
 remain user claims, not proof of where an item is now. Existing recordings are preserved;

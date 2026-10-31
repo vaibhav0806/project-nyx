@@ -254,14 +254,15 @@ class CloudVoice:
 
 
 class Conversations:
-    def __init__(self, root):
+    def __init__(self, root, *, recover_pending=True):
         self.path = Path(root) / "conversations.sqlite3"
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             db.execute("""CREATE TABLE IF NOT EXISTS turns
                 (id TEXT PRIMARY KEY, at TEXT, transcript TEXT, plan TEXT, answer TEXT,
                 sources TEXT, sources_available INTEGER DEFAULT 1, status TEXT)""")
-            db.execute("UPDATE turns SET status='interrupted' WHERE status='pending'")
+            if recover_pending:
+                db.execute("UPDATE turns SET status='interrupted' WHERE status='pending'")
             db.execute("""CREATE TABLE IF NOT EXISTS diagnostics
                 (id INTEGER PRIMARY KEY, at TEXT NOT NULL, event TEXT NOT NULL,
                  attempt_id TEXT, turn_id TEXT, details TEXT NOT NULL)""")

@@ -32,10 +32,34 @@ def consume(generator):
             return done.value
 
 
+def visual_window(source, at):
+    frames = []
+    with sqlite3.connect(f"file:{source / 'capture.sqlite3'}?mode=ro", uri=True) as db:
+        db.row_factory = sqlite3.Row
+        for seconds in (10, 8, 6, 4, 2, 0):
+            stamp = (aware_time(at) - timedelta(seconds=seconds)).isoformat()
+            row = db.execute(
+                "SELECT * FROM segments WHERE timing_uncertain=0 AND julianday(recorded_at)<=julianday(?) AND julianday(ended_at)>=julianday(?)",
+                (stamp, stamp),
+            ).fetchone()
+            if row and (source / row["path"]).exists():
+                image = frame_image(
+                    source / row["path"],
+                    (aware_time(stamp) - aware_time(row["recorded_at"])).total_seconds(),
+                )
+                frames.append({"image": image, "captured_at": stamp})
+    return frames
+
+
 def main():
     parser = argparse.ArgumentParser()
     for name in ("source", "turn", "before", "query", "output"):
         parser.add_argument("--" + name, required=True)
+    parser.add_argument("--lookup-turn")
+    parser.add_argument(
+        "--reference-turn",
+        help="Synthetic shown-object lookup using the recorded visual window of this turn",
+    )
     args = parser.parse_args()
     source = Path(args.source).resolve()
     with sqlite3.connect(f"file:{source / 'conversations.sqlite3'}?mode=ro", uri=True) as db:
@@ -52,10 +76,27 @@ def main():
         )
     offset = (aware_time(snapshot_at) - aware_time(segment["recorded_at"])).total_seconds()
     image = frame_image(source / segment["path"], offset)
+    frames = visual_window(source, original["at"])
+    lookup = None
+    if args.lookup_turn:
+        with sqlite3.connect(f"file:{source / 'conversations.sqlite3'}?mode=ro", uri=True) as db:
+            db.row_factory = sqlite3.Row
+            lookup = dict(
+                db.execute("SELECT * FROM turns WHERE id=?", (args.lookup_turn,)).fetchone()
+            )
+        lookup_frames = visual_window(source, lookup["at"])
+    if args.reference_turn:
+        with sqlite3.connect(f"file:{source / 'conversations.sqlite3'}?mode=ro", uri=True) as db:
+            stamp = db.execute(
+                "SELECT at FROM turns WHERE id=?", (args.reference_turn,)
+            ).fetchone()[0]
+        lookup = {"transcript": "Where did I keep this before?", "at": args.before}
+        lookup_frames = visual_window(source, stamp)
     client = OpenRouter()
     encoder, verifier = CloudEncoder(client=client), CloudVerifier(client=client)
     report = {
         "original_turn": args.turn,
+        "synthetic_lookup_reference_turn": args.reference_turn,
         "snapshot_at": snapshot_at,
         "segment": segment["id"],
         "offset": offset,
@@ -75,7 +116,7 @@ def main():
         with conversations.connect() as db:
             db.execute("UPDATE turns SET at=? WHERE id=?", (original["at"], turn))
         report["remember"] = Statements(conversations).remember(
-            turn, verifier, encoder, image, snapshot_at
+            turn, verifier, encoder, image, snapshot_at, frames=frames
         )
         for _ in range(30):
             conversations.begin("Unrelated synthetic conversation", {})
@@ -83,9 +124,26 @@ def main():
         assert turn not in [r["id"] for r in conversations.recent()]
         report["recent_context_empty"] = True
 
+        selected_reference = None
+
         def tool(action):
+            nonlocal selected_reference
+            if action["action"] == "identify_shown_object" and lookup:
+                from nyx.reference import resolve_reference
+
+                reference = resolve_reference(verifier, lookup["transcript"], lookup_frames)
+                report["lookup_reference"] = reference
+                if reference["status"] == "resolved" and reference["source"] == "visual":
+                    selected_reference = lookup_frames[reference["frame_index"]]["image"]
+                return {
+                    "kind": "reference",
+                    "status": "complete" if reference["status"] == "resolved" else "clarify",
+                    "answer": json.dumps(reference),
+                }
             if action["action"] == "search_statements":
-                return Statements(conversations).recall(action["query"], encoder, verifier)
+                return Statements(conversations).recall(
+                    action["query"], encoder, verifier, reference_image=selected_reference
+                )
             if action["action"] == "search_history":
                 lower = (
                     (aware_time(args.before) - timedelta(hours=action["hours"])).isoformat()
@@ -101,6 +159,7 @@ def main():
                         seen_after=lower,
                         seen_before=args.before,
                         semantic_latest=True,
+                        reference_image=selected_reference,
                     )
                 )
                 result["answer"] = spoken_answer(result, now=aware_time(args.before))
@@ -109,11 +168,11 @@ def main():
 
         report["agent"] = consume(
             agent_steps(
-                "Where is my " + args.query + "?",
+                lookup["transcript"] if lookup else "Where is my " + args.query + "?",
                 [],
                 verifier.decide,
                 tool,
-                available={"current_view": False, "history": True, "dated_history": True},
+                available={"current_view": bool(lookup), "history": True, "dated_history": True},
             )
         )
         evidence = report["agent"]["answer"]

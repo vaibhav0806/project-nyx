@@ -841,8 +841,8 @@ def test_statement_tools_persist_across_app_restart(tmp_path):
             from nyx.voice import Conversations
 
             text = str(messages)
-            if "Extract a concrete" in text:
-                return '{"kind":"intention","object_description":"green phone"}'
+            if "Resolve the object" in text:
+                return '{"kind":"intention","object_description":"green phone","source":"visual","frame_index":0,"destination":"kitchen","ambiguous":false}'
             with Conversations(tmp_path).connect() as db:
                 row = db.execute("SELECT turn_id FROM statements LIMIT 1").fetchone()
             return json.dumps({"statement_ids": [row["turn_id"]]})
@@ -881,8 +881,12 @@ def test_statement_tools_persist_across_app_restart(tmp_path):
 
 
 def test_identify_shown_object_returns_description_for_subsequent_search(tmp_path):
+    class ReferenceVerifier(Planner):
+        def generate_json(self, *args, **kwargs):
+            return '{"object_description":"Green fixture","destination":"","kind":"none","source":"visual","frame_index":0,"ambiguous":false}'
+
     with TestClient(
-        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Planner)
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=ReferenceVerifier)
     ) as client:
         response = client.post(
             "/api/agent",
@@ -896,4 +900,65 @@ def test_identify_shown_object_returns_description_for_subsequent_search(tmp_pat
         )
         job = wait_for_job(client, response.json()["id"])
         assert job["status"] == "succeeded"
-        assert job["result"]["answer"] == "Shown object: Green fixture"
+        assert job["result"]["answer"].startswith("Shown object: Green fixture")
+
+
+def test_utterance_window_uses_earlier_image_when_latest_snapshot_is_blank(tmp_path):
+    class WindowVerifier(Planner):
+        def generate_json(self, messages, *args, **kwargs):
+            images = [p["image"] for p in messages[0]["content"] if p["type"] == "image"]
+            assert len(images) == 2
+            assert images[0].getpixel((40, 40))[1] > 80
+            assert max(images[1].getpixel((40, 40))) < 10
+            return '{"object_description":"green phone","destination":"","kind":"none","source":"visual","frame_index":0,"ambiguous":false}'
+
+    now = datetime.now(UTC)
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=WindowVerifier)
+    ) as client:
+        response = client.post(
+            "/api/agent",
+            json={
+                "message": "Where did I keep this?",
+                "request_id": "window-earlier",
+                "initial_action": {"action": "identify_shown_object"},
+                "snapshot": snapshot("black"),
+                "captured_at": now.isoformat(),
+                "context_at": now.isoformat(),
+                "visual_frames": [
+                    {
+                        "snapshot": snapshot(),
+                        "captured_at": (now - timedelta(seconds=8)).isoformat(),
+                    },
+                    {"snapshot": snapshot("black"), "captured_at": now.isoformat()},
+                ],
+            },
+        )
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "succeeded", job
+        assert "green phone" in job["result"]["answer"]
+        reference = job["result"]["observations"][0]["reference"]
+        assert reference["frame_index"] == 0
+
+
+def test_utterance_window_rejects_unrelated_old_frames(tmp_path):
+    now = datetime.now(UTC)
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Planner)
+    ) as client:
+        response = client.post(
+            "/api/agent",
+            json={
+                "message": "Where is this?",
+                "request_id": "old-window",
+                "context_at": now.isoformat(),
+                "visual_frames": [
+                    {
+                        "snapshot": snapshot(),
+                        "captured_at": (now - timedelta(seconds=50)).isoformat(),
+                    }
+                ],
+            },
+        )
+        assert response.status_code == 400
+        assert "outside the utterance window" in response.text

@@ -1,5 +1,15 @@
 # Decisions and open choices
 
+## Ground references in the utterance window — 2026-10-31
+
+The latest live test showed that capturing only at tool time missed demonstrated objects.
+Use a bounded local pre-transcript visual buffer and share its frozen samples across tools.
+Use Flash for reference resolution and image comparisons; prioritize grounded identity over
+routing latency. Validate semantic support as well as JSON structure, keep destinations separate,
+and clarify unsupported references. Exact speech intervals and unlimited visual retention are
+outside this slice. See [R6](research/R6-turn-visual-context.md).
+
+
 ## Durable recall, spoken model and text appearance — 2026-10-31
 
 Use additive statement records instead of relying on recent conversational context. Resolve

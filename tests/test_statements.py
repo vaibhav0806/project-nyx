@@ -22,8 +22,17 @@ def test_pronoun_link_survives_restart_without_recent_chat(tmp_path):
     seen = []
 
     def resolve(messages, limit, **kwargs):
-        seen.append(messages[0]["content"][0]["image"])
-        return json.dumps({"object_description": "black phone", "kind": "intention"})
+        seen.append(next(p["image"] for p in messages[0]["content"] if p["type"] == "image"))
+        return json.dumps(
+            {
+                "object_description": "black phone",
+                "kind": "intention",
+                "source": "visual",
+                "frame_index": 0,
+                "destination": "kitchen",
+                "ambiguous": False,
+            }
+        )
 
     Statements(conversations).remember(
         turn,
@@ -76,7 +85,7 @@ def test_embedding_failure_keeps_original_transcript_without_partial_link(tmp_pa
             turn,
             SimpleNamespace(
                 generate_json=lambda *_, **kwargs: (
-                    '{"kind":"intention","object_description":"phone"}'
+                    '{"kind":"intention","object_description":"phone","source":"explicit_text","frame_index":-1,"destination":"kitchen","ambiguous":false}'
                 )
             ),
             Broken(),
@@ -112,7 +121,9 @@ def test_invalidated_original_is_not_recalled(tmp_path):
     store.remember(
         turn,
         SimpleNamespace(
-            generate_json=lambda *_, **kwargs: '{"kind":"intention","object_description":"phone"}'
+            generate_json=lambda *_, **kwargs: (
+                '{"kind":"intention","object_description":"phone","source":"explicit_text","frame_index":-1,"destination":"kitchen","ambiguous":false}'
+            )
         ),
         Encoder(),
     )
@@ -127,6 +138,58 @@ def test_malformed_model_output_never_creates_link(tmp_path):
     conversations = Conversations(tmp_path)
     turn = conversations.begin("I'll put this in the kitchen", {})
     store = Statements(conversations)
-    with pytest.raises(ValueError, match="Invalid statement extraction"):
+    with pytest.raises(ValueError, match="Invalid object reference"):
         store.remember(turn, SimpleNamespace(generate_json=lambda *_, **kwargs: "[]"), Encoder())
     assert not store.search("phone", Encoder())
+
+
+def test_repair_preserves_old_link_and_replaces_only_after_valid_resolution(tmp_path):
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("I'll put this in my wardrobe", {})
+    store = Statements(conversations)
+    with conversations.connect() as db:
+        db.execute(
+            "INSERT INTO statements VALUES (?,?,?,?,?,?,?,?)",
+            (turn, "wardrobe", "intention", None, None, b"old", "{}", "{}"),
+        )
+    result = store.remember(
+        turn, SimpleNamespace(generate_json=lambda *a, **k: "{}"), Encoder(), repair=True
+    )
+    assert result["status"] == "clarify"
+    with conversations.connect() as db:
+        assert db.execute("SELECT object_description FROM statements").fetchone()[0] == "wardrobe"
+    good = {
+        "object_description": "water bottle",
+        "destination": "my wardrobe",
+        "kind": "intention",
+        "source": "visual",
+        "frame_index": 0,
+        "ambiguous": False,
+    }
+    result = store.remember(
+        turn,
+        SimpleNamespace(generate_json=lambda *a, **k: json.dumps(good)),
+        Encoder(),
+        frames=[{"image": Image.new("RGB", (20, 20)), "captured_at": "2026-10-31T12:00:00Z"}],
+        repair=True,
+    )
+    assert result["status"] == "complete"
+    with conversations.connect() as db:
+        assert (
+            db.execute("SELECT object_description FROM statements").fetchone()[0] == "water bottle"
+        )
+        assert (
+            db.execute("SELECT object_description FROM statement_revisions").fetchone()[0]
+            == "wardrobe"
+        )
+        assert (
+            db.execute("SELECT transcript FROM turns WHERE id=?", (turn,)).fetchone()[0]
+            == "I'll put this in my wardrobe"
+        )
+
+
+def test_repair_connection_does_not_interrupt_pending_turns(tmp_path):
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("An active spoken turn", {})
+    observer = Conversations(tmp_path, recover_pending=False)
+    assert next(row for row in observer.recent() if row["id"] == turn)["status"] == "pending"

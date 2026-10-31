@@ -110,6 +110,8 @@ class CloudVerifier:
             "history_parallel_checks": self.history_concurrency,
             "planner_prompt_version": 43,
             "spoken_context_prompt_version": 1,
+            "reference_model": os.environ.get("NYX_REFERENCE_MODEL", "google/gemini-3.5-flash"),
+            "reference_prompt_version": 2,
             "departure_prompt_version": 4,
             "max_image_side": 768,
             "event_tracking_policy": "single-trajectory-v1/5Hz/6s/0.8s-gap",
@@ -128,6 +130,24 @@ class CloudVerifier:
             }
         ]
         return parse_judgment(self.generate_json(messages, 180))
+
+    def inspect_reference(self, image, reference, object_query):
+        content = [
+            {"type": "text", "text": "REFERENCE: the object shown by the user"},
+            {"type": "image", "image": reference},
+            {
+                "type": "text",
+                "text": "HISTORICAL CANDIDATE: inspect only this image for the location",
+            },
+            {"type": "image", "image": image},
+            {
+                "type": "text",
+                "text": PROMPT
+                + json.dumps(object_query)
+                + " Compare candidate appearance against the reference. Reject visibly different objects. Generic category similarity alone cannot prove unique identity. For indistinguishable lookalikes return uncertain/ambiguous. Describe visible matching or conflicting details. Never copy the reference location into the historical location.",
+            },
+        ]
+        return parse_judgment(self.generate_reference([{"role": "user", "content": content}], 500))
 
     def inspect_batch(self, images, object_query):
         """Overlap a bounded set of independent checks; preserve source order."""
@@ -158,6 +178,14 @@ class CloudVerifier:
         if schema is not None:
             return self.client.generate(messages, self.vision_model, max_tokens, schema=schema)
         return self.client.generate(messages, self.vision_model, max_tokens)
+
+    def generate_reference(self, messages, max_tokens=500, *, schema=None):
+        return self.client.generate(
+            messages,
+            os.environ.get("NYX_REFERENCE_MODEL", "google/gemini-3.5-flash"),
+            max_tokens,
+            schema=schema,
+        )
 
     def generate_decision(self, messages, max_tokens=240):
         return self.client.generate(messages, self.model, max_tokens)

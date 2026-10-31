@@ -11,6 +11,15 @@ speech processing for core assistance. The current prototype still uses the appr
 cloud path; this product direction does not implement or authorize a runtime migration.
 Existing capture, identity, retention, and action boundaries remain in force.
 
+## Bounded turn context and corrective replay — 2026-10-31
+
+Authorized implementation now includes a local rolling visual buffer while the existing camera
+is enabled, with selected recent frames sent to cloud tools for an activated turn. No continuous
+cloud audio/transcription is added. The window freezes at final transcription, covers up to
+12 seconds, and does not claim exact speech alignment. Explicitly authorized saved-media replays
+and repairs preserve original transcripts/recordings and archive superseded object links.
+
+
 ## Durable placement-statement slice — 2026-10-31
 
 Authorized: agent-selected linking of activated user statements to a recent visible object,

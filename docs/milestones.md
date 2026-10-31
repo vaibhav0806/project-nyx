@@ -1,5 +1,20 @@
 # Milestones
 
+## Demonstrated-object timing and durable-link repair — 2026-10-31
+
+Added a bounded visual window frozen at final transcription and reused across turn tools,
+stronger reference resolution, object/destination validation, and reference-image comparison
+for historical and saved-statement candidates. Repaired the two latest bad development links;
+prior rows and original sources are preserved. Selected supporting frames were 6 seconds
+before phone transcription and 2 seconds before bottle transcription.
+
+Four saved-media recall scenarios pass with empty chat context, including the actual shown-phone
+question and a labeled synthetic shown-bottle question. Three unsupported-snapshot negatives
+clarify. All 378 automated tests, lint/format checks, JavaScript syntax and the local
+browser-buffer check pass. Validation details and the remaining live-test boundary are in
+[R6](research/R6-turn-visual-context.md). No new camera/microphone was opened by developer tests.
+
+
 ## Durable speech-linked recall and spoken response update — 2026-10-31
 
 Implemented agent-selected placement-statement persistence, recent-image pronoun resolution,
