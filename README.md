@@ -1,95 +1,83 @@
 # Nyx
 
-**Your everyday memory companion.**
+**Your own space. Your own routine. A little help from Nyx.**
 
-Nyx helps you find the things you put down and recall the moments you might otherwise forget. Ask a question out loud, and Nyx looks through the current camera view or saved visual history, then answers in simple, natural language.
+Nyx is a personal AI companion focused on helping older adults live independently at home. It brings everyday recall and natural conversation together: ask about your belongings, look back at a moment, or get an answer without searching through recordings or learning a set of commands.
 
-> “Hey Nyx, when did you last see my glasses?”
->
-> “I think I saw them about half an hour ago, beside your laptop.”
->
-> *An example of the experience. Actual answers depend on what Nyx captured and can find.*
+Say **“Hey Nyx.”** Ask in your own words. Keep going with your day.
 
-The goal is simple: spend less time searching and more time getting on with your day.
+[Features](#features) · [The experience](#the-experience) · [Security and privacy](#security-and-privacy) · [Run Nyx](#run-nyx)
 
-[How it works](#how-it-works) · [Privacy and control](#privacy-and-control) · [Run Nyx](#run-nyx) · [Product and engineering docs](#product-and-engineering-docs)
+## Independence, in everyday moments
 
-## Why Nyx exists
+A pair of glasses put down somewhere. A phone moved during a conversation. A detail you want to remember without asking someone else.
 
-A phone left somewhere between rooms. Glasses put down during a conversation. A small detail that felt obvious a few minutes ago.
+Nyx puts help within reach through a simple conversation. It is designed around older adults at home, especially those living alone, with the person's choices and routines at the center. Family can help with setup; the experience belongs to the person using it.
 
-These moments interrupt everyday life. For older adults, repeated difficulty finding things can also mean relying on someone else for tasks they want to handle themselves.
+**The promise is simple: help me remember what happened around me.**
 
-Nyx is being built to support that independence. Its starting point is practical help at home: let someone ask about their surroundings in their own words and get an answer they can act on. No need to remember a filename, scroll through recordings, or learn a set of commands.
+## Features
 
-**The mission is to help people live on their own terms for longer.** Older adults living at home, especially those living alone, are the primary audience. The agreed [product direction](product.md) centers on independence, with everyday recall as the starting point.
+| What Nyx helps with | Try asking |
+| --- | --- |
+| **Find everyday belongings** — check the camera view for an object and get a useful location. | “Can you see my phone?” |
+| **Look back at past sightings** — search saved visual history for when and where an item appeared. | “Where did you last see my glasses?” |
+| **Bring conversation into recall** — use saved statements as context for a visual finding. | “Where did I say I would keep it?” |
+| **Answer everyday questions** — ask naturally, without triggering an unnecessary visual search. | “What does that mean?” |
+| **Keep the conversation going** — clarify, correct a match, ask a follow-up, or interrupt. | “No, I meant the other pair.” |
+| **Talk in English or Hindi** — receive a reply in the detected speech language. | “Hey Nyx, what's up?” |
+| **Check the source** — inspect the supporting image and replay the recorded moment. | Select **View source**. |
 
-## What you can do with Nyx
+Nyx also includes an experimental next-departure reminder: “Remind me to take my bottle when I leave.” Event detection can miss or misread a departure; this is separate from a scheduled alarm.
 
-### Find something in front of you
+## The experience
 
-Ask, “Can you see my phone?” Nyx checks the current view and describes what it can identify using ordinary places and landmarks. If it cannot find the item clearly, it can ask for more detail.
+### A conversation, not a dashboard
 
-### Look back for a last sighting
+Voice is the main interaction. Say “Hey Nyx,” tap the microphone, or choose **Type instead**. Nyx answers in short, familiar words, with a calm, attentive personality and a little dry wit when it fits.
 
-Ask, “Where did you last see my glasses?” Nyx searches saved observations, checks candidate matches, and gives a spoken answer with a rounded time such as “about thirty minutes ago.”
+The screen stays quiet: text paced with speech, a few clear controls, and supporting sources tucked behind **View source**. You can interrupt, mute, or pause recording without digging through a recording dashboard.
 
-A small **View source** button lets you inspect the supporting image and replay the surrounding recorded moment. The source is there when you need it; the main screen stays focused on the conversation.
+### Memory with context
 
-### Keep the conversation going
+Nyx connects saved visual moments with timestamps and relevant conversation. A reply distinguishes a sighting from something you said: “You told me you were going to keep it in the kitchen” means a remembered statement, not proof of a placement.
 
-Ask follow-up questions, describe the object more precisely, or say that a match is wrong. Nyx can use that context to continue the search. You can interrupt a reply instead of waiting for it to finish.
+A last sighting describes the past. An object can move afterward. Nyx's answers are bounded by camera coverage, sampled observations, and retained history; conversation matching can miss relevant statements. Sources let you check an answer for yourself.
 
-### Speak in English or Hindi
+### Easy to talk to, not clever to listen to
 
-Say **“Hey Nyx”**, tap the microphone, or choose **Type instead**. Nyx follows the detected speech language for its response and voice. Replies use short, familiar words, with a calm, relaxed personality and a little dry wit when it fits.
-
-The interface stays quiet: three dots while waiting, text paced with speech, and a few clear controls for talking, muting, and viewing sources.
+Simple spoken language. Natural relative times. No technical vocabulary to learn, no need to read to follow the conversation, and no jokes at someone's expense for forgetting something.
 
 ## How it works
 
-1. **Capture useful context.** While recording is enabled, Nyx saves video locally and indexes selected, timestamped frames in the background.
-2. **Listen when activated.** Local wake recognition detects “Hey Nyx.” Activated speech is transcribed, including a short follow-up window.
-3. **Choose the right response.** General questions can receive a direct reply. Questions about objects and past sightings trigger a visual lookup.
-4. **Check the evidence.** Search identifies candidate moments; visual checks help determine what the answer can say.
-5. **Answer aloud.** Nyx streams its reply and speech, with supporting sources available separately.
+1. **Observe:** the browser records video while capture is enabled and indexes timestamped frames in the background.
+2. **Listen:** local wake recognition detects “Hey Nyx” and activates the conversation.
+3. **Understand:** general questions receive a direct response; questions about belongings and past sightings trigger a lookup.
+4. **Check:** visual checks evaluate retrieved candidates before composing an answer.
+5. **Respond:** Nyx streams speech and text, keeping source review available alongside the conversation.
 
-Nyx also saves activated conversation transcripts. When relevant, a history lookup can attach something you said to a visual finding. A statement such as “I’m going to keep this in the kitchen” is an intention you expressed—not proof that the object reached the kitchen.
+This repository runs Nyx through a browser and a Python service, using one camera view. Recordings, indexes, and transcripts persist in the selected data directory across restarts. The [product vision](product.md) defines the complete product experience; [milestones](docs/milestones.md) document implementation and validation.
 
-That distinction matters: a useful memory companion should tell you whether an answer comes from a sighting or from something you told it.
+## Security and privacy
 
-## Current release
+**Full video recordings stay on your device. You control recording, listening, and saved history.**
 
-Nyx currently runs as a local browser application connected to a Python service. It supports one person and one camera view, with continuous recording, background indexing, visual search, source replay, and realtime voice conversation.
+The configuration in this repository combines local storage and wake recognition with cloud inference. Its data flow is explicit:
 
-The following limits are part of the current product:
-
-- **Coverage is limited to what the camera captured and what storage retains.** Indexing uses sampled frames; a search cannot account for every instant or anything outside the camera’s view.
-- **A past sighting is not a current location.** Objects may have moved, and similar-looking items can produce incorrect matches.
-- **Transcripts persist, but recall is still bounded.** Matching a spoken placement statement to the right sighting can miss relevant information. General, dependable long-term personal memory is not implemented yet.
-- **Next-departure reminders are experimental.** Nyx can work with requests such as “Remind me to take my bottle when I leave,” but departure detection can miss events or trigger incorrectly. Clock-based and recurring reminders are not available.
-- **Real-home reliability is still being evaluated.** Room noise, speaker echo, wake recognition, object visibility, and response latency need broader testing with intended users.
-
-The [milestone tracker](docs/milestones.md) and [research findings](docs/research/README.md) distinguish implemented behavior from measured results and planned capabilities.
-
-## Privacy and control
-
-Nyx stores recordings and its searchable history on your device. It uses cloud models for parts of understanding and conversation.
-
-| Data | How Nyx handles it |
+| Data | Where it goes |
 | --- | --- |
-| Full recordings | Stored locally. The current recordings contain video, not a continuous room-audio archive. |
-| Selected images | Sent to model providers through OpenRouter for embeddings and visual interpretation. |
+| Full video recordings | Stored locally; not uploaded as full recording files. There is no continuous room-audio archive. |
+| Selected images | Sent through OpenRouter for embeddings and visual interpretation. |
 | Idle microphone audio | Processed locally for wake recognition and discarded. |
-| Activated speech | Sent to Sarvam for transcription. Transcripts are saved locally. |
-| Conversation and answer text | Relevant context goes to the language model; answer text goes to Sarvam for speech generation. |
-| Credentials | Kept on the server, outside the browser and Git. |
+| Activated speech | Sent to Sarvam for transcription; transcripts are stored locally. |
+| Conversation and answer text | Relevant context goes to the language model; answer text goes to Sarvam for speech. |
+| API credentials | Kept server-side, outside the browser and Git. |
 
-A configured page requests camera and microphone permissions and starts recording and local wake listening. **Mute mic**, recording pause/stop, response interruption, source review, and explicit deletion are available in the interface.
+Microphone mute, recording pause/stop, response interruption, source inspection, and explicit deletion are available in the interface. Camera and microphone access require browser permissions.
 
-Saved video has a **1 GiB storage budget**. Capture stops at the limit; Nyx does not automatically delete older clips to make room. Frames, thumbnails, and databases use additional disk space. Deleting a clip removes its dependent search data and marks affected source references unavailable.
+Saved video has a **1 GiB storage budget**. Capture stops at the limit without automatically deleting older clips. Frames, thumbnails, and databases use additional space. Deleting a clip also removes its dependent search data and invalidates affected source references.
 
-OpenRouter requests disallow providers collecting data for training. This is not a guarantee of zero retention. See the [scope and data boundaries](docs/scope.md) for details.
+OpenRouter requests disallow providers collecting data for training; this is not a zero-retention guarantee. See [scope and data boundaries](docs/scope.md) for the operating details.
 
 ## Run Nyx
 
@@ -201,10 +189,9 @@ The local `conversations.sqlite3` database retains activated transcripts and the
 
 ## Product and engineering docs
 
-- [Product direction](product.md): positioning, audience, promise, and intended hardware experience.
-
+- [Product vision](product.md): audience, promise, and the complete product definition.
 - [Product design](docs/design.md): mission, interaction principles, and Nyx's personality.
-- [Scope](docs/scope.md): current capabilities, data boundaries, and planned work.
+- [Scope](docs/scope.md): capabilities, data boundaries, and permissions.
 - [Architecture](docs/architecture.md): capture, retrieval, conversation, and speech.
 - [Milestones](docs/milestones.md): implementation status and validation evidence.
 - [Research](docs/research/README.md): experiments, measurements, limitations, and open questions.
