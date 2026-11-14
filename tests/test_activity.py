@@ -140,4 +140,10 @@ def test_activity_selection_preserves_periodic_coverage_and_original_offsets():
 
     frames = [(tick / 10, room()) for tick in range(911)]
     selected = select_activity_frames(frames)
-    assert [at for at, _ in selected] == [0, 30, 60, 90]
+    assert [at for at, _ in selected] == list(range(0, 92, 2))
+    assert [at for at, _ in select_activity_frames(frames, coverage_interval=None)] == [
+        0,
+        30,
+        60,
+        90,
+    ]

@@ -1,5 +1,12 @@
 # Technical architecture
 
+## Index coverage floor — 2026-11-15
+
+New adaptive indexing combines activity samples with a two-second periodic floor over available
+decoded frames. Policy `activity-v2` records this choice. Existing files/indexes are preserved;
+live proactive event qualification is unchanged. The offline labeled replay harness compares
+coverage and sample counts without model calls. See [R15](research/R15-sampling-coverage.md).
+
 ## Ten-day pilot design — 2026-11-03
 
 The approved [pilot design](pilot.md) connects turn ownership, source-linked object/event memory

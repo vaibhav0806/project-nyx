@@ -1,5 +1,13 @@
 # Scope
 
+## Local backend reliability work — 2026-11-15
+
+The user authorized the memory reliability implementation, then required a local work branch,
+no push to main and no UI changes. Preserve contributor frontend work. New adaptive indexing may
+use the evaluated two-second sampling floor; this changes derived samples, not source retention
+or live event qualification. Keep the 1 GiB stop-without-delete boundary and existing provider
+test budget. See [R15](research/R15-sampling-coverage.md).
+
 ## Publication authorization — 2026-11-15
 
 The user explicitly requested publishing the latest existing work to main. This supersedes

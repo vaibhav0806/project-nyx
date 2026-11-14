@@ -14,6 +14,13 @@ Shared embedding research is recorded in [R13](research/R13-shared-multimodal-em
 Sampling, candidate nomination, correction/policy and recovery improvements are in progress;
 no new retrieval-quality result or complete pilot is claimed by the server setup.
 
+The indexing coverage slice is now implemented: activity samples plus a two-second floor retain
+the R12 small-object example. A 100-condition generated replay reports held-out event retention
+3/32 -> 23/32, with sample count 60 -> 219; this is not semantic household accuracy. Existing
+media, storage cap and live activity qualification are preserved. Validation: 399 tests passed
+in 23.15s; lint/format passed. All changes are local on `work/memory-reliability`; frontend files
+are unchanged. See [R15](research/R15-sampling-coverage.md).
+
 ## Ten-day pilot foundation — 2026-11-03
 
 The user approved all three reliability workstreams and chose ten days of searchable history.

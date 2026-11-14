@@ -1,5 +1,14 @@
 # Decisions and open choices
 
+## Preserve index coverage between activity events — 2026-11-15
+
+Use activity plus a two-second floor for new adaptive index samples, selected against a five-second
+alternative on synthetic development conditions. Held-out condition retention improved from 3/32
+to 23/32, with selected samples rising from 60 to 219. This is a sampling result, not household
+recall accuracy. Accept the explicit frame-count tradeoff for this bounded pilot work; measure
+embedding/storage cost before claiming daily feasibility. Keep originals, current cap and live
+proactive filtering. See [R15](research/R15-sampling-coverage.md).
+
 ## Ten-day pilot — 2026-11-03
 
 The user selected all three reliability workstreams, approved proceeding and chose the last ten

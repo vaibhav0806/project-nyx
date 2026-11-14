@@ -117,7 +117,7 @@ def index_video_batches(
             db.execute(
                 "UPDATE videos SET sampling_policy=? WHERE id=?",
                 (
-                    f"activity-v1/scan={scan_interval:g}s/0.5s-persistence/30s"
+                    f"activity-v2/scan={scan_interval:g}s/0.5s-persistence/coverage=2s"
                     if adaptive
                     else "periodic",
                     video_id,

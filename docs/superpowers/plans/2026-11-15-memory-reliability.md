@@ -31,12 +31,12 @@ Tests use real storage/action boundaries with fake inference only at external pr
 
 ### Task 1: Isolated Hydra capability trial
 
-- [ ] Inspect only deployed Hydra metadata and host capacity, never other project data/secrets.
-- [ ] Create a bounded separate Nyx service/volume/token if existing graph isolation is insufficient.
-- [ ] Verify health, auth isolation, synthetic 768-dimensional vector round trip, and actual server
+- [x] Inspect only deployed Hydra metadata and host capacity, never other project data/secrets.
+- [x] Create a bounded separate Nyx service/volume/token if existing graph isolation is insufficient.
+- [x] Verify health, auth isolation, synthetic 768-dimensional vector round trip, and actual server
   similarity-query capability. No embedding inference is needed to reuse vectors.
-- [ ] Record query results, image revision, limitations and decision in R13 or a dedicated finding.
-- [ ] Check Markdown links/diff and commit plan/research/status with normal hooks.
+- [x] Record query results, image revision, limitations and decision in R13 or a dedicated finding.
+- [x] Check Markdown links/diff and commit plan/research/status with normal hooks.
 
 Expected: isolated usable storage and a factual retrieval capability verdict; missing native
 vector operations are reported, not replaced by claims that local ranking ran on Hydra.
@@ -46,14 +46,14 @@ vector operations are reported, not replaced by claims that local ranking ran on
 Files: `experiments/companion/memory_replay.py`, `tests/test_memory_replay.py`,
 `src/nyx/attention.py`, `src/nyx/retrieval.py`, related existing tests.
 
-- [ ] Add failing tests for manifest/source-time validation, event-overlap scoring, independent
+- [x] Add failing tests for manifest/source-time validation, event-overlap scoring, independent
   splits and real selector comparison. Add the reproduced 3.0–5.9-second small-object regression.
-- [ ] Run focused tests and inspect intended failures before implementing minimal harness/coverage.
-- [ ] Implement a bounded periodic sampling floor combined with activity samples, preserving offsets
+- [x] Run focused tests and inspect intended failures before implementing minimal harness/coverage.
+- [x] Implement a bounded periodic sampling floor combined with activity samples, preserving offsets
   and recording actual selection policy. Keep live proactive-event filtering separate.
-- [ ] Run replay with generated scenes and permitted cached fixtures. Report actual case counts,
+- [x] Run replay with generated scenes and permitted cached fixtures. Report actual case counts,
   event retention and extra samples; generated cases are not household accuracy.
-- [ ] Run focused storage/indexing tests, lint and commit.
+- [x] Run focused storage/indexing tests, lint and commit.
 
 Expected: deterministic selector comparison and retained sample in the known missed interval.
 
