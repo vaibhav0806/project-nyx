@@ -1,5 +1,19 @@
 # Milestones
 
+## Memory reliability implementation — 2026-11-15
+
+The user approved the implementation order and regular commits. An isolated, resource-limited
+Nyx Hydra service/network/volume/token is created without changing the existing application's
+service or storage. Health and authentication/scope rejection passed. A synthetic 768-d vector
+was stored/read via the graph API. The deployed query engine rejected tested similarity/dot-product
+expressions; no supported server-side vector retrieval path is established. SQLite remains the
+active backend. See [R14](research/R14-self-hosted-hydra.md) and the
+[execution plan](superpowers/plans/2026-11-15-memory-reliability.md).
+
+Shared embedding research is recorded in [R13](research/R13-shared-multimodal-embeddings.md).
+Sampling, candidate nomination, correction/policy and recovery improvements are in progress;
+no new retrieval-quality result or complete pilot is claimed by the server setup.
+
 ## Ten-day pilot foundation — 2026-11-03
 
 The user approved all three reliability workstreams and chose ten days of searchable history.

@@ -1,5 +1,16 @@
 # Working on Nyx
 
+## Latest authorization — 2026-11-15
+
+The user approved the [memory reliability design](docs/superpowers/specs/2026-11-15-memory-reliability-design.md)
+and implementation order, asked to proceed and requested regular commits. Work inline on the
+existing main checkout. Their explicit request to publish latest main supersedes older local-only
+publication language for this work. They authorized SSH access to the teammate's Hydra host and
+separate Nyx storage/service isolation, preserving the other project. Reuse compatible existing
+vectors; do not assume the graph deployment supplies vector retrieval or embedding inference.
+Shared embedding alternatives are conditional on measured accuracy. Preserve prior provider-budget,
+public/synthetic developer-test, source-preservation and 1 GiB stop-without-delete boundaries.
+
 ## Latest authorization — 2026-10-29
 
 The user authorized merging the companion MVP (completed via PR #1), then working
