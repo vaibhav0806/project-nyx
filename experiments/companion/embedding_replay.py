@@ -39,7 +39,7 @@ REFERENCES = [
 ]
 
 
-def check_budget(snapshot, initial_usage, max_spend):
+def check_budget(snapshot, initial_usage, max_spend, *, reported_cost=0):
     usage = snapshot.get("usage")
     limit = snapshot.get("limit")
     if not isinstance(usage, (int, float)) or not math.isfinite(usage):
@@ -47,6 +47,9 @@ def check_budget(snapshot, initial_usage, max_spend):
     ceiling = min(2.0, limit) if isinstance(limit, (int, float)) else 2.0
     if not 0 < max_spend <= 0.25 or not math.isfinite(initial_usage) or usage < initial_usage:
         raise ValueError("Invalid benchmark budget or usage baseline")
+    if not math.isfinite(reported_cost) or reported_cost < 0:
+        raise ValueError("Invalid reported provider cost")
+    usage = max(usage, initial_usage + reported_cost)
     remaining = min(ceiling - usage, max_spend - (usage - initial_usage)) - 0.02
     if remaining <= 0:
         raise ValueError("Provider/benchmark spending limit reached")
@@ -105,12 +108,18 @@ def run(fixture, output, max_spend):
     }
 
     def checkpoint():
+        results["provider_usage"] = encoder.client.usage
         (output / "results.json").write_text(
             json.dumps(results, indent=2, ensure_ascii=False) + "\n"
         )
 
     def call(label, operation, *arguments, **keywords):
-        check_budget(budget_snapshot(encoder.client), initial["usage"], max_spend)
+        check_budget(
+            budget_snapshot(encoder.client),
+            initial["usage"],
+            max_spend,
+            reported_cost=sum(u.get("cost") or 0 for u in encoder.client.usage),
+        )
         started = time.perf_counter()
         before = len(encoder.client.usage)
         try:

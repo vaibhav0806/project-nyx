@@ -62,13 +62,13 @@ Expected: deterministic selector comparison and retained sample in the known mis
 Files: `src/nyx/answers.py`, `src/nyx/retrieval.py`, `src/nyx/memory.py`,
 `src/nyx/perception.py`, relevant tests and replay harness.
 
-- [ ] Write failing cross-segment diversity and reference-image nomination tests with real Store.
-- [ ] Add source-time-aware diversity and bounded text/image candidate fusion while preserving
+- [x] Write failing cross-segment diversity and reference-image nomination tests with real Store.
+- [x] Add source-time-aware diversity and bounded text/image candidate fusion while preserving
   excluded IDs, time filters, known-time policies and final verification.
-- [ ] Benchmark representation variants on frozen cases. Keep model/format changes versioned and
+- [x] Benchmark representation variants on frozen cases. Keep model/format changes versioned and
   existing indexes intact. Verify native-video wire support only within remaining authorized budget.
-- [ ] Promote measured improvements; record unavailable/untested variants explicitly.
-- [ ] Run focused/full tests as appropriate and commit.
+- [x] Promote measured improvements; record unavailable/untested variants explicitly.
+- [x] Run focused/full tests as appropriate and commit.
 
 Expected: improved targeted nomination without timestamp, identity or attribution regressions.
 

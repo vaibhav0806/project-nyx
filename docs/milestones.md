@@ -28,6 +28,12 @@ The small public real-encoder comparison in [R16](research/R16-candidate-retriev
 reference Recall@3 on three development examples; text instructions tied the bare baseline.
 407 tests passed in 21.13s for this slice; broader photo evaluation is still in progress.
 
+The subsequent 40-photo CC-BY COCO comparison is complete: reference fusion's held-out Recall@3
+improved 0.25 -> 0.375 but reciprocal rank fell 0.2913 -> 0.2708. Keep the route disabled by default;
+bare text remains selected. A native-video request shape returned HTTP 400 and is not integrated.
+These are representation/candidate results, not final household answers. [R16](research/R16-candidate-retrieval.md)
+records per-split metrics, source hashes, request failures and budget snapshots.
+
 ## Ten-day pilot foundation — 2026-11-03
 
 The user approved all three reliability workstreams and chose ten days of searchable history.

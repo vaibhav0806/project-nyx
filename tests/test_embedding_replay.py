@@ -25,6 +25,11 @@ def test_benchmark_budget_counts_previous_spending_and_current_run():
             check(snapshot, 1.15, 0.15)
 
 
+def test_budget_guard_counts_response_cost_before_key_usage_settles():
+    with pytest.raises(ValueError):
+        experiment().check_budget({"usage": 1.15, "limit": 2}, 1.15, 0.15, reported_cost=0.14)
+
+
 def test_embedding_metrics_count_negatives_without_inventing_a_confidence_threshold():
     module = experiment()
     rows = [{"id": 3}, {"id": 1}, {"id": 2}]
