@@ -1,3 +1,4 @@
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -9,12 +10,28 @@ from nyx.retrieval import search
 def diverse_candidates(rows, limit, spacing_seconds=4):
     """Nominate distinct nearby moments; keep deferred neighbors if needed."""
     chosen, deferred = [], []
+
+    def nearby_moment(row, other):
+        if row["video_id"] == other["video_id"]:
+            return abs(row["offset_seconds"] - other["offset_seconds"]) < spacing_seconds
+        if (
+            row.get("capture_session")
+            and row.get("capture_session") == other.get("capture_session")
+            and row.get("observed_at")
+            and other.get("observed_at")
+        ):
+            return (
+                abs(
+                    (
+                        aware_time(row["observed_at"]) - aware_time(other["observed_at"])
+                    ).total_seconds()
+                )
+                < spacing_seconds
+            )
+        return False
+
     for row in rows:
-        nearby = any(
-            row["video_id"] == other["video_id"]
-            and abs(row["offset_seconds"] - other["offset_seconds"]) < spacing_seconds
-            for other in chosen
-        )
+        nearby = any(nearby_moment(row, other) for other in chosen)
         if nearby:
             deferred.append(row)
         else:
@@ -44,9 +61,12 @@ def history_steps(
     semantic_latest=False,
     excluded_frame_ids=(),
     reference_image=None,
+    reference_candidates=None,
 ):
     if mode not in {"latest", "relevance"}:
         raise ValueError("Choose latest or relevance history")
+    if reference_candidates is None:
+        reference_candidates = os.environ.get("NYX_REFERENCE_CANDIDATES", "0") == "1"
     started = time.perf_counter()
     timings = {"decode_ms": 0, "verification_ms": 0}
     limit = 12 if mode == "latest" else 5
@@ -61,6 +81,7 @@ def history_steps(
         order="relevance" if semantic_latest and mode == "latest" else mode,
         known_time_only=semantic_latest,
         excluded_frame_ids=excluded_frame_ids,
+        reference_image=reference_image if reference_candidates else None,
     )
     if semantic_latest and mode == "latest":
         candidates = diverse_candidates(candidates, limit)
@@ -78,6 +99,7 @@ def history_steps(
             seen_before=seen_before,
             known_time_only=True,
             excluded_frame_ids=excluded_frame_ids,
+            reference_image=reference_image if reference_candidates else None,
         )
         candidates.extend(
             sorted(
@@ -194,6 +216,7 @@ def history_steps(
         "scope": {
             "mode": mode,
             "candidate_pool_limit": 64 if semantic_latest else limit,
+            "reference_nomination": bool(reference_candidates and reference_image is not None),
             "diversity_seconds": 4 if semantic_latest else 0,
             "video_id": video_id,
             "excluded_frame_ids": list(excluded_frame_ids),

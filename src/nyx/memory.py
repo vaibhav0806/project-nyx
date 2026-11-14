@@ -78,11 +78,14 @@ class Store:
                 );
                 CREATE INDEX IF NOT EXISTS frames_video ON frames(video_id);
             """)
+            db.execute("BEGIN IMMEDIATE")
             columns = {row[1] for row in db.execute("PRAGMA table_info(videos)")}
             if "sampling_policy" not in columns:
                 db.execute(
                     "ALTER TABLE videos ADD COLUMN sampling_policy TEXT NOT NULL DEFAULT 'periodic'"
                 )
+            if "capture_session" not in columns:
+                db.execute("ALTER TABLE videos ADD COLUMN capture_session TEXT")
 
     @contextmanager
     def connection(self):
@@ -99,14 +102,22 @@ class Store:
         finally:
             db.close()
 
-    def add_video(self, name, path, recorded_at, interval, video_id=None):
+    def add_video(self, name, path, recorded_at, interval, video_id=None, *, capture_session=None):
         video_id = video_id or uuid.uuid4().hex
         with self.connection() as db:
             db.execute(
                 """INSERT INTO videos
-                (id, name, path, recorded_at, imported_at, interval_seconds)
-                VALUES (?, ?, ?, ?, ?, ?)""",
-                (video_id, name, path, recorded_at, datetime.now(UTC).isoformat(), interval),
+                (id, name, path, recorded_at, imported_at, interval_seconds, capture_session)
+                VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    video_id,
+                    name,
+                    path,
+                    recorded_at,
+                    datetime.now(UTC).isoformat(),
+                    interval,
+                    capture_session,
+                ),
             )
         return video_id
 
@@ -264,7 +275,7 @@ class Store:
         with self.connection() as db:
             rows = db.execute(
                 f"""SELECT f.id, f.video_id, f.offset_seconds, f.thumbnail,
-                v.name, v.path AS video_path, v.recorded_at, v.imported_at,
+                v.name, v.path AS video_path, v.recorded_at, v.imported_at, v.capture_session,
                 vec_distance_cosine(f.embedding, ?) AS distance
                 FROM frames f JOIN videos v ON v.id = f.video_id
                 WHERE {" AND ".join(filters)} ORDER BY {f"{clock_time} DESC," if order == "latest" else ""} distance, f.id LIMIT ?""",

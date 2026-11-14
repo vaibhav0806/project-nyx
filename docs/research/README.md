@@ -21,6 +21,7 @@ Research should answer a bounded question that changes a decision. Keep product 
 | R13 | Should shared text/image/video embeddings change pilot retrieval? | Inspect current encoder and primary sources; define representation comparisons | [Shared-embedding findings](R13-shared-multimodal-embeddings.md) | Code/source research complete; quality benchmarks pending |
 | R14 | Can the teammate's Hydra deployment retrieve existing Nyx vectors? | Create isolated Nyx storage and probe the actual image with synthetic vectors | [Self-hosted Hydra trial](R14-self-hosted-hydra.md) | Isolation/persistence verified; server-side vector ranking unproven |
 | R15 | Does a periodic indexing floor retain missed short appearances? | Replay generated conditions through real selection, with fixed development/holdout splits | [Coverage findings](R15-sampling-coverage.md) | Implemented; synthetic coverage gain measured, semantic quality pending |
+| R16 | Do capture continuity and reference-image nomination improve candidates? | Real Store regressions and frozen public-image embedding comparisons | [Candidate findings](R16-candidate-retrieval.md) | Mechanisms implemented; reference route opt-in, broader evaluation pending |
 
 R1/R2 can run alongside early technical feasibility work once separately authorized. R5 does not block the initial R3 retrieval baseline. Do not assign a person or deadline without their agreement.
 

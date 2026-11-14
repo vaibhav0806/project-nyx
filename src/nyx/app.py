@@ -197,6 +197,7 @@ class Workspace:
                     video_id=segment["id"],
                     name=f"Recording {segment['recorded_at']} · part {segment['sequence'] + 1}",
                     adaptive=True,
+                    capture_session=segment["session_id"],
                     batch_size=8,
                 )
             except Exception as exc:

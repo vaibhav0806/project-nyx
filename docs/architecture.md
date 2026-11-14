@@ -1,5 +1,13 @@
 # Technical architecture
 
+## Candidate continuity and reference route — 2026-11-15
+
+Videos may carry the capture journal's explicit session ID. Candidate diversity spans clip
+boundaries only with known same-session capture timestamps. Imports are not linked by proximity.
+An opt-in reference-image route searches existing compatible vectors, reserves nominations for
+text and image routes, and retains source filters and final verification. It is disabled by
+default pending broader evaluation. No UI changes. See [R16](research/R16-candidate-retrieval.md).
+
 ## Index coverage floor — 2026-11-15
 
 New adaptive indexing combines activity samples with a two-second periodic floor over available

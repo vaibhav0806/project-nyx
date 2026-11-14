@@ -262,6 +262,54 @@ def test_diverse_history_candidates_spread_moments_and_keep_sparse_neighbors():
     assert diverse_candidates([rows[0], other], 2) == [rows[0], other]
 
 
+def test_diversity_crosses_clip_boundaries_only_with_known_capture_continuity():
+    from datetime import UTC, datetime, timedelta
+
+    from nyx.answers import diverse_candidates
+
+    at = datetime(2026, 11, 15, tzinfo=UTC)
+    rows = [
+        {
+            "id": i,
+            "video_id": f"clip-{i}",
+            "offset_seconds": 0,
+            "capture_session": "session-a",
+            "observed_at": (at + timedelta(seconds=i)).isoformat(),
+        }
+        for i in [0, 1, 2, 8, 16]
+    ]
+    assert [r["id"] for r in diverse_candidates(rows, 3)] == [0, 8, 16]
+    unrelated = {**rows[1], "capture_session": "session-b"}
+    assert diverse_candidates([rows[0], unrelated], 2) == [rows[0], unrelated]
+    unknown = {**rows[1], "observed_at": None}
+    assert diverse_candidates([rows[0], unknown], 2) == [rows[0], unknown]
+
+
+def test_reference_nomination_is_explicit_and_does_not_replace_verification(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from nyx.answers import history_steps
+
+    seen = []
+    monkeypatch.setattr("nyx.answers.search", lambda *a, **kw: seen.append(kw) or [])
+    reference = object()
+    for enabled in [False, True]:
+        steps = history_steps(
+            "keys",
+            SimpleNamespace(root=tmp_path),
+            None,
+            lambda: pytest.fail("No candidate to verify"),
+            reference_image=reference,
+            reference_candidates=enabled,
+        )
+        while True:
+            try:
+                next(steps)
+            except StopIteration:
+                break
+        assert seen[-1].get("reference_image") is (reference if enabled else None)
+
+
 def test_history_checks_reference_image_instead_of_category_only(tmp_path, monkeypatch):
     from types import SimpleNamespace
 

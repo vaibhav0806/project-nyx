@@ -29,6 +29,7 @@ def index_video(
     video_id=None,
     name=None,
     adaptive=False,
+    capture_session=None,
 ):
     steps = index_video_batches(
         video,
@@ -40,6 +41,7 @@ def index_video(
         video_id=video_id,
         name=name,
         adaptive=adaptive,
+        capture_session=capture_session,
     )
     while True:
         try:
@@ -59,6 +61,7 @@ def index_video_batches(
     video_id=None,
     name=None,
     adaptive=False,
+    capture_session=None,
 ):
     _check_encoder(store, encoder)
     if not math.isfinite(interval) or interval <= 0:
@@ -83,6 +86,17 @@ def index_video_batches(
             or existing["interval_seconds"] != interval
         ):
             raise ValueError("Recording ID metadata differs from the saved source")
+        if capture_session is not None:
+            with store.connection() as db:
+                db.execute("BEGIN IMMEDIATE")
+                session = db.execute(
+                    "SELECT capture_session FROM videos WHERE id=?", (video_id,)
+                ).fetchone()[0]
+                if session is not None and session != capture_session:
+                    raise ValueError("Recording capture session differs from the saved source")
+                db.execute(
+                    "UPDATE videos SET capture_session=? WHERE id=?", (capture_session, video_id)
+                )
         if existing["status"] == "ready":
             return {
                 "video_id": video_id,
@@ -95,7 +109,14 @@ def index_video_batches(
         store.restart_video(video_id)
         shutil.rmtree(frame_dir, ignore_errors=True)
     else:
-        store.add_video(name or video.name, str(relative_video), recorded_at, interval, video_id)
+        store.add_video(
+            name or video.name,
+            str(relative_video),
+            recorded_at,
+            interval,
+            video_id,
+            capture_session=capture_session,
+        )
     managed_source = video == copied_video
     started = time.perf_counter()
     try:
@@ -158,11 +179,43 @@ def index_video_batches(
     }
 
 
-def search(query, store, encoder, **filters):
+def search(query, store, encoder, *, reference_image=None, **filters):
     if not query.strip():
         raise ValueError("Search query must not be blank")
     _check_encoder(store, encoder)
-    return store.search(encoder.encode_text(query.strip()), **filters)
+    text_rows = store.search(encoder.encode_text(query.strip()), **filters)
+    if reference_image is None or not text_rows:
+        return text_rows
+    image_rows = store.search(encoder.encode_images([reference_image])[0], **filters)
+    limit = filters.get("limit", 5)
+    return merge_candidates(text_rows, image_rows, limit)
+
+
+def merge_candidates(text_rows, image_rows, limit):
+    if type(limit) is not int or not 1 <= limit <= 100:
+        raise ValueError("Candidate limit must be between 1 and 100")
+    # Reserve nominations for both routes before ranking: consensus alone can crowd
+    # out the sole reference match. Similarity remains a candidate signal, not proof.
+    selected, rows, scores, routes = [], {}, {}, {}
+    for route, candidates in [("text", text_rows), ("reference_image", image_rows)]:
+        for rank, row in enumerate(candidates, 1):
+            identifier = row["id"]
+            rows.setdefault(identifier, row)
+            scores[identifier] = scores.get(identifier, 0) + 1 / (60 + rank)
+            routes.setdefault(identifier, []).append(route)
+    for rank in range(max(len(text_rows), len(image_rows))):
+        for candidates in [text_rows, image_rows]:
+            if rank < len(candidates) and candidates[rank]["id"] not in selected:
+                selected.append(candidates[rank]["id"])
+                if len(selected) == limit:
+                    break
+        if len(selected) == limit:
+            break
+    selected.sort(key=lambda identifier: -scores[identifier])
+    return [
+        {**rows[i], "retrieval_score": scores[i] * 61 / 2, "retrieval_routes": routes[i]}
+        for i in selected
+    ]
 
 
 def rebuild_embeddings(store, encoder, batch_size=8):

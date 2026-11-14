@@ -21,6 +21,13 @@ media, storage cap and live activity qualification are preserved. Validation: 39
 in 23.15s; lint/format passed. All changes are local on `work/memory-reliability`; frontend files
 are unchanged. See [R15](research/R15-sampling-coverage.md).
 
+Candidate retrieval now records explicit capture-session continuity and can diversify across
+segment boundaries. An optional reference-image route preserves time/source/exclusion filters,
+reserves both candidate routes and retains visual verification. It remains disabled by default.
+The small public real-encoder comparison in [R16](research/R16-candidate-retrieval.md) improved
+reference Recall@3 on three development examples; text instructions tied the bare baseline.
+407 tests passed in 21.13s for this slice; broader photo evaluation is still in progress.
+
 ## Ten-day pilot foundation — 2026-11-03
 
 The user approved all three reliability workstreams and chose ten days of searchable history.

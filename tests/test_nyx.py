@@ -85,6 +85,66 @@ def test_time_filters_apply_before_ranking(store):
     assert store.search([1, 0, 0], video_id="missing") == []
 
 
+def test_capture_session_survives_store_restart_without_guessing_import_continuity(tmp_path):
+    first = Store(tmp_path, ColorEncoder.fingerprint, 3)
+    video_id = first.add_video(
+        "capture", "capture.mp4", "2026-11-15T10:00:00Z", 2, capture_session="known-session"
+    )
+    first.add_frames(video_id, [(0, "frame.jpg")], [[1, 0, 0]])
+    first.finish_video(video_id)
+    restarted = Store(tmp_path, ColorEncoder.fingerprint, 3)
+    assert restarted.search([1, 0, 0])[0]["capture_session"] == "known-session"
+    imported = restarted.add_video("import", "import.mp4", None, 2)
+    assert restarted.video(imported)["capture_session"] is None
+
+
+def test_index_retry_can_add_known_session_but_cannot_reassign_it(store, video):
+    result = index_video(video, store, ColorEncoder())
+    index_video(
+        video,
+        store,
+        ColorEncoder(),
+        video_id=result["video_id"],
+        capture_session="original-session",
+    )
+    assert store.video(result["video_id"])["capture_session"] == "original-session"
+    with pytest.raises(ValueError, match="session"):
+        index_video(
+            video,
+            store,
+            ColorEncoder(),
+            video_id=result["video_id"],
+            capture_session="unrelated-session",
+        )
+
+
+def test_reference_nomination_adds_image_candidates_without_bypassing_filters(store):
+    video_id = store.add_video("scene", "scene.mp4", "2026-11-15T10:00:00Z", 2)
+    store.add_frames(
+        video_id,
+        [(0, "red.jpg"), (2, "blue.jpg"), (4, "green.jpg")],
+        [[1, 0, 0], [0.2, 0.2, 0.96], [0, 1, 0]],
+    )
+    store.finish_video(video_id)
+    reference = Image.new("RGB", (32, 32), "lime")
+    baseline = search("red", store, ColorEncoder(), limit=2)
+    assert all(r["offset_seconds"] != 4 for r in baseline)
+    combined = search("red", store, ColorEncoder(), reference_image=reference, limit=2)
+    assert {r["offset_seconds"] for r in combined} == {0, 4}
+    green = next(r for r in combined if r["offset_seconds"] == 4)
+    assert "reference_image" in green["retrieval_routes"]
+    constrained = search(
+        "red",
+        store,
+        ColorEncoder(),
+        reference_image=reference,
+        limit=2,
+        end=2,
+        excluded_frame_ids=[baseline[0]["id"]],
+    )
+    assert [r["offset_seconds"] for r in constrained] == [2]
+
+
 @pytest.fixture
 def video(tmp_path):
     images = tmp_path / "source"
