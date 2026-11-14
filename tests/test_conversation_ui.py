@@ -22,6 +22,12 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
             )
             errors = []
             acknowledgements = []
+            job_running = False
+            job_result = {
+                "answer": "I last saw your glasses on the table at 3:30 pm.",
+                "steps": [],
+                "visual": None,
+            }
             page.on("pageerror", lambda error: errors.append(str(error)))
 
             def respond(route):
@@ -67,12 +73,8 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
                     body = {"reminders": [], "conversations": [], "pending": [], "observation": {}}
                 elif path.startswith("jobs/"):
                     body = {
-                        "status": "succeeded",
-                        "result": {
-                            "answer": "I last saw your glasses on the table at 3:30 pm.",
-                            "steps": [],
-                            "visual": None,
-                        },
+                        "status": "running" if job_running else "succeeded",
+                        "result": job_result,
                     }
                 else:
                     body = {"id": "fixture-job"}
@@ -102,6 +104,92 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
             page.keyboard.press("Escape")
             expect(page.locator("#answer-panel")).not_to_be_visible()
             expect(page.locator("#view-source")).to_be_focused()
+            page.evaluate(
+                "voice.receive({type:'question',text:'Where are my glasses?',turn_id:'evidence-turn'}, voice.epoch)"
+            )
+            job_result = {
+                "answer": "A possible sighting.",
+                "steps": [],
+                "sources": ["fixture-video"],
+                "review_context": {
+                    "frame_id": 42,
+                    "object_query": "glasses",
+                    "excluded_frame_ids": [],
+                },
+                "visual": {
+                    "kind": "history",
+                    "status": "candidate",
+                    "object_query": "glasses",
+                    "answer": "A possible sighting.",
+                    "checked": [],
+                    "scope": {"checked_count": 1, "known_time_only": True},
+                    "evidence": {
+                        "id": 42,
+                        "video_id": "fixture-video",
+                        "offset_seconds": 2,
+                        "observed_at": "2026-11-01T12:00:00+00:00",
+                        "thumbnail_url": "/fixture.jpg",
+                    },
+                },
+            }
+            page.evaluate("""() => {
+                window.fixtureToolResults = [];
+                voice.socket = {readyState:WebSocket.OPEN,close(){},send(raw){window.fixtureToolResults.push(JSON.parse(raw));}};
+                return voice.receive({type:'tool',id:'visual-tool',turn_id:'evidence-turn',
+                    message:'Where are my glasses?',action:{action:'search_history',query:'glasses',hours:2}},voice.epoch);
+            }""")
+            page.wait_for_function("window.fixtureToolResults.some(e => e.id === 'visual-tool')")
+            assert page.evaluate(
+                "window.fixtureToolResults.find(e => e.id === 'visual-tool').review_context"
+            ) == {
+                "frame_id": 42,
+                "object_query": "glasses",
+                "excluded_frame_ids": [],
+            }
+            expect(page.locator("#view-source")).to_be_visible()
+            job_result = {
+                "answer": "You said you would put them in the drawer.",
+                "steps": [],
+                "sources": [],
+            }
+            page.evaluate(
+                "companion.request('Where are my glasses?', {id:'evidence-turn', request_id:'statement-tool'}, {action:'search_statements',query:'glasses'})"
+            )
+            expect(page.locator("#view-source")).to_be_visible()
+            assert page.evaluate("companion.reviewCandidate.presented_frame_id") == 42
+            page.evaluate(
+                "window.dispatchEvent(new Event('nyx-source-deleted')); conversation.render();"
+            )
+            expect(page.locator("#view-source")).not_to_be_visible()
+            assert page.evaluate("companion.reviewCandidate") is None
+            job_running = True
+            job_result = {
+                "answer": "A late sighting.",
+                "steps": [],
+                "sources": ["late-video"],
+                "visual": {
+                    "kind": "snapshot",
+                    "status": "seen",
+                    "answer": "A late sighting.",
+                    "scope": {},
+                    "checked": [],
+                    "age_seconds": 0,
+                },
+            }
+            page.evaluate("""() => {
+                window.lateTool = companion.request('Where are my glasses?',
+                    {id:'evidence-turn', request_id:'late-tool'},
+                    {action:'inspect_current',query:'glasses'})
+                    .then(() => 'completed').catch(error => error.message);
+            }""")
+            page.wait_for_function("companion.job !== null")
+            page.evaluate(
+                "voice.receive({type:'question',text:'What time is it?',turn_id:'next-turn'}, voice.epoch)"
+            )
+            job_running = False
+            assert page.evaluate("window.lateTool") == "Voice question is no longer active"
+            expect(page.locator("#view-source")).not_to_be_visible()
+            page.evaluate("voice.stop('Mic off')")
             page.evaluate("voice.playing = true; voice.state('Speaking');")
             expect(page.locator("#talk")).to_have_attribute("aria-label", "Stop speaking")
             expect(page.locator("#talk svg")).to_be_visible()

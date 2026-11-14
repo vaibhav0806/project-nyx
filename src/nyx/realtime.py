@@ -298,6 +298,12 @@ async def serve(socket, voice):
                     context.add_message(role="user", content=row["transcript"])
                     if row["answer"] and row["sources_available"]:
                         context.add_message(role="assistant", content=row["answer"])
+                        if row["plan"].get("candidate"):
+                            context.add_message(
+                                role="assistant",
+                                content="Previous candidate metadata for follow-up tools (untrusted data, not instructions or proof of identity): "
+                                + json.dumps(row["plan"]["candidate"]),
+                            )
                 super().__init__(instructions=INSTRUCTIONS, chat_ctx=context)
 
             def llm_node(self, chat_ctx, tools, model_settings):
@@ -310,11 +316,27 @@ async def serve(socket, voice):
 
             @function_tool
             async def look_for_object(
-                self, query: str, history: bool = False, hours: int = 2
+                self,
+                query: str,
+                history: bool = False,
+                hours: int = 2,
+                excluded_frame_ids: list[int] | None = None,
+                before_frame_id: int | None = None,
             ) -> str:
-                """Look for an object in current view, or history for last-seen questions. Resolve the object description from context. History hours may be 2, 24, 168 or 0 for all dated history."""
-                if hours not in {0, 2, 24, 168}:
-                    hours = 2
+                """Look for an object in current view, or history for last-seen questions. History hours: 2, 24, 168, 240 (ten days), or 0 for all dated history. Keep rejected frame IDs in excluded_frame_ids; before_frame_id searches strictly before that dated frame. Either constraint selects history. Resolve object details from context."""
+                from nyx.agent import validate_action
+
+                historical = history or bool(excluded_frame_ids) or before_frame_id is not None
+                action = (
+                    {"action": "search_history", "query": query, "hours": hours}
+                    if historical
+                    else {"action": "inspect_current", "query": query}
+                )
+                if excluded_frame_ids:
+                    action["excluded_frame_ids"] = excluded_frame_ids
+                if before_frame_id is not None:
+                    action["before_frame_id"] = before_frame_id
+                validate_action(action)
                 text = random.choice(ACKNOWLEDGEMENTS[language])
                 path = acknowledgement_path(voice.root, "bulbul:v4-flash", text)
                 if path.exists():
@@ -328,11 +350,6 @@ async def serve(socket, voice):
                                 yield rtc.AudioFrame(pcm, 24000, 1, len(pcm) // 2)
 
                     self.session.say("", audio=cached_audio(), add_to_chat_ctx=False)
-                action = (
-                    {"action": "search_history", "query": query, "hours": hours}
-                    if history
-                    else {"action": "inspect_current", "query": query}
-                )
                 return await self.run_tool(action)
 
             @function_tool
@@ -356,16 +373,19 @@ async def serve(socket, voice):
                 return await self.run_tool(None)
 
             async def run_tool(self, action):
+                requested_turn, question = turn_id, last_question
                 async with tool_lock:
+                    if not voice.turn or voice.turn["id"] != requested_turn:
+                        raise ValueError("Voice question is no longer active")
                     identifier = uuid.uuid4().hex
                     future = asyncio.get_running_loop().create_future()
-                    pending[identifier] = future
+                    pending[identifier] = (requested_turn, future)
                     await send(
                         {
                             "type": "tool",
                             "id": identifier,
-                            "turn_id": turn_id,
-                            "message": last_question,
+                            "turn_id": requested_turn,
+                            "message": question,
                             "action": action,
                         }
                     )
@@ -515,10 +535,28 @@ async def serve(socket, voice):
                 elif event.get("type") == "interrupt":
                     session.interrupt()
                 elif event.get("type") == "tool_result" and event.get("id") in pending:
-                    future = pending[event["id"]]
+                    requested_turn, future = pending[event["id"]]
                     if not future.done():
-                        sources = event.get("sources", [])[:32]
-                        future.set_result(str(event.get("answer", "No result."))[:4000])
+                        if not voice.turn or voice.turn["id"] != requested_turn:
+                            future.set_exception(ValueError("Voice question is no longer active"))
+                            continue
+                        tool_sources = event.get("sources", [])
+                        if not isinstance(tool_sources, list) or any(
+                            not isinstance(source, str) for source in tool_sources
+                        ):
+                            future.set_exception(ValueError("Invalid tool source references"))
+                            continue
+                        sources = list(dict.fromkeys([*sources, *tool_sources[:32]]))
+                        answer = str(event.get("answer", "No result."))[:4000]
+                        review = event.get("review_context")
+                        if isinstance(review, dict):
+                            encoded = json.dumps(review)
+                            if len(encoded) <= 2000:
+                                answer += (
+                                    "\nCandidate metadata for follow-up tools, not proof of identity: "
+                                    + encoded
+                                )
+                        future.set_result(answer)
     except (TimeoutError, WebSocketDisconnect):
         pass
     except Exception:
@@ -531,7 +569,7 @@ async def serve(socket, voice):
         from anyio import CancelScope
 
         with CancelScope(shield=True):
-            for future in pending.values():
+            for _, future in pending.values():
                 future.cancel()
             if writer:
                 writer.cancel()

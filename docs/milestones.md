@@ -1,5 +1,33 @@
 # Milestones
 
+## Ten-day pilot foundation — 2026-11-03
+
+The user approved all three reliability workstreams and chose ten days of searchable history.
+The first local implementation adds a 240-hour history window and widening through ten days;
+dated search excludes future evidence. Synthetic API checks retrieve day-nine evidence, exclude
+day-eleven/future sources from that window, and preserve every recording.
+
+Spoken turns now accumulate video source dependencies across tools, retain candidate/trace metadata
+after nonvisual tools, and reject old-turn results. The source panel persists within a turn and
+clears on a new question/deletion. Spoken tools expose rejected frame IDs and earlier-than bounds;
+candidate metadata travels back to the spoken model for follow-ups and survives in conversation
+plans. This is an incremental fix in the existing runtime, not completion of the shared turn-module
+architecture or a measured model-quality improvement.
+
+Validation: 384 deterministic tests pass, including real socket/persistence wiring with fake
+providers and browser regressions with no devices. Lint, format, JavaScript syntax and diff checks
+pass. The R12 offline probe now retains source dependencies and the source panel, and invalidates
+the saved answer after source deletion. Its small-object sampling failure remains reproduced.
+
+Publication was authorized on 2026-11-15. Fresh verification on that date: 384 tests passed
+in 20.21s; lint, format, JavaScript syntax and diff checks passed. No hosted CI workflow is
+configured in this checkout; these results are local verification, not a hosted CI verdict.
+
+Ten-day continuous coverage, claim correction, stronger event retention/recovery, local runtime
+feasibility and intended-user acceptance remain open. The current 1 GiB stop-without-delete cap
+is unchanged; ten-day storage capacity requires a separate choice. See [pilot design](pilot.md),
+[foundation plan](superpowers/plans/2026-11-03-pilot-foundation.md) and [R12](research/R12-product-reliability.md).
+
 ## Demonstrated-object timing and durable-link repair — 2026-10-31
 
 Added a bounded visual window frozen at final transcription and reused across turn tools,

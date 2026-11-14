@@ -209,3 +209,202 @@ def test_initial_livekit_listening_does_not_open_cloud_audio_gate(tmp_path, monk
     assert sessions[0].input.audio.frames.qsize() == 1
     assert sessions[0].options["turn_handling"]["endpointing"]["min_delay"] == 0
     assert sessions[0].closed
+
+
+def replay_voice_tools(tmp_path, monkeypatch, scenario):
+    """Exercise our real socket/turn persistence with only speech/model IO replaced."""
+    sessions = []
+
+    class Session:
+        def __init__(self, **options):
+            self.input = SimpleNamespace()
+            self.output = SimpleNamespace()
+            self.handlers = {}
+            sessions.append(self)
+
+        def on(self, name):
+            def register(callback):
+                self.handlers[name] = callback
+                return callback
+
+            return register
+
+        async def start(self, *, agent, **options):
+            self.agent = agent
+
+        async def aclose(self):
+            pass
+
+    class TTS:
+        def __init__(self, **options):
+            pass
+
+        def prewarm(self):
+            pass
+
+        async def aclose(self):
+            pass
+
+    class HTTP:
+        async def close(self):
+            pass
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "fixture")
+    monkeypatch.setattr(realtime, "AgentSession", Session)
+    monkeypatch.setattr(realtime.sarvam, "TTS", TTS)
+    monkeypatch.setattr(realtime.openai, "LLM", lambda **options: None)
+    monkeypatch.setattr(realtime.aiohttp, "ClientSession", HTTP)
+    voice = Voice(tmp_path, None)
+    token = voice.start()["token"]
+
+    class Socket:
+        headers: ClassVar = {"origin": "http://localhost", "host": "localhost"}
+
+        def __init__(self):
+            self.incoming = asyncio.Queue()
+            self.tools = asyncio.Queue()
+            self.scenario = None
+
+        async def accept(self):
+            pass
+
+        async def receive_json(self):
+            return {"token": token, "timezone": "Asia/Kolkata"}
+
+        async def send_json(self, event):
+            if event.get("type") == "tool":
+                await self.tools.put(event)
+
+        async def receive(self):
+            if self.scenario is None:
+                self.scenario = asyncio.create_task(scenario(sessions[0], self, voice))
+            return await self.incoming.get()
+
+        async def reply(self, tool, sources, review=None):
+            await self.incoming.put(
+                {
+                    "type": "websocket.receive",
+                    "text": json.dumps(
+                        {
+                            "type": "tool_result",
+                            "id": tool["id"],
+                            "answer": "Checked.",
+                            "sources": sources,
+                            "review_context": review,
+                        }
+                    ),
+                }
+            )
+
+    async def run():
+        socket = Socket()
+        async with asyncio.timeout(5):
+            serving = asyncio.create_task(realtime.serve(socket, voice))
+            while socket.scenario is None:
+                await asyncio.sleep(0)
+            try:
+                await socket.scenario
+            finally:
+                await socket.incoming.put({"type": "websocket.disconnect"})
+                await serving
+
+    asyncio.run(run())
+    return voice.conversations
+
+
+def transcribe(session, text):
+    session.handlers["user_input_transcribed"](
+        SimpleNamespace(is_final=True, language="en", transcript=text)
+    )
+
+
+def complete_reply(session):
+    session.handlers["conversation_item_added"](
+        SimpleNamespace(
+            item=SimpleNamespace(
+                role="assistant",
+                text_content="An evidence-backed reply.",
+                interrupted=False,
+                created_at=time.time(),
+            )
+        )
+    )
+
+
+def test_spoken_turn_preserves_all_tool_sources_for_deletion(tmp_path, monkeypatch):
+    async def scenario(session, socket, voice):
+        transcribe(session, "Where are my glasses?")
+        for action, sources in [
+            ({"action": "search_history", "query": "glasses", "hours": 2}, ["video-a"]),
+            ({"action": "search_history", "query": "glasses", "hours": 24}, ["video-a", "video-b"]),
+            ({"action": "search_statements", "query": "glasses"}, []),
+        ]:
+            call = asyncio.create_task(session.agent.run_tool(action))
+            tool = await socket.tools.get()
+            await socket.reply(tool, sources)
+            await call
+        complete_reply(session)
+
+    conversations = replay_voice_tools(tmp_path, monkeypatch, scenario)
+    saved = conversations.recent()[-1]
+    assert saved["sources"] == ["video-a", "video-b"]
+    assert saved["status"] == "complete"
+    conversations.invalidate("video-a")
+    assert not conversations.recent()[-1]["sources_available"]
+
+
+def test_late_tool_result_does_not_attach_to_a_new_spoken_turn(tmp_path, monkeypatch):
+    async def scenario(session, socket, voice):
+        transcribe(session, "Where are my glasses?")
+        call = asyncio.create_task(
+            session.agent.run_tool({"action": "search_statements", "query": "glasses"})
+        )
+        old_tool = await socket.tools.get()
+        transcribe(session, "Actually, tell me the time.")
+        await socket.reply(old_tool, ["obsolete-video"])
+        await asyncio.gather(call, return_exceptions=True)
+        complete_reply(session)
+
+    conversations = replay_voice_tools(tmp_path, monkeypatch, scenario)
+    turns = conversations.recent()
+    assert turns[0]["status"] == "interrupted"
+    assert turns[1]["status"] == "complete"
+    assert turns[1]["sources"] == []
+
+
+def test_spoken_lookup_dispatches_ten_day_window_exclusions_and_time_bound(tmp_path, monkeypatch):
+    async def scenario(session, socket, voice):
+        transcribe(session, "Look earlier than that moment for the other green item.")
+        call = asyncio.create_task(
+            session.agent.look_for_object(
+                query="green item",
+                history=True,
+                hours=240,
+                excluded_frame_ids=[7, 8],
+                before_frame_id=42,
+            )
+        )
+        tool = await socket.tools.get()
+        assert tool["action"] == {
+            "action": "search_history",
+            "query": "green item",
+            "hours": 240,
+            "excluded_frame_ids": [7, 8],
+            "before_frame_id": 42,
+        }
+        await socket.reply(
+            tool,
+            ["source-before-anchor"],
+            {
+                "frame_id": 6,
+                "object_query": "green item",
+                "observed_at": "2026-11-01T12:00:00Z",
+            },
+        )
+        summary = await call
+        assert '"frame_id": 6' in summary
+        assert "not proof of identity" in summary
+        complete_reply(session)
+
+    conversations = replay_voice_tools(tmp_path, monkeypatch, scenario)
+    assert conversations.recent()[-1]["sources"] == ["source-before-anchor"]

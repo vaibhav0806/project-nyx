@@ -108,7 +108,7 @@ class CloudVerifier:
             "runtime": "openrouter",
             "prompt_version": 7,
             "history_parallel_checks": self.history_concurrency,
-            "planner_prompt_version": 43,
+            "planner_prompt_version": 44,
             "spoken_context_prompt_version": 1,
             "reference_model": os.environ.get("NYX_REFERENCE_MODEL", "google/gemini-3.5-flash"),
             "reference_prompt_version": 2,
@@ -191,7 +191,7 @@ class CloudVerifier:
         return self.client.generate(messages, self.model, max_tokens)
 
     def decide(self, state):
-        from nyx.agent import validate_action
+        from nyx.agent import HISTORY_WINDOWS, validate_action
 
         completed = [
             index
@@ -230,7 +230,7 @@ class CloudVerifier:
                         "query": "resolved object description",
                         "hours": hours,
                     }
-                    for hours in [2, 24, 168, 0]
+                    for hours in HISTORY_WINDOWS
                     if hours not in used_hours
                 )
             if not any(row["action"] == "search_matches" for row in query_actions):
@@ -284,7 +284,7 @@ For object-location recall search both visual history and saved statements. To c
 For an unresolved this/it in a lookup, use identify_shown_object first to identify what is being shown. Then use its resolved description to search both visual history and saved statements. If identity is ambiguous, ask; never use a guessed object. Use remember_statement for concrete user placement statements, including showing this/it. Use search_statements to recall saved user claims independently of visual matches. These are intentions/reports, never confirmed current location.
 
 For a present-location request, inspect_current if a current_view is available. If prior tool metadata is absent and the conversation is about finding something now, a correction stays in the current view; do not assume it rejects historical footage. Corrections and clarifying descriptions continue the previous tool mode: a current-view correction calls inspect_current again; a historical-candidate correction continues history.
-For a new last-seen question or no current_view, start with 2 hours of dated history. Widen to 24, 168, then 0 after inconclusive results. An explicit request for older footage should start wider than previous_tool.hours. For a moment before the shown candidate, use before_frame_id and hours=0 so the boundary is not accidentally outside a recent window.
+For a new last-seen question or no current_view, start with 2 hours of dated history. Widen to 24, 168, 240 (ten days), then 0 after inconclusive results. An explicit last-ten-days request uses 240 hours. An explicit request for older footage should start wider than previous_tool.hours. For a moment before the shown candidate, use before_frame_id and hours=0 so the boundary is not accidentally outside a recent window.
 For explicitly imported/undated footage, use search_matches; unknown dates cannot establish a latest sighting.
 An uncertain current observation can lead to history. Never repeat an identical action.
 Finish by referencing an observation from THIS request, never a prior conversational answer.

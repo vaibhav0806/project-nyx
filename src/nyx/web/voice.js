@@ -267,6 +267,7 @@ const voice = {
               id: event.id,
               answer: response.result.answer,
               sources: response.result.sources,
+              review_context: response.result.review_context,
             });
         })
         .catch(() =>

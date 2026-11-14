@@ -11,6 +11,28 @@ def complete(steps):
             return done.value
 
 
+def test_repeated_week_search_widens_to_ten_days_before_all_history():
+    from nyx.agent import agent_steps
+
+    calls = []
+    decisions = iter(
+        [
+            {"action": "search_history", "query": "glasses", "hours": 168},
+            {"action": "search_history", "query": "glasses", "hours": 168},
+            {"action": "finish", "observation": 1},
+        ]
+    )
+
+    def tool(action):
+        calls.append(action["hours"])
+        return {"kind": "history", "status": "uncertain", "answer": "No sighting yet."}
+
+    complete(
+        agent_steps("Find older footage of my glasses", [], lambda state: next(decisions), tool)
+    )
+    assert calls == [168, 240]
+
+
 def test_agent_observes_failure_and_chooses_another_tool_before_finishing():
     from nyx.agent import agent_steps
 
@@ -447,7 +469,7 @@ def test_changed_object_query_has_its_own_search_windows_without_loading_model()
     def generate(messages, *args):
         state = json.loads(messages[1]["content"])
         assert state["remaining_query"] == "blue bottle"
-        assert state["remaining_history_hours"] == [2, 24, 168, 0]
+        assert state["remaining_history_hours"] == [2, 24, 168, 240, 0]
         assert state["message"] == "No, the blue bottle, not the red one"
         return '{"action":"search_history","query":"blue bottle","hours":2}'
 

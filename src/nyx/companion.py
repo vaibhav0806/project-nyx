@@ -412,12 +412,13 @@ def install_companion(app, workspace, voice):
                         "checked": [],
                     }
                 store = workspace.model_store()
+                search_at = datetime.now(UTC)
                 lower = (
-                    (datetime.now(UTC) - timedelta(hours=action["hours"])).isoformat()
+                    (search_at - timedelta(hours=action["hours"])).isoformat()
                     if name == "search_history" and action["hours"]
                     else None
                 )
-                upper = None
+                upper = search_at.isoformat() if name == "search_history" else None
                 if "before_frame_id" in action:
                     anchor = next(
                         (
@@ -431,8 +432,9 @@ def install_companion(app, workspace, voice):
                         raise ValueError(
                             "That frame has no available recording timestamp. Ask which dated moment to search before."
                         )
-                    upper = (
-                        datetime.fromisoformat(anchor["observed_at"]) - timedelta(microseconds=1)
+                    upper = min(
+                        search_at,
+                        datetime.fromisoformat(anchor["observed_at"]) - timedelta(microseconds=1),
                     ).isoformat()
                     if lower and datetime.fromisoformat(lower) >= datetime.fromisoformat(upper):
                         raise ValueError(
@@ -614,32 +616,47 @@ def install_companion(app, workspace, voice):
                 result["voice_turn_id"] = body.voice_turn_id
                 if (result.get("visual") or {}).get("kind") == "snapshot":
                     result["visual"]["age_seconds"] = fresh(result["visual"]["captured_at"])
+                previous = {}
+                if body.voice_turn_id:
+                    with conversations.connect() as db:
+                        previous = json.loads(
+                            db.execute(
+                                "SELECT plan FROM turns WHERE id=?", (identifier,)
+                            ).fetchone()[0]
+                        )
+                plan = {
+                    **previous,
+                    "mode": "agent",
+                    "steps": previous.get("steps", []) + result["steps"],
+                    "presented_candidate": presented_candidate,
+                    "candidate": {
+                        "frame_id": result["visual"]["evidence"]["id"],
+                        "object_query": result["visual"]["object_query"],
+                        "observed_at": result["visual"]["evidence"]["observed_at"],
+                        "excluded_frame_ids": result["visual"]["scope"].get(
+                            "excluded_frame_ids", []
+                        ),
+                    }
+                    if (result.get("visual") or {}).get("status") == "candidate"
+                    else previous.get("candidate")
+                    if not result.get("visual")
+                    else None,
+                    "decision_errors": previous.get("decision_errors", [])
+                    + result["decision_errors"],
+                    "policy_adjustments": previous.get("policy_adjustments", [])
+                    + result["policy_adjustments"],
+                    "model": workspace.verifier.fingerprint if workspace.verifier else None,
+                    "turn_context_at": body.context_at.isoformat() if body.context_at else None,
+                    "turn_frame_times": [frame["captured_at"] for frame in turn_frames],
+                    "current_snapshot_at": body.captured_at.isoformat()
+                    if body.captured_at
+                    else None,
+                }
                 conversations.update_plan(
                     identifier,
-                    {
-                        "mode": "agent",
-                        "steps": result["steps"],
-                        "presented_candidate": presented_candidate,
-                        "candidate": {
-                            "frame_id": result["visual"]["evidence"]["id"],
-                            "object_query": result["visual"]["object_query"],
-                            "observed_at": result["visual"]["evidence"]["observed_at"],
-                            "excluded_frame_ids": result["visual"]["scope"].get(
-                                "excluded_frame_ids", []
-                            ),
-                        }
-                        if (result.get("visual") or {}).get("status") == "candidate"
-                        else None,
-                        "decision_errors": result["decision_errors"],
-                        "policy_adjustments": result["policy_adjustments"],
-                        "model": workspace.verifier.fingerprint if workspace.verifier else None,
-                        "turn_context_at": body.context_at.isoformat() if body.context_at else None,
-                        "turn_frame_times": [frame["captured_at"] for frame in turn_frames],
-                        "current_snapshot_at": body.captured_at.isoformat()
-                        if body.captured_at
-                        else None,
-                    },
+                    plan,
                 )
+                result["review_context"] = plan["candidate"]
                 conversations.event(
                     "agent_completed",
                     turn_id=identifier,

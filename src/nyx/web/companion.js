@@ -141,7 +141,7 @@ const conversation = {
 const companion = {
   epoch: 0, job: null, working: false, observing: false, delivering: false,
   armed: false, refreshBusy: false, player: null, delivery: null, deliveryIntention: null,
-  deliveryEpoch: 0, reviewCandidate: null,
+  deliveryEpoch: 0, reviewCandidate: null, evidenceTurn: null,
 
   interruptDelivery() {
     this.deliveryEpoch++;
@@ -181,7 +181,7 @@ const companion = {
     const epoch = ++this.epoch;
     $("companion-stop").hidden = false;
     $("companion-send").disabled = true;
-    $("answer-panel").hidden = true;
+    if (!turn || this.evidenceTurn !== turn.id) $("answer-panel").hidden = true;
     this.job = null;
     try {
       if (epoch !== this.epoch) throw new Error("Request stopped");
@@ -193,6 +193,7 @@ const companion = {
         if (epoch !== this.epoch) api(`/api/agent/${id}/cancel`, { method: "POST" }).catch(() => {});
       });
       if (epoch !== this.epoch) throw new Error("Request stopped");
+      if (turn && voice.turnVisual?.id !== turn.id) throw new Error("Voice question is no longer active");
       $("companion-status").textContent = result.answer;
       if (!turn && !initialAction) conversation.answer(result.answer);
       $("companion-steps").replaceChildren();
@@ -201,8 +202,13 @@ const companion = {
         line.textContent = `${step.action.replaceAll("_", " ")}${step.query ? ` · ${step.query}` : ""}${step.hours !== undefined ? ` · ${step.hours || "all dated"} hours` : ""}`;
         $("companion-steps").append(line);
       }
-      if (result.visual?.scope) showAnswer(result.visual);
-      else this.reviewCandidate = null;
+      if (result.visual?.scope) {
+        showAnswer(result.visual);
+        this.evidenceTurn = turn?.id || null;
+      } else if (!turn || this.evidenceTurn !== turn.id) {
+        this.reviewCandidate = null;
+        this.evidenceTurn = null;
+      }
       await this.refresh();
       return { result, jobId: this.job };
     } finally {
@@ -392,6 +398,9 @@ window.addEventListener("nyx-voice-state", event => {
   conversation.render();
 });
 window.addEventListener("nyx-source-deleted", () => {
+  companion.evidenceTurn = null;
+  companion.reviewCandidate = null;
+  $("answer-panel").hidden = true;
   $("view-source").hidden = true;
   $("source-dialog").close();
 });

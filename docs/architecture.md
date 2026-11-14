@@ -1,5 +1,13 @@
 # Technical architecture
 
+## Ten-day pilot design — 2026-11-03
+
+The approved [pilot design](pilot.md) connects turn ownership, source-linked object/event memory
+and runtime/local-device feasibility in the existing Python/SQLite application. The first slice
+preserves spoken tool evidence, exposes search constraints to voice and adds a 240-hour lookup.
+Cross-segment episodes, claim corrections, stronger recovery and native/local inference remain
+follow-on work. Preserve original files and the current 1 GiB stop-without-delete cap.
+
 ## Utterance visual context — 2026-10-31
 
 The browser buffers up to 12 seconds of local camera frames and freezes six chronological

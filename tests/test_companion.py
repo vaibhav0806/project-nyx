@@ -17,6 +17,100 @@ from nyx.app import create_app
 pytest_plugins = ["test_nyx"]
 
 
+def test_ten_day_search_includes_day_nine_and_preserves_older_recordings(tmp_path, video):
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Planner)
+    ) as client:
+        ids = []
+        for days in [11, 9, -1]:
+            response = client.post(
+                "/api/import",
+                params={
+                    "name": "scene.mp4",
+                    "recorded_at": (datetime.now(UTC) - timedelta(days=days)).isoformat(),
+                },
+                content=video.read_bytes(),
+            )
+            job = wait_for_job(client, response.json()["id"])
+            assert job["status"] == "succeeded", job
+            ids.append(job["result"]["video_id"])
+        response = client.post(
+            "/api/agent",
+            json={
+                "message": "Where did you last see green in the last ten days?",
+                "request_id": "ten-day-fixture",
+                "initial_action": {"action": "search_history", "query": "green", "hours": 240},
+            },
+        )
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "succeeded", job
+        result = job["result"]
+        assert result["status"] == "candidate", result
+        assert result["visual"]["scope"]["hours"] == 240
+        assert result["sources"] == [ids[1]]
+        assert all(row["video_id"] == ids[1] for row in result["checked"])
+        assert len(client.get("/api/videos").json()) == 3
+        assert client.get(f"/api/videos/{ids[0]}/media").status_code == 200
+
+
+def test_spoken_turn_keeps_candidate_and_tool_trace_after_nonvisual_tool(tmp_path, video):
+    from nyx.voice import Voice
+
+    speaker = Voice(tmp_path, None)
+    token = speaker.start()["token"]
+    message = "Where did you last see green?"
+    turn_id = speaker.conversations.begin(message, {"mode": "livekit", "language": "en"})
+    speaker.turn = {"id": turn_id, "transcript": message}
+    with TestClient(
+        create_app(
+            tmp_path,
+            encoder_factory=ColorEncoder,
+            verifier_factory=Planner,
+            voice_factory=lambda root: speaker,
+        )
+    ) as client:
+        response = client.post(
+            "/api/import",
+            params={
+                "name": "scene.mp4",
+                "recorded_at": (datetime.now(UTC) - timedelta(days=9)).isoformat(),
+            },
+            content=video.read_bytes(),
+        )
+        assert wait_for_job(client, response.json()["id"])["status"] == "succeeded"
+        results = []
+        for number, action in enumerate(
+            [
+                {"action": "search_history", "query": "green", "hours": 240},
+                {"action": "list_reminders"},
+            ]
+        ):
+            response = client.post(
+                "/api/agent",
+                headers={"x-nyx-voice": token},
+                json={
+                    "message": message,
+                    "request_id": f"voice-tool-{number}",
+                    "voice_turn_id": turn_id,
+                    "initial_action": action,
+                },
+            )
+            job = wait_for_job(client, response.json()["id"])
+            assert job["status"] == "succeeded", job
+            results.append(job["result"])
+        saved = client.get("/api/companion").json()["conversations"][-1]
+        assert saved["plan"]["candidate"]["object_query"] == "green"
+        assert saved["plan"]["candidate"]["frame_id"] == results[0]["visual"]["evidence"]["id"]
+        assert [step["action"] for step in saved["plan"]["steps"]] == [
+            "search_history",
+            "finish",
+            "list_reminders",
+            "finish",
+        ]
+        assert results[0]["review_context"]["object_query"] == "green"
+        assert results[1]["review_context"] == results[0]["review_context"]
+
+
 def test_livekit_selected_tool_skips_redundant_planner_calls(tmp_path):
     class ToolOnly(Planner):
         def decide(self, state):

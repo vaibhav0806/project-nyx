@@ -1,5 +1,20 @@
 # Scope
 
+## Publication authorization — 2026-11-15
+
+The user explicitly requested publishing the latest existing work to main. This supersedes
+the earlier local-only publication boundary for the pilot foundation. New HydraDB integration
+and retrieval changes are being researched and discussed before implementation.
+
+## Ten-day pilot — 2026-11-03
+
+The user approved proceeding with all three reliability workstreams and selected a ten-day
+searchable-history target. See [pilot design](pilot.md). Begin with evidence preservation and
+spoken/typed ten-day lookup; develop memory, recovery and local-device feasibility against shared
+evaluation tasks. Preserve recordings, source attribution, synthetic developer tests and the
+1 GiB stop-without-delete rule. This does not authorize expiry, purchases, real hardware capture
+or publication. Capacity for continuous ten-day recording still needs an explicit choice.
+
 ## Product direction — 2026-10-31
 
 The agreed [product direction](../product.md) positions Nyx around independence for

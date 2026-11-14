@@ -1,5 +1,13 @@
 # Decisions and open choices
 
+## Ten-day pilot — 2026-11-03
+
+The user selected all three reliability workstreams, approved proceeding and chose the last ten
+days as the pilot's searchable-history target. Add a trailing 240-hour query window while keeping
+explicit older-history access. This is not expiry. Preserve recordings and the 1 GiB
+stop-without-delete cap until a separate capacity/retention choice. Continuous ten-day coverage
+cannot fit the current cap and remains unproven. See [pilot design](pilot.md) and [R12](research/R12-product-reliability.md).
+
 ## Ground references in the utterance window — 2026-10-31
 
 The latest live test showed that capturing only at tool time missed demonstrated objects.

@@ -1,5 +1,12 @@
 # Product design
 
+## Pilot horizon — 2026-11-03
+
+The user selected ten days of searchable history and approved the integrated reliability
+direction: trustworthy turns, object/event memory and daily runtime/local-device feasibility.
+See [pilot design](pilot.md) for the experience, preservation constraints and evaluation.
+A search horizon does not guarantee continuous coverage or authorize recording expiry.
+
 ## Companion voice selection — 2026-10-31
 
 The current voice is Shalini Companion: `shalini_en_companion` for English and

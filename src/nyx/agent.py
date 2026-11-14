@@ -8,6 +8,8 @@ import time
 from datetime import UTC, datetime
 from types import GeneratorType
 
+HISTORY_WINDOWS = (2, 24, 168, 240, 0)
+
 
 def validate_action(value):
     if isinstance(value, str):
@@ -66,9 +68,9 @@ def validate_action(value):
         if not isinstance(value[key], str) or not 1 <= len(value[key].strip()) <= 240:
             raise ValueError("Tool text must be 1–240 characters")
     if action == "search_history" and (
-        type(value["hours"]) is not int or value["hours"] not in {0, 2, 24, 168}
+        type(value["hours"]) is not int or value["hours"] not in HISTORY_WINDOWS
     ):
-        raise ValueError("Choose recent 2/24/168 hours, or 0 for all dated history")
+        raise ValueError("Choose recent 2/24/168/240 hours, or 0 for all dated history")
     if action == "finish" and (type(value["observation"]) is not int or value["observation"] < 0):
         raise ValueError("Completion must identify a tool observation")
     return value
@@ -130,7 +132,7 @@ def agent_steps(
                     f"This request is constrained to moments before frame {history_boundary}; retain before_frame_id when continuing the search."
                 )
             if action in trace and action["action"] == "search_history":
-                windows = [2, 24, 168, 0]
+                windows = HISTORY_WINDOWS
                 next_hours = next(
                     (
                         hours

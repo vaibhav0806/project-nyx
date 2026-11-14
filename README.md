@@ -166,6 +166,11 @@ See the [architecture](docs/architecture.md) for the pipeline and [decisions](do
 
 ## Development
 
+Pilot work now targets **ten days of searchable history**. The current foundation supports
+240-hour dated lookup and preserves evidence across spoken tools. Ten-day continuous capture,
+storage capacity and household reliability remain open; see the [pilot design](docs/pilot.md).
+The existing 1 GiB stop-without-delete cap is unchanged.
+
 Run the deterministic checks:
 
 ```bash
