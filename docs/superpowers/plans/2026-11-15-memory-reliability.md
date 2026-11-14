@@ -102,11 +102,11 @@ Expected: honest backend failure/recovery behavior with preserved evidence and u
 
 ### Task 6: Final verification and evidence
 
-- [ ] Freeze and run the selected held-out evaluation, counting failed/incomplete cases and costs.
-- [ ] Run full pytest, Ruff check/format, JavaScript syntax, Markdown links and diff checks.
-- [ ] Review the whole change inline as required by the user's no-subagent instruction; fix
+- [x] Freeze and run the selected held-out evaluation, counting failed/incomplete cases and costs.
+- [x] Run full pytest, Ruff check/format, JavaScript syntax, Markdown links and diff checks.
+- [x] Review the whole change inline as required by the user's no-subagent instruction; fix
   important findings with regressions. Do not claim independent review or hosted CI.
-- [ ] Update milestones/decisions/architecture/scope with actual delivered behavior and unknowns.
-- [ ] Commit verified increments locally on the work branch; do not push to main.
+- [x] Update milestones/decisions/architecture/scope with actual delivered behavior and unknowns.
+- [x] Commit verified increments locally on the work branch; do not push to main.
 
 Expected: exact reported checks, clean working tree, evidence-backed claims and remaining limits.

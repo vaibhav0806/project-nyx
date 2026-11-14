@@ -13,11 +13,12 @@ historical report lookup. Preserve prior reports, media and attribution. Freshne
 versioned/opt-in, disabled by default; it does not expire sources or establish truth. Only public
 or synthetic developer fixtures were used. See [R17](research/R17-memory-policy.md).
 
-## Publication authorization — 2026-11-15
+## Earlier foundation publication — 2026-11-15
 
 The user explicitly requested publishing the latest existing work to main. This supersedes
-the earlier local-only publication boundary for the pilot foundation. New HydraDB integration
-and retrieval changes are being researched and discussed before implementation.
+the earlier local-only publication boundary for the completed pilot foundation (`cfe8fa4`). The
+later local-branch/no-push instruction above controls all new implementation. Hydra/retrieval
+work is recorded in R14–R18; no new publication is authorized by this historical entry.
 
 ## Ten-day pilot — 2026-11-03
 

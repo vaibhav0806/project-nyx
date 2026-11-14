@@ -1,5 +1,15 @@
 # Product design
 
+## Current memory behavior and preserved interface — 2026-11-15
+
+The contributor's conversation UI is preserved. Backend recall can now accept an explicit
+correction/retraction of an earlier user report, retain its original wording for historical
+lookup, and attribute each answer to available source records. A later move is a new report;
+a report is not visual proof of placement. Ambiguous corrections ask for clarification.
+Freshness ranking remains experimental/off by default. Sampling retains a periodic floor
+between activity events, with higher frame count and remaining brief-event misses documented.
+See [memory policy](research/R17-memory-policy.md) and [coverage findings](research/R15-sampling-coverage.md).
+
 ## Pilot horizon — 2026-11-03
 
 The user selected ten days of searchable history and approved the integrated reliability

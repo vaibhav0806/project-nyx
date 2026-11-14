@@ -1,5 +1,31 @@
 # Milestones
 
+## Local engineering checkpoint — 2026-11-15
+
+The bounded [memory reliability plan](superpowers/plans/2026-11-15-memory-reliability.md) is complete
+on `work/memory-reliability`, with regular local commits and no new pushes. Remote/local main
+remain the tested `cfe8fa4` foundation. All files under `src/nyx/web/` are unchanged from that base.
+Author review covered the full runtime diff, migrations, source/correction lifecycle, candidate
+filtering and experiment claims; no independent review or hosted CI is claimed.
+
+Final application checks: **442 tests passed in 21.05s**, Ruff lint/format passed, app/voice/companion
+JavaScript syntax passed, 213 local Markdown targets resolved and diff checks passed. The complete
+synthetic existing-UI browser flow passed with no page errors; see [R18](research/R18-backend-recovery.md).
+Frozen source-separated embedding and generated sampling evaluations include misses/regressions;
+[R15](research/R15-sampling-coverage.md), [R16](research/R16-candidate-retrieval.md) and
+[R17](research/R17-memory-policy.md) record splits, costs and limitations. No held-out tuning was
+used to promote reference nomination or recency; both remain disabled by default.
+
+Delivered: two-second index coverage floor, known-session candidate diversity, opt-in reference
+nomination, attributed correction/retraction and historical report state, transitive source
+invalidation, and explicit saved-index retry. SQLite/shared text-image embeddings stay active;
+Hydra native vector retrieval was not established and native-video transport was rejected.
+
+Remaining product gates: broader labeled household and speech workflow accuracy, permissioned
+demo rehearsal/recording, intended-user acceptance, and a storage-capacity choice for continuous
+ten-day coverage. The query horizon is ten days; the unchanged 1 GiB stop-without-delete cap does
+not guarantee ten days of footage. No raw media or credentials were committed.
+
 ## Saved-source recovery — 2026-11-15
 
 Fixed explicit retry after capture model-loading/embedding failures and invalidation of cached
@@ -8,7 +34,7 @@ retries respect backlog and refuse incomplete files. Existing-UI synthetic brows
 follow the contributor's current dialogs/controls and pass capture, reminder/audio failure,
 pagination, rejection/confirmation and reload checks. No frontend file changed. Active retrieval
 remains SQLite because the Hydra trial did not establish native vector ranking. See
-[R18](research/R18-backend-recovery.md). Final whole-branch verification is in progress.
+[R18](research/R18-backend-recovery.md). Final verification is recorded above.
 
 ## Report correction and ranking policy — 2026-11-15
 
@@ -20,7 +46,7 @@ disabled by default after an adversarial cached-vector comparison. The real corr
 7/8 development and 8/8 held-out synthetic pairs correct; one Hindi correction clarified. All 16
 restart/history checks passed. A real four-turn typed API/planner/embedding workflow passed saving,
 correction, current recall and exact historical lookup. These are bounded fixtures, not household
-or speech acceptance. See [R17](research/R17-memory-policy.md). Recovery checks remain in progress.
+or speech acceptance. See [R17](research/R17-memory-policy.md). Recovery checks followed in R18.
 
 ## Memory reliability implementation — 2026-11-15
 
