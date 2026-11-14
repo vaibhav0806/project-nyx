@@ -8,6 +8,11 @@ use the evaluated two-second sampling floor; this changes derived samples, not s
 or live event qualification. Keep the 1 GiB stop-without-delete boundary and existing provider
 test budget. See [R15](research/R15-sampling-coverage.md).
 
+The authorized report-memory slice now includes explicit correction/retraction links and aware
+historical report lookup. Preserve prior reports, media and attribution. Freshness priority is
+versioned/opt-in, disabled by default; it does not expire sources or establish truth. Only public
+or synthetic developer fixtures were used. See [R17](research/R17-memory-policy.md).
+
 ## Publication authorization — 2026-11-15
 
 The user explicitly requested publishing the latest existing work to main. This supersedes

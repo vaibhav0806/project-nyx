@@ -22,6 +22,7 @@ Research should answer a bounded question that changes a decision. Keep product 
 | R14 | Can the teammate's Hydra deployment retrieve existing Nyx vectors? | Create isolated Nyx storage and probe the actual image with synthetic vectors | [Self-hosted Hydra trial](R14-self-hosted-hydra.md) | Isolation/persistence verified; server-side vector ranking unproven |
 | R15 | Does a periodic indexing floor retain missed short appearances? | Replay generated conditions through real selection, with fixed development/holdout splits | [Coverage findings](R15-sampling-coverage.md) | Implemented; synthetic coverage gain measured, semantic quality pending |
 | R16 | Do capture continuity and reference-image nomination improve candidates? | Real Store regressions and frozen public-image embedding comparisons | [Candidate findings](R16-candidate-retrieval.md) | COCO comparison complete; mixed holdout keeps reference route opt-in |
+| R17 | Can report corrections preserve history and can freshness improve ranking safely? | Real-provider synthetic correction/API replay and cached-vector age stress test | [Memory policy findings](R17-memory-policy.md) | Correction lifecycle implemented; nonzero freshness remains disabled |
 
 R1/R2 can run alongside early technical feasibility work once separately authorized. R5 does not block the initial R3 retrieval baseline. Do not assign a person or deadline without their agreement.
 

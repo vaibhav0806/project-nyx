@@ -41,6 +41,21 @@ def validate_action(value):
         optional.add("before_frame_id")
     if action == "finish":
         optional.add("statement_observation")
+    if action == "remember_statement":
+        optional.add("supersedes_turn_id")
+    if action == "search_statements":
+        optional.add("as_of")
+    if "supersedes_turn_id" in value and (
+        not isinstance(value["supersedes_turn_id"], str)
+        or not 1 <= len(value["supersedes_turn_id"]) <= 128
+        or value["supersedes_turn_id"].strip() != value["supersedes_turn_id"]
+    ):
+        raise ValueError("Correction must identify an existing saved report")
+    if "as_of" in value:
+        if not isinstance(value["as_of"], str) or not 1 <= len(value["as_of"]) <= 64:
+            raise ValueError("Historical report lookup needs an aware ISO timestamp")
+        if datetime.fromisoformat(value["as_of"]).tzinfo is None:
+            raise ValueError("Historical report lookup needs a timezone")
     if "statement_observation" in value and (
         type(value["statement_observation"]) is not int or value["statement_observation"] < 0
     ):
@@ -292,6 +307,19 @@ def agent_steps(
                 "status": row.get("status"),
                 "answer": row["answer"][:700],
                 "kind": row.get("kind"),
+                **(
+                    {
+                        "statement_refs": [
+                            {
+                                key: match.get(key)
+                                for key in ["turn_id", "at", "object_description", "kind"]
+                            }
+                            for match in row.get("matches", [])[:3]
+                        ]
+                    }
+                    if row.get("kind") == "statements"
+                    else {}
+                ),
             }
             for i, row in enumerate(observations)
         ]
@@ -313,9 +341,15 @@ def agent_steps(
             )
     if cancelled():
         raise ValueError("Request cancelled")
-    result["sources"] = sorted(
-        {row["video_id"] for observation in observations for row in observation.get("checked", [])}
-    )
+    sources = {
+        row["video_id"] for observation in observations for row in observation.get("checked", [])
+    }
+    for observation in observations:
+        dependencies = observation.get("sources", [])
+        if not isinstance(dependencies, list) or any(not isinstance(s, str) for s in dependencies):
+            raise ValueError("Tool returned invalid source references")
+        sources.update(dependencies)
+    result["sources"] = sorted(sources)
     result["checked"] = [
         row for observation in observations for row in observation.get("checked", [])
     ]

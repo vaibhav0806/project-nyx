@@ -1,5 +1,17 @@
 # Milestones
 
+## Report correction and ranking policy — 2026-11-15
+
+Implemented explicit attributed report corrections/retractions, historical `as_of` lookup,
+shared semantic/transcript temporal eligibility, post-inference citation validation and transitive
+source dependencies. Original reports remain historical evidence. Typed and spoken backend tools
+accept these operations; contributor UI files are unchanged. Freshness priority is versioned and
+disabled by default after an adversarial cached-vector comparison. The real correction model got
+7/8 development and 8/8 held-out synthetic pairs correct; one Hindi correction clarified. All 16
+restart/history checks passed. A real four-turn typed API/planner/embedding workflow passed saving,
+correction, current recall and exact historical lookup. These are bounded fixtures, not household
+or speech acceptance. See [R17](research/R17-memory-policy.md). Recovery checks remain in progress.
+
 ## Memory reliability implementation — 2026-11-15
 
 The user approved the implementation order and regular commits. An isolated, resource-limited

@@ -5,6 +5,7 @@ import re
 from datetime import timedelta
 
 from nyx.memory import aware_time
+from nyx.memory_policy import report_scope
 
 
 def question_only(text):
@@ -27,7 +28,9 @@ def question_only(text):
     )
 
 
-def transcript_candidates(conversations, query, observed_at, exclude_turn=None):
+def transcript_candidates(
+    conversations, query, observed_at, exclude_turn=None, *, as_of=None, now=None
+):
     words = [
         word
         for word in re.findall(r"\w+", query.lower())
@@ -45,18 +48,52 @@ def transcript_candidates(conversations, query, observed_at, exclude_turn=None):
     if not clauses:
         return []
     with conversations.connect() as db:
+        scope, scope_parameters, _ = report_scope(db, as_of=as_of, now=now)
         rows = db.execute(
-            "SELECT id,at,transcript,plan FROM turns WHERE id != ? AND sources_available=1 AND ("
+            "SELECT t.id,t.at,t.transcript,t.plan,t.sources FROM turns t WHERE t.id != ? AND "
+            + scope
+            + " AND ("
             + " OR ".join(clauses)
-            + ") ORDER BY rowid DESC LIMIT 30",
-            [exclude_turn or "", *params],
+            + ") ORDER BY t.rowid DESC LIMIT 30",
+            [exclude_turn or "", *scope_parameters, *params],
         ).fetchall()
     return [
-        {"id": r["id"], "at": r["at"], "text": r["transcript"]}
+        {
+            "id": r["id"],
+            "at": r["at"],
+            "text": r["transcript"],
+            "source_dependencies": json.loads(r["sources"]),
+        }
         for r in rows
         if json.loads(r["plan"]).get("mode") != "user_confirmation"
         and not question_only(r["transcript"])
     ]
+
+
+def validate_transcript_sources(conversations, identifiers, *, as_of=None, now=None):
+    if not identifiers:
+        return {}
+    with conversations.connect() as db:
+        scope, parameters, _ = report_scope(db, as_of=as_of, now=now)
+        rows = db.execute(
+            "SELECT t.id,t.sources FROM turns t WHERE "
+            + scope
+            + " AND t.id IN ("
+            + ",".join("?" for _ in identifiers)
+            + ")",
+            [*parameters, *identifiers],
+        ).fetchall()
+    by_id = {r["id"]: json.loads(r["sources"]) for r in rows}
+    if any(identifier not in by_id for identifier in identifiers):
+        raise ValueError(
+            "Saved statement changed or its source is no longer available; search again"
+        )
+    if any(
+        not isinstance(sources, list) or any(not isinstance(s, str) for s in sources)
+        for sources in by_id.values()
+    ):
+        raise ValueError("Saved statement has invalid source references")
+    return by_id
 
 
 def attach_statements(result, conversations, verifier, image, exclude_turn=None):
@@ -108,7 +145,16 @@ Nearby time alone does not prove identity. On ambiguity return an empty list. At
         selected = [by_id[i] for i in dict.fromkeys(ids)]
     except (ValueError, TypeError, AttributeError):
         selected = []
+    dependencies = validate_transcript_sources(conversations, [r["id"] for r in selected])
     result["spoken_context"] = selected
+    result["sources"] = sorted(
+        set(result.get("sources", []))
+        | {
+            source
+            for row in selected
+            for source in [f"transcript:{row['id']}", *dependencies[row["id"]]]
+        }
+    )
     if selected:
         quotes = " ".join(f"You said, “{row['text']}”" for row in selected)
         result["answer"] += " " + quotes

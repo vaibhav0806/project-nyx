@@ -77,14 +77,14 @@ Expected: improved targeted nomination without timestamp, identity or attributio
 Files: a cohesive `src/nyx/memory_policy.py` if needed, `statements.py`, agent/tool validation,
 verification prompts and tests; avoid a general framework.
 
-- [ ] Write failing policy tests for exact historical requests, future/unknown times, irrelevant
+- [x] Write failing policy tests for exact historical requests, future/unknown times, irrelevant
   fresh records, explicit correction, ambiguous contradiction and source deletion/restart.
-- [ ] Implement versioned query-aware freshness ranking as an opt-in evaluated policy, not expiry.
-- [ ] Add minimal attributed correction links with validated target IDs and idempotent persistence;
+- [x] Implement versioned query-aware freshness ranking as an opt-in evaluated policy, not expiry.
+- [x] Add minimal attributed correction links with validated target IDs and idempotent persistence;
   preserve old reports for historical requests and keep observations distinct.
-- [ ] Compare no-decay and permitted policy variants using cached compatible artifacts; freeze
+- [x] Compare no-decay and permitted policy variants using cached compatible artifacts; freeze
   selected behavior before untouched evaluation. Keep access reinforcement disabled.
-- [ ] Run storage/action/planner/voice regression tests and commit.
+- [x] Run storage/action/planner/voice regression tests and commit.
 
 Expected: explicit corrections survive restart and do not rewrite source truth or historical recall.
 

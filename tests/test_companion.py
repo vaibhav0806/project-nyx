@@ -17,6 +17,60 @@ from nyx.app import create_app
 pytest_plugins = ["test_nyx"]
 
 
+def test_correction_and_historical_report_arguments_reach_real_persistence(tmp_path):
+    from test_statement_corrections import Encoder, begin, verifier
+
+    from nyx.statements import Statements
+    from nyx.voice import Conversations
+
+    conversations = Conversations(tmp_path)
+    statements = Statements(conversations)
+    old = begin(conversations, "My phone is in the kitchen", "2026-11-06T12:00:00Z")
+    statements.remember(old, verifier(), Encoder())
+    model = verifier("bag")
+    model.decide = lambda state: {"action": "finish", "observation": 0}
+    original = model.generate_json
+
+    def generate(messages, *args, **kwargs):
+        if kwargs.get("schema") is None:
+            return json.dumps({"statement_ids": [old]})
+        return original(messages, *args, **kwargs)
+
+    model.generate_json = generate
+    with TestClient(
+        create_app(tmp_path, encoder_factory=Encoder, verifier_factory=lambda: model)
+    ) as client:
+        response = client.post(
+            "/api/agent",
+            json={
+                "message": "Correction: my phone is in the bag",
+                "request_id": "correction-api",
+                "initial_action": {"action": "remember_statement", "supersedes_turn_id": old},
+            },
+        )
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "succeeded", job
+        new = job["result"]["turn_id"]
+        assert [r["turn_id"] for r in statements.search("phone", Encoder())] == [new]
+        response = client.post(
+            "/api/agent",
+            json={
+                "message": "What did I report that day?",
+                "request_id": "as-of-api",
+                "initial_action": {
+                    "action": "search_statements",
+                    "query": "phone",
+                    "as_of": "2026-11-06T18:00:00Z",
+                },
+            },
+        )
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "succeeded", job
+        assert job["result"]["observations"][0]["matches"][0]["turn_id"] == old
+        assert job["result"]["review_context"]["statement_refs"][0]["turn_id"] == old
+        assert f"transcript:{old}" in job["result"]["sources"]
+
+
 def test_ten_day_search_includes_day_nine_and_preserves_older_recordings(tmp_path, video):
     with TestClient(
         create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Planner)

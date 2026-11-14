@@ -1,5 +1,16 @@
 # Technical architecture
 
+## Attributed report lifecycle — 2026-11-15
+
+Additive SQLite correction edges supersede explicit user reports for current recall, preserving
+original transcripts and historical `as_of` state. A dedicated model check validates the same
+referent and distinguishes replacement, intention and retraction from a normal later move.
+Semantic and transcript fallback routes share temporal/source eligibility and recheck selected
+IDs after inference. Corrections and recalled answers retain transitive source dependencies.
+Typed and spoken tools expose optional correction IDs and aware historical timestamps; existing
+UI files are unchanged. Versioned freshness ranking is opt-in with weight 0 by default, based on
+the mixed/adversarial results in [R17](research/R17-memory-policy.md). No source expiry.
+
 ## Candidate continuity and reference route — 2026-11-15
 
 Videos may carry the capture journal's explicit session ID. Candidate diversity spans clip

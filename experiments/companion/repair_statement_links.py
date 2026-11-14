@@ -33,7 +33,7 @@ def main():
             ).fetchone()
         if not row or not saved:
             raise ValueError("Repair requires an existing transcript and saved link")
-        if json.loads(saved["resolver"] or "{}").get("reference_version") == 2:
+        if json.loads(saved["resolver"] or "{}").get("reference_version") in {2, 3}:
             print(json.dumps({"turn_id": identifier, "status": "already_verified"}))
             continue
         frames = visual_window(args.source, row["at"])

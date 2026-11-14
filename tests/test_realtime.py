@@ -353,6 +353,32 @@ def test_spoken_turn_preserves_all_tool_sources_for_deletion(tmp_path, monkeypat
     assert not conversations.recent()[-1]["sources_available"]
 
 
+def test_spoken_tools_dispatch_report_correction_and_historical_time(tmp_path, monkeypatch):
+    async def scenario(session, socket, voice):
+        transcribe(session, "Correct my earlier phone report.")
+        call = asyncio.create_task(session.agent.remember_statement(supersedes_turn_id="claim-1"))
+        tool = await asyncio.wait_for(socket.tools.get(), 2)
+        assert tool["action"] == {"action": "remember_statement", "supersedes_turn_id": "claim-1"}
+        await socket.reply(tool, ["transcript:claim-1"])
+        await call
+        call = asyncio.create_task(
+            session.agent.search_statements(query="phone", as_of="2026-11-06T18:00:00Z")
+        )
+        tool = await asyncio.wait_for(socket.tools.get(), 2)
+        assert tool["action"]["as_of"] == "2026-11-06T18:00:00Z"
+        await socket.reply(
+            tool,
+            ["transcript:claim-1"],
+            {"statement_refs": [{"turn_id": "claim-1", "object_description": "phone"}]},
+        )
+        summary = await call
+        assert '"statement_refs"' in summary
+        complete_reply(session)
+
+    conversations = replay_voice_tools(tmp_path, monkeypatch, scenario)
+    assert conversations.recent()[-1]["sources"] == ["transcript:claim-1"]
+
+
 def test_late_tool_result_does_not_attach_to_a_new_spoken_turn(tmp_path, monkeypatch):
     async def scenario(session, socket, voice):
         transcribe(session, "Where are my glasses?")

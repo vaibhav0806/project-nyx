@@ -3,6 +3,59 @@ from datetime import UTC, datetime
 import pytest
 
 
+def test_statement_sources_and_tool_references_survive_agent_completion():
+    from nyx.agent import agent_steps
+
+    def decide(state):
+        if not state["observations"]:
+            return {"action": "search_statements", "query": "phone"}
+        assert state["observations"][0]["statement_refs"][0]["turn_id"] == "claim-1"
+        return {"action": "finish", "observation": 0}
+
+    result = complete(
+        agent_steps(
+            "What did I tell you about my phone?",
+            [],
+            decide,
+            lambda action: {
+                "kind": "statements",
+                "status": "complete",
+                "answer": "You reported a placement.",
+                "matches": [
+                    {
+                        "turn_id": "claim-1",
+                        "at": "2026-11-06T12:00:00Z",
+                        "object_description": "phone",
+                        "kind": "reported_placement",
+                    }
+                ],
+                "sources": ["report-video", "transcript:claim-1"],
+            },
+        )
+    )
+    assert result["sources"] == ["report-video", "transcript:claim-1"]
+
+
+def test_correction_and_historical_report_arguments_are_strictly_validated():
+    from nyx.agent import validate_action
+
+    assert (
+        validate_action({"action": "remember_statement", "supersedes_turn_id": "claim-1"})[
+            "supersedes_turn_id"
+        ]
+        == "claim-1"
+    )
+    assert validate_action(
+        {"action": "search_statements", "query": "phone", "as_of": "2026-11-06T12:00:00Z"}
+    )["as_of"]
+    for action in [
+        {"action": "remember_statement", "supersedes_turn_id": 42},
+        {"action": "search_statements", "query": "phone", "as_of": "2026-11-06T12:00:00"},
+    ]:
+        with pytest.raises((ValueError, TypeError)):
+            validate_action(action)
+
+
 def complete(steps):
     while True:
         try:

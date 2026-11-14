@@ -1,5 +1,15 @@
 # Decisions and open choices
 
+## Preserve corrected reports and keep recency experimental — 2026-11-15
+
+Use explicit, attributed correction/retraction edges between actual saved report IDs. Preserve
+the earlier report for historical lookup and never treat report correction as visual confirmation.
+Apply source/future-time eligibility before ranking, including the transcript fallback route.
+Keep nonzero freshness weight disabled: cached-vector stress tests improve when relevant items
+are new and regress when they are old. Small real-model correction tests support the mechanism
+but include a Hindi false negative; they are not household reliability evidence. See
+[R17](research/R17-memory-policy.md). No access reinforcement or expiry is enabled.
+
 ## Preserve index coverage between activity events — 2026-11-15
 
 Use activity plus a two-second floor for new adaptive index samples, selected against a five-second

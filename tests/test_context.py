@@ -7,6 +7,34 @@ from nyx.recording import CaptureJournal
 from nyx.voice import Conversations, spoken_answer
 
 
+def test_attached_transcript_sources_are_retained_and_late_deletion_is_rejected(tmp_path):
+    import pytest
+
+    conversations = Conversations(tmp_path)
+    claim = conversations.begin("My phone is on the table", {})
+    conversations.finish(claim, sources=["spoken-video"])
+    model = SimpleNamespace(generate_json=lambda *a, **k: json.dumps({"statement_ids": [claim]}))
+
+    def observation():
+        return {
+            "object_query": "phone",
+            "evidence": {"id": 1, "video_id": "visual-video"},
+            "answer": "A sighting.",
+        }
+
+    result = attach_statements(observation(), conversations, model, object())
+    assert result["sources"] == ["spoken-video", f"transcript:{claim}"]
+
+    def deleted(*args, **kwargs):
+        conversations.invalidate("spoken-video")
+        return json.dumps({"statement_ids": [claim]})
+
+    with pytest.raises(ValueError, match="available|changed"):
+        attach_statements(
+            observation(), conversations, SimpleNamespace(generate_json=deleted), object()
+        )
+
+
 def test_transcripts_search_beyond_recent_turns_and_keep_sources(tmp_path):
     c = Conversations(tmp_path)
     first = c.begin("I will put my glasses on the centre table.", {"mode": "agent"})
