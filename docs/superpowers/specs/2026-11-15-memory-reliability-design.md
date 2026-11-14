@@ -231,12 +231,14 @@ speedup. Measure network latency and unavailable/stale-index behavior. No automa
 switch follows from a successful connection. Self-hosting Hydra does not remove Nyx's separate
 cloud inference calls.
 
-## 5. Recovery, UI and admission gates
+## 5. Backend recovery and admission gates
 
 Exercise interruption/late results, restart, indexing backlog/retry, provider failure, network
-loss, deleted sources and storage full with synthetic inputs. Distinguish capture, saved media,
-indexing and voice health in the UI; preserve pending work and actionable recovery information.
-Expose the evidence timestamp, source playback, correction and uncertainty in the demo path.
+loss, deleted sources and storage full with synthetic inputs. Verify distinct backend capture,
+saved-media, indexing and voice health, preserving pending work and existing recovery interfaces.
+The user's later instruction excludes UI work: preserve all existing frontend files, layout,
+styling, wording and interaction behavior. Exercise the current evidence/recovery interfaces
+without adding frontend changes. Backend responses preserve existing client contracts.
 Source deletion and new turns must invalidate obsolete review state.
 
 Promotion requires all deterministic invariants passing, no new attribution/time-bound/deletion
@@ -246,7 +248,7 @@ and per-class tradeoffs; an average gain does not excuse a serious regression. I
 is established, retain the baseline and report the experiment, not an improvement claim.
 
 Target sequence: baseline/labels and coverage first; candidate retrieval and memory-policy
-ablations next; recovery, bounded server integration if justified, and demo polish next; frozen
+ablations next; backend recovery and bounded server integration if justified next; frozen
 held-out evaluation and recording rehearsal last. A full ten-day soak continues separately.
 
 The [pilot boundaries](../../pilot.md) still apply: one Python application, source preservation,

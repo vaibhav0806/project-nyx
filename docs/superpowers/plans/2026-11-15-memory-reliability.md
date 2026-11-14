@@ -1,11 +1,14 @@
 # Memory reliability implementation
 
 Spec: [approved workstreams](../specs/2026-11-15-memory-reliability-design.md).
-User authorized execution and regular commits on 2026-11-15. Work inline on the existing main
-checkout, preserving the prior explicit main authorization; do not delegate. Existing drafts
+User authorized execution and regular commits on 2026-11-15, then required a local branch and
+no push to main. Work inline on `work/memory-reliability`, keeping commits local; do not delegate. Existing drafts
 are this session's research/design. Provider spending and private media boundaries still apply.
 
 ## Constraints and interfaces
+
+The user's later explicit instruction excludes UI changes. Preserve contributors' existing UI;
+do not edit `src/nyx/web/` or alter frontend behavior. Backend changes retain current API contracts.
 
 Keep one Python application and authoritative SQLite/source files. Derived vectors carry encoder
 fingerprints and stable source IDs. Preserve recordings and 1 GiB stop-without-delete behavior.
@@ -85,17 +88,17 @@ verification prompts and tests; avoid a general framework.
 
 Expected: explicit corrections survive restart and do not rewrite source truth or historical recall.
 
-### Task 5: Justified backend route, recovery and demo polish
+### Task 5: Justified backend route and recovery
 
 - [ ] If Task 1 proves useful remote retrieval, implement only the bounded tested route needed for
   this pilot. Reuse encoder-compatible vectors; validate candidates against local source availability.
 - [ ] If capabilities are absent, retain local retrieval and report the evidence; do not introduce
   a substitute service or speculative backend registry.
 - [ ] Add regressions for unavailable/stale index, interruption, restart/backlog and full storage.
-- [ ] Improve visible capture/index/voice health, evidence time/playback and useful recovery actions.
+- [ ] Verify backend capture/index/voice health and recovery through existing interfaces; keep UI unchanged.
 - [ ] Run synthetic browser verification and actual regression suite; commit the coherent slice.
 
-Expected: honest failure/recovery behavior and a reviewable demo path with preserved evidence.
+Expected: honest backend failure/recovery behavior with preserved evidence and unchanged UI.
 
 ### Task 6: Final verification and evidence
 
@@ -104,6 +107,6 @@ Expected: honest failure/recovery behavior and a reviewable demo path with prese
 - [ ] Review the whole change inline as required by the user's no-subagent instruction; fix
   important findings with regressions. Do not claim independent review or hosted CI.
 - [ ] Update milestones/decisions/architecture/scope with actual delivered behavior and unknowns.
-- [ ] Commit verified increments and publish under the standing request to keep main current.
+- [ ] Commit verified increments locally on the work branch; do not push to main.
 
 Expected: exact reported checks, clean working tree, evidence-backed claims and remaining limits.

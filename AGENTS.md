@@ -2,6 +2,16 @@
 
 ## Latest authorization — 2026-11-15
 
+The user subsequently required all new work to stay local on a branch, with no push to main.
+Use `work/memory-reliability`; keep commits local for now. This supersedes the publication/main
+execution wording below. Remote main remains the tested `cfe8fa4` foundation; the new implementation
+run has not been pushed. Local main was returned to origin/main after preserving the new commit
+on the work branch.
+
+The user explicitly required retaining contributors' UI work and no UI changes in this slice.
+Do not edit `src/nyx/web/` or change interface layout, styling, wording or interaction behavior.
+Keep implementation in backend/retrieval/storage/experiments and preserve existing UI contracts.
+
 The user approved the [memory reliability design](docs/superpowers/specs/2026-11-15-memory-reliability-design.md)
 and implementation order, asked to proceed and requested regular commits. Work inline on the
 existing main checkout. Their explicit request to publish latest main supersedes older local-only
