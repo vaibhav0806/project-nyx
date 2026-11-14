@@ -1,5 +1,13 @@
 # Technical architecture
 
+## Recovery of saved sources — 2026-11-15
+
+An explicit retry of a failed capture index may requeue the complete original recording after
+metadata/size and backlog checks, without replacing its bytes. Incomplete originals remain
+preserved and refused. Deleting a video also removes cached job answers that depend on it through
+statement sources. SQLite remains active; the Hydra capability gate did not establish a useful
+native similarity route. See [R18](research/R18-backend-recovery.md). UI files remain unchanged.
+
 ## Attributed report lifecycle — 2026-11-15
 
 Additive SQLite correction edges supersede explicit user reports for current recall, preserving

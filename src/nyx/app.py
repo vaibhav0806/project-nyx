@@ -264,7 +264,9 @@ class Workspace:
         self.capture.finish_deletion(video_id)
         for job in self.jobs.values():
             result = job.get("result", {})
-            if any(row["video_id"] == video_id for row in result.get("checked", [])):
+            if video_id in result.get("sources", []) or any(
+                row["video_id"] == video_id for row in result.get("checked", [])
+            ):
                 job.update(
                     status="failed", error="Source deleted; ask again using the remaining history."
                 )

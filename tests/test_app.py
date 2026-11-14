@@ -54,6 +54,29 @@ def test_web_import_search_playback_and_reopen_preserve_evidence(tmp_path, video
         assert wait_for_job(client, query.json()["id"])["status"] == "succeeded"
 
 
+def test_incompatible_index_fails_search_without_replacing_vectors_or_media(tmp_path, video):
+    from nyx.memory import Store
+    from nyx.retrieval import index_video
+
+    store = Store(tmp_path, ColorEncoder.fingerprint, 3)
+    indexed = index_video(video, store, ColorEncoder())
+
+    class ChangedEncoder(ColorEncoder):
+        fingerprint: ClassVar = {**ColorEncoder.fingerprint, "revision": "incompatible"}
+
+    with TestClient(create_app(tmp_path, encoder_factory=ChangedEncoder)) as client:
+        response = client.post("/api/search", json={"query": "green"})
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "failed" and "different encoder" in job["error"]
+        assert client.get("/api/videos").json()[0]["frame_count"] == 2
+        assert client.get(f"/api/videos/{indexed['video_id']}/media").content == video.read_bytes()
+    with TestClient(create_app(tmp_path, encoder_factory=ColorEncoder)) as client:
+        response = client.post("/api/search", json={"query": "green"})
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "succeeded"
+        assert job["result"]["results"][0]["video_id"] == indexed["video_id"]
+
+
 def test_web_index_failure_cleans_upload_and_excludes_evidence(tmp_path):
     root = tmp_path / "data"
     with TestClient(create_app(root, encoder_factory=ColorEncoder)) as client:
@@ -256,6 +279,50 @@ def test_saved_but_unindexed_capture_stays_playable_when_model_is_unavailable(tm
         assert source.status_code == 206
         assert source.content == video.read_bytes()[:8]
         assert client.get("/api/videos").json() == []
+
+
+@pytest.mark.parametrize("failure_stage", ["model_load", "embedding"])
+def test_retry_reindexes_saved_failed_capture_without_replacing_source(
+    tmp_path, video, failure_stage
+):
+    available = False
+
+    class TransientEncoder(ColorEncoder):
+        def encode_images(self, images):
+            if not available:
+                raise RuntimeError("Temporary embedding outage")
+            return super().encode_images(images)
+
+    def model():
+        if not available and failure_stage == "model_load":
+            raise RuntimeError("Temporary provider outage")
+        return TransientEncoder()
+
+    with TestClient(create_app(tmp_path, encoder_factory=model)) as client:
+        session = client.post("/api/capture/start", json={"at": "2026-10-19T10:00:00Z"}).json()
+        url = f"/api/capture/{session['id']}/segments/0"
+        params = {
+            "recorded_at": "2026-10-19T10:00:00Z",
+            "ended_at": "2026-10-19T10:00:04Z",
+            "format": "mp4",
+        }
+        response = client.post(url, params=params, content=video.read_bytes())
+        segment_id = response.json()["id"]
+        assert wait_for_job(client, segment_id)["status"] == "failed"
+        source = client.get(f"/api/capture/segments/{segment_id}/media")
+        assert source.content == video.read_bytes()
+        assert client.get("/api/capture").json()["searchable_through"] is None
+        available = True
+        retry = client.post(url, params=params, content=b"must not replace the saved recording")
+        assert retry.status_code == 202
+        assert retry.json()["id"] == segment_id
+        job = wait_for_job(client, segment_id)
+        assert job["status"] == "succeeded", job
+        assert client.get(f"/api/capture/segments/{segment_id}/media").content == video.read_bytes()
+        record = client.get("/api/videos").json()[0]
+        assert record["capture_session"] == session["id"]
+        assert record["recorded_at"] == "2026-10-19T10:00:00+00:00"
+        assert client.get("/api/capture").json()["counts"].get("failed", 0) == 0
 
 
 def test_interrupted_capture_indexes_clip_offsets_without_inventing_frame_clock_time(

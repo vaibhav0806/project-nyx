@@ -90,13 +90,13 @@ Expected: explicit corrections survive restart and do not rewrite source truth o
 
 ### Task 5: Justified backend route and recovery
 
-- [ ] If Task 1 proves useful remote retrieval, implement only the bounded tested route needed for
-  this pilot. Reuse encoder-compatible vectors; validate candidates against local source availability.
-- [ ] If capabilities are absent, retain local retrieval and report the evidence; do not introduce
+- [x] Resolve the remote-route gate: Task 1 did not establish native similarity support, so the
+  conditional Hydra runtime integration is not applicable. Keep the compatible vectors/local sources.
+- [x] If capabilities are absent, retain local retrieval and report the evidence; do not introduce
   a substitute service or speculative backend registry.
-- [ ] Add regressions for unavailable/stale index, interruption, restart/backlog and full storage.
-- [ ] Verify backend capture/index/voice health and recovery through existing interfaces; keep UI unchanged.
-- [ ] Run synthetic browser verification and actual regression suite; commit the coherent slice.
+- [x] Add regressions for unavailable/stale index, interruption, restart/backlog and full storage.
+- [x] Verify backend capture/index/voice health and recovery through existing interfaces; keep UI unchanged.
+- [x] Run synthetic browser verification and actual regression suite; commit the coherent slice.
 
 Expected: honest backend failure/recovery behavior with preserved evidence and unchanged UI.
 

@@ -155,8 +155,16 @@ class CaptureJournal:
                     != identity
                 ):
                     raise ValueError("Segment retry metadata differs from the saved source")
-                if existing["state"] != "failed" or (self.root / path).exists():
+                if existing["state"] != "failed":
                     return dict(existing)
+                source = self.root / path
+                saved = source.is_file()
+                if source.exists() and (
+                    not saved or not existing["size"] or source.stat().st_size != existing["size"]
+                ):
+                    raise ValueError(
+                        "Saved segment is incomplete; preserve it and inspect the source before retrying"
+                    )
             count = db.execute(
                 "SELECT COUNT(*) FROM segments WHERE state IN ('uploading','staged','queued','indexing')"
             ).fetchone()[0]
@@ -164,8 +172,8 @@ class CaptureJournal:
                 raise ValueError("Indexing backlog is full; stop recording until it catches up")
             if existing:
                 db.execute(
-                    "UPDATE segments SET state = 'uploading', error = NULL WHERE id = ?",
-                    (segment_id,),
+                    "UPDATE segments SET state = ?, error = NULL, last_sample_seconds = NULL WHERE id = ?",
+                    ("queued" if saved else "uploading", segment_id),
                 )
             else:
                 db.execute(

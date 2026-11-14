@@ -72,6 +72,35 @@ def test_capture_backlog_is_bounded_and_duplicate_delivery_uses_no_slot(tmp_path
     assert journal.snapshot()["searchable_through"] == "2026-10-19T10:00:08+00:00"
 
 
+def test_explicit_failed_index_retry_after_restart_obeys_backlog_and_preserves_source(tmp_path):
+    journal = CaptureJournal(tmp_path, max_pending=1)
+    session = journal.start(START)
+    saved = save_segment(journal, session["id"])
+    journal.mark(saved["id"], "failed", "Provider unavailable")
+    other = save_segment(journal, session["id"], 1)
+    reopened = CaptureJournal(tmp_path, max_pending=1)
+    reopened.recover()
+    with pytest.raises(ValueError, match="backlog"):
+        reopened.begin_segment(session["id"], 0, START, END, ".webm")
+    reopened.mark(other["id"], "ready", last_sample_seconds=8)
+    retry = reopened.begin_segment(session["id"], 0, START, END, ".webm")
+    assert retry["state"] == "queued" and retry["id"] == saved["id"]
+    assert retry["error"] is None and retry["last_sample_seconds"] is None
+    assert (tmp_path / saved["path"]).read_bytes() == b"video"
+
+
+def test_failed_index_retry_preserves_incomplete_source_without_claiming_it_can_reindex(tmp_path):
+    journal = CaptureJournal(tmp_path)
+    session = journal.start(START)
+    saved = save_segment(journal, session["id"])
+    journal.mark(saved["id"], "failed", "Provider unavailable")
+    (tmp_path / saved["path"]).write_bytes(b"truncated")
+    with pytest.raises(ValueError, match="incomplete"):
+        journal.begin_segment(session["id"], 0, START, END, ".webm")
+    assert (tmp_path / saved["path"]).read_bytes() == b"truncated"
+    assert journal.segment(saved["id"])["state"] == "failed"
+
+
 def test_capture_pause_resume_and_invalid_timestamps_are_explicit(tmp_path):
     journal = CaptureJournal(tmp_path)
     session = journal.start(START)

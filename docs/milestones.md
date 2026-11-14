@@ -1,5 +1,15 @@
 # Milestones
 
+## Saved-source recovery — 2026-11-15
+
+Fixed explicit retry after capture model-loading/embedding failures and invalidation of cached
+statement-only answers when a supporting video is deleted. Saved bytes/timestamps remain intact;
+retries respect backlog and refuse incomplete files. Existing-UI synthetic browser checks now
+follow the contributor's current dialogs/controls and pass capture, reminder/audio failure,
+pagination, rejection/confirmation and reload checks. No frontend file changed. Active retrieval
+remains SQLite because the Hydra trial did not establish native vector ranking. See
+[R18](research/R18-backend-recovery.md). Final whole-branch verification is in progress.
+
 ## Report correction and ranking policy — 2026-11-15
 
 Implemented explicit attributed report corrections/retractions, historical `as_of` lookup,
