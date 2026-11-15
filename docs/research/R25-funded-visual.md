@@ -1,6 +1,6 @@
 # R25 — Funded visual verification follow-up
 
-Date2026-11-15. Status: development comparison/audit complete; selection/heldout pending.
+Date2026-11-15. Status: bounded category/scene comparisons complete; proposed defaults rejected.
 Owner: inline. Decision: select a safer visual route without worsening other model responsibilities.
 
 The user raised the cumulative OpenRouter ceiling to$5 TOTAL; key metadata verified limit5 and
@@ -132,3 +132,41 @@ not a global default or natural household accuracy. It does not erase the one de
 poster false finding or mixed category results. Observed key usage after this diagnostic:
 3.073211915/5, settlement may lag. Baseline prompt7 and opt-in prompt9 bytes were checked against
 their committed evaluation versions; introducing the config switch did not alter either prompt.
+
+The additional Luna primary development completed48/48:33 proxy-correct, seven unsafe positives,
+versus Lite41/48 and six. Reject it without using a fresh heldout set; do not spend or download
+more simply to continue a failing candidate. It remains an explicit experimental model option,
+not a default. No third-model heldout claim is made. Snapshot after this run:3.13909504/5.
+
+## Reproduction and final boundaries
+
+The committed manifests remain unchanged. Explicit opt-in is now required to reproduce prompt9:
+
+```bash
+NYX_VISUAL_SCENE_POLICY=1 NYX_VISUAL_CONFIRMATION=0 uv run --env-file .env --no-sync python -m experiments.companion.visual_verification_replay --data data/evaluation/coco-small --cases experiments/companion/visual_verification_cases.json --output data/runs/visual-reproduction --split development --model flash --max-spend 0.25
+```
+
+Use a new output path. A stopped run stays failed; `--resume` creates a new, linked artifact
+reusing completed results only when source/label/model/policy fingerprints match exactly.
+Older artifacts predate the explicit scene-policy switch; current baseline still uses prompt7.
+Cached-positive confirmation isolates its extra calls and preserves primary judgments; physical
+replay records both primary and corroborated judgments. Do not infer end-to-end speed or household
+quality from category proxies or synthetic composites. All public40 originals,24 physical-scene
+fixtures and233 wake files passed frozen SHA256 checks after evaluation. No application dependency,
+index format, shared embedding model, UI or stable main change was needed.
+
+## Final actual workflow and cost
+
+Real-provider replay through the current default encoder, saved still-video decode, SQLite
+nomination and history verification completed all five cases:4/5 source-category outcomes,
+no incomplete requests. Cup, remote and phone selected the intended source/offset/capture clock;
+the generated empty scene withheld a finding. The bottle query still selected a soda can in a
+different source (image13659), reproducing the known default category failure rather than fixing
+it. Do not describe this as five successful answers or household acceptance. Artifact:
+data/runs/visual-workflow-funded-final. Source times remain simulated, original times unknown.
+
+The response-reported costs across all15 new paid run artifacts total$1.186682025, including
+failed-prefix and continuation costs separately (no reused primary calls double-counted).
+Added to the starting$1.970609815, conservative cumulative accounting is$3.15729184/5. Latest
+key metadata showed$3.14245214/5; settlement lags, so do not use its smaller workflow delta as
+actual request cost. No further paid inference is needed for this checkpoint or refill now.

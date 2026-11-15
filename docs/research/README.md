@@ -31,7 +31,7 @@ Research should answer a bounded question that changes a decision. Keep product 
 | R23 | Do spoken model choices execute and preserve evidence under faults? | Real SDK/socket protocol, synthetic household tool choices/continuations and actual offline wake inference | [Spoken depth](R23-spoken-depth.md) | General turn/grounding/schema fixes; native heldout6/6, wake weaknesses remain |
 
 | R24 | Can an offline keyword detector improve Nyx activation without extra false wakes? | Frozen source/voice-separated synthetic speech and public negatives, actual rolling-window inference | [Wake detector findings](R24-wake-detector.md) | Broader dev/holdout complete; keyword and padding candidates rejected, runtime unchanged |
-| R25 | Does funded stronger object verification improve category and physical-scene reliability? | Frozen public category/count cases, cached positive checks and synthetic embedded depictions | [Funded visual findings](R25-funded-visual.md) | Development comparisons complete; final selection/heldout in progress |
+| R25 | Does funded stronger object verification improve category and physical-scene reliability? | Frozen public category/count cases, cached positive checks and synthetic embedded depictions | [Funded visual findings](R25-funded-visual.md) | Category/scene comparisons complete; default migrations rejected, scene gate remains opt-in |
 
 R1/R2 can run alongside early technical feasibility work once separately authorized. R5 does not block the initial R3 retrieval baseline. Do not assign a person or deadline without their agreement.
 

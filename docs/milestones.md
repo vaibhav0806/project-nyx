@@ -1,5 +1,38 @@
 # Milestones
 
+## Funded wake/visual validation checkpoint — 2026-11-15
+
+The user raised the cumulative test ceiling to **$5 total**. The bounded
+[funded plan](superpowers/plans/2026-11-15-wake-funded-vision.md) completed broader offline
+wake/public-image comparisons, failure audits and preservation checks. This is a validation
+checkpoint, not completion of product reliability or demo preparation.
+
+Frozen wake233 cases cover four TTS voices, rate/noise/window conditions and73 public speech
+negatives. Keyword candidates lost wake recall; leading padding raised heldout false activations
+16→19 at unchanged31/32 wake recall. Both were rejected; current wake settings/dependencies stay.
+Real human positives, rooms and homophones remain acceptance work ([R24](research/R24-wake-detector.md)).
+
+Completed Flash development looked better, but heldout category/count score27/32 matched Lite
+with four unsafe positives versus three; a Luna primary alternative failed development33/48.
+Reject default migrations. The optional whole-scene check helps constructed screen/poster cases
+(dev11/12 with one false remaining; hold12/12 vs9/12 ungated), but mixed broader recall/category
+results keep it opt-in. Object-model and scene-policy overrides preserve default Lite/prompt7,
+general/departure model roles and shared embeddings. No fixture-specific runtime exceptions.
+See [R25](research/R25-funded-visual.md).
+
+Actual default decode/retrieval/verification replay completed5/5 cases,4/5 source-category outcomes;
+the known can-as-bottle false candidate persists. Synthetic Chrome speech/cancellation, playback
+failure, saved-source/candidate controls and reminder checks passed with zero page errors in
+data/runs/wake-funded-browser-boundaries. **526 tests passed in24.27s**; Ruff lint/format,
+three JavaScript syntax and diff checks passed. Author review only; no hosted CI, independent
+review, PR or merge-readiness claim. Main and all UI files remain unchanged at the stable base;
+only the work branch is eligible for backup. Original media remain preserved.
+
+Conservative cumulative provider accounting:$3.15729184/5; metadata snapshot$3.14245214 may lag.
+No refill needed. Household visual/location accuracy, human speech/acoustics, actual continuous
+operation, intended-user acceptance and permissioned demo rehearsal remain open. The1 GiB
+stop-without-delete cap and ten-day query horizon are unchanged.
+
 ## Deeper visual/spoken engineering pass — 2026-11-15
 
 The user authorized further testing/iterations with general fixes, preserving the work branch,

@@ -1,6 +1,6 @@
 # R24 — Broader wake activation comparison
 
-Date2026-11-15. Status: offline development/heldout evaluation in progress. Owner: inline.
+Date2026-11-15. Status: bounded offline development/heldout evaluation complete; runtime candidates rejected. Owner: inline.
 Decision: replace or adjust current wake recognition only with a measured gain, no new aliases.
 
 ## Primary research and approach
@@ -85,3 +85,17 @@ on these heldout clips, add aliases, or hide the public-speaker errors. Current 
 stays unchanged. The233-case source/voice evidence is broader than R23, still not human-positive
 or room-acoustic acceptance. Dedicated acoustic/intent calibration and homophone limitations
 remain product work; paid credits do not resolve acoustically identical names by themselves.
+
+## Reproduction
+
+Use the isolated wake environment for Sherpa or preparing the frozen fixture, and the locked app
+environment for Whisper. No hardware is opened. For example:
+
+```bash
+uv run --no-sync python -m experiments.companion.wake_benchmark --data data/evaluation/wake-expanded-v1 --sources data/experiments/wake-sources --output data/runs/wake-baseline-reproduction --engine whisper --split holdout
+```
+
+Preparing fixtures requires the isolated soundfile/pyarrow dependencies and installed macOS TTS
+voices, not changes to the app lockfile. Separate output directories preserve prior results.
+Actual detections are clip-level any-hit with the stated probe windows; CPU timings from the
+initial overlapping runs must not be used as standalone latency evidence.

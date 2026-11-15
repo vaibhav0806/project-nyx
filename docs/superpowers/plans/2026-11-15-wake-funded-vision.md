@@ -18,25 +18,30 @@ Guard cumulative$5, current lower key limits, per-run costs and delayed usage se
 ### Task 1: Authorization and visual development baseline
 
 - [x] Verify limit5 metadata and RED/GREEN guard tests, commit updated budget boundary.
-- [ ] Run full Flash development comparison, preserve earlier incomplete/failed trials.
-- [ ] Audit paired failures/latency/cost and freeze visual selection before heldout.
+- [x] Run full Flash development comparison, preserve earlier incomplete/failed trials.
+- [x] Audit paired failures/latency/cost and freeze visual selection before heldout.
 
 ### Task 2: Wake experiment and datasets
 
-- [ ] Read primary APIs/licenses and bound downloads/disk, isolated dependencies only.
-- [ ] Freeze broader speech and public-negative data/splits; test scoring and provenance guards.
-- [ ] Reproduce cached baseline, run keyword detector and choose from development only.
-- [ ] Run heldout/rolling-window/near-name checks, record R24 evidence and remaining limits.
+- [x] Read primary APIs/licenses and bound downloads/disk, isolated dependencies only.
+- [x] Freeze broader speech and public-negative data/splits; test scoring and provenance guards.
+- [x] Reproduce cached baseline, run keyword detector and choose from development only.
+- [x] Run heldout/rolling-window/near-name checks, record R24 evidence and remaining limits.
 
 ### Task 3: Evidence-backed integration and heldout visual checks
 
-- [ ] Add failing regressions for any selected runtime changes; keep interfaces/privacy stable.
-- [ ] Implement minimal backend/config changes only if quality supports them, preserving fallback.
-- [ ] Run heldout vision and actual decode/retrieval/evidence checks; document R25 tradeoffs.
-- [ ] Commit measured decisions, including failures or deferred candidates.
+- [x] Add failing regressions for any selected runtime changes; keep interfaces/privacy stable.
+- [x] Implement minimal backend/config changes only if quality supports them, preserving fallback.
+- [x] Run heldout vision and actual decode/retrieval/evidence checks; document R25 tradeoffs.
+- [x] Commit measured decisions, including failures or deferred candidates.
 
 ### Task 4: Review and final checkpoint
 
-- [ ] Author-review changes; run full tests/lint/format/JS/links and relevant synthetic browser.
-- [ ] Update milestones/decisions/architecture/setup docs; preserve acceptance limitations.
-- [ ] Commit clean work branch, optional branch-only push, verify UI/main/source preservation.
+- [x] Author-review changes; run full tests/lint/format/JS/links and relevant synthetic browser.
+- [x] Update milestones/decisions/architecture/setup docs; preserve acceptance limitations.
+- [x] Commit clean work branch, optional branch-only push, verify UI/main/source preservation.
+
+Final checkpoint: defaults were deliberately retained after rejected candidates, not promoted
+from small fixture gains. Optional scene/model controls are tested; no runtime wake dependency
+was added. R24/R25 and milestones record exact failures, remaining household gates, costs and
+source limitations. Final review is author-only under the explicit no-subagent instruction.
