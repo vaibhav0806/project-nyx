@@ -76,3 +76,21 @@ Artifacts: physical-scenes-baseline-development, physical-scenes-selected-develo
 physical-scenes-luna-confirmation-development and physical-scenes-context-development under
 data/runs. Last observed usage before the new full prompt9 comparison:2.509979915/5. These
 successive development trials are not heldout evidence.
+
+## Freeze before heldout
+
+Full prompt9/Flash development completed45/48 proxy outcomes, two proxy-unsafe findings,
+with an explicit47+1 continuation under per-run guards. The one lower score than prompt7/Flash
+is the correctly rejected advertisement depiction; do not relabel the frozen proxy. Cached
+gate3 confirmation reached44/48, one unsafe: it rejected a champagne glass proposed as a cup,
+but also withheld two proxy positives (a cordless/mobile-phone category ambiguity and a glass
+annotated as cup). It still accepted a measuring-pitcher/cup confusion. These reveal category
+boundary limitations, not proof of exact household semantics.
+
+Decision frozen before opening detailed heldout outputs: select prompt9/Flash as the object-only
+runtime candidate, leaving general/departure Lite and planner/embeddings unchanged. Keep gate3
+opt-in: the broader paired development does not justify its extra latency/abstentions as a new
+default. The physical diagnostic's11/12 is insufficient to override this mixed broader result.
+Heldout will validate or reject the frozen default candidate; no further prompt calibration on
+these data. Evaluate the optional gate diagnostically with preserved first-pass outputs and
+original physical controls, without choosing a new default from heldout gains.
