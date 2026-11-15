@@ -34,7 +34,16 @@ def test_unconfirmed_positive_cannot_supply_a_location(monkeypatch, confirmation
 
     class Client:
         def generate(self, messages, model, max_tokens, **kwargs):
-            return primary() if not kwargs.get("schema") else json.dumps(confirmation)
+            if not kwargs.get("schema"):
+                return primary()
+            context = {
+                "scene_description": "A room with a table and a container.",
+                "target_context": "physical",
+                "matches_requested_context": True,
+            }
+            return json.dumps(
+                {**context, **confirmation} if isinstance(confirmation, dict) else confirmation
+            )
 
     result = CloudVerifier(Client()).inspect(Image.new("RGB", (10, 10)), "a bottle")
     assert result["visibility"] == "uncertain"
@@ -159,4 +168,27 @@ def test_reference_candidate_also_withholds_an_embedded_depiction(monkeypatch):
     result = CloudVerifier(Client()).inspect_reference(
         Image.new("RGB", (10, 10)), Image.new("RGB", (10, 10)), "a bottle"
     )
+    assert result["visibility"] == "uncertain" and result["location"] is None
+
+
+@pytest.mark.parametrize("context, matches", [("unclear", True), ("depicted", False), ([], True)])
+def test_context_cannot_be_overridden_by_a_supported_boolean(monkeypatch, context, matches):
+    monkeypatch.setenv("NYX_VISUAL_CONFIRMATION", "1")
+
+    class Client:
+        def generate(self, messages, model, max_tokens, **kwargs):
+            if not kwargs.get("schema"):
+                return primary()
+            return json.dumps(
+                {
+                    "scene_description": "A displayed image includes a bottle.",
+                    "target_context": context,
+                    "matches_requested_context": matches,
+                    "supported": True,
+                    "ambiguous": False,
+                    "reason": "The inner photograph has a bottle.",
+                }
+            )
+
+    result = CloudVerifier(Client()).inspect(Image.new("RGB", (10, 10)), "a bottle")
     assert result["visibility"] == "uncertain" and result["location"] is None

@@ -43,3 +43,36 @@ Artifacts: data/runs/visual-funded-flash-development (47 complete), *-developmen
 visual-funded-confirmation-development. Initial Flash reported responsecost$0.2341335; its
 last-case continuation and confirmation costs live in their own artifacts. After confirmation,
 observed key usage2.236859815/5; settlement may lag. No parallel paid benchmark ran in this phase.
+
+## Physical-scene development diagnostic
+
+Freeze24 public/synthetic cases from eight source-separated COCO photos (12 development,
+12 holdout). Each source has its original positive/ambiguity control, a synthetic monitor
+showing the full photograph, and a synthetic printed photograph on a wall. The outer scenes
+contain no target item, so a claim of physical presence is wrong by construction. No text says
+"not real". Sources, derivatives, SHA256, split and conditions are recorded in the ignored
+physical-scenes-v1 manifest. Original photograph times are unknown; these are synthetic
+boundary tests, not natural household footage or independent new photos.
+
+Measured development: prompt7/old positive gate7/12, five physical-presence false findings;
+prompt9/context gate2 reached9/12, three false findings. All four original controls retained
+correct proxy behavior. An independent GPT6Luna checker reached9/12 with one depiction false
+finding but wrongly withheld two original positive controls: reject that recall tradeoff.
+Structured whole-scene gate3 describes the outermost scene before classifying physical/depicted/
+unclear context and checking category, attributes and proposed location. It reached11/12, all
+four original controls preserved, one printed-remote depiction still falsely accepted. Do not
+keep tuning against this tiny diagnostic or claim the remaining failure is solved.
+
+Prompt9/gate3 use general scene reasoning, no fixture IDs, class exceptions, coordinate rules
+or expected-answer imports. The gate only withholds a proposed positive; it never replaces its
+location. Unsupported, malformed, ambiguous or unclear-context output cannot supply a location;
+provider failure propagates without silently reusing an unconfirmed positive. Requested explicit
+depictions must retain represented context. Reference-image candidate checks use the same gate
+when enabled. Object-only model selection is separate from general/departure vision, and defaults
+are unchanged until the broader development/heldout decision. Tests cover role separation,
+strict scene context, retained locations and failure handling.
+
+Artifacts: physical-scenes-baseline-development, physical-scenes-selected-development,
+physical-scenes-luna-confirmation-development and physical-scenes-context-development under
+data/runs. Last observed usage before the new full prompt9 comparison:2.509979915/5. These
+successive development trials are not heldout evidence.
