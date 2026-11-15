@@ -1,19 +1,19 @@
 # Milestones
 
-## Recall/context engineering pass — complete locally, 2026-11-15
+## Recall/context engineering pass — complete on work branch, 2026-11-15
 
 User approved sustained engineering excluding demo production, staying on `work/memory-reliability`
 with regular commits and optional branch-only pushes. Main/UI/source preservation remains.
 Source-aware context suppresses invalidated typed/live answers, bounds model history and retains
 date/selection constraints and active tool exchanges. Author review reproduced and fixed deletion
 after spoken-session startup and report temporal/intent mistakes. Fresh frozen report-intent
-development/holdout attribution scores improved 3/6 and4/6→6/6 each, with no incomplete cases.
+development/holdout attribution scores improved 3/6 and 4/6→6/6 each, with no incomplete cases.
 Original sixteen workflows now pass as diagnostic regressions, following unblinding/fixes;
 they are not fresh holdout evidence. No broad quality/latency claim. See
 [R19](research/R19-recall-context.md).
 
-Source-balanced nomination improves crowded cached-photo candidate Recall@12 from0.1873→0.6847
-on24 development queries and0.1220→0.8482 on16 held-out queries, without uncrowded regressions.
+Source-balanced nomination improves crowded cached-photo candidate Recall@12 from 0.1873→0.6847
+on 24 development queries and 0.1220→0.8482 on 16 held-out queries, without uncrowded regressions.
 These are source/candidate stress results, not final visual answers or household accuracy.
 Multi-day replay passed: 30 in-window sources, three correctly excluded edge cases, all 33 source
 hashes preserved and six fault checks passed. Added size-aware captured-source availability after
@@ -24,26 +24,27 @@ current source/deployment revision matches, health/read controls pass, but no su
 vector route is established; retain SQLite ([R20](research/R20-hydra-interface-verdict.md)).
 
 Actual public still-video workflow exposed a can/bottle confusion. An opt-in stronger-model
-corroboration gate withheld it, but the rerun's strict positive-source score4/5→3/5 and increased
+corroboration gate withheld it, but the rerun's strict positive-source score 4/5→3/5 and increased
 latency do not establish an overall win. It remains off by default; default visual-category
 mistakes remain a known limitation, alongside ambiguity and missed positives. Shared Gemini
 Embedding2 text/image vectors remain; no raw-audio embedding route or unsupported Hydra adapter.
 
-Final application checks: **484 tests passed in23.17s**, Ruff lint/format passed (152 files),
-three JavaScript syntax checks passed,240 local Markdown targets resolved and diff checks passed.
+Final application checks: **484 tests passed in 23.17s**, Ruff lint/format passed (152 files),
+three JavaScript syntax checks passed, 243 local Markdown targets resolved and diff checks passed.
 Synthetic existing-UI Chrome speech/cancellation, playback-denial, library/candidate controls and
 activity/reminder flow passed with zero page errors (`data/runs/recall-context-browser-verified`).
 Author review only; no independent review, hosted CI, PR or merge-readiness claim.
 
-All UI files remain identical to`cfe8fa4`; local/remote main were verified at that stable foundation.
-Regular implementation commits stay on`work/memory-reliability`. Original recordings are preserved;
-only public/synthetic fixtures were used, with observed cumulative provider usage$1.625779715/2
+All UI files remain identical to `cfe8fa4`; local/remote main were verified at that stable foundation.
+Regular implementation commits stay on `work/memory-reliability`, backed up to the same remote
+branch without a PR or main push. Original recordings are preserved; only public/synthetic
+fixtures were used, with observed cumulative provider usage $1.625779715/2
 (settlement may lag). No real camera/microphone tests, private uploads or demo production.
 
 Remaining product gates: broader manually labeled household/category/location and real speech
 workflow acceptance, intended-user trials, actual long-duration hardware/cloud operation,
 permissioned recording rehearsal, and a continuous ten-day storage/duty-cycle decision.
-Ten days remains a query horizon; the unchanged1 GiB stop-without-delete cap is not that capacity.
+Ten days remains a query horizon; the unchanged 1 GiB stop-without-delete cap is not that capacity.
 
 ## Local engineering checkpoint — 2026-11-15
 
