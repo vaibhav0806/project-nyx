@@ -50,3 +50,31 @@ def test_proxy_scoring_keeps_misses_separate_from_unsafe_positives(
 def test_failure_cannot_pass_as_an_abstention():
     assert score("absent", None) == {"correct": False, "unsafe_positive": False}
     assert score("single", {"visibility": "visible", "location": None})["correct"] is False
+
+
+def test_resume_preserves_completed_outputs_and_rejects_changed_labels():
+    case = {"id": "one", "query": "a bottle", "expected": "single"}
+    previous = {
+        "manifest_sha256": "frozen",
+        "split": "development",
+        "model": {"model": "same"},
+        "cases": [
+            {
+                **case,
+                "status": "complete",
+                "judgment": {"visibility": "visible", "location": "desk"},
+            }
+        ],
+    }
+    assert (
+        module.resume_cases([case], previous, "frozen", "development", {"model": "same"})[0][
+            "status"
+        ]
+        == "complete"
+    )
+    with pytest.raises(ValueError, match="identity"):
+        module.resume_cases(
+            [{**case, "query": "different"}], previous, "frozen", "development", {"model": "same"}
+        )
+    with pytest.raises(ValueError, match="identity"):
+        module.resume_cases([case], previous, "frozen", "development", {"model": "changed"})

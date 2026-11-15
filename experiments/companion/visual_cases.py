@@ -48,3 +48,24 @@ def score(expected, judgment):
     else:
         raise ValueError("Unknown proxy label")
     return {"correct": correct, "unsafe_positive": visible and expected != "single"}
+
+
+def resume_cases(cases, previous, digest, split, fingerprint):
+    if (
+        previous.get("manifest_sha256") != digest
+        or previous.get("split") != split
+        or previous.get("model") != fingerprint
+    ):
+        raise ValueError("Resume identity differs from the frozen experiment")
+    old = previous.get("cases", [])
+    if len(old) != len(cases):
+        raise ValueError("Resume identity changed case count")
+    result = []
+    for case, row in zip(cases, old, strict=True):
+        if any(row.get(key) != value for key, value in case.items()):
+            raise ValueError("Resume identity changed a source, query or label")
+        if row.get("status") == "complete":
+            result.append({**row, **score(case["expected"], row.get("judgment"))})
+        else:
+            result.append({**case, "status": "not_run"})
+    return result
