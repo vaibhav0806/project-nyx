@@ -2,6 +2,12 @@
 
 ## Latest authorization — 2026-11-15
 
+The user authorized the next [recall/context engineering pass](docs/superpowers/plans/2026-11-15-recall-context.md)
+and sustained execution, excluding demo production. Stay on `work/memory-reliability`; make
+regular commits. Optional pushes are authorized only to this branch, never main. Main stays stable,
+UI stays unchanged, and existing source/spending boundaries remain. Ten days is a search target,
+not a requirement to fit continuous ten-day footage inside 1 GiB; measure capacity separately.
+
 The user subsequently required all new work to stay local on a branch, with no push to main.
 Use `work/memory-reliability`; keep commits local for now. This supersedes the publication/main
 execution wording below. Remote main remains the tested `cfe8fa4` foundation; the new implementation
