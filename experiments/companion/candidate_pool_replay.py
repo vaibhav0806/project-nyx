@@ -2,6 +2,7 @@
 
 import argparse
 import hashlib
+import inspect
 import json
 import time
 from pathlib import Path
@@ -12,7 +13,14 @@ from nyx.answers import diverse_candidates
 from nyx.memory import Store
 
 
-def compare_pool(records, features, query_index, root, *, fingerprint=None):
+def runtime_search(store, query):
+    options = {"limit": 64, "known_time_only": True}
+    if "source_balanced" in inspect.signature(store.search).parameters:
+        options["source_balanced"] = True
+    return store.search(query, **options)
+
+
+def compare_pool(records, features, query_index, root, *, fingerprint=None, runtime_policy=False):
     query = features[query_index]
     candidates = [i for i in range(len(records)) if i != query_index]
     relevant = {
@@ -49,9 +57,15 @@ def compare_pool(records, features, query_index, root, *, fingerprint=None):
             )
             store.finish_video(video)
         result[condition] = {}
-        for name, balanced in [("flat", False), ("balanced", True)]:
+        for name, balanced in (
+            [("runtime", None)] if runtime_policy else [("flat", False), ("balanced", True)]
+        ):
             started = time.perf_counter()
-            pool = store.search(query, limit=64, known_time_only=True, source_balanced=balanced)
+            pool = (
+                runtime_search(store, query)
+                if runtime_policy
+                else store.search(query, limit=64, known_time_only=True, source_balanced=balanced)
+            )
             selected = diverse_candidates(pool, 12)
             selected_ids = {int(row["name"]) for row in selected}
             result[condition][name] = {
@@ -64,7 +78,7 @@ def compare_pool(records, features, query_index, root, *, fingerprint=None):
     return result
 
 
-def run(data, embeddings, output, split):
+def run(data, embeddings, output, split, runtime_policy=False):
     records = json.loads((data / "manifest.json").read_text())["images"]
     metadata = json.loads((embeddings.parent / "results.json").read_text())
     if (
@@ -87,18 +101,27 @@ def run(data, embeddings, output, split):
         "cases": [],
         "vectors_sha256": hashlib.sha256(embeddings.read_bytes()).hexdigest(),
         "policy": "four-per-source-round/known-session-minute-otherwise-video",
+        "runtime_policy_comparison": runtime_policy,
+        "application_source_sha256": hashlib.sha256(
+            Path(inspect.getfile(Store)).read_bytes()
+        ).hexdigest(),
         "limitations": "Previously evaluated public COCO photos with unchanged cached vectors. Image-to-image category nomination under simulated repeated frames/timestamps, not fresh household/instance or text-query accuracy. No media files are represented as available; this experiment never verifies or answers from its metadata-only stores.",
     }
     for q in range(len(documents)):
         result["cases"].append(
             compare_pool(
-                documents, features, q, output / f"query-{q:02d}", fingerprint=metadata["encoder"]
+                documents,
+                features,
+                q,
+                output / f"query-{q:02d}",
+                fingerprint=metadata["encoder"],
+                runtime_policy=runtime_policy,
             )
         )
     result["summary"] = {}
     for condition in ["uncrowded", "crowded"]:
         result["summary"][condition] = {}
-        for name in ["flat", "balanced"]:
+        for name in ["runtime"] if runtime_policy else ["flat", "balanced"]:
             rows = [case[condition][name] for case in result["cases"]]
             result["summary"][condition][name] = {
                 "queries": len(rows),
@@ -117,8 +140,13 @@ def main():
     parser.add_argument("--embeddings", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--split", choices=["development", "holdout"], default="development")
+    parser.add_argument(
+        "--runtime-policy",
+        action="store_true",
+        help="Use this imported application's supported latest-history nomination policy",
+    )
     args = parser.parse_args()
-    result = run(args.data, args.embeddings, args.output, args.split)
+    result = run(args.data, args.embeddings, args.output, args.split, args.runtime_policy)
     print(json.dumps(result["summary"], indent=2))
 
 

@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "coco-520531-75",
+      "image_id": 520531,
+      "file_name": "000000520531.jpg",
+      "sha256": "2ba4713ac86fef08a8b150861b289f27fa4263d4522cd3fa74bc94aa6fd0af51",
+      "split": "holdout",
+      "query": "a remote control",
+      "category": 75,
+      "annotated_count": 2,
+      "expected": "ambiguous"
+    },
+    {
+      "id": "coco-520531-44",
+      "image_id": 520531,
+      "file_name": "000000520531.jpg",
+      "sha256": "2ba4713ac86fef08a8b150861b289f27fa4263d4522cd3fa74bc94aa6fd0af51",
+      "split": "holdout",
+      "query": "a bottle",
+      "category": 44,
+      "annotated_count": 0,
+      "expected": "absent"
+    },
+    {
+      "id": "coco-532690-75",
+      "image_id": 532690,
+      "file_name": "000000532690.jpg",
+      "sha256": "351e9f13f945d031fb6a17669b91c0fddffaaf92b057bd1b25ef094e763e4a27",
+      "split": "holdout",
+      "query": "a remote control",
+      "category": 75,
+      "annotated_count": 1,
+      "expected": "single"
+    },
+    {
+      "id": "coco-532690-44",
+      "image_id": 532690,
+      "file_name": "000000532690.jpg",
+      "sha256": "351e9f13f945d031fb6a17669b91c0fddffaaf92b057bd1b25ef094e763e4a27",
+      "split": "holdout",
+      "query": "a bottle",
+      "category": 44,
+      "annotated_count": 0,
+      "expected": "absent"
+    },
+    {
+      "id": "coco-340894-77",
+      "image_id": 340894,
+      "file_name": "000000340894.jpg",
+      "sha256": "3e3b877390b6f0cf1873444eae7912dea498ea6515ee60bd0a2fa6b7d5fc52fa",
+      "split": "holdout",
+      "query": "a mobile phone",
+      "category": 77,
+      "annotated_count": 1,
+      "expected": "single"
+    },
+    {
+      "id": "coco-340894-44",
+      "image_id": 340894,
+      "file_name": "000000340894.jpg",
+      "sha256": "3e3b877390b6f0cf1873444eae7912dea498ea6515ee60bd0a2fa6b7d5fc52fa",
+      "split": "holdout",
+      "query": "a bottle",
+      "category": 44,
+      "annotated_count": 0,
+      "expected": "absent"
+    },
+    {
+      "id": "coco-343149-77",
+      "image_id": 343149,
+      "file_name": "000000343149.jpg",
+      "sha256": "8d98267ce9b4c72ec8a37b19110d2e1e67607e59ad9704fb9f6d196784e32c89",
+      "split": "holdout",
+      "query": "a mobile phone",
+      "category": 77,
+      "annotated_count": 1,
+      "expected": "single"
+    },
+    {
+      "id": "coco-343149-44",
+      "image_id": 343149,
+      "file_name": "000000343149.jpg",
+      "sha256": "8d98267ce9b4c72ec8a37b19110d2e1e67607e59ad9704fb9f6d196784e32c89",
+      "split": "holdout",
+      "query": "a bottle",
+      "category": 44,
+      "annotated_count": 0,
+      "expected": "absent"
+    },
+    {
+      "id": "coco-186632-44",
+      "image_id": 186632,
+      "file_name": "000000186632.jpg",
+      "sha256": "a9e150a34b0f76252c2049857ed88f94368ae45ebbff65e3bfccb3a2b49ae82c",
+      "split": "holdout",
+      "query": "a bottle",
+      "category": 44,
+      "annotated_count": 4,
+      "expected": "ambiguous"
+    },
+    {
+      "id": "coco-186632-47",
+      "image_id": 186632,
+      "file_name": "000000186632.jpg",
+      "sha256": "a9e150a34b0f76252c2049857ed88f94368ae45ebbff65e3bfccb3a2b49ae82c",
+      "split": "holdout",
+      "query": "a cup",
+      "category": 47,
+      "annotated_count": 0,
+      "expected": "absent"
+    },
+    {
+      "id": "coco-213255-44",
+      "image_id": 213255,
+      "file_name": "000000213255.jpg",
+      "sha256": "536b78fa08534eb0778e58838065ba773fe8751dd87c13bf070f726affaab6e0",
+      "split": "holdout",
+      "query": "a bottle",
+      "category": 44,
+      "annotated_count": 3,
+      "expected": "ambiguous"
+    },
+    {
+      "id": "coco-213255-47",
+      "image_id": 213255,
+      "file_name": "000000213255.jpg",
+      "sha256": "536b78fa08534eb0778e58838065ba773fe8751dd87c13bf070f726affaab6e0",
+      "split": "holdout",
+      "query": "a cup",
+      "category": 47,
+      "annotated_count": 0,
+      "expected": "absent"
+    },
+    {
+      "id": "coco-255165-47",
+      "image_id": 255165,
+      "file_name": "000000255165.jpg",
+      "sha256": "f7e0fd0c8f9c0bd753be75b504f0e41e3b3109259107bf7a8f27c7c950bccbe7",
+      "split": "holdout",
+      "query": "a cup",
+      "category": 47,
+      "annotated_count": 1,
+      "expected": "single"
+    },
+    {
+      "id": "coco-255165-44",
+      "image_id": 255165,
+      "file_name": "000000255165.jpg",
+      "sha256": "f7e0fd0c8f9c0bd753be75b504f0e41e3b3109259107bf7a8f27c7c950bccbe7",
+      "split": "holdout",
+      "query": "a bottle",
+      "category": 44,
+      "annotated_count": 0,
+      "expected": "absent"
+    },
+    {
+      "id": "coco-275198-47",
+      "image_id": 275198,
+      "file_name": "000000275198.jpg",
+      "sha256": "c34482da7ff6fc53d5e78dc433cc673ab601757761e07948f15450cc8214a483",
+      "split": "holdout",
+      "query": "a cup",
+      "category": 47,
+      "annotated_count": 7,
+      "expected": "ambiguous"
+    },
+    {
+      "id": "coco-275198-75",
+      "image_id": 275198,
+      "file_name": "000000275198.jpg",
+      "sha256": "c34482da7ff6fc53d5e78dc433cc673ab601757761e07948f15450cc8214a483",
+      "split": "holdout",
+      "query": "a remote control",
+      "category": 75,
+      "annotated_count": 0,
+      "expected": "absent"
+    }
+  ]
+}
