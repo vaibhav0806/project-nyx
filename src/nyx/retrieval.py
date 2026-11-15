@@ -118,12 +118,14 @@ def index_video_batches(
             capture_session=capture_session,
         )
     managed_source = video == copied_video
+    decoded_source = False
     started = time.perf_counter()
     try:
         if not managed_source:
             shutil.copyfile(video, copied_video)
         scan_interval = min(interval, 0.1) if adaptive else interval
         frames = extract_frames(copied_video, frame_dir, scan_interval)
+        decoded_source = True
         decoded_samples = len(frames)
         if adaptive:
             from nyx.attention import select_activity_frames
@@ -165,7 +167,7 @@ def index_video_batches(
     except Exception as exc:
         store.fail_video(video_id, str(exc))
         shutil.rmtree(frame_dir, ignore_errors=True)
-        if not managed_source:
+        if not managed_source and not decoded_source:
             copied_video.unlink(missing_ok=True)
         raise
     return {

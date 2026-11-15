@@ -284,6 +284,21 @@ class Workspace:
                 # Keep evidence hidden and cleanup pending for an explicit retry.
                 continue
 
+    def recover_imports(self):
+        store = self.store()
+        if store is None:
+            return
+        with store.connection() as db:
+            interrupted = db.execute("SELECT id FROM videos WHERE status = 'indexing'").fetchall()
+        for row in interrupted:
+            try:
+                self.capture.segment(row["id"])
+            except ValueError:
+                store.fail_video(
+                    row["id"],
+                    "Indexing interrupted by restart; retained source can be retried explicitly.",
+                )
+
 
 def create_app(
     root=Path("data"),
@@ -329,6 +344,7 @@ def create_app(
     async def lifespan(app):
         workspace.recover_deletions()
         workspace.capture.recover()
+        workspace.recover_imports()
         for segment in workspace.capture.pending():
             workspace.submit_segment(segment)
         workspace.thread.start()
@@ -651,6 +667,48 @@ def create_app(
 
         workspace.submit(job_id, index)
         return {"id": job_id}
+
+    @app.post("/api/videos/{video_id}/retry-index", status_code=202)
+    def retry_import(video_id: str):
+        with workspace.upload_slot():
+            store = workspace.store()
+            video = store.video(video_id) if store else None
+            if video is None:
+                raise HTTPException(404, "Saved import not found")
+            if video["status"] != "failed":
+                raise HTTPException(409, "Only a failed saved import can be retried")
+            try:
+                workspace.capture.segment(video_id)
+            except ValueError:
+                pass
+            else:
+                raise HTTPException(409, "Retry captured footage through its capture session")
+            source = (workspace.root / video["path"]).resolve()
+            if source.parent != workspace.root / "recordings" or source.stem != video_id:
+                raise HTTPException(
+                    400, "Import source must stay in its managed recording location"
+                )
+            if not source.is_file() or not source.stat().st_size:
+                raise HTTPException(
+                    409, "Saved import source is unavailable; existing files are kept"
+                )
+            job_id = workspace.reserve("index")
+
+            def retry():
+                return (
+                    yield from index_video_batches(
+                        source,
+                        workspace.model_store(),
+                        workspace.encoder,
+                        interval=video["interval_seconds"],
+                        recorded_at=video["recorded_at"],
+                        video_id=video_id,
+                        name=video["name"],
+                    )
+                )
+
+            workspace.submit(job_id, retry)
+            return {"id": job_id}
 
     @app.post("/api/search", status_code=202)
     def query(body: SearchRequest):

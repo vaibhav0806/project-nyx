@@ -261,17 +261,23 @@ def test_failed_indexing_preserves_an_already_saved_recording(store, video):
     assert store.search([1, 0, 0]) == []
 
 
-def test_encoding_failure_cleans_up_partial_evidence(store, video):
+@pytest.mark.parametrize("failure_batch", [0, 1])
+def test_encoding_failure_preserves_source_and_cleans_partial_evidence(store, video, failure_batch):
     class BrokenEncoder(ColorEncoder):
+        calls = 0
+
         def encode_images(self, images):
-            raise RuntimeError("model failed")
+            if self.calls == failure_batch:
+                raise RuntimeError("model failed")
+            self.calls += 1
+            return super().encode_images(images)
 
     with pytest.raises(RuntimeError, match="model failed"):
-        index_video(video, store, BrokenEncoder())
+        index_video(video, store, BrokenEncoder(), batch_size=1)
     record = store.list_videos()[0]
     assert record["status"] == "failed"
     assert record["frame_count"] == 0
-    assert not (store.root / record["path"]).exists()
+    assert (store.root / record["path"]).read_bytes() == video.read_bytes()
     assert list((store.root / "frames").glob("*")) == []
 
 

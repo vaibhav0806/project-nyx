@@ -952,3 +952,142 @@ def test_history_recovers_from_unreadable_source_and_reuses_restored_original(
         assert result["result"]["evidence"]["video_id"] == newer["video_id"]
         assert result["result"]["scope"]["unavailable_frame_count"] == 0
     assert source.read_bytes() == original
+
+
+@pytest.mark.parametrize("block_retry", [False, True])
+def test_failed_valid_import_preserves_saved_source_and_retries_after_restart(
+    tmp_path, video, block_retry
+):
+    import hashlib
+
+    root = tmp_path / "library"
+
+    class UnavailableEncoder(ColorEncoder):
+        def encode_images(self, images):
+            raise RuntimeError("Synthetic embedding outage")
+
+    with TestClient(
+        create_app(
+            root, encoder_factory=UnavailableEncoder, video_budget_bytes=video.stat().st_size
+        )
+    ) as api:
+        response = api.post(
+            "/api/import",
+            params={"name": "kept.mp4", "recorded_at": "2026-11-15T10:00:00Z"},
+            content=video.read_bytes(),
+        )
+        job = wait_for_job(api, response.json()["id"])
+        assert job["status"] == "failed"
+        row = api.get("/api/videos").json()[0]
+        source = root / row["path"]
+        assert source.is_file(), "A valid saved import must survive embedding failure"
+        assert source.read_bytes() == video.read_bytes()
+        assert (
+            api.post(
+                "/api/import", params={"name": "another.mp4"}, content=video.read_bytes()
+            ).status_code
+            == 413
+        )
+        assert row["status"] == "failed" and row["frame_count"] == 0
+        assert api.get(f"/api/videos/{row['id']}/media").status_code == 404
+    before = hashlib.sha256(source.read_bytes()).hexdigest()
+    from threading import Event
+
+    started, release = Event(), Event()
+
+    class RecoveredEncoder(ColorEncoder):
+        def encode_images(self, images):
+            if block_retry:
+                started.set()
+                assert release.wait(3)
+            return super().encode_images(images)
+
+    with TestClient(
+        create_app(root, encoder_factory=RecoveredEncoder, video_budget_bytes=video.stat().st_size)
+    ) as api:
+        response = api.post(f"/api/videos/{row['id']}/retry-index")
+        assert response.status_code == 202, response.json()
+        if block_retry:
+            try:
+                assert started.wait(2)
+                assert api.post(f"/api/videos/{row['id']}/retry-index").status_code == 409
+            finally:
+                release.set()
+        result = wait_for_job(api, response.json()["id"])
+        assert result["status"] == "succeeded", result
+        restored = api.get("/api/videos").json()
+        assert len(restored) == 1
+        assert restored[0]["id"] == row["id"]
+        assert restored[0]["recorded_at"] == row["recorded_at"]
+        assert restored[0]["status"] == "ready" and restored[0]["frame_count"] > 0
+        assert api.post(f"/api/videos/{row['id']}/retry-index").status_code == 409
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == before
+
+
+def test_restart_exposes_interrupted_import_for_explicit_retry_without_loading_model(
+    tmp_path, video
+):
+    from nyx.memory import Store
+    from nyx.retrieval import index_video_batches
+
+    root = tmp_path / "library"
+    store = Store(root, ColorEncoder.fingerprint, 3)
+    steps = index_video_batches(
+        video, store, ColorEncoder(), batch_size=1, recorded_at="2026-11-15T10:00:00Z"
+    )
+    progress = next(steps)
+    steps.close()
+    source = root / store.video(progress["video_id"])["path"]
+    before = source.read_bytes()
+
+    def no_model():
+        pytest.fail("Startup must not infer or load a model to recover metadata")
+
+    with TestClient(create_app(root, encoder_factory=no_model)) as api:
+        row = api.get("/api/videos").json()[0]
+        assert row["status"] == "failed" and row["frame_count"] == 0
+        assert source.read_bytes() == before
+    with TestClient(create_app(root, encoder_factory=ColorEncoder)) as api:
+        response = api.post(f"/api/videos/{row['id']}/retry-index")
+        assert response.status_code == 202
+        result = wait_for_job(api, response.json()["id"])
+        assert result["status"] == "succeeded"
+        assert api.get("/api/videos").json()[0]["id"] == row["id"]
+    assert source.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "kind,expected", [("missing", 409), ("outside", 400), ("capture", 409), ("ready", 409)]
+)
+def test_import_retry_rejects_unavailable_unmanaged_or_capture_sources_without_model(
+    tmp_path, video, kind, expected
+):
+    from nyx.memory import Store
+    from nyx.recording import CaptureJournal
+
+    root = tmp_path / "library"
+    store = Store(root, ColorEncoder.fingerprint, 3)
+    identifier = "a" * 32
+    relative = f"recordings/{identifier}.mp4"
+    if kind == "capture":
+        journal = CaptureJournal(root)
+        session = journal.start("2026-11-15T10:00:00Z")
+        record = journal.begin_segment(
+            session["id"], 0, "2026-11-15T10:00:00Z", "2026-11-15T10:00:10Z", ".mp4"
+        )
+        identifier, relative = record["id"], record["path"]
+        journal.mark(identifier, "failed", "Synthetic test")
+    if kind == "outside":
+        relative = "outside-managed-directory.mp4"
+    store.add_video("synthetic", relative, None, 2, identifier)
+    if kind == "ready":
+        store.finish_video(identifier)
+    else:
+        store.fail_video(identifier, "Synthetic test")
+
+    def no_model():
+        pytest.fail("A refused retry must not initialize inference")
+
+    with TestClient(create_app(root, encoder_factory=no_model)) as api:
+        assert api.post(f"/api/videos/{identifier}/retry-index").status_code == expected
+        assert api.post(f"/api/videos/{'f' * 32}/retry-index").status_code == 404
