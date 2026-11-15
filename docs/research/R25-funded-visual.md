@@ -94,3 +94,21 @@ default. The physical diagnostic's11/12 is insufficient to override this mixed b
 Heldout will validate or reject the frozen default candidate; no further prompt calibration on
 these data. Evaluate the optional gate diagnostically with preserved first-pass outputs and
 original physical controls, without choosing a new default from heldout gains.
+
+## Heldout category decision: reject the default change
+
+Frozen prompt9/Flash completed32/32:27 proxy-correct, four proxy-unsafe positives, versus earlier
+Lite/prompt7's27/32 and three unsafe. The cached gate3 diagnostic also reached27/32 with four
+unsafe; it changed no final visibility in this split. Thus neither route establishes a heldout
+win. Reject the proposed default migration, despite the stronger development score. Do not tune
+against the heldout failures. Existing Lite/prompt7 remains the default, with exact original
+prompt bytes preserved. New scene instructions requireNYX_VISUAL_SCENE_POLICY=1; stronger object
+inference requiresNYX_OBJECT_VISION_MODEL=google/gemini-3.5-flash. Confirmation remains explicitly
+opt-in viaNYX_VISUAL_CONFIRMATION=1. These switches enable reproducible alternatives without
+quietly changing departure/general vision or the stable baseline.
+
+The default-policy regression was observed RED (prompt9 unexpectedly active), then GREEN after
+isolating scene policy.74 focused cloud/verification/answer tests passed. This is evidence-based
+rejection, not completion of household visual reliability. Heldout misses include a phone
+classified as a spray container and unresolved multiple-item choices. Category/count annotation
+limits remain; no runtime fixture exceptions or relabeling were added.

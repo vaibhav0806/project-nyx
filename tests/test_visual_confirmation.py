@@ -192,3 +192,27 @@ def test_context_cannot_be_overridden_by_a_supported_boolean(monkeypatch, contex
 
     result = CloudVerifier(Client()).inspect(Image.new("RGB", (10, 10)), "a bottle")
     assert result["visibility"] == "uncertain" and result["location"] is None
+
+
+def test_physical_scene_policy_stays_explicit_after_mixed_heldout(monkeypatch):
+    monkeypatch.delenv("NYX_VISUAL_SCENE_POLICY", raising=False)
+    monkeypatch.delenv("NYX_OBJECT_VISION_MODEL", raising=False)
+    monkeypatch.delenv("NYX_VISION_MODEL", raising=False)
+    monkeypatch.setenv("NYX_VISUAL_CONFIRMATION", "0")
+    calls = []
+
+    class Client:
+        def generate(self, messages, model, max_tokens, **kwargs):
+            calls.append(messages[0]["content"][1]["text"])
+            return primary("not_visible")
+
+    baseline = CloudVerifier(Client())
+    assert baseline.fingerprint["prompt_version"] == 7
+    assert baseline.object_model == "google/gemini-3.5-flash-lite"
+    baseline.inspect(Image.new("RGB", (10, 10)), "a bottle")
+    monkeypatch.setenv("NYX_VISUAL_SCENE_POLICY", "1")
+    candidate = CloudVerifier(Client())
+    candidate.inspect(Image.new("RGB", (10, 10)), "a bottle")
+    assert candidate.fingerprint["prompt_version"] == 9
+    assert "depiction inside a screen" not in calls[0]
+    assert "depiction inside a screen" in calls[1]
