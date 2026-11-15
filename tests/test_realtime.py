@@ -561,6 +561,23 @@ def test_late_tool_result_does_not_attach_to_a_new_spoken_turn(tmp_path, monkeyp
     assert turns[1]["sources"] == []
 
 
+def test_spoken_history_schema_advertises_only_executable_windows(tmp_path, monkeypatch):
+    from livekit.agents import llm
+
+    from nyx.agent import HISTORY_WINDOWS
+
+    async def scenario(session, socket, voice):
+        schemas = llm.ToolContext(session.agent.tools).parse_function_tools("openai")
+        lookup = next(
+            row["function"] for row in schemas if row["function"]["name"] == "look_for_object"
+        )
+        # Strict provider schemas allow null for optional parameters; SDK applies defaults.
+        advertised = lookup["parameters"]["properties"]["hours"]["enum"]
+        assert set(advertised) - {None} == set(HISTORY_WINDOWS)
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
 def test_spoken_lookup_dispatches_ten_day_window_exclusions_and_time_bound(tmp_path, monkeypatch):
     async def scenario(session, socket, voice):
         transcribe(session, "Look earlier than that moment for the other green item.")

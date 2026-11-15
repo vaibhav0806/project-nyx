@@ -425,7 +425,7 @@ async def serve(socket, voice):
                 self,
                 query: str,
                 history: bool = False,
-                hours: int = 2,
+                hours: Literal[0, 2, 24, 168, 240] = 2,
                 excluded_frame_ids: list[int] | None = None,
                 before_frame_id: int | None = None,
             ) -> str:

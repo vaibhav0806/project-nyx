@@ -1,6 +1,7 @@
 """Paid first-tool-choice evaluation using the actual nested Companion's SDK schemas."""
 
 import argparse
+import asyncio
 import hashlib
 import importlib.util
 import json
@@ -8,7 +9,7 @@ import time
 from pathlib import Path
 
 import pytest
-from livekit.agents import llm
+from livekit.agents import ToolError, llm
 
 from experiments.companion.correction_replay import BudgetedClient
 from experiments.companion.embedding_replay import budget_snapshot
@@ -16,11 +17,16 @@ from experiments.companion.spoken_policy_cases import CASES, score
 from nyx.realtime import INSTRUCTIONS
 
 
-def schemas(root):
+def helpers_module():
     path = Path(__file__).resolve().parents[2] / "tests/test_realtime.py"
     spec = importlib.util.spec_from_file_location("nyx_realtime_replay_helpers", path)
     helpers = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(helpers)
+    return helpers
+
+
+def schemas(root):
+    helpers = helpers_module()
     captured = {}
 
     async def scenario(session, socket, voice):
@@ -31,6 +37,46 @@ def schemas(root):
     with pytest.MonkeyPatch.context() as monkeypatch:
         helpers.replay_voice_tools(root, monkeypatch, scenario)
     return captured
+
+
+def dispatch(root, text, calls):
+    """Exercise actual SDK binding and Companion dispatch; external tool results are synthetic."""
+    helpers = helpers_module()
+    results = []
+
+    async def scenario(session, socket, voice):
+        helpers.transcribe(session, text)
+        tools = llm.ToolContext(session.agent.tools).function_tools
+        for call in calls:
+            try:
+                args, kwargs = llm.utils.prepare_function_arguments(
+                    fnc=tools[call["name"]], json_arguments=call["arguments"]
+                )
+            except (ToolError, ValueError, KeyError, TypeError):
+                results.append({"valid": False, "stage": "binding"})
+                continue
+            task = asyncio.create_task(getattr(session.agent, call["name"])(*args, **kwargs))
+            requested = asyncio.create_task(socket.tools.get())
+            try:
+                done, _ = await asyncio.wait([task, requested], return_when=asyncio.FIRST_COMPLETED)
+                if requested in done:
+                    tool = requested.result()
+                    await socket.reply(tool, [])
+                    await task
+                    results.append({"valid": True, "action": tool["action"]})
+                else:
+                    await task
+                    results.append({"valid": False, "stage": "missing_request"})
+            except (ValueError, TypeError):
+                results.append({"valid": False, "stage": "dispatch"})
+            finally:
+                requested.cancel()
+                task.cancel()
+                await asyncio.gather(requested, task, return_exceptions=True)
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        helpers.replay_voice_tools(root, monkeypatch, scenario)
+    return results
 
 
 def run(output, split, max_spend):
@@ -82,23 +128,27 @@ def run(output, split, max_spend):
                 function = call["function"]
                 name = function["name"]
                 try:
-                    args = llm.utils.parse_function_arguments(function["arguments"])
                     tool = captured["tools"][name]
-                    validated = llm.utils.function_arguments_to_pydantic_model(tool).model_validate(
-                        args
+                    positional, args = llm.utils.prepare_function_arguments(
+                        fnc=tool, json_arguments=function["arguments"]
                     )
-                    args = validated.model_dump()
-                except (ValueError, KeyError, TypeError):
+                    if positional:
+                        valid = False
+                except (ToolError, ValueError, KeyError, TypeError):
                     valid = False
                     args = {}
                 calls.append({"name": name, "arguments": args})
             valid = valid and bool(calls or message.get("content"))
+            dispatches = dispatch(output / case["id"], case["text"], calls) if valid else []
+            executable = valid and all(row["valid"] for row in dispatches)
             case.update(
                 status="complete",
                 schema_valid=valid,
                 calls=calls,
                 message=message,
-                correct=valid and score(case, calls),
+                dispatches=dispatches,
+                executable=executable,
+                correct=executable and score(case, calls),
                 elapsed_ms=round((time.perf_counter() - began) * 1000),
             )
             checkpoint()
