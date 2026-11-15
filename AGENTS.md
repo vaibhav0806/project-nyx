@@ -8,11 +8,10 @@ regular commits. Optional pushes are authorized only to this branch, never main.
 UI stays unchanged, and existing source/spending boundaries remain. Ten days is a search target,
 not a requirement to fit continuous ten-day footage inside 1 GiB; measure capacity separately.
 
-The user subsequently required all new work to stay local on a branch, with no push to main.
-Use `work/memory-reliability`; keep commits local for now. This supersedes the publication/main
-execution wording below. Remote main remains the tested `cfe8fa4` foundation; the new implementation
-run has not been pushed. Local main was returned to origin/main after preserving the new commit
-on the work branch.
+The earlier local-branch restriction superseded publication/main execution wording below.
+The latest authorization above additionally permits a branch-only backup push; never push main.
+Remote main remains the tested `cfe8fa4` foundation. Local main was returned to origin/main after
+preserving the new commit on the work branch.
 
 The user explicitly required retaining contributors' UI work and no UI changes in this slice.
 Do not edit `src/nyx/web/` or change interface layout, styling, wording or interaction behavior.
@@ -20,7 +19,7 @@ Keep implementation in backend/retrieval/storage/experiments and preserve existi
 
 The user approved the [memory reliability design](docs/superpowers/specs/2026-11-15-memory-reliability-design.md)
 and implementation order, asked to proceed and requested regular commits. Work inline on the
-local work branch. The earlier foundation publication is complete; the later local-only request
+work branch. The earlier foundation publication is complete; the latest branch-only authorization
 controls all new work. They authorized SSH access to the teammate's Hydra host and
 separate Nyx storage/service isolation, preserving the other project. Reuse compatible existing
 vectors; do not assume the graph deployment supplies vector retrieval or embedding inference.

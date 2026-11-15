@@ -76,8 +76,14 @@ Consume R14 deployed revision/namespace and public engine documentation; other p
 
 ### Task 6: Held-out evaluation and final review
 
-- [ ] Freeze selected changes and run held-out end-to-end cases with failures/costs counted.
-- [ ] Review the whole pass inline; fix important findings with regressions, label review as author's.
-- [ ] Run full pytest, Ruff, JS syntax, links/diff and relevant synthetic browser checks.
-- [ ] Update milestones/decisions/design/scope/architecture with measured behavior and remaining limits.
-- [ ] Commit clean branch; optional branch-only push. Confirm UI/main preservation and goal completion.
+- [x] Freeze selected changes and run held-out end-to-end cases with failures/costs counted.
+- [x] Review the whole pass inline; fix important findings with regressions, label review as author's.
+- [x] Run full pytest, Ruff, JS syntax, links/diff and relevant synthetic browser checks.
+- [x] Update milestones/decisions/design/scope/architecture with measured behavior and remaining limits.
+- [x] Commit clean branch; optional branch-only push. Confirm UI/main preservation and goal completion.
+
+Final evidence: [R19](../../research/R19-recall-context.md), [R20](../../research/R20-hydra-interface-verdict.md)
+and [R21](../../research/R21-multi-day-runtime.md). Author review found live-session invalidation
+and report-selection/intent gaps; a fresh frozen12-case report set followed the original diagnostic
+unblinding. Mixed positive-vision corroboration remains opt-in. Final484 tests and synthetic
+browser passed; larger household/speech/continuous-operation gates remain explicit in milestones.
