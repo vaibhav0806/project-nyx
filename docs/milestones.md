@@ -12,7 +12,12 @@ Candidate-pool crowding regression is reproduced/fixed: source balancing preserv
 verified scene's source identity and improves cached-photo development candidate Recall@12 from
 0.1873 to 0.6847 under repeated-source crowding, with no uncrowded regressions. These are candidate
 stress results, not final visual-answer accuracy. All 457 tests passed in 22.53s for this slice.
-Multi-day capacity/recovery replay, final held-out checks and Hydra verdict are pending.
+Multi-day replay passed: 30 in-window sources, three correctly excluded edge cases, all 33 source
+hashes preserved and six fault checks passed. Added size-aware captured-source availability after
+reproducing misleading coverage/media serving for a truncated file. Nominal capacity separates
+video/vectors/thumbnails; no ten-day continuous-storage guarantee or cap increase. All 464 tests
+passed in 23.01s. See [R21](research/R21-multi-day-runtime.md). Final held-out checks and Hydra
+verdict remain pending.
 
 ## Local engineering checkpoint — 2026-11-15
 

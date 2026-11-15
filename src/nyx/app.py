@@ -555,7 +555,9 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(404, "Saved segment not found") from exc
         path = workspace.root / segment["path"]
-        if segment["state"] in {"deleting", "deleted"} or not segment["size"] or not path.is_file():
+        if segment["state"] in {"deleting", "deleted"} or not workspace.capture.source_available(
+            segment
+        ):
             raise HTTPException(404, "Segment upload did not complete")
         return FileResponse(path)
 
@@ -784,6 +786,12 @@ def create_app(
             record = db.execute(sql, (identifier,)).fetchone()
         if record is None:
             raise HTTPException(404, "Source not found.")
+        try:
+            segment = workspace.capture.segment(record[1])
+        except ValueError:
+            segment = None  # Imported videos have no capture-journal row.
+        if segment is not None and not workspace.capture.source_available(segment):
+            raise HTTPException(404, "Source file is unavailable.")
         path = (store.root / record[0]).resolve()
         if not path.is_relative_to(store.root) or not path.is_file():
             raise HTTPException(404, "Source file is unavailable.")
@@ -791,12 +799,12 @@ def create_app(
 
     @app.get("/api/videos/{video_id}/media")
     def source(video_id: str):
-        return media_file("SELECT path FROM videos WHERE id = ? AND status = 'ready'", video_id)
+        return media_file("SELECT path,id FROM videos WHERE id = ? AND status = 'ready'", video_id)
 
     @app.get("/api/frames/{frame_id}")
     def thumbnail(frame_id: int):
         return media_file(
-            """SELECT f.thumbnail FROM frames f JOIN videos v ON v.id = f.video_id
+            """SELECT f.thumbnail,f.video_id FROM frames f JOIN videos v ON v.id = f.video_id
             WHERE f.id = ? AND v.status = 'ready'""",
             frame_id,
         )

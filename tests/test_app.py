@@ -281,6 +281,34 @@ def test_saved_but_unindexed_capture_stays_playable_when_model_is_unavailable(tm
         assert client.get("/api/videos").json() == []
 
 
+def test_truncated_capture_media_and_thumbnail_are_unavailable_without_deleting_bytes(
+    tmp_path, video
+):
+    with TestClient(create_app(tmp_path, encoder_factory=ColorEncoder)) as client:
+        session = client.post("/api/capture/start", json={"at": "2026-10-19T10:00:00Z"}).json()
+        response = client.post(
+            f"/api/capture/{session['id']}/segments/0",
+            params={
+                "recorded_at": "2026-10-19T10:00:00Z",
+                "ended_at": "2026-10-19T10:00:04Z",
+                "format": "mp4",
+            },
+            content=video.read_bytes(),
+        )
+        identifier = response.json()["id"]
+        assert wait_for_job(client, identifier)["status"] == "succeeded"
+        query = client.post("/api/search", json={"query": "green"}).json()
+        result = wait_for_job(client, query["id"])["result"]["results"][0]
+        path = tmp_path / "recordings" / (identifier + ".mp4")
+        path.write_bytes(video.read_bytes()[:128])
+        assert client.get(f"/api/capture/segments/{identifier}/media").status_code == 404
+        assert client.get(result["media_url"]).status_code == 404
+        assert client.get(result["thumbnail_url"]).status_code == 404
+        health = client.get("/api/capture").json()
+        assert health["searchable_through"] is None and health["unavailable_segment_count"] == 1
+        assert path.read_bytes() == video.read_bytes()[:128]
+
+
 @pytest.mark.parametrize("failure_stage", ["model_load", "embedding"])
 def test_retry_reindexes_saved_failed_capture_without_replacing_source(
     tmp_path, video, failure_stage

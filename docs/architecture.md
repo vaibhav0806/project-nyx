@@ -1,5 +1,13 @@
 # Technical architecture
 
+## Saved-capture availability — 2026-11-15
+
+Capture coverage and media/thumbnail serving check that captured originals retain their registered
+byte count. Incomplete files remain preserved, are excluded from coverage and counted as
+unavailable. This is not a checksum guarantee. Synthetic multi-day replay keeps capture clocks,
+gaps and query horizons distinct from elapsed runtime; capacity projections separate video,
+vectors and thumbnails. See [R21](research/R21-multi-day-runtime.md). No cap or UI change.
+
 ## Balance sources before candidate-pool truncation — 2026-11-15
 
 Semantic latest-history nomination reserves rounds of four samples per known-session UTC minute

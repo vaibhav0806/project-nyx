@@ -25,6 +25,7 @@ Research should answer a bounded question that changes a decision. Keep product 
 | R17 | Can report corrections preserve history and can freshness improve ranking safely? | Real-provider synthetic correction/API replay and cached-vector age stress test | [Memory policy findings](R17-memory-policy.md) | Correction lifecycle implemented; nonzero freshness remains disabled |
 | R18 | Can saved-source indexing and dependent answers recover honestly? | API fault injection, restart/backlog and existing-UI synthetic browser checks | [Recovery findings](R18-backend-recovery.md) | Bounded retry/invalidation fixes verified locally; UI unchanged |
 | R19 | Does complete report recall survive context eviction and source changes? | Frozen synthetic workflows through real resolver/embeddings/planner/API | [Recall/context findings](R19-recall-context.md) | Development baseline 8/8; context audit/fixes in progress |
+| R21 | What do multi-day lookup, recovery and separate storage components require? | Generated timeline, actual indexing/fault replay, nominal capacity math and 10k-vector queries | [Runtime/capacity findings](R21-multi-day-runtime.md) | Bounded replay passed; continuous cloud/hardware operation unmeasured |
 
 R1/R2 can run alongside early technical feasibility work once separately authorized. R5 does not block the initial R3 retrieval baseline. Do not assign a person or deadline without their agreement.
 

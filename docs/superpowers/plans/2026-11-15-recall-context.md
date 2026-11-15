@@ -58,11 +58,11 @@ Consume frozen Task 1 development cases; holdout stays untouched for final selec
 
 Files: experiment harness and focused API/recording regression tests; no UI or new storage policy.
 Consume real capture/index interfaces and synthetic date labels, preserving source/replay time distinction.
-- [ ] Add tests for replay scoring/capacity math and failed/interrupted work, then implement bounded replay.
-- [ ] Exercise known ten-day events/gaps, dated/undated/future/older sources, restart and backlog.
-- [ ] Measure generated-video bytes, sample/index throughput and additional index storage; project
+- [x] Add tests for replay scoring/capacity math and failed/interrupted work, then implement bounded replay.
+- [x] Exercise known ten-day events/gaps, dated/undated/future/older sources, restart and backlog.
+- [x] Measure generated-video bytes, sample/index throughput and additional index storage; project
   capacity transparently rather than claiming ten days ran. Reuse offline model boundaries for load.
-- [ ] Record failures, limits and capacity recommendation; verify and commit.
+- [x] Record failures, limits and capacity recommendation; verify and commit.
 
 ### Task 5: Hydra supported-interface decision
 

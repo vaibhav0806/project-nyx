@@ -2,6 +2,11 @@
 
 ## Local backend reliability work — 2026-11-15
 
+The follow-up pass includes source-aware bounded context, candidate-pool balancing and synthetic
+multi-day/fault/capacity evaluation. Ten days is a searchable-memory target, not a requirement
+to compress continuous footage into 1 GiB. The existing cap remains until a separate capacity
+choice; no expiry or cap increase was introduced. See [R21](research/R21-multi-day-runtime.md).
+
 The user authorized the memory reliability implementation, then required a local work branch,
 no push to main and no UI changes. Preserve contributor frontend work. New adaptive indexing may
 use the evaluated two-second sampling floor; this changes derived samples, not source retention

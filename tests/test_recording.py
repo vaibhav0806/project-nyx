@@ -61,6 +61,23 @@ def test_capture_budget_counts_existing_video_without_deleting_it(tmp_path):
     assert old.read_bytes() == b"12345678"
 
 
+def test_truncated_saved_capture_does_not_claim_complete_coverage(tmp_path):
+    journal = CaptureJournal(tmp_path)
+    session = journal.start(START)
+    saved = save_segment(journal, session["id"], data=b"original-video")
+    journal.mark(saved["id"], "ready", last_sample_seconds=8)
+    path = tmp_path / saved["path"]
+    path.write_bytes(b"truncated")
+    health = journal.snapshot()
+    assert health["recorded_through"] is None
+    assert health["searchable_through"] is None
+    assert health["unavailable_segment_count"] == 1
+    assert path.read_bytes() == b"truncated"
+    path.write_bytes(b"original-video")
+    assert journal.snapshot()["recorded_through"] == END
+    assert journal.snapshot()["unavailable_segment_count"] == 0
+
+
 def test_capture_backlog_is_bounded_and_duplicate_delivery_uses_no_slot(tmp_path):
     journal = CaptureJournal(tmp_path, max_pending=1)
     session = journal.start(START)

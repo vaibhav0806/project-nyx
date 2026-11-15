@@ -192,6 +192,16 @@ class CaptureJournal:
     def partial_path(self, segment_id):
         return self.root / "incoming" / f"capture-{segment_id}.part"
 
+    def source_available(self, segment):
+        """Present with its registered byte count; this is not checksum verification."""
+        try:
+            path = self.root / segment["path"]
+            return bool(
+                segment["size"] and path.is_file() and path.stat().st_size == segment["size"]
+            )
+        except OSError:
+            return False
+
     def deletion(self, video_id):
         with self.connection() as db:
             row = db.execute("SELECT * FROM deletions WHERE id = ?", (video_id,)).fetchone()
@@ -317,7 +327,7 @@ class CaptureJournal:
                     "SELECT * FROM segments WHERE size > 0 AND state NOT IN ('deleting','deleted')"
                 )
             ]
-        saved = [row for row in coverage if (self.root / row["path"]).exists()]
+        saved = [row for row in coverage if self.source_available(row)]
         known = [row for row in saved if not row["timing_uncertain"]]
         ready = [
             row
@@ -333,6 +343,7 @@ class CaptureJournal:
             "video_budget_bytes": self.budget_bytes,
             "segment_seconds": 10,
             "sample_seconds": 2,
+            "unavailable_segment_count": len(coverage) - len(saved),
             "timing_uncertain_count": sum(bool(row["timing_uncertain"]) for row in saved),
             "recorded_through": max((row["ended_at"] for row in known), default=None),
             "searchable_through": max(
