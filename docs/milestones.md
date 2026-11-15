@@ -16,8 +16,10 @@ Multi-day replay passed: 30 in-window sources, three correctly excluded edge cas
 hashes preserved and six fault checks passed. Added size-aware captured-source availability after
 reproducing misleading coverage/media serving for a truncated file. Nominal capacity separates
 video/vectors/thumbnails; no ten-day continuous-storage guarantee or cap increase. All 464 tests
-passed in 23.01s. See [R21](research/R21-multi-day-runtime.md). Final held-out checks and Hydra
-verdict remain pending.
+passed in 23.01s. See [R21](research/R21-multi-day-runtime.md). Hydra follow-up is complete:
+current source/deployment revision matches, health/read controls pass, but no supported native
+vector route is established; retain SQLite ([R20](research/R20-hydra-interface-verdict.md)).
+Final held-out checks and whole-pass review remain pending.
 
 ## Local engineering checkpoint — 2026-11-15
 

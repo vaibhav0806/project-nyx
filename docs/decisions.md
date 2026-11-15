@@ -1,5 +1,13 @@
 # Decisions and open choices
 
+## Retain SQLite after the Hydra interface gate — 2026-11-15
+
+The current public engine revision matches the deployed Nyx image. Fresh isolated controls pass,
+but native-cosine/procedure compatibility probes fail and no supported vector interface is
+established in the inspected source/docs. The hosted memory service is a separate layer. Retain
+SQLite/shared embeddings; no runtime adapter or misleading client-side ranking substitute.
+See [R20](research/R20-hydra-interface-verdict.md). The other project remains untouched.
+
 ## Spread nomination across sources before the bounded check — 2026-11-15
 
 Select four-per-source rounds for semantic latest-history candidate pools, based on the reproduced

@@ -68,11 +68,11 @@ Consume real capture/index interfaces and synthetic date labels, preserving sour
 
 Files: research R20 and a reproducible isolated synthetic probe if a new interface is found.
 Consume R14 deployed revision/namespace and public engine documentation; other project stays untouched.
-- [ ] Inspect current official interface/source and installed-revision capabilities; distinguish memory service.
-- [ ] Probe supported native vector operations on Nyx-only data if documented; compare identical vectors
+- [x] Inspect current official interface/source and installed-revision capabilities; distinguish memory service.
+- [x] Probe supported native vector operations on Nyx-only data if documented; compare identical vectors
   and filters against SQLite if capability exists. No all-vector download disguised as remote ranking.
-- [ ] Record exact response/revision/limitations; integrate only a useful tested route or retain SQLite.
-- [ ] Verify documentation/probe boundaries and commit the verdict.
+- [x] Record exact response/revision/limitations; integrate only a useful tested route or retain SQLite.
+- [x] Verify documentation/probe boundaries and commit the verdict.
 
 ### Task 6: Held-out evaluation and final review
 
