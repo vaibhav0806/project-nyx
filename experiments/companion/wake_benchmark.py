@@ -5,6 +5,7 @@ import hashlib
 import json
 import subprocess
 import time
+import wave
 from io import BytesIO
 from pathlib import Path
 
@@ -175,9 +176,7 @@ def prepare(root, sources):
     }
 
 
-def run(root, sources, output, split, engine, threshold):
-    import soundfile as sf
-
+def run(root, sources, output, split, engine, threshold, keyword_score=1.0):
     manifest = json.loads((root / "manifest.json").read_text())
     cases = [row for row in manifest["cases"] if row["split"] == split]
     for row in cases:
@@ -188,16 +187,15 @@ def run(root, sources, output, split, engine, threshold):
         ):
             raise ValueError("Source identity differs from frozen public/synthetic manifest")
     output.mkdir(parents=True, exist_ok=False)
-    if engine == "whisper":
+    if engine in {"whisper", "whisper_head"}:
         from nyx.voice import WakeRecognizer, wake_command
 
         recognizer = WakeRecognizer()
 
         def detect(samples):
+            pcm = (samples * 32768).clip(-32768, 32767).astype("<i2").tobytes()
             return (
-                wake_command(
-                    recognizer((samples * 32768).clip(-32768, 32767).astype("<i2").tobytes())
-                )
+                wake_command(recognizer((bytes(6400) if engine == "whisper_head" else b"") + pcm))
                 is not None
             )
     else:
@@ -212,6 +210,7 @@ def run(root, sources, output, split, engine, threshold):
             keywords_file=str(sources / "keywords-nyx.txt"),
             num_threads=2,
             keywords_threshold=threshold,
+            keywords_score=keyword_score,
         )
 
         def detect(samples):
@@ -227,41 +226,62 @@ def run(root, sources, output, split, engine, threshold):
                     kws.reset_stream(stream)
             return found
 
-    rows = []
+    rows = [{**case, "status": "not_run", "detected": None} for case in cases]
     report = {
         "engine": engine,
+        "status": "running",
         "threshold": threshold if engine == "sherpa" else None,
+        "keyword_score": keyword_score if engine == "sherpa" else None,
         "split": split,
         "manifest_sha256": hashlib.sha256((root / "manifest.json").read_bytes()).hexdigest(),
         "cases": rows,
         "limitations": manifest["limitations"],
     }
-    for case in cases:
-        samples, sr = sf.read(root / case["file"], dtype="float32")
-        if sr != 16000:
-            raise ValueError("Invalid sample rate")
-        started = time.perf_counter()
-        detections = []
-        times = []
-        for start, end in probe_windows(len(samples)):
-            window = samples[start:end]
-            began = time.perf_counter()
-            hit = detect(window) if np.sqrt(np.mean(window**2)) >= 0.001 else False
-            times.append(round((time.perf_counter() - began) * 1000, 3))
-            if hit:
-                detections.append(round(end / 16000, 3))
-        rows.append(
-            {
-                **case,
-                "status": "complete",
-                "detected": bool(detections),
-                "detection_end_seconds": detections,
-                "probe_ms": times,
-                "elapsed_ms": round((time.perf_counter() - started) * 1000),
-            }
-        )
+
+    def checkpoint():
         report["summary"] = summarize(rows)
         (output / "results.json").write_text(json.dumps(report, indent=2) + "\n")
+
+    checkpoint()
+    try:
+        for case in rows:
+            case["status"] = "failed"
+            with wave.open(str(root / case["file"]), "rb") as audio:
+                if (audio.getframerate(), audio.getnchannels(), audio.getsampwidth()) != (
+                    16000,
+                    1,
+                    2,
+                ):
+                    raise ValueError("Invalid PCM format")
+                samples = (
+                    np.frombuffer(audio.readframes(audio.getnframes()), dtype="<i2").astype(
+                        np.float32
+                    )
+                    / 32768
+                )
+            started = time.perf_counter()
+            detections = []
+            times = []
+            for start, end in probe_windows(len(samples)):
+                window = samples[start:end]
+                began = time.perf_counter()
+                hit = detect(window) if np.sqrt(np.mean(window**2)) >= 0.001 else False
+                times.append(round((time.perf_counter() - began) * 1000, 3))
+                if hit:
+                    detections.append(round(end / 16000, 3))
+            case.update(
+                status="complete",
+                detected=bool(detections),
+                detection_end_seconds=detections,
+                probe_ms=times,
+                elapsed_ms=round((time.perf_counter() - started) * 1000),
+            )
+            checkpoint()
+        report["status"] = "complete"
+    finally:
+        if report["status"] != "complete":
+            report["status"] = "failed"
+        checkpoint()
     return report["summary"]
 
 
@@ -272,13 +292,22 @@ if __name__ == "__main__":
     parser.add_argument("--prepare", action="store_true")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--split", choices=["development", "holdout"], default="development")
-    parser.add_argument("--engine", choices=["whisper", "sherpa"], default="sherpa")
+    parser.add_argument("--engine", choices=["whisper", "whisper_head", "sherpa"], default="sherpa")
     parser.add_argument("--threshold", type=float, default=0.25)
+    parser.add_argument("--keyword-score", type=float, default=1.0)
     args = parser.parse_args()
     print(
         json.dumps(
             prepare(args.data, args.sources)
             if args.prepare
-            else run(args.data, args.sources, args.output, args.split, args.engine, args.threshold)
+            else run(
+                args.data,
+                args.sources,
+                args.output,
+                args.split,
+                args.engine,
+                args.threshold,
+                args.keyword_score,
+            )
         )
     )
