@@ -136,3 +136,25 @@ def test_new_start_flushes_pending_previous_final_before_next_turn(monkeypatch):
     assert [
         event.alternatives[0].text for event in events if event.type.value == "final_transcript"
     ] == ["I put it in the bag.", "Actually, I meant the drawer."]
+
+
+def test_late_final_after_next_speech_start_does_not_drop_the_next_utterance(monkeypatch):
+    events = replay(
+        monkeypatch,
+        [
+            {"event": "vad.speech_start"},
+            {"event": "vad.speech_end"},
+            {"event": "vad.speech_start"},
+            {"event": "transcript.final", "text": "The keys are on the table.", "utterance_idx": 0},
+            {"event": "vad.speech_end"},
+            {
+                "event": "transcript.final",
+                "text": "Actually, they are in the bag.",
+                "utterance_idx": 1,
+            },
+        ],
+    )
+    finals = [
+        event.alternatives[0].text for event in events if event.type.value == "final_transcript"
+    ]
+    assert finals == ["The keys are on the table.", "Actually, they are in the bag."]

@@ -72,12 +72,39 @@ plus unfulfilled plan, and correction using an actual returned source ID. The in
 reply said 'I saw it' despite unconfirmed identity: temporal/plan distinctions survived, but the
 identity qualifier did not. This was an author-review finding beyond a keyword/shape score.
 
-Spoken instruction version2 now explicitly keeps status=candidate as a possible identity until
+Spoken instruction version2 explicitly keeps status=candidate as a possible identity until
 user confirmation. It supplies no fixture IDs, classes, coordinates or canned final reply.
 The same diagnostic replay then said 'what might have been your phone', preserved plan versus
 completion, clarified the failed Hindi save and requested the exact returned correction ID.
 These are reviewed examples, not broad free-form answer accuracy or fresh heldout evidence.
-Two fresh synthetic visual-evidence conversations are evaluated separately before final status.
+Two fresh English/Hindi synthetic visual-evidence conversations then selected/dispatched valid
+historical and statement tools and preserved identity uncertainty. They are semantic evidence
+fixtures, not new household videos. Manual audit found an additional error: English added
+'morning' to a yesterday summary despite UTC10:00 being15:30 in the supplied +05:30 timezone.
+Do not call this a full2/2 semantic success. Instruction version3 now preserves the tool summary's
+temporal precision, adding finer local-time wording only when explicitly supplied by the tool.
+The same examples are diagnostic regressions after unblinding, not fresh heldout accuracy.
+No timestamp/source is rewritten and no fixture-specific reply or time conversion is hardcoded.
+
+Version3 diagnostic English reply retained a possible bottle match and 'yesterday' without a
+clock-time refinement. The Hindi case requested another valid saved-report lookup; it was not
+yet a finished answer. The harness now distinguishes awaiting_tools from complete after a
+failing scorer regression. Resuming that actual model-requested lookup with synthetic absent
+reports produced a final Hindi reply describing a possible remote on the sofa yesterday and
+uncertain identity. This is a diagnostic continuation, not another fresh case or real retrieval.
+The four original version3 diagnostic checks also preserved source attribution, failed-save
+clarification, possible identity/plan distinction and exact correction source ID. No automatic
+free-form accuracy score is claimed.
+
+## Final fault review
+
+An additional actual SpeechStream test found a regression in the first buffering change: a
+new speech_start before the prior final could lose the following utterance. Ended boundaries
+are now retained in order, so a delayed previous final does not mark the current utterance as
+already committed. A64-boundary backlog fails explicitly rather than silently dropping old
+state. Nine new protocol tests and thirteen realtime tests pass. This handles ordered final
+transcripts interleaved with VAD events; arbitrary reordering of distinct final transcripts is
+not established. No independent review or live-provider audio soak is claimed.
 
 ## Actual local wake inference and rejected ablations
 
@@ -96,7 +123,10 @@ dedicated wake approach; existing tap activation is unchanged.
 
 Artifacts: data/runs/spoken-depth-native-*, spoken-depth-continuations*, spoken-depth-local-wake,
 spoken-depth-wake-{vad,decoder}-diagnostic. Provider snapshot after selected continuations
-$1.904111815/2; settlement may lag. No paid Sarvam acoustic experiment was performed.
+$1.904111815/2; after the fresh evidence conversations1.912153315/2. Settlement may lag.
+No paid Sarvam acoustic experiment was performed. Final diagnostic/check outcomes follow in milestones.
+After the last resumed Hindi continuation, observed cumulative key usage was$1.966184815/2.
+No further paid inference is authorized by this report; settlement may lag.
 
 ## Primary references, inspected 2026-11-15
 

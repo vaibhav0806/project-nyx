@@ -3,7 +3,7 @@
 ## Prefer measured spoken repairs over unproven vision/wake changes — 2026-11-15 depth pass
 
 Keep general utterance-boundary, Unicode phrase/destination-span grounding and executable tool
-schema fixes. Preserve candidate identity uncertainty in spoken replies. Native heldout6/6 tool
+schema fixes. Preserve candidate identity uncertainty and supported temporal precision in spoken replies. Native heldout6/6 tool
 choices dispatched, but this does not measure acoustic or whole-answer accuracy. See
 [R23](research/R23-spoken-depth.md). Keep Lite/prompt7 and existing wake settings: the stricter
 visual prompt did not improve the wider development proxy score; the stronger model exhausted

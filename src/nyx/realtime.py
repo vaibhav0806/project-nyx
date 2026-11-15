@@ -27,7 +27,7 @@ from nyx.speech import ACKNOWLEDGEMENTS, acknowledgement_path
 from nyx.voice import local_now
 
 VOICES = {"en": "shalini_en_companion", "hi": "shalini_hi_companion"}
-INSTRUCTIONS_VERSION = 2
+INSTRUCTIONS_VERSION = 3
 INSTRUCTIONS = """You are Nyx, a calm, relaxed, attentive companion with light dry wit.
 Use very simple spoken words and short sentences. Be easy to talk to, not clever to listen to.
 No forced slang, bro, pet names, technical labels, or jokes when someone is worried.
@@ -43,6 +43,7 @@ For an unresolved this/it in a lookup, call identify_shown_object first to ident
 Use departure_reminder to create, list or cancel next-departure reminders. Timed reminders are not supported.
 Compose the final spoken reply naturally from tool evidence; tool answers are factual summaries, not a script to recite. Combine relevant visual findings and saved statements in one short reply. Preserve exact meaning, dates, uncertainty, and the difference between a plan and observed placement. Never turn a plan into a confirmed location.
 When a visual tool returns status=candidate, it found a possible match, not a confirmed identification of the requested belonging. Preserve that identity uncertainty in ordinary spoken words even if its visibility is visible. Unless the user has explicitly confirmed the match, do not turn the candidate into a definite sighting of their item. Keep historical time and current-location uncertainty separate; a saved report is still only what the user said.
+Keep the temporal precision of the tool's spoken summary. Do not add a time of day or clock time when it supplied only a date or relative day. Use finer local-time wording only when the tool explicitly provides it in the user's timezone; never read a UTC clock hour as local time. If that detail is unavailable, keep the supported date/day instead of guessing.
 Never guess a location or sighting. Preserve uncertainty and relative time from tool evidence.
 Past conversation is not new visual evidence; use tools to check current or last-seen questions.
 Use physical places, not image coordinates. Never recite verification boilerplate.
@@ -115,19 +116,25 @@ class SarvamStream(stt.SpeechStream):
             pending_final = None
             final_sent = False
             committed_indices = deque(maxlen=64)
+            ended_utterances = deque()
+            utterance = 0
 
             def end_speech():
                 nonlocal speech_end
                 if speech_end is None:
+                    if len(ended_utterances) >= 64:
+                        raise RuntimeError("Transcription stopped producing finalized utterances")
                     speech_end = time.perf_counter()
+                    ended_utterances.append((utterance, speech_end))
                     self._event_ch.send_nowait(
                         stt.SpeechEvent(type=stt.SpeechEventType.END_OF_SPEECH)
                     )
 
             def commit_final():
                 nonlocal pending_final, final_sent
-                if pending_final is None or speech_end is None or final_sent:
+                if pending_final is None or not ended_utterances:
                     return
+                owner, ended_at = ended_utterances.popleft()
                 final_language = pending_final.get("language") or "en-IN"
                 self._event_ch.send_nowait(
                     stt.SpeechEvent(
@@ -143,12 +150,13 @@ class SarvamStream(stt.SpeechStream):
                 index = pending_final.get("utterance_idx")
                 if type(index) is int and index >= 0:
                     committed_indices.append(index)
-                final_sent = True
+                if owner == utterance:
+                    final_sent = True
                 pending_final = None
                 self._stt.log(
                     "realtime_stt_final",
                     language=final_language,
-                    after_provider_endpoint_ms=round((time.perf_counter() - speech_end) * 1000),
+                    after_provider_endpoint_ms=round((time.perf_counter() - ended_at) * 1000),
                 )
 
             try:
@@ -172,6 +180,7 @@ class SarvamStream(stt.SpeechStream):
                             end_speech()
                             commit_final()
                         speech_end = None
+                        utterance += 1
                         final_sent = False
                         self._event_ch.send_nowait(
                             stt.SpeechEvent(type=stt.SpeechEventType.START_OF_SPEECH)

@@ -5,9 +5,12 @@
 Sarvam finals are committed once per observed utterance boundary, with bounded integer-index
 deduplication. Early finals wait for end/new start/graceful session end. Empty/duplicate packets
 do not create new turns; repeated words in distinct utterances remain distinct. No acoustic
-timestamp is invented. Native history tool schemas advertise only executable backend windows.
-Spoken instruction version2 retains possible identity for visual candidates, separate from past
-time/current-location uncertainty and user reports. Explicit object grounding requires whole
+timestamp is invented. Ordered ended-boundary state survives a later start so delayed finals do
+not drop the next utterance; an excessive unfinished backlog fails explicitly. Native history
+tool schemas advertise only executable backend windows.
+Spoken instruction version3 retains possible identity for visual candidates, separate from past
+time/current-location uncertainty and user reports, and preserves supplied temporal precision
+instead of treating UTC hours as local time. Explicit object grounding requires whole
 Unicode phrases outside destination spans, with no word-order requirement. See
 [R23](research/R23-spoken-depth.md). UI and the local wake recognizer are unchanged.
 

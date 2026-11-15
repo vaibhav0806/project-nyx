@@ -23,6 +23,13 @@ CASES = [
 ]
 
 
+def continuation_status(choice):
+    message = choice.get("message", {})
+    if message.get("tool_calls"):
+        return "awaiting_tools"
+    return "complete" if message.get("content") else "failed"
+
+
 def run(output, max_spend):
     output.mkdir(parents=True, exist_ok=False)
     captured = schemas(output / "schema-session")
@@ -98,7 +105,7 @@ def run(output, max_spend):
             row["dispatches"] = dispatch(output / case["id"], case["text"], calls)
             if calls:
                 row["continuation"] = generate(messages)
-                row["status"] = "complete"
+                row["status"] = continuation_status(row["continuation"])
             else:
                 row["status"] = "no_tool_call"
     finally:
