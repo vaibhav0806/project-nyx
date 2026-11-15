@@ -56,6 +56,45 @@ def test_indexing_and_failed_videos_are_excluded(store):
     assert store.list_videos()[0]["status"] == "failed"
 
 
+def test_balanced_nomination_reserves_other_sources_before_pool_is_full(store):
+    for i in range(80):
+        source = store.add_video(
+            f"segment-{i}",
+            f"recordings/{i}.mp4",
+            "2026-11-06T12:00:00Z",
+            2,
+            capture_session="one-session",
+        )
+        store.add_frames(source, [(i / 10, f"frames/{i}.jpg")], [[0, 1, 0]])
+        store.finish_video(source)
+    target = store.add_video("other-day", "recordings/target.mp4", "2026-11-05T12:00:00Z", 2)
+    store.add_frames(target, [(0, "frames/target.jpg")], [[0.4, 0.9, 0]])
+    store.finish_video(target)
+    assert target not in {r["video_id"] for r in store.search([0, 1, 0], limit=64)}
+    balanced = store.search([0, 1, 0], limit=64, source_balanced=True)
+    assert target in {r["video_id"] for r in balanced[:5]}
+    target_frame = next(r["id"] for r in balanced if r["video_id"] == target)
+    excluded = store.search(
+        [0, 1, 0], limit=64, source_balanced=True, excluded_frame_ids=[target_frame]
+    )
+    assert target not in {r["video_id"] for r in excluded}
+    dated = store.search(
+        [0, 1, 0], limit=64, source_balanced=True, seen_after="2026-11-06T00:00:00Z"
+    )
+    assert target not in {r["video_id"] for r in dated}
+
+
+def test_balanced_nomination_fills_remaining_slots_from_a_single_recording(store):
+    source = store.add_video("one import", "recordings/one.mp4", None, 2)
+    store.add_frames(source, [(2 * i, f"frames/{i}.jpg") for i in range(80)], [[0, 1, 0]] * 80)
+    store.finish_video(source)
+    rows = store.search([0, 1, 0], limit=64, source_balanced=True)
+    assert len(rows) == 64
+    assert {row["video_id"] for row in rows} == {source}
+    assert [row["offset_seconds"] for row in rows] == list(range(0, 128, 2))
+    assert "source_rank" not in rows[0] and "nomination_group" not in rows[0]
+
+
 def test_encoder_revision_and_preprocessing_cannot_be_mixed(store):
     for field in ["model", "revision", "preprocessing"]:
         changed = {**ColorEncoder.fingerprint, field: "changed"}

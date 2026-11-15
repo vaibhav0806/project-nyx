@@ -233,6 +233,7 @@ class Store:
         order="relevance",
         known_time_only=False,
         excluded_frame_ids=(),
+        source_balanced=False,
     ):
         if not 1 <= limit <= 100:
             raise ValueError("Limit must be between 1 and 100")
@@ -243,6 +244,8 @@ class Store:
             raise ValueError("Start offset must not exceed end offset")
         if order not in {"relevance", "latest"}:
             raise ValueError("Choose relevance or latest ordering")
+        if source_balanced and order != "relevance":
+            raise ValueError("Source-balanced nomination requires relevance ordering")
         lower = aware_time(seen_after).isoformat() if seen_after else None
         upper = aware_time(seen_before).isoformat() if seen_before else None
         if lower and upper and lower > upper:
@@ -272,18 +275,34 @@ class Store:
             filters.append(f"f.id NOT IN ({','.join('?' for _ in excluded_frame_ids)})")
             params.extend(excluded_frame_ids)
         params.append(limit)
-        with self.connection() as db:
-            rows = db.execute(
-                f"""SELECT f.id, f.video_id, f.offset_seconds, f.thumbnail,
+        projection = """f.id, f.video_id, f.offset_seconds, f.thumbnail,
                 v.name, v.path AS video_path, v.recorded_at, v.imported_at, v.capture_session,
-                vec_distance_cosine(f.embedding, ?) AS distance
-                FROM frames f JOIN videos v ON v.id = f.video_id
-                WHERE {" AND ".join(filters)} ORDER BY {f"{clock_time} DESC," if order == "latest" else ""} distance, f.id LIMIT ?""",
-                params,
-            ).fetchall()
+                vec_distance_cosine(f.embedding, ?) AS distance"""
+        query = f"""SELECT {projection} FROM frames f JOIN videos v ON v.id=f.video_id
+            WHERE {" AND ".join(filters)}
+            ORDER BY {f"{clock_time} DESC," if order == "latest" else ""} distance,f.id LIMIT ?"""
+        if source_balanced:
+            group = f"""CASE WHEN v.capture_session IS NOT NULL AND v.recorded_at IS NOT NULL
+                THEN 'session:' || v.capture_session || ':' || strftime('%Y-%m-%dT%H:%M',{clock_time})
+                ELSE 'video:' || v.id END"""
+            # Nominate a few from each source/time bucket before filling from its neighbors.
+            # Filtering precedes window ranking, so excluded/deleted/out-of-window rows cannot return.
+            query = f"""WITH candidates AS (
+                SELECT {projection},{group} AS nomination_group
+                FROM frames f JOIN videos v ON v.id=f.video_id WHERE {" AND ".join(filters)}
+            ), ranked AS (
+                SELECT *,ROW_NUMBER() OVER (PARTITION BY nomination_group ORDER BY distance,id) AS source_rank
+                FROM candidates
+            ) SELECT * FROM ranked ORDER BY (source_rank-1)/4,distance,id LIMIT ?"""
+        with self.connection() as db:
+            rows = db.execute(query, params).fetchall()
         return [
             {
-                **dict(row),
+                **{
+                    key: value
+                    for key, value in dict(row).items()
+                    if key not in {"nomination_group", "source_rank"}
+                },
                 "observed_at": observed_at(row["recorded_at"], row["offset_seconds"]),
                 "similarity": 1 - row["distance"],
                 "verified": False,

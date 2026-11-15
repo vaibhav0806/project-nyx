@@ -49,10 +49,10 @@ small context helper only if responsibility warrants it. Consume Task 1 failure 
 
 Files: retrieval/statements/answers/verification and experiments only as reproduced failures require.
 Consume frozen Task 1 development cases; holdout stays untouched for final selected comparison.
-- [ ] Trace development misses to candidate selection, temporal eligibility, citation or model routing.
-- [ ] Add failing regressions before minimal fixes; retain uncertainty and identity/source boundaries.
-- [ ] Compare development quality/latency and choose defaults; no decay/reference promotion on mixed evidence.
-- [ ] Run affected/full checks and commit findings, including unresolved cases.
+- [x] Trace development misses to candidate selection, temporal eligibility, citation or model routing.
+- [x] Add failing regressions before minimal fixes; retain uncertainty and identity/source boundaries.
+- [x] Compare development quality/latency and choose defaults; no decay/reference promotion on mixed evidence.
+- [x] Run affected/full checks and commit findings, including unresolved cases.
 
 ### Task 4: Multi-day capacity and fault replay
 

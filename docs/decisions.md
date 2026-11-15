@@ -1,5 +1,14 @@
 # Decisions and open choices
 
+## Spread nomination across sources before the bounded check — 2026-11-15
+
+Select four-per-source rounds for semantic latest-history candidate pools, based on the reproduced
+dense-source miss and 24 cached-vector development queries with no individual regressions.
+Known-session minute buckets prevent clip boundaries from bypassing the reservation. Retain
+the existing 64/12 pool/check bounds, filters, source IDs and verification. Explicit opt-out is
+`NYX_SOURCE_BALANCED_CANDIDATES=0`; final held-out/load validation remains required. Ordinary
+similarity search is unchanged. See [R19](research/R19-recall-context.md).
+
 ## Bound context copies and preserve source truth — 2026-11-15
 
 Use one source-aware recent-context projection for typed/spoken recall, suppressing invalidated

@@ -8,7 +8,11 @@ Frozen report-attribution baseline: development 8/8, held-out aggregate 7/8. Det
 outcomes are kept out of tuning. Source-aware context fixes reproduce and suppress invalidated
 typed answers, bound recent/live model context and retain dates/active tool exchanges. Selected
 development replay remains 8/8; no broad quality/latency claim. See [R19](research/R19-recall-context.md).
-Further measured retrieval checks, multi-day capacity/recovery replay and Hydra verdict are pending.
+Candidate-pool crowding regression is reproduced/fixed: source balancing preserves the older
+verified scene's source identity and improves cached-photo development candidate Recall@12 from
+0.1873 to 0.6847 under repeated-source crowding, with no uncrowded regressions. These are candidate
+stress results, not final visual-answer accuracy. All 457 tests passed in 22.53s for this slice.
+Multi-day capacity/recovery replay, final held-out checks and Hydra verdict are pending.
 
 ## Local engineering checkpoint — 2026-11-15
 

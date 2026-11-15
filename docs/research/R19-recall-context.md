@@ -75,3 +75,48 @@ latency improvement. Observed spend $0.040982475, final key snapshot $1.34525901
 and selected runs include failures in the denominator; selected holdout evaluation remains pending.
 Artifact: `data/runs/recall-context-selected-dev/results.json`. Further visual evidence, multi-day
 load and Hydra evidence are separate checks.
+
+## Candidate-pool crowding development experiment
+
+The report workflows passed, so a separate code-derived visual-retrieval regression targets
+competition before nomination: 80 high-scoring distractor samples fill the flat top-64 pool,
+excluding a lower-scoring source that the actual decoder/verifier can recognize. Tests first
+reproduced the miss, then verified the older scene's original frame ID, capture timestamp and
+media URL after source balancing. Controlled inference scores/color judgments are boundary
+fixtures here; they do not establish encoder or VLM semantic accuracy.
+
+`Store.search(source_balanced=True)` ranks in rounds of four samples per source bucket. Known
+capture sessions share a UTC-minute bucket across clips; other records use their video ID.
+Filters apply before ranking, including availability status, times and excluded frame IDs.
+After each bucket's first four nominations, remaining slots fill from later rounds; one source
+can still fill the pool if no alternatives exist. This is sampling diversity, not an event merge.
+Only semantic latest-history nomination enables it by default; ordinary similarity/latest APIs
+retain their prior ordering. `NYX_SOURCE_BALANCED_CANDIDATES=0` opts that route out. Pool/check
+limits remain 64/12, and final model verification is still required. Reference nomination and
+freshness weighting remain disabled.
+
+Offline comparison reused R16's compatible cached 768-d Gemini vectors and 24 development COCO
+photos. Each photo queries other photos for its annotated category. The crowded condition repeats
+the highest-scoring irrelevant source 80 times, with simulated candidate timestamps and unchanged
+vectors. Uncrowded sources have one sample each. Real SQLite nomination and diversity execute;
+metadata-only stores intentionally have no playable media and never produce visual answers.
+Labels count distinct relevant photo sources, not repeated frames. Images were evaluated earlier;
+this is a new stress condition, not an untouched household dataset or text-query benchmark.
+
+| Development condition | Flat candidate Recall@12 | Balanced candidate Recall@12 | Flat/balanced distinct pool sources |
+| --- | --- | --- | --- |
+| Uncrowded, 24 queries | 0.7105 | 0.7105 | 23 / 23 |
+| Crowded, 24 queries | 0.1873 | 0.6847 | 2.0833 / 23 |
+
+No individual development query regressed in either condition. Mean SQL/diversity query time
+increased from 1.016 to 1.461 ms in the crowded condition, on this tiny corpus. No provider calls
+or new downloads. Freeze four-per-bucket nomination for the final held-out comparison; no tuning
+on the remaining sixteen-photo split. Larger-index query cost is still to be measured.
+
+```sh
+uv run --no-sync python -m experiments.companion.candidate_pool_replay --data data/evaluation/coco-small --embeddings data/runs/coco-embedding-gemini2-v1/embeddings.npz --output data/runs/source-pool-development
+```
+
+The prior public text queries use category-proxy labels. They do not independently label every
+word of a query: for example COCO's bottle category does not establish a water bottle or contents.
+Do not turn those proxy scores into precise physical-instance/final-answer accuracy.

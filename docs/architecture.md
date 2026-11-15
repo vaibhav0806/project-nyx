@@ -1,5 +1,14 @@
 # Technical architecture
 
+## Balance sources before candidate-pool truncation — 2026-11-15
+
+Semantic latest-history nomination reserves rounds of four samples per known-session UTC minute
+or otherwise per video before filling the 64-slot pool. Later four-second diversity and the
+12-frame verification bound remain. Filtering precedes ranking, ordinary search order is unchanged,
+and source timestamps/IDs are not rewritten. This prevents one dense recording from consuming
+every nomination before diversity runs. It does not create semantic episodes or prove presence.
+See [R19](research/R19-recall-context.md); larger-index/held-out checks remain pending.
+
 ## Bounded source-aware conversation context — 2026-11-15
 
 `conversation_context.py` projects recent stored turns into bounded provider context without

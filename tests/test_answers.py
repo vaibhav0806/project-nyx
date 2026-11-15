@@ -96,6 +96,63 @@ def test_no_dated_history_does_not_load_verifier_or_invent_absence(tmp_path):
     assert "not prove" in done.value.value["answer"]
 
 
+def test_source_balanced_pool_reaches_verified_older_scene_beyond_dense_distractors(
+    tmp_path, video
+):
+    import numpy as np
+    from test_agent import complete
+    from test_nyx import ColorEncoder
+
+    from nyx.answers import history_steps
+    from nyx.memory import Store
+    from nyx.retrieval import index_video
+
+    store = Store(tmp_path / "history", ColorEncoder.fingerprint, 3)
+    older = index_video(video, store, ColorEncoder(), recorded_at="2026-11-05T12:00:00Z")
+    newer = index_video(video, store, ColorEncoder(), recorded_at="2026-11-06T12:00:00Z")
+    with store.connection() as db:
+        thumbnail = db.execute(
+            "SELECT thumbnail FROM frames WHERE video_id=? LIMIT 1", (newer["video_id"],)
+        ).fetchone()[0]
+        db.execute("DELETE FROM frames WHERE video_id=?", (newer["video_id"],))
+        db.execute("DELETE FROM frames WHERE video_id=? AND offset_seconds=0", (older["video_id"],))
+    store.add_frames(newer["video_id"], [(i / 100, thumbnail) for i in range(80)], [[0, 1, 0]] * 80)
+    # Controlled inference error: the correct older scene has a lower nomination score.
+    from nyx.memory import _vector
+
+    with store.connection() as db:
+        db.execute(
+            "UPDATE frames SET embedding=? WHERE video_id=?",
+            (_vector([0.4, 0.9, 0], 3), older["video_id"]),
+        )
+
+    class Verifier:
+        fingerprint: ClassVar = {"model": "color-check"}
+
+        def inspect(self, image, query):
+            visible = np.asarray(image).mean(axis=(0, 1))[1] > 100
+            return {
+                "visibility": "visible" if visible else "not_visible",
+                "location": "center" if visible else None,
+                "description": "Generated color fixture",
+            }
+
+    flat = complete(
+        history_steps(
+            "green", store, ColorEncoder(), Verifier, semantic_latest=True, source_balanced=False
+        )
+    )
+    assert flat["evidence"] is None
+    balanced = complete(
+        history_steps(
+            "green", store, ColorEncoder(), Verifier, semantic_latest=True, source_balanced=True
+        )
+    )
+    assert balanced["evidence"]["video_id"] == older["video_id"]
+    assert balanced["evidence"]["observed_at"] == "2026-11-05T12:00:02+00:00"
+    assert balanced["evidence"]["media_url"].endswith(older["video_id"] + "/media")
+
+
 pytest_plugins = ["test_nyx"]
 
 

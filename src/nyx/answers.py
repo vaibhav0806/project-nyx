@@ -62,11 +62,14 @@ def history_steps(
     excluded_frame_ids=(),
     reference_image=None,
     reference_candidates=None,
+    source_balanced=None,
 ):
     if mode not in {"latest", "relevance"}:
         raise ValueError("Choose latest or relevance history")
     if reference_candidates is None:
         reference_candidates = os.environ.get("NYX_REFERENCE_CANDIDATES", "0") == "1"
+    if source_balanced is None:
+        source_balanced = os.environ.get("NYX_SOURCE_BALANCED_CANDIDATES", "1") == "1"
     started = time.perf_counter()
     timings = {"decode_ms": 0, "verification_ms": 0}
     limit = 12 if mode == "latest" else 5
@@ -82,6 +85,7 @@ def history_steps(
         known_time_only=semantic_latest,
         excluded_frame_ids=excluded_frame_ids,
         reference_image=reference_image if reference_candidates else None,
+        source_balanced=bool(source_balanced and semantic_latest and mode == "latest"),
     )
     if semantic_latest and mode == "latest":
         candidates = diverse_candidates(candidates, limit)
@@ -217,6 +221,9 @@ def history_steps(
             "mode": mode,
             "candidate_pool_limit": 64 if semantic_latest else limit,
             "reference_nomination": bool(reference_candidates and reference_image is not None),
+            "source_balanced_nomination": bool(
+                source_balanced and semantic_latest and mode == "latest"
+            ),
             "diversity_seconds": 4 if semantic_latest else 0,
             "video_id": video_id,
             "excluded_frame_ids": list(excluded_frame_ids),
