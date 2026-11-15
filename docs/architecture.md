@@ -1,5 +1,15 @@
 # Technical architecture
 
+## Nonfatal source-frame failures — 2026-11-16
+
+History distinguishes an unreadable source from an observed negative. Decode failures/timeouts
+produce unavailable/uncertain entries without inference or a location; other bounded candidates
+can still be verified in order. Scope includes unavailable and model-checked counts, and request
+metrics exclude skipped inference. Provider errors still propagate. This applies to source-frame,
+batch-image and reference routes. Sources are preserved and restoring bytes requires no reindex
+or permanent exclusion. Policy metadata records `unavailable-not-negative-v1`.
+See [R27](research/R27-unreadable-source-recovery.md).
+
 ## Isolated object-verification experiments — 2026-11-15
 
 `NYX_OBJECT_VISION_MODEL` can override object inspection without changing general/departure

@@ -35,6 +35,8 @@ Research should answer a bounded question that changes a decision. Keep product 
 
 | R26 | Did the branch improve stable behavior on past/local and public examples? | Paired stable source, copied local index, cached public retrieval and fresh visual/report diagnostics | [Paired product audit](R26-paired-product-audit.md) | Retrieval/context improvements reproduced; local compatibility preserved, household accuracy still open |
 
+| R27 | Do saved sources decode fully and does recall survive damaged footage? | Full local video decode, three-route fault injection and API restore/restart | [Source recovery](R27-unreadable-source-recovery.md) | 92 sources decode intact; nonfatal decode handling implemented, broader acceptance open |
+
 R1/R2 can run alongside early technical feasibility work once separately authorized. R5 does not block the initial R3 retrieval baseline. Do not assign a person or deadline without their agreement.
 
 ## Ready-to-share product brief

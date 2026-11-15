@@ -1,5 +1,15 @@
 # Decisions and open choices
 
+## Continue bounded recall past unreadable frames — 2026-11-16
+
+Keep decode failure separate from provider failure and an observed absence. Reproduced damaged-
+source aborts now yield unavailable entries, allowing valid older evidence within the same
+bounds. An all-unreadable search is explicitly uncertain; it does not infer that the item was
+absent. Original sources and ordering remain intact, restored bytes work after reopen, and
+provider exceptions are not swallowed. Full strict video decode passed for all 92 local files
+without byte changes. See [R27](research/R27-unreadable-source-recovery.md). This does not promote
+a visual/wake model, repair corrupt files, change UI or establish household recognition quality.
+
 ## Reject default visual/wake migrations that fail broader checks — 2026-11-15 funded pass
 
 The approved test budget is now$5 total. Broader wake tests reject both the open-vocabulary

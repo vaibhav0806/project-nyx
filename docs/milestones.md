@@ -1,5 +1,17 @@
 # Milestones
 
+## Unreadable-source recovery — 2026-11-16
+
+Strict full-video decode passed for all 92 local recording files with unchanged hashes; no cloud
+uploads or hardware use. Fault injection then exposed six history aborts on damaged frames.
+General decoding failure isolation now continues to valid bounded candidates, records unavailable
+frames without model checks or absence claims, and preserves provider errors. API restore/restart
+checks pass without reindexing. **538 tests passed in 24.86s**, lint/format/JS/diff checks passed,
+and synthetic browser speech/cancellation/playback/library/reminder checks passed with zero errors.
+See [R27](research/R27-unreadable-source-recovery.md). No paid inference; about $3.21/$5 remains
+the conservative cumulative spend. Main/UI/original files remain unchanged. This is another
+backend reliability improvement; visual, wake, human-household and long-run acceptance remain open.
+
 ## Paired product audit — 2026-11-15
 
 Against stable cfe8fa4 with identical dependencies, crowded public-source candidate Recall@12
