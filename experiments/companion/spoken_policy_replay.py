@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import hashlib
 import importlib.util
+import inspect
 import json
 import time
 from pathlib import Path
@@ -79,6 +80,37 @@ def dispatch(root, text, calls):
     return results
 
 
+def bind_call(tool, arguments):
+    positional, keywords = llm.utils.prepare_function_arguments(fnc=tool, json_arguments=arguments)
+    bound = inspect.signature(tool).bind(*positional, **keywords)
+    bound.apply_defaults()
+    return dict(bound.arguments)
+
+
+def evaluate_message(case, message, finish_reason, captured, output):
+    calls = []
+    valid = finish_reason in {"stop", "tool_calls"}
+    for call in message.get("tool_calls", []):
+        function = call["function"]
+        name = function["name"]
+        try:
+            arguments = bind_call(captured["tools"][name], function["arguments"])
+        except (ToolError, ValueError, KeyError, TypeError):
+            valid = False
+            arguments = {}
+        calls.append({"name": name, "arguments": arguments})
+    valid = valid and bool(calls or message.get("content"))
+    dispatches = dispatch(output / case["id"], case["text"], calls) if valid else []
+    executable = valid and all(row["valid"] for row in dispatches)
+    return {
+        "schema_valid": valid,
+        "calls": calls,
+        "dispatches": dispatches,
+        "executable": executable,
+        "correct": executable and score(case, calls),
+    }
+
+
 def run(output, split, max_spend):
     output.mkdir(parents=True, exist_ok=False)
     captured = schemas(output / "schema-session")
@@ -122,33 +154,11 @@ def run(output, split, max_spend):
             )
             choice = response["choices"][0]
             message = choice["message"]
-            calls = []
-            valid = choice["finish_reason"] in {"stop", "tool_calls"}
-            for call in message.get("tool_calls", []):
-                function = call["function"]
-                name = function["name"]
-                try:
-                    tool = captured["tools"][name]
-                    positional, args = llm.utils.prepare_function_arguments(
-                        fnc=tool, json_arguments=function["arguments"]
-                    )
-                    if positional:
-                        valid = False
-                except (ToolError, ValueError, KeyError, TypeError):
-                    valid = False
-                    args = {}
-                calls.append({"name": name, "arguments": args})
-            valid = valid and bool(calls or message.get("content"))
-            dispatches = dispatch(output / case["id"], case["text"], calls) if valid else []
-            executable = valid and all(row["valid"] for row in dispatches)
             case.update(
                 status="complete",
-                schema_valid=valid,
-                calls=calls,
                 message=message,
-                dispatches=dispatches,
-                executable=executable,
-                correct=executable and score(case, calls),
+                finish_reason=choice["finish_reason"],
+                **evaluate_message(case, message, choice["finish_reason"], captured, output),
                 elapsed_ms=round((time.perf_counter() - began) * 1000),
             )
             checkpoint()

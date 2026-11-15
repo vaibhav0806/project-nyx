@@ -52,3 +52,16 @@ def test_native_replay_checks_actual_dispatch_not_just_integer_shape(tmp_path, m
             ],
         )
         assert result[0]["valid"] is expected
+
+
+def test_native_arguments_keep_valid_sdk_positional_binding(tmp_path, monkeypatch):
+    root = Path(__file__).resolve().parents[1]
+    monkeypatch.syspath_prepend(str(root))
+    spec = importlib.util.spec_from_file_location(
+        "spoken_policy_replay", root / "experiments/companion/spoken_policy_replay.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    tool = module.schemas(tmp_path)["tools"]["look_for_object"]
+    arguments = module.bind_call(tool, '{"query":"phone","history":true,"hours":240}')
+    assert arguments["query"] == "phone" and arguments["hours"] == 240
