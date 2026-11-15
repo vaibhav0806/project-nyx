@@ -8,6 +8,7 @@ import random
 import time
 import uuid
 import wave
+from collections import deque
 from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Literal
@@ -109,6 +110,43 @@ class SarvamStream(stt.SpeechStream):
             sender = asyncio.create_task(send())
             heartbeat = asyncio.create_task(keepalive())
             speech_end = None
+            pending_final = None
+            final_sent = False
+            committed_indices = deque(maxlen=64)
+
+            def end_speech():
+                nonlocal speech_end
+                if speech_end is None:
+                    speech_end = time.perf_counter()
+                    self._event_ch.send_nowait(
+                        stt.SpeechEvent(type=stt.SpeechEventType.END_OF_SPEECH)
+                    )
+
+            def commit_final():
+                nonlocal pending_final, final_sent
+                if pending_final is None or speech_end is None or final_sent:
+                    return
+                self._event_ch.send_nowait(
+                    stt.SpeechEvent(
+                        type=stt.SpeechEventType.FINAL_TRANSCRIPT,
+                        alternatives=[
+                            stt.SpeechData(
+                                language=pending_final.get("language") or "en-IN",
+                                text=pending_final["text"].strip(),
+                            )
+                        ],
+                    )
+                )
+                index = pending_final.get("utterance_idx")
+                if type(index) is int and index >= 0:
+                    committed_indices.append(index)
+                final_sent = True
+                pending_final = None
+                self._stt.log(
+                    "realtime_stt_final",
+                    after_provider_endpoint_ms=round((time.perf_counter() - speech_end) * 1000),
+                )
+
             try:
                 async for packet in socket:
                     event = json.loads(packet)
@@ -125,39 +163,43 @@ class SarvamStream(stt.SpeechStream):
                             raise RuntimeError("Sarvam realtime transcription failed")
                         continue
                     if kind == "vad.speech_start":
+                        # A new observed start is also a boundary for a buffered prior final.
+                        if pending_final is not None:
+                            end_speech()
+                            commit_final()
                         speech_end = None
+                        final_sent = False
                         self._event_ch.send_nowait(
                             stt.SpeechEvent(type=stt.SpeechEventType.START_OF_SPEECH)
                         )
                     elif kind == "vad.speech_end":
-                        speech_end = time.perf_counter()
-                        self._event_ch.send_nowait(
-                            stt.SpeechEvent(type=stt.SpeechEventType.END_OF_SPEECH)
-                        )
+                        end_speech()
+                        commit_final()
+                    elif kind == "session.end":
+                        if pending_final is not None:
+                            end_speech()
+                            commit_final()
                     elif kind in {"transcript.partial", "transcript.final"}:
-                        text = event.get("text", "").strip()
-                        if not text:
+                        text = event.get("text")
+                        if not isinstance(text, str) or not text.strip() or final_sent:
                             continue
                         final = kind == "transcript.final"
-                        language = event.get("language", "en-IN")
+                        if final:
+                            index = event.get("utterance_idx")
+                            if type(index) is int and index in committed_indices:
+                                continue
+                            pending_final = event
+                            commit_final()
+                            continue
+                        if pending_final is not None:
+                            continue
+                        language = event.get("language") or "en-IN"
                         self._event_ch.send_nowait(
                             stt.SpeechEvent(
-                                type=stt.SpeechEventType.FINAL_TRANSCRIPT
-                                if final
-                                else stt.SpeechEventType.INTERIM_TRANSCRIPT,
-                                alternatives=[stt.SpeechData(language=language, text=text)],
+                                type=stt.SpeechEventType.INTERIM_TRANSCRIPT,
+                                alternatives=[stt.SpeechData(language=language, text=text.strip())],
                             )
                         )
-                        if final:
-                            self._stt.log(
-                                "realtime_stt_final",
-                                language=language,
-                                after_provider_endpoint_ms=round(
-                                    (time.perf_counter() - speech_end) * 1000
-                                )
-                                if speech_end
-                                else None,
-                            )
             finally:
                 sender.cancel()
                 heartbeat.cancel()
