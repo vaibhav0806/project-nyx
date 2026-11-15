@@ -893,3 +893,62 @@ def test_visual_work_is_bounded_while_controls_and_search_requests_stay_responsi
             assert wait_for_job(client, first["id"])["status"] == "succeeded"
     finally:
         release.set()
+
+
+def test_history_recovers_from_unreadable_source_and_reuses_restored_original(
+    tmp_path, video, monkeypatch
+):
+    import json
+
+    from nyx.memory import Store
+    from nyx.retrieval import index_video
+    from nyx.verification import CloudVerifier
+
+    monkeypatch.setenv("NYX_VISUAL_CONFIRMATION", "0")
+    root = tmp_path / "library"
+    store = Store(root, ColorEncoder.fingerprint, 3)
+    older = index_video(video, store, ColorEncoder(), recorded_at="2026-11-15T10:00:00Z")
+    newer = index_video(video, store, ColorEncoder(), recorded_at="2026-11-15T11:00:00Z")
+    with store.connection() as db:
+        source = (
+            root
+            / db.execute("SELECT path FROM videos WHERE id=?", (newer["video_id"],)).fetchone()[0]
+        )
+    original = source.read_bytes()
+    source.write_bytes(b"x" * len(original))
+
+    class Client:
+        def generate(self, *args, **kwargs):
+            return json.dumps(
+                {
+                    "visibility": "visible",
+                    "location": "on the test table",
+                    "description": "Generated boundary fixture.",
+                    "matching_count": 1,
+                    "ambiguous": False,
+                }
+            )
+
+    def factory():
+        return create_app(
+            root,
+            encoder_factory=ColorEncoder,
+            verifier_factory=lambda: CloudVerifier(Client()),
+            voice_factory=lambda root: None,
+        )
+
+    with TestClient(factory()) as api:
+        job = api.post("/api/answer", json={"object_query": "green"})
+        assert job.status_code == 202, job.json()
+        result = wait_for_job(api, job.json()["id"])
+        assert result["status"] == "succeeded"
+        assert result["result"]["evidence"]["video_id"] == older["video_id"]
+        assert result["result"]["scope"]["unavailable_frame_count"] > 0
+    source.write_bytes(original)
+    with TestClient(factory()) as api:
+        job = api.post("/api/answer", json={"object_query": "green"})
+        assert job.status_code == 202, job.json()
+        result = wait_for_job(api, job.json()["id"])
+        assert result["result"]["evidence"]["video_id"] == newer["video_id"]
+        assert result["result"]["scope"]["unavailable_frame_count"] == 0
+    assert source.read_bytes() == original

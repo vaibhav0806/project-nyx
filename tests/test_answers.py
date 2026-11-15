@@ -414,3 +414,75 @@ def test_history_checks_reference_image_instead_of_category_only(tmp_path, monke
             break
     assert seen == [(image, reference, "phone")]
     assert result["evidence"] is None
+
+
+@pytest.mark.parametrize("route", ["cloud_frames", "fallback", "reference"])
+@pytest.mark.parametrize("all_damaged", [False, True])
+def test_unreadable_sources_do_not_hide_other_history_or_become_negative_sightings(
+    tmp_path, video, monkeypatch, route, all_damaged
+):
+    import json
+
+    from PIL import Image
+    from test_agent import complete
+    from test_nyx import ColorEncoder
+
+    from nyx.answers import history_steps
+    from nyx.memory import Store
+    from nyx.retrieval import index_video
+    from nyx.verification import CloudVerifier
+
+    monkeypatch.setenv("NYX_VISUAL_CONFIRMATION", "0")
+    store = Store(tmp_path / "history", ColorEncoder.fingerprint, 3)
+    older = index_video(video, store, ColorEncoder(), recorded_at="2026-11-15T10:00:00Z")
+    newer = index_video(video, store, ColorEncoder(), recorded_at="2026-11-15T11:00:00Z")
+    for source in [newer, older] if all_damaged else [newer]:
+        with store.connection() as db:
+            path = (
+                store.root
+                / db.execute(
+                    "SELECT path FROM videos WHERE id=?", (source["video_id"],)
+                ).fetchone()[0]
+            )
+        path.write_bytes(b"x" * path.stat().st_size)
+
+    calls = []
+
+    class Client:
+        def generate(self, messages, model, max_tokens, **kwargs):
+            calls.append(model)
+            return json.dumps(
+                {
+                    "visibility": "visible",
+                    "location": "beside the chair",
+                    "description": "Generated fixture.",
+                    "matching_count": 1,
+                    "ambiguous": False,
+                }
+            )
+
+    verifier = CloudVerifier(Client())
+    if route == "fallback":
+        verifier.inspect_frames = None
+    result = complete(
+        history_steps(
+            "green",
+            store,
+            ColorEncoder(),
+            lambda: verifier,
+            reference_image=Image.new("RGB", (20, 20)) if route == "reference" else None,
+        )
+    )
+    assert result["scope"]["unavailable_frame_count"] >= 1
+    assert all(
+        not row["model_checked"]
+        for row in result["checked"]
+        if row["judgment"].get("source_unavailable")
+    )
+    assert result["timings"]["vision_requests"] == len(calls)
+    if all_damaged:
+        assert result["status"] == "uncertain" and result["evidence"] is None and not calls
+        assert "could not be read" in result["answer"]
+    else:
+        assert result["evidence"]["video_id"] == older["video_id"]
+        assert result["evidence"]["observed_at"].startswith("2026-11-15T10:")

@@ -397,3 +397,34 @@ def test_statement_schema_is_forwarded_as_strict_structured_output():
     assert (
         OpenRouter("test", transport).generate([], "model", 240, schema=schema) == '{"kind":"none"}'
     )
+
+
+def test_frame_decode_recovery_does_not_swallow_provider_failure(monkeypatch):
+    from nyx.verification import CloudVerifier
+
+    monkeypatch.setattr("nyx.capture.frame_image", lambda *args: Image.new("RGB", (8, 8)))
+
+    class Client:
+        def generate(self, *args, **kwargs):
+            raise CloudError("Provider unavailable")
+
+    with pytest.raises(CloudError, match="Provider unavailable"):
+        CloudVerifier(Client()).inspect_frames([("fixture", 0)], "an object")
+
+
+def test_frame_decode_timeout_does_not_call_provider(monkeypatch):
+    import subprocess
+
+    from nyx.verification import CloudVerifier
+
+    def timeout(*args):
+        raise subprocess.TimeoutExpired("ffmpeg", 30)
+
+    monkeypatch.setattr("nyx.capture.frame_image", timeout)
+
+    class Client:
+        def generate(self, *args, **kwargs):
+            pytest.fail("Unreadable media must not reach provider")
+
+    result = CloudVerifier(Client()).inspect_frames([("fixture", 0)], "an object")[0]
+    assert result["visibility"] == "uncertain" and result["source_unavailable"]

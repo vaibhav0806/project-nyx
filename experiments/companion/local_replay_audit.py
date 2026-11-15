@@ -51,9 +51,9 @@ def source_context():
     }
 
 
-def run(data, output, limit=24):
-    if not 1 <= limit <= 64:
-        raise ValueError("Bounded sample size must be 1–64")
+def run(data, output, limit=24, full_decode=False):
+    if not 1 <= limit <= 256:
+        raise ValueError("Bounded sample size must be 1–256")
     data = data.resolve()
     output.mkdir(parents=True, exist_ok=False)
     copy = output / "copied-index"
@@ -87,7 +87,8 @@ def run(data, output, limit=24):
     report = {
         "application_source_sha256": digest(Path(inspect.getfile(Store))),
         "verifier_source_sha256": digest(Path(inspect.getfile(CloudVerifier))),
-        "scope": "Existing local library, copied index, stored-vector self queries; media stays local. Bounded source sample and first-frame decode only. Not semantic/identity accuracy or whole-file decode.",
+        "scope": "Existing local library, copied index, stored-vector self queries; media stays local. Decode depth is recorded by full_video_decode. Audio and semantic/identity accuracy are excluded.",
+        "full_video_decode": full_decode,
         "library_counts": counts,
         "context": source_context(),
         "queries": [],
@@ -141,10 +142,10 @@ def run(data, output, limit=24):
                     "-nostdin",
                     "-v",
                     "error",
+                    *(["-xerror", "-err_detect", "explode"] if full_decode else []),
                     "-i",
                     str(path),
-                    "-frames:v",
-                    "1",
+                    *([] if full_decode else ["-frames:v", "1"]),
                     "-an",
                     "-f",
                     "null",
@@ -152,7 +153,7 @@ def run(data, output, limit=24):
                 ],
                 check=False,
                 capture_output=True,
-                timeout=15,
+                timeout=120 if full_decode else 15,
             )
             result.update(
                 status="readable"
@@ -162,6 +163,7 @@ def run(data, output, limit=24):
                 bytes_preserved=before == digest(path),
             )
         report["media"].append(result)
+        (output / "results.json").write_text(json.dumps(report, indent=2) + "\n")
     (output / "results.json").write_text(json.dumps(report, indent=2) + "\n")
     return report
 
@@ -171,8 +173,13 @@ if __name__ == "__main__":
     parser.add_argument("--data", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--limit", type=int, default=24)
+    parser.add_argument(
+        "--full-decode",
+        action="store_true",
+        help="Strictly decode all video frames in each sampled recording; audio excluded",
+    )
     args = parser.parse_args()
-    result = run(args.data, args.output, args.limit)
+    result = run(args.data, args.output, args.limit, args.full_decode)
     print(
         json.dumps(
             {

@@ -1,10 +1,12 @@
 import os
+import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
 
 from nyx.capture import frame_image
 from nyx.memory import aware_time
 from nyx.retrieval import search
+from nyx.verification import unavailable_source_judgment
 
 
 def diverse_candidates(rows, limit, spacing_seconds=4):
@@ -133,17 +135,25 @@ def history_steps(
             source = (store.root / candidate["video_path"]).resolve()
             if not source.is_relative_to(store.root):
                 raise ValueError("Source must remain inside the local workspace")
-            return frame_image(source, candidate["offset_seconds"])
+            try:
+                return frame_image(source, candidate["offset_seconds"])
+            except (ValueError, OSError, subprocess.TimeoutExpired):
+                return None
 
         if reference_image is not None:
+
+            def inspect_reference(candidate):
+                image = decode(candidate)
+                if image is None:
+                    return unavailable_source_judgment()
+                return verifier.inspect_reference(image, reference_image, object_query)
+
             with ThreadPoolExecutor(
                 max_workers=len(batch), thread_name_prefix="nyx-reference"
             ) as pool:
                 judgments = list(
                     pool.map(
-                        lambda candidate: verifier.inspect_reference(
-                            decode(candidate), reference_image, object_query
-                        ),
+                        inspect_reference,
                         batch,
                     )
                 )
@@ -169,17 +179,33 @@ def history_steps(
                 images = [decode(batch[0])]
             timings["decode_ms"] += round((time.perf_counter() - phase) * 1000)
             phase = time.perf_counter()
-            judgments = (
-                verifier.inspect_batch(images, object_query)
-                if batch_size > 1
-                else [verifier.inspect(images[0], object_query)]
+            available_images = [image for image in images if image is not None]
+            verified = list(
+                (
+                    verifier.inspect_batch(available_images, object_query)
+                    if batch_size > 1
+                    else [verifier.inspect(available_images[0], object_query)]
+                )
+                if available_images
+                else []
             )
+            if len(verified) != len(available_images):
+                raise ValueError("Verification result count does not match source frames")
+            verified = iter(verified)
+            judgments = [
+                next(verified) if image is not None else unavailable_source_judgment()
+                for image in images
+            ]
             timings["verification_ms"] += round((time.perf_counter() - phase) * 1000)
-        timings["vision_requests"] += len(batch) + sum(
-            judgment.get("confirmation_requests", 0) for judgment in judgments
-        )
+        timings["vision_requests"] += sum(
+            not judgment.get("source_unavailable") for judgment in judgments
+        ) + sum(judgment.get("confirmation_requests", 0) for judgment in judgments)
         for candidate, judgment in zip(batch, judgments, strict=True):
-            item = {**evidence_links(candidate), "judgment": judgment, "model_checked": True}
+            item = {
+                **evidence_links(candidate),
+                "judgment": judgment,
+                "model_checked": not judgment.get("source_unavailable", False),
+            }
             checked.append(item)
             if not stop and judgment.get("ambiguous"):
                 stop = True
@@ -210,6 +236,9 @@ def history_steps(
             if (not seen_after or aware_time(row["observed_at"]) >= aware_time(seen_after))
             and (not seen_before or aware_time(row["observed_at"]) <= aware_time(seen_before))
         ]
+    unavailable_count = sum(row["judgment"].get("source_unavailable", False) for row in checked)
+    if unavailable_count:
+        answer += " Some saved source frames could not be read."
     return {
         "kind": "history",
         "timings": timings,
@@ -232,6 +261,8 @@ def history_steps(
             "candidate_limit": 17 if mode == "latest" and not semantic_latest else limit,
             "candidates_retrieved": len(candidates),
             "checked_count": len(checked),
+            "unavailable_frame_count": unavailable_count,
+            "model_checked_count": len(checked) - unavailable_count,
             "fallback_used": mode == "latest" and len(checked) > recent_count,
             "seen_after": seen_after,
             "seen_before": seen_before,
