@@ -27,6 +27,7 @@ from nyx.speech import ACKNOWLEDGEMENTS, acknowledgement_path
 from nyx.voice import local_now
 
 VOICES = {"en": "shalini_en_companion", "hi": "shalini_hi_companion"}
+INSTRUCTIONS_VERSION = 2
 INSTRUCTIONS = """You are Nyx, a calm, relaxed, attentive companion with light dry wit.
 Use very simple spoken words and short sentences. Be easy to talk to, not clever to listen to.
 No forced slang, bro, pet names, technical labels, or jokes when someone is worried.
@@ -41,6 +42,7 @@ For the latest/newest saved user report, pass selection=latest_report to search_
 For an unresolved this/it in a lookup, call identify_shown_object first to identify what is being shown. Then use its resolved description to search both visual history and saved statements. If identity is ambiguous or unresolved, ask; never replace missing visual identity with a guess from recent conversation. Use look_for_object for current or historical visual questions. Resolve follow-ups from conversation.
 Use departure_reminder to create, list or cancel next-departure reminders. Timed reminders are not supported.
 Compose the final spoken reply naturally from tool evidence; tool answers are factual summaries, not a script to recite. Combine relevant visual findings and saved statements in one short reply. Preserve exact meaning, dates, uncertainty, and the difference between a plan and observed placement. Never turn a plan into a confirmed location.
+When a visual tool returns status=candidate, it found a possible match, not a confirmed identification of the requested belonging. Preserve that identity uncertainty in ordinary spoken words even if its visibility is visible. Unless the user has explicitly confirmed the match, do not turn the candidate into a definite sighting of their item. Keep historical time and current-location uncertainty separate; a saved report is still only what the user said.
 Never guess a location or sighting. Preserve uncertainty and relative time from tool evidence.
 Past conversation is not new visual evidence; use tools to check current or last-seen questions.
 Use physical places, not image coordinates. Never recite verification boilerplate.
@@ -523,7 +525,12 @@ async def serve(socket, voice):
                             await send({"type": "cancel_tool", "id": identifier})
 
         voice_model = os.environ.get("NYX_VOICE_MODEL", "google/gemini-3.5-flash")
-        log("voice_model_selected", model=voice_model, reasoning_effort="low")
+        log(
+            "voice_model_selected",
+            model=voice_model,
+            reasoning_effort="low",
+            instructions_version=INSTRUCTIONS_VERSION,
+        )
         session = AgentSession(
             stt=RealtimeSTT(log),
             tts=tts,

@@ -1,5 +1,16 @@
 # Technical architecture
 
+## Spoken evidence and utterance boundaries — 2026-11-15 depth pass
+
+Sarvam finals are committed once per observed utterance boundary, with bounded integer-index
+deduplication. Early finals wait for end/new start/graceful session end. Empty/duplicate packets
+do not create new turns; repeated words in distinct utterances remain distinct. No acoustic
+timestamp is invented. Native history tool schemas advertise only executable backend windows.
+Spoken instruction version2 retains possible identity for visual candidates, separate from past
+time/current-location uncertainty and user reports. Explicit object grounding requires whole
+Unicode phrases outside destination spans, with no word-order requirement. See
+[R23](research/R23-spoken-depth.md). UI and the local wake recognizer are unchanged.
+
 ## Report selection and live invalidation — 2026-11-15
 
 Typed/native spoken tools distinguish `selection=latest_report` from `all`, independently of

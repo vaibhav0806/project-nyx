@@ -1,5 +1,17 @@
 # Decisions and open choices
 
+## Prefer measured spoken repairs over unproven vision/wake changes — 2026-11-15 depth pass
+
+Keep general utterance-boundary, Unicode phrase/destination-span grounding and executable tool
+schema fixes. Preserve candidate identity uncertainty in spoken replies. Native heldout6/6 tool
+choices dispatched, but this does not measure acoustic or whole-answer accuracy. See
+[R23](research/R23-spoken-depth.md). Keep Lite/prompt7 and existing wake settings: the stricter
+visual prompt did not improve the wider development proxy score; the stronger model exhausted
+its per-run allowance early; wake VAD/prompt/beam ablations did not improve the synthetic result.
+Do not compensate with fixture-derived rules or aliases. [R22](research/R22-visual-depth.md)
+records failures/costs. Category confusion, wake false/missed activations and household acceptance
+remain explicit gates rather than silently promoted experiments.
+
 ## Preserve report intent and explicit temporal selection — 2026-11-15
 
 Add explicit latest-report selection, independent of historical as-of state, with unknown/tied

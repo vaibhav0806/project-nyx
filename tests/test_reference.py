@@ -125,3 +125,28 @@ def test_complete_explicit_phrases_remain_supported(object_name, text):
         placement=True,
     )
     assert result["status"] == "resolved"
+
+
+@pytest.mark.parametrize(
+    "text,object_name,destination",
+    [
+        ("In the kitchen, I will keep my phone.", "phone", "kitchen"),
+        ("दराज में मैं अपना चश्मा रखूँगी।", "चश्मा", "दराज"),
+        ("I'm in the kitchen. My phone will stay in the kitchen.", "phone", "kitchen"),
+    ],
+)
+def test_explicit_object_can_follow_the_destination(text, object_name, destination):
+    result = resolve_reference(
+        verifier(
+            decision(
+                object_description=object_name,
+                destination=destination,
+                source="explicit_text",
+                frame_index=-1,
+            )
+        ),
+        text,
+        [],
+        placement=True,
+    )
+    assert result["status"] == "resolved"

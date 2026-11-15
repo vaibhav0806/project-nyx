@@ -115,7 +115,7 @@ class CloudVerifier:
             "spoken_context_prompt_version": 2,
             "reference_model": os.environ.get("NYX_REFERENCE_MODEL", "google/gemini-3.5-flash"),
             "reference_prompt_version": 2,
-            "reference_grounding_policy": "explicit-unicode-phrase-v2",
+            "reference_grounding_policy": "explicit-unicode-phrase-v3/destination-spans",
             "positive_confirmation": "category-location-v1" if self.visual_confirmation else "off",
             "correction_prompt_version": 1,
             "departure_prompt_version": 4,

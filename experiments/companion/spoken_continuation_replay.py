@@ -1,13 +1,14 @@
 """Four synthetic-evidence continuations of actual native model tool choices; manual audit."""
 
 import argparse
+import hashlib
 import json
 import time
 from pathlib import Path
 
 from experiments.companion.correction_replay import BudgetedClient
 from experiments.companion.embedding_replay import budget_snapshot
-from nyx.realtime import INSTRUCTIONS
+from nyx.realtime import INSTRUCTIONS, INSTRUCTIONS_VERSION
 
 # These are explicit synthetic evidence fixtures, never application reply templates.
 CASES = [
@@ -103,6 +104,10 @@ def run(development, holdout, output, max_spend):
     output.mkdir(parents=True, exist_ok=False)
     client = BudgetedClient(max_spend, max_requests=8)
     report = {
+        "total_cases": len(CASES),
+        "status": "running",
+        "instructions_version": INSTRUCTIONS_VERSION,
+        "instructions_sha256": hashlib.sha256(INSTRUCTIONS.encode()).hexdigest(),
         "budget_before": client.initial,
         "cases": [],
         "limitations": "Actual spoken-model continuations with explicitly synthetic tool evidence and original model-selected calls. Manual author audit of four predeclared criteria, not acoustic or end-to-end backend acceptance. No evidence was uploaded from a household.",
@@ -148,6 +153,7 @@ def run(development, holdout, output, max_spend):
                 json.dumps(report, indent=2, ensure_ascii=False) + "\n"
             )
     finally:
+        report["status"] = "complete" if len(report["cases"]) == len(CASES) else "incomplete"
         report["budget_after"] = budget_snapshot(client)
         report["provider_usage"] = client.usage
         (output / "results.json").write_text(
