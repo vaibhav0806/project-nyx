@@ -2,6 +2,12 @@
 
 ## Latest authorization — 2026-11-15
 
+The subsequent user request authorized a deeper [visual/spoken reliability pass](docs/superpowers/plans/2026-11-15-visual-spoken-depth.md),
+with broader testing and general fixes, never fixture-specific runtime rules. Keep the same
+branch-only publication, no-UI, source-preservation and cumulative $2 provider-test boundaries.
+R22/R23 record measured failures and rejected alternatives; do not promote vision/wake changes
+merely to improve a small fixture score. Real household/acoustic acceptance remains separate.
+
 The user authorized the next [recall/context engineering pass](docs/superpowers/plans/2026-11-15-recall-context.md)
 and sustained execution, excluding demo production. Stay on `work/memory-reliability`; make
 regular commits. Optional pushes are authorized only to this branch, never main. Main stays stable,

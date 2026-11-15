@@ -46,6 +46,6 @@ household/acoustic acceptance. Final wake ablations did not justify a runtime ch
 
 ### Task 4: Final verification and branch backup
 
-- [ ] Review inline; run full tests, lint/format, JS, links/diff and synthetic browser as relevant.
-- [ ] Update milestones/architecture/decisions; explicitly retain real household/acoustic/soak gates.
-- [ ] Commit clean branch and optionally push it; verify main/UI unchanged.
+- [x] Review inline; run full tests, lint/format, JS, links/diff and synthetic browser as relevant.
+- [x] Update milestones/architecture/decisions; explicitly retain real household/acoustic/soak gates.
+- [x] Commit clean branch and optionally push it; verify main/UI unchanged.

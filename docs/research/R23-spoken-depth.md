@@ -3,6 +3,10 @@
 Date: 2026-11-15. Status: protocol regressions/fixes implemented; expanded workflow testing ongoing.
 Owner: inline implementation. Decision: repair general turn-boundary faults without UI changes.
 
+Runtime: Python3.12.11 on macOS15.7.3 arm64; LiveKit Agents/Sarvam plugin1.8.10,
+faster-whisper1.2.1, Pillow12.3.0 and NumPy2.5.4. Local wake model uses the existing pinned
+faster-whisper-tiny.en revision0d3d19a32d3338f10357c0889762bd8d64bbdeba from cache only.
+
 ## Root cause and protocol experiment
 
 The custom Sarvam adapter emitted every transcript.final immediately, even when vad.speech_end
@@ -127,6 +131,24 @@ $1.904111815/2; after the fresh evidence conversations1.912153315/2. Settlement 
 No paid Sarvam acoustic experiment was performed. Final diagnostic/check outcomes follow in milestones.
 After the last resumed Hindi continuation, observed cumulative key usage was$1.966184815/2.
 No further paid inference is authorized by this report; settlement may lag.
+
+## Reproduction
+
+Use a fresh output directory. Paid commands retain the original cumulative $2 ceiling; the key
+is now nearly exhausted, so these are reproduction instructions, not a request to run more.
+Exact instruction/model/schema fingerprints and raw outputs remain in the ignored artifacts.
+The harness positional-binding correction and late-boundary regression are preserved in Git.
+
+```sh
+uv run --no-sync pytest -q tests/test_realtime_protocol.py tests/test_realtime.py tests/test_reference.py tests/test_spoken_policy_cases.py
+HF_HUB_OFFLINE=1 uv run --no-sync python -m experiments.companion.wake_audio_replay --output data/runs/new-local-wake
+uv run --env-file .env --no-sync python -m experiments.companion.spoken_policy_replay --output data/runs/new-native-holdout --split holdout --max-spend 0.06
+uv run --env-file .env --no-sync python -m experiments.companion.spoken_fresh_evidence --output data/runs/new-fresh-evidence --max-spend 0.05
+```
+
+The last Hindi resumption uses the preceding artifact's actual follow-up request and a synthetic
+empty report result; it makes no new visual finding. No output from that resumption is a fresh
+dataset example. Final application verification is in [milestones](../milestones.md).
 
 ## Primary references, inspected 2026-11-15
 

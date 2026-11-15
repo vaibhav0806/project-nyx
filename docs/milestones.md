@@ -1,5 +1,51 @@
 # Milestones
 
+## Deeper visual/spoken engineering pass — 2026-11-15
+
+The user authorized further testing/iterations with general fixes, preserving the work branch,
+stable main, contributor UI, original media and existing spending/storage boundaries. The
+[depth plan](superpowers/plans/2026-11-15-visual-spoken-depth.md) and findings in
+[R22](research/R22-visual-depth.md)/[R23](research/R23-spoken-depth.md) record the actual scope.
+
+Implemented after failing regressions: one final transcript per observed utterance boundary;
+bounded duplicate-final suppression; retained ended boundaries across a later speech start;
+whole Unicode object-name matching outside destination spans without a word-order assumption;
+native history schemas constrained to executable backend windows; and spoken candidate identity
+and temporal precision preservation. No fixture IDs, object exception lists, aliases, scene
+coordinates or canned replies were added to runtime code. UI/main/SQLite/wake settings stay.
+
+Broader visual baseline:80 frozen public-photo category/count proxy cases,48 development and32
+heldout. Lite scored41/48 and27/32. These are imperfect annotation proxies, not household/final-
+answer accuracy. Stronger Flash stopped after17/48 under its per-run guard; a general stricter
+prompt stopped after47/48 with39 correct and7 proxy-unsafe positives versus baseline6. Unrun
+cases remain in denominators. No visual-default promotion: prompt7/Lite and opt-in corroboration
+are retained. Category/lookalike confusion and source-label caveats remain open.
+
+Native spoken model: fresh frozen household development/heldout expected choices dispatched6/6
+each through actual SDK/tool methods, with synthetic external results. A shape-only baseline
+had hidden an invalid48-hour argument; actual baseline executable score was5/6. The corrected
+development score rebinds preserved model messages after a harness positional-argument bug;
+it is not another provider run. Diagnostic/fresh semantic continuations preserve uncertainty,
+failed-save clarification and source IDs after identified identity/time-of-day errors. These
+remain author-audited examples, not free-form/acoustic/full-household accuracy.
+
+Actual cached local wake inference on10 generated English clips scored5/10:1/4 intended wakes,
+4/4 ordinary negatives and2/2 near-name false activations. VAD, priming and beam ablations did
+not improve it; no wake runtime change was promoted. Hands-free wake reliability is still a
+product gate. No hardware, private uploads, live Sarvam audio or demo production was used.
+
+Final verification after the last fault regression: **515 tests passed in22.68s**, Ruff lint
+and format checks passed (166 files), three JavaScript syntax checks passed, all checked local
+Markdown targets resolved and diff checks passed. Synthetic Chrome speech/cancellation, playback-denial,
+library/candidate controls and activity/reminder checks passed with zero page errors in
+data/runs/visual-spoken-depth-browser-boundaries. Source/UI preservation was verified. Author
+review only; no hosted CI, independent review, PR or merge-readiness claim. Branch-only backup
+is authorized; final Git verification records its remote head without touching main.
+Observed cumulative OpenRouter key usage after the last paid test:$1.966184815/2, settlement
+may lag. No further paid inference in this pass. Long-duration hardware, real household/user
+acceptance, acoustic speech quality, exact calendar-date fidelity and ten-day continuous storage
+remain unproven; the1 GiB stop-without-delete cap is unchanged.
+
 ## Recall/context engineering pass — complete on work branch, 2026-11-15
 
 User approved sustained engineering excluding demo production, staying on `work/memory-reliability`

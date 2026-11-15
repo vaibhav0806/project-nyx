@@ -3,6 +3,11 @@
 Date: 2026-11-15. Status: frozen baseline comparisons in progress. Owner: inline implementation.
 Decision: whether a general visual-model/prompt change improves evidence enough for selection.
 
+Runtime: Python3.12.11, macOS15.7.3 arm64, Pillow12.3.0 and NumPy2.5.4 in the locked environment.
+Starting application branch head e8be0e7; frozen comparison manifest committedfc5da3e. Individual
+artifacts preserve actual model/prompt fingerprints and source hashes rather than inferring
+them from the current code after rejected candidates were reverted.
+
 ## Method
 
 Eighty frozen cases from the same forty licensed public COCO photos used in R16; forty positive
