@@ -1,5 +1,21 @@
 # Decisions and open choices
 
+## Reject default visual/wake migrations that fail broader checks — 2026-11-15 funded pass
+
+The approved test budget is now$5 total. Broader wake tests reject both the open-vocabulary
+keyword detector (recall loss) and leading padding (heldout false activations16→19); keep the
+current recognizer/settings. Complete Flash/prompt9 development improved the category proxy, but
+heldout27/32 matched Lite with four unsafe findings versus three. Cached whole-scene confirmation
+did not fix those heldout category errors and withheld valid proxy controls in development.
+Reject these default migrations; keep Lite/prompt7. Explicit object-model and scene-policy switches
+preserve bounded reproducible alternatives without changing general/departure vision.
+
+Whole-scene confirmation does help the constructed screen/poster boundary: development11/12
+(one poster false remains), heldout12/12 versus9/12 ungated. That narrow gain does not justify a
+global default or a household accuracy claim. Confirmation/scene policy remain opt-in. No fixture
+exceptions, private uploads, hardware capture, new provider account or UI changes. See
+[R24](research/R24-wake-detector.md) and [R25](research/R25-funded-visual.md).
+
 ## Prefer measured spoken repairs over unproven vision/wake changes — 2026-11-15 depth pass
 
 Keep general utterance-boundary, Unicode phrase/destination-span grounding and executable tool

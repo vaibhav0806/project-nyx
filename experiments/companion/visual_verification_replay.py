@@ -14,7 +14,11 @@ from experiments.companion.embedding_replay import budget_snapshot
 from experiments.companion.visual_cases import build_cases, resume_cases, score
 from nyx.verification import CloudVerifier
 
-MODELS = {"lite": "google/gemini-3.5-flash-lite", "flash": "google/gemini-3.5-flash"}
+MODELS = {
+    "lite": "google/gemini-3.5-flash-lite",
+    "flash": "google/gemini-3.5-flash",
+    "luna": "openai/gpt-6-luna",
+}
 
 
 def freeze(data, output):

@@ -1,5 +1,18 @@
 # Technical architecture
 
+## Isolated object-verification experiments — 2026-11-15
+
+`NYX_OBJECT_VISION_MODEL` can override object inspection without changing general/departure
+`NYX_VISION_MODEL` or the typed planner. By default object inspection inherits the existing Lite
+vision model and prompt7. `NYX_VISUAL_SCENE_POLICY=1` enables experimental prompt9, distinguishing
+physical objects from depictions. `NYX_VISUAL_CONFIRMATION=1` independently checks positive
+scene context/category/attributes/location with the existing reference model; it also applies to
+reference-image candidates, with extra calls counted. It cannot create a new location and fails
+closed on malformed/ambiguous/unclear responses; provider failure propagates. The versioned
+structured whole-scene policy remains opt-in after mixed broader evaluation. Model/policy
+fingerprints record these choices; shared embedding vectors/indexes and UI contracts are unchanged.
+See [R25](research/R25-funded-visual.md).
+
 ## Spoken evidence and utterance boundaries — 2026-11-15 depth pass
 
 Sarvam finals are committed once per observed utterance boundary, with bounded integer-index
@@ -23,7 +36,7 @@ bounded persisted turn/source flags through SDK message-ID mappings, withholding
 and tool evidence without mutating saved or SDK history. Restart preserves structured query
 constraints. See [R19](research/R19-recall-context.md).
 
-An experimental `NYX_VISUAL_CONFIRMATION=1` gate checks positive Lite findings with the existing
+An experimental `NYX_VISUAL_CONFIRMATION=1` gate checks positive object findings with the existing
 reference model. It only withholds unsupported category/location claims, counts its extra calls,
 and fails honestly on provider outage. Mixed public replay results and extra latency keep it off
 by default. It does not establish instance identity or remove default-model category mistakes.

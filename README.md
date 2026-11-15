@@ -162,6 +162,12 @@ LiveKit manages conversational turns, interruptions, streaming speech, and playb
 
 Spoken turns and tool selection use Gemini 3.5 Flash (`NYX_VOICE_MODEL`); the typed planner uses GPT-6 Luna.
 
+Object checks inherit the Lite vision model. Backend-only `NYX_OBJECT_VISION_MODEL` can override
+that role; `NYX_VISUAL_SCENE_POLICY=1` and `NYX_VISUAL_CONFIRMATION=1` enable experimental scene
+and positive-confirmation checks. These remain opt-in after mixed broader results; see
+[visual evaluation](docs/research/R25-funded-visual.md). Wake experiments also retained the current
+recognizer after rejected regressions ([findings](docs/research/R24-wake-detector.md)).
+
 See the [architecture](docs/architecture.md) for the pipeline and [decisions](docs/decisions.md) for why it is built this way.
 
 ## Development

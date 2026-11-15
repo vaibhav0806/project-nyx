@@ -112,3 +112,23 @@ isolating scene policy.74 focused cloud/verification/answer tests passed. This i
 rejection, not completion of household visual reliability. Heldout misses include a phone
 classified as a spray container and unresolved multiple-item choices. Category/count annotation
 limits remain; no runtime fixture exceptions or relabeling were added.
+
+## Bounded next candidate
+
+After rejecting Flash/default gate, evaluate one additional primary model rather than modifying
+prompts against the opened heldout errors. The already-configured planner modelGPT6Luna accepts
+image input and structured output according to the official
+[OpenRouter model catalog](https://openrouter.ai/openai/gpt-6-luna), checked2026-11-15. Its earlier
+independent-checker trial was rejected; primary inference is a distinct, unmeasured role.
+Compare prompt9/Luna on the frozen48 development cases only, no gate. If development justifies
+selection, use newly frozen source-disjoint public images and a fresh Lite baseline for heldout;
+the opened32-case heldout cannot serve as fresh selection evidence. Budget guards remain$5 total,
+no new account. This is a bounded model comparison, no further fixture-driven prompt tuning.
+
+The frozen physical-scene heldout completed12/12, versus9/12 on its preserved ungated primary
+judgments. All four original controls remained proxy-correct and eight synthetic screen/poster
+negatives were withheld or absent. This supports the optional gate for this constructed boundary,
+not a global default or natural household accuracy. It does not erase the one development
+poster false finding or mixed category results. Observed key usage after this diagnostic:
+3.073211915/5, settlement may lag. Baseline prompt7 and opt-in prompt9 bytes were checked against
+their committed evaluation versions; introducing the config switch did not alter either prompt.
