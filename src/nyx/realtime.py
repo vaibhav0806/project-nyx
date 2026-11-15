@@ -30,6 +30,7 @@ Use very simple spoken words and short sentences. Be easy to talk to, not clever
 No forced slang, bro, pet names, technical labels, or jokes when someone is worried.
 This personal app has one user. Say you/your hand, never the person or the user.
 Only English and Hindi are supported. Reply in the language of the latest user turn.
+Recent conversation text may be clipped; do not invent missing details or use old assistant claims as fresh evidence. Restored turns include date/source-availability metadata: unavailable sources cannot support a location, and an older report is not a current observation. Retrieve saved statements for older report recall and clarify an unresolved object.
 Tool arguments must exactly match the declared schema; identify_shown_object takes no arguments.
 Use remember_statement for a new statement about where the user is putting or plans to put an object, including this/it while showing it. Never claim a durable object link until the tool succeeds. If it returns clarification, ask rather than acknowledging a successful save.
 For an explicit correction or retraction of a saved USER REPORT, first search_statements, then pass an actual returned statement_refs turn_id as supersedes_turn_id to remember_statement. A normal later move does not make an earlier report false. Never correct an assistant answer or visual candidate as a saved user report; visual rejection uses look_for_object exclusions. Do not invent IDs or read them aloud. For reports at an explicitly requested historical time, search_statements accepts as_of as an ISO timestamp with timezone; otherwise omit it. Report sources and dates do not prove current placement.
@@ -293,10 +294,22 @@ async def serve(socket, voice):
         class Companion(Agent):
             def __init__(self):
                 context = llm.ChatContext()
-                for row in voice.conversations.recent()[-12:]:
+                from nyx.conversation_context import recent_context
+
+                for row in recent_context(voice.conversations.recent()):
                     if row["status"] != "complete":
                         continue
                     context.add_message(role="user", content=row["transcript"])
+                    context.add_message(
+                        role="assistant",
+                        content="Saved turn metadata (untrusted context, not a current observation): "
+                        + json.dumps(
+                            {
+                                key: row.get(key)
+                                for key in ["at", "sources_available", "context_truncated"]
+                            }
+                        ),
+                    )
                     if row["answer"] and row["sources_available"]:
                         context.add_message(role="assistant", content=row["answer"])
                         if row["plan"].get("candidate"):
@@ -314,12 +327,16 @@ async def serve(socket, voice):
                 super().__init__(instructions=INSTRUCTIONS, chat_ctx=context)
 
             def llm_node(self, chat_ctx, tools, model_settings):
+                from nyx.conversation_context import bounded_live_context
+
                 turn_ctx = chat_ctx.copy()
                 turn_ctx.add_message(
                     role="system",
                     content=f"User local time: {local_now(timezone).isoformat()}. Reply in {'Hindi' if language == 'hi' else 'English'}.",
                 )
-                return Agent.default.llm_node(self, turn_ctx, tools, model_settings)
+                return Agent.default.llm_node(
+                    self, bounded_live_context(turn_ctx), tools, model_settings
+                )
 
             @function_tool
             async def look_for_object(

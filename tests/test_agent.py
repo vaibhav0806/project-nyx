@@ -557,7 +557,9 @@ def test_corrected_query_survives_time_widening_and_old_answer_is_not_evidence()
     )
 
     def decide(state):
-        assert state["conversation"] == context
+        assert [
+            {key: row[key] for key in ("transcript", "answer")} for row in state["conversation"]
+        ] == context
         assert state["message"] == "No, the blue water bottle, not that one"
         return next(choices)
 

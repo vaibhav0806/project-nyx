@@ -1,5 +1,15 @@
 # Technical architecture
 
+## Bounded source-aware conversation context — 2026-11-15
+
+`conversation_context.py` projects recent stored turns into bounded provider context without
+rewriting durable transcripts. Typed planning withholds unavailable assistant claims, retains
+query/source-time metadata and marks clipped text. Spoken startup restores those same boundaries;
+each live continuation retains whole user/tool exchanges and refuses an oversized active exchange
+before inference. Model-context limits are character/item bounds, not token/media/process-memory
+guarantees. Durable statement retrieval remains independent of recent context eviction. See
+[R19](research/R19-recall-context.md). Existing UI remains unchanged.
+
 ## Recovery of saved sources — 2026-11-15
 
 An explicit retry of a failed capture index may requeue the complete original recording after

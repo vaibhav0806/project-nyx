@@ -353,6 +353,63 @@ def test_spoken_turn_preserves_all_tool_sources_for_deletion(tmp_path, monkeypat
     assert not conversations.recent()[-1]["sources_available"]
 
 
+def test_spoken_context_restores_source_state_and_bounds_actual_model_continuation(
+    tmp_path, monkeypatch
+):
+    from livekit.agents import llm
+
+    from nyx.voice import Conversations
+
+    conversations = Conversations(tmp_path)
+    old = conversations.begin("Find my striped glasses case", {})
+    conversations.finish(old, "Deleted-only sighting beside the orange vase", ["deleted-video"])
+    with conversations.connect() as db:
+        db.execute("UPDATE turns SET at='2026-11-06T12:00:00Z' WHERE id=?", (old,))
+    conversations.invalidate("deleted-video")
+    calls = []
+    monkeypatch.setattr(
+        realtime.Agent.default, "llm_node", lambda agent, ctx, tools, settings: calls.append(ctx)
+    )
+
+    async def scenario(session, socket, voice):
+        restored = " ".join(
+            item.text_content for item in session.agent.chat_ctx.items if item.type == "message"
+        )
+        assert "Deleted-only sighting" not in restored
+        assert '"sources_available": false' in restored
+        assert "2026-11-06T12:00:00Z" in restored
+        context = llm.ChatContext()
+        context.add_message(role="system", content="Trusted instructions")
+        for index in range(80):
+            context.add_message(role="user", content=f"Old request {index}")
+            context.add_message(role="assistant", content="Old answer " * 200)
+        context.add_message(role="user", content="What about that striped case?")
+        context.items.extend(
+            [
+                llm.FunctionCall(
+                    call_id="active", name="search_statements", arguments='{"query":"striped case"}'
+                ),
+                llm.FunctionCallOutput(
+                    call_id="active",
+                    name="search_statements",
+                    output="Checked reports",
+                    is_error=False,
+                ),
+            ]
+        )
+        session.agent.llm_node(context, [], {})
+        assert len(calls[0].items) <= 48
+        active = [
+            item.call_id
+            for item in calls[0].items
+            if item.type in {"function_call", "function_call_output"}
+        ]
+        assert active == ["active", "active"]
+        assert len(context.items) > 160
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
 def test_spoken_tools_dispatch_report_correction_and_historical_time(tmp_path, monkeypatch):
     async def scenario(session, socket, voice):
         transcribe(session, "Correct my earlier phone report.")

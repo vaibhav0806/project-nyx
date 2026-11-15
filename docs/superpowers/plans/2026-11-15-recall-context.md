@@ -39,11 +39,11 @@ result rows retain selected IDs, exact answer, failures, elapsed time and provid
 
 Files: `voice.py`, `companion.py`, `verification.py`, `realtime.py`, relevant tests;
 small context helper only if responsibility warrants it. Consume Task 1 failure cases.
-- [ ] Reproduce invalidated typed answers and oversized typed/live history with failing real-boundary tests.
-- [ ] Implement bounded recent context, preserving attribution/query constraints; suppress unavailable
+- [x] Reproduce invalidated typed answers and oversized typed/live history with failing real-boundary tests.
+- [x] Implement bounded recent context, preserving attribution/query constraints; suppress unavailable
   assistant claims/metadata. Preserve current tool exchange and avoid unsupported summaries.
-- [ ] Verify typed/spoken wiring, long-chat/restart/pronoun regressions and source invalidation.
-- [ ] Run suite and quality development comparisons; commit only evidence-backed behavior.
+- [x] Verify typed/spoken wiring, long-chat/restart/pronoun regressions and source invalidation.
+- [x] Run suite and quality development comparisons; commit only evidence-backed behavior.
 
 ### Task 3: Measured recall/verification fixes
 

@@ -8,6 +8,8 @@ import time
 from datetime import UTC, datetime
 from types import GeneratorType
 
+from nyx.conversation_context import recent_context
+
 HISTORY_WINDOWS = (2, 24, 168, 240, 0)
 
 
@@ -117,7 +119,7 @@ def agent_steps(
     }
     state = {
         "message": message,
-        "conversation": context[-12:],
+        "conversation": recent_context(context),
         "observations": observations,
         "actions": trace,
         "available": available or {},

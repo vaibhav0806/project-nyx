@@ -47,10 +47,31 @@ Use fresh output directories to reproduce. Existing per-request spending guards 
 key usage and response costs under the original $2 ceiling. Raw fixture databases/outputs stay
 ignored. No camera/microphone, private media, new account or new paid service.
 
-## Audit finding and next decision
+## Source-aware context change
 
-Typed planning currently serializes old assistant answers even when `sources_available` is false;
-the spoken startup path suppresses those answers. Tests will reproduce that provider-boundary
-leak and oversized context before fixes. Current small quality cases passing is not a reason to
-leave the leak. Retain durable source records and retrieved report state while bounding only
-provider context. Broader visual evidence, multi-day load and Hydra evidence are separate checks.
+The audit reproduced typed planning serializing old assistant answers even when
+`sources_available` was false. New provider-boundary tests failed before the fix. Shared recent
+context now suppresses unavailable answers/candidate/report-reference metadata, preserves the
+latest object-query constraints and dates, and projects only relevant metadata. It selects up to
+12 complete turns inside 12,000 Unicode characters, clipping individual user/assistant text at
+1,500/1,200 characters with a truncation flag. These are context copies; stored text is unchanged.
+It stops at a budget boundary instead of skipping a recent turn and reconnecting to older context.
+
+Spoken startup restores date/availability/truncation metadata, withholding invalidated answers.
+Each actual spoken model continuation keeps whole user/tool exchanges within 48 items and
+24,000 text characters (including instructions, arguments and tool output). Current calls/results
+stay paired. An oversized active exchange fails before inference rather than silently dropping
+its evidence. This bounds model text, not media, exact tokens, or all SDK process memory. The
+existing deletion API blocks active voice turns; restart restores source-filtered context.
+
+Tests use actual planner serialization, LiveKit ChatContext and our socket/turn persistence,
+replacing external speech/model IO. An 80-turn live-history test preserves the current tool pair
+and trusted instructions. Raw saved rows remain unchanged. Planner prompt version is now 46;
+context policy `bounded-source-aware-v1` is recorded in verifier metadata. No UI edits.
+
+The selected development replay again passed 8/8 workflows, 50 provider requests. Query p50
+6308 ms/p95-nearest-rank7209 ms; baseline was 6548.5/7472 ms. One small run does not establish a
+latency improvement. Observed spend $0.040982475, final key snapshot $1.345259015/2. Both baseline
+and selected runs include failures in the denominator; selected holdout evaluation remains pending.
+Artifact: `data/runs/recall-context-selected-dev/results.json`. Further visual evidence, multi-day
+load and Hydra evidence are separate checks.

@@ -1,5 +1,15 @@
 # Milestones
 
+## Next recall/context pass — in progress, 2026-11-15
+
+User approved sustained engineering excluding demo production, staying on `work/memory-reliability`
+with regular commits and optional branch-only pushes. Main/UI/source preservation remains.
+Frozen report-attribution baseline: development 8/8, held-out aggregate 7/8. Detailed held-out
+outcomes are kept out of tuning. Source-aware context fixes reproduce and suppress invalidated
+typed answers, bound recent/live model context and retain dates/active tool exchanges. Selected
+development replay remains 8/8; no broad quality/latency claim. See [R19](research/R19-recall-context.md).
+Further measured retrieval checks, multi-day capacity/recovery replay and Hydra verdict are pending.
+
 ## Local engineering checkpoint — 2026-11-15
 
 The bounded [memory reliability plan](superpowers/plans/2026-11-15-memory-reliability.md) is complete

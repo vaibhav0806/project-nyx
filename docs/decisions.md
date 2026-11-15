@@ -1,5 +1,14 @@
 # Decisions and open choices
 
+## Bound context copies and preserve source truth — 2026-11-15
+
+Use one source-aware recent-context projection for typed/spoken recall, suppressing invalidated
+assistant claims and keeping known dates/query constraints. Bound live model context by whole
+user/tool exchanges, preserving active function calls/results. Do not generate an unverified
+summary or rewrite saved reports to save context. The frozen development attribution cases remain
+8/8 after the change; that small replay does not establish household accuracy or faster service.
+See [R19](research/R19-recall-context.md). Keep decay/reference nomination defaults unchanged.
+
 ## Preserve corrected reports and keep recency experimental — 2026-11-15
 
 Use explicit, attributed correction/retraction edges between actual saved report IDs. Preserve
