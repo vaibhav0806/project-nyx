@@ -2,6 +2,11 @@
 
 ## Latest authorization — 2026-11-15
 
+The latest user increased the OpenRouter test-key limit to **$5 total**, superseding the prior
+$2 cumulative test ceiling for new work. Verified key metadata reports limit5 and prior usage
+about1.97. This is not an additional$5 and does not authorize account purchases or uncapped tests.
+Continue wake/visual/reliability work on the same branch; all UI/source/main boundaries remain.
+
 The subsequent user request authorized a deeper [visual/spoken reliability pass](docs/superpowers/plans/2026-11-15-visual-spoken-depth.md),
 with broader testing and general fixes, never fixture-specific runtime rules. Keep the same
 branch-only publication, no-UI, source-preservation and cumulative $2 provider-test boundaries.

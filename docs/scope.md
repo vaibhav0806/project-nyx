@@ -1,5 +1,14 @@
 # Scope
 
+## Renewed reliability work and budget — 2026-11-15
+
+The user authorized continued reliability work/public datasets and explicitly raised the
+OpenRouter key's test allowance to **$5 total**. This supersedes the earlier $2 ceiling for new
+tests; historical reports retain their original limits. Keep per-run guards and settlement
+headroom, no uncapped spending/new paid account, no hardware/private-media developer tests,
+no main/UI changes and the existing source-preservation/recording cap. Work remains inline on
+work/memory-reliability with regular commits and optional branch-only backups.
+
 ## Local backend reliability work — 2026-11-15
 
 The follow-up pass includes source-aware bounded context, candidate-pool balancing and synthetic
