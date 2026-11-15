@@ -1,5 +1,23 @@
 # Decisions and open choices
 
+## Preserve report intent and explicit temporal selection — 2026-11-15
+
+Add explicit latest-report selection, independent of historical as-of state, with unknown/tied
+date clarification. Keep affirmative unfulfilled intentions distinct from negated plans and
+completed placements. Recheck source availability during live spoken sessions, including after
+startup. Fresh report-intent dev/holdout cases improved 3/6 and4/6→6/6 each; original cases are
+now diagnostic regressions. These are bounded report-attribution results. See
+[R19](research/R19-recall-context.md).
+
+## Keep positive visual corroboration experimental — 2026-11-15
+
+A real public replay exposed a can-as-bottle false positive. A bounded stronger-model gate
+withheld that claim but the rerun did not establish better overall positive-source accuracy
+(4/5→3/5, with ambiguity and a first-pass remote miss), and added latency. Keep
+`NYX_VISUAL_CONFIRMATION=1` opt-in; do not claim the default error is resolved. Further labeled
+hard negatives/attributes are a product gate, not a reason to promote unproven behavior.
+See [R19](research/R19-recall-context.md).
+
 ## Retain SQLite after the Hydra interface gate — 2026-11-15
 
 The current public engine revision matches the deployed Nyx image. Fresh isolated controls pass,
@@ -14,8 +32,10 @@ Select four-per-source rounds for semantic latest-history candidate pools, based
 dense-source miss and 24 cached-vector development queries with no individual regressions.
 Known-session minute buckets prevent clip boundaries from bypassing the reservation. Retain
 the existing 64/12 pool/check bounds, filters, source IDs and verification. Explicit opt-out is
-`NYX_SOURCE_BALANCED_CANDIDATES=0`; final held-out/load validation remains required. Ordinary
-similarity search is unchanged. See [R19](research/R19-recall-context.md).
+`NYX_SOURCE_BALANCED_CANDIDATES=0`. Sixteen held-out candidate queries improved under crowding
+without uncrowded regressions; the 10k-vector query overhead is recorded separately. Ordinary
+similarity search is unchanged. See [R19](research/R19-recall-context.md) and
+[R21](research/R21-multi-day-runtime.md).
 
 ## Bound context copies and preserve source truth — 2026-11-15
 

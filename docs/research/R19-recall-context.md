@@ -1,6 +1,6 @@
 # R19 — Complete report recall and context management
 
-Date: 2026-11-15. Status: report/context and candidate evaluations complete; visual review ongoing.
+Date: 2026-11-15. Status: bounded evaluations and author review complete; broader accuracy unproven.
 Owner: inline implementation. Decision affected: next recall/context reliability pass.
 
 ## Method and frozen cases
@@ -170,3 +170,35 @@ the category/location error. This is a diagnostic failure to address, not proof 
 neighbors or category labels establish a correct visual answer. Artifact:
 `data/runs/visual-workflow-final/results.json`. A bounded corroboration experiment follows before
 any claim that this check is resolved.
+
+The opt-in `NYX_VISUAL_CONFIRMATION=1` route asks the existing reference model to check positive
+Lite findings against category, attributes and the proposed location. It can only withhold a
+finding; it cannot introduce a new location. Disagreement/malformed replies become uncertain;
+provider failure propagates instead of reusing the positive. Negative/uncertain first checks do
+not add a call. Recorded vision-request counts include corroboration. Reference-image comparison
+already uses the stronger model and retains its existing identity/ambiguity guards.
+
+The second complete replay scored **3/5**, versus 4/5, with no incomplete cases. It rejected the
+wrong can, then reached the actual bottle scene and asked for clarification because multiple
+bottles were present. That clarification is sensible but does not pass the strict positive-source
+score. A remote query became a miss because its first model classified the Apple remote as an
+iPod; it never reached corroboration. These are independent stochastic first-pass runs, not an
+isolated causal estimate of the gate. Cup/phone candidates and blank abstention passed. Query
+times in baseline/corroborated milliseconds: bottle7890/11375, cup6344/10016, remote4704/9577,
+phone2690/5685, blank1810/1787. Request count19→25; all use public/generated sources.
+
+**Decision:** keep corroboration opt-in. No measured overall quality win or broad identity
+accuracy is established. The selected default retains a known can/bottle false-positive risk;
+candidate confirmation and honest uncertainty remain necessary. Do not present the five-case
+diagnostic as final-answer accuracy. More manually labeled category/location hard negatives,
+fine attributes and multiple-object cases are required before promoting this route.
+
+```sh
+NYX_VISUAL_CONFIRMATION=1 NYX_HISTORY_CONCURRENCY=1 uv run --env-file .env --no-sync python -m experiments.companion.visual_workflow_replay --data data/evaluation/coco-small --output data/runs/visual-workflow-corroborated --max-spend 0.10
+```
+
+Both variants use real decoding/embeddings/visual models, not fixed inference judgments.
+Final observed cumulative key snapshot $1.625779715/2; billing settlement can lag. The second
+run's immediate usage delta was zero despite recorded requests, so it is not a zero-cost claim.
+No more paid evaluation is needed for this bounded decision. Final deterministic/browser
+verification is recorded in [milestones](../milestones.md).

@@ -10,6 +10,12 @@ Freshness ranking remains experimental/off by default. Sampling retains a period
 between activity events, with higher frame count and remaining brief-event misses documented.
 See [memory policy](research/R17-memory-policy.md) and [coverage findings](research/R15-sampling-coverage.md).
 
+Latest saved report and historical report state are explicit backend constraints; missing/tied
+report dates clarify. Intentions remain plans when not yet carried out. Bounded recent context
+does not replace durable recall, and deleted evidence is withheld during an ongoing spoken
+session as well as after restart. Public/synthetic evaluations and remaining visual-category
+errors are documented in [recall/context findings](research/R19-recall-context.md).
+
 ## Pilot horizon — 2026-11-03
 
 The user selected ten days of searchable history and approved the integrated reliability

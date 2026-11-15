@@ -7,6 +7,12 @@ multi-day/fault/capacity evaluation. Ten days is a searchable-memory target, not
 to compress continuous footage into 1 GiB. The existing cap remains until a separate capacity
 choice; no expiry or cap increase was introduced. See [R21](research/R21-multi-day-runtime.md).
 
+The latest user instruction permits optional pushes only to `work/memory-reliability`, with
+regular commits on that branch. Main remains stable; demo production is excluded from this pass.
+Positive visual corroboration is experimental/off by default after mixed evaluation, with no
+new provider/account. Broader household/speech acceptance and actual continuous ten-day operation
+remain unproven; this bounded engineering pass does not claim product completion.
+
 The user authorized the memory reliability implementation, then required a local work branch,
 no push to main and no UI changes. Preserve contributor frontend work. New adaptive indexing may
 use the evaluated two-second sampling floor; this changes derived samples, not source retention

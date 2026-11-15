@@ -175,7 +175,9 @@ def history_steps(
                 else [verifier.inspect(images[0], object_query)]
             )
             timings["verification_ms"] += round((time.perf_counter() - phase) * 1000)
-        timings["vision_requests"] += len(batch)
+        timings["vision_requests"] += len(batch) + sum(
+            judgment.get("confirmation_requests", 0) for judgment in judgments
+        )
         for candidate, judgment in zip(batch, judgments, strict=True):
             item = {**evidence_links(candidate), "judgment": judgment, "model_checked": True}
             checked.append(item)

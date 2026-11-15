@@ -263,8 +263,9 @@ def test_visible_requires_exactly_one_reported_match(count):
 
 
 @pytest.mark.parametrize("ambiguous_first", [False, True])
+@pytest.mark.parametrize("confirmation_requests", [0, 1])
 def test_batch_keeps_candidate_order_and_stops_after_first_decisive_batch(
-    tmp_path, video, ambiguous_first
+    tmp_path, video, ambiguous_first, confirmation_requests
 ):
     from test_nyx import ColorEncoder
 
@@ -287,6 +288,7 @@ def test_batch_keeps_candidate_order_and_stops_after_first_decisive_batch(
                     "visibility": "uncertain" if i == 0 and ambiguous_first else "visible",
                     "ambiguous": i == 0 and ambiguous_first,
                     "location": "desk",
+                    "confirmation_requests": confirmation_requests,
                 }
                 for i in range(len(images))
             ]
@@ -299,7 +301,9 @@ def test_batch_keeps_candidate_order_and_stops_after_first_decisive_batch(
         except StopIteration as done:
             result = done.value
             break
-    assert result["timings"]["vision_requests"] == len(result["checked"])
+    assert result["timings"]["vision_requests"] == len(result["checked"]) * (
+        1 + confirmation_requests
+    )
     if ambiguous_first:
         assert result["status"] == "clarify" and result["evidence"] is None
     else:

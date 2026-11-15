@@ -1,5 +1,19 @@
 # Technical architecture
 
+## Report selection and live invalidation — 2026-11-15
+
+Typed/native spoken tools distinguish `selection=latest_report` from `all`, independently of
+historical `as_of`. Ordering follows known report timestamps after citation validation; missing
+or tied dates clarify. An unfulfilled plan remains an intention. Live model continuations recheck
+bounded persisted turn/source flags through SDK message-ID mappings, withholding stale assistant
+and tool evidence without mutating saved or SDK history. Restart preserves structured query
+constraints. See [R19](research/R19-recall-context.md).
+
+An experimental `NYX_VISUAL_CONFIRMATION=1` gate checks positive Lite findings with the existing
+reference model. It only withholds unsupported category/location claims, counts its extra calls,
+and fails honestly on provider outage. Mixed public replay results and extra latency keep it off
+by default. It does not establish instance identity or remove default-model category mistakes.
+
 ## Saved-capture availability — 2026-11-15
 
 Capture coverage and media/thumbnail serving check that captured originals retain their registered
@@ -15,7 +29,9 @@ or otherwise per video before filling the 64-slot pool. Later four-second divers
 12-frame verification bound remain. Filtering precedes ranking, ordinary search order is unchanged,
 and source timestamps/IDs are not rewritten. This prevents one dense recording from consuming
 every nomination before diversity runs. It does not create semantic episodes or prove presence.
-See [R19](research/R19-recall-context.md); larger-index/held-out checks remain pending.
+The held-out crowded comparison improved candidate Recall@12 without uncrowded regressions;
+10k-vector warm-query median increased 26.64→92.24 ms. See
+[R19](research/R19-recall-context.md) and [R21](research/R21-multi-day-runtime.md).
 
 ## Bounded source-aware conversation context — 2026-11-15
 
