@@ -1,5 +1,18 @@
 # Milestones
 
+## Decoded-import outage and restart recovery — 2026-11-16
+
+Valid decoded imports now retain their saved bytes when embedding/indexing fails. Partial
+evidence stays excluded. An explicit backend retry reuses the same source ID, capture clock and
+interval without a new video copy; ready/duplicate/unavailable/unmanaged/capture-owned requests
+are refused. Retained failed media counts toward the cap, and retry works at a full cap.
+Startup marks interrupted imports failed without inference while capture recovery stays separate.
+A real subprocess exited after a partial committed batch; metadata-only recovery and explicit
+retry passed with unchanged source hashes. **547 tests passed in25.47s**, lint/format/JS/diff and
+synthetic Chrome boundary checks passed. No paid inference, UI/main changes or user-source edits.
+See [R28](research/R28-import-restart-recovery.md), including the separate pre-copy model-load
+upload limit. This closes two backend failure paths, not the household recognition/wake gates.
+
 ## Unreadable-source recovery — 2026-11-16
 
 Strict full-video decode passed for all 92 local recording files with unchanged hashes; no cloud

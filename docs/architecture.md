@@ -1,5 +1,15 @@
 # Technical architecture
 
+## Decoded import preservation and explicit retry — 2026-11-16
+
+A decoded import survives embedding/index failure; failed frames remain excluded. Startup marks
+interrupted non-capture index rows failed without inference. Backend-only
+`POST /api/videos/{video_id}/retry-index` reuses a retained failed import under the same ID,
+clock and interval on the existing worker. Managed-path, capture-ownership, state and duplicate
+job guards apply. No auto-inference retry or UI change. Capture journal recovery stays separate.
+Model initialization before a saved copy/index row remains outside this recovery path. See
+[R28](research/R28-import-restart-recovery.md).
+
 ## Nonfatal source-frame failures — 2026-11-16
 
 History distinguishes an unreadable source from an observed negative. Decode failures/timeouts

@@ -1,5 +1,14 @@
 # Decisions and open choices
 
+## Preserve decoded imports on indexing failure — 2026-11-16
+
+Do not remove a successfully decoded saved video because embeddings or persistence failed.
+Exclude partial evidence, preserve bytes, and expose an explicit backend retry through the
+existing queue. Recover interrupted import metadata at startup without inference; captured
+footage keeps its journal protocol. Retry retains IDs/clocks and does not require a new video
+copy at a full budget. Invalid uploads retain cleanup. See [R28](research/R28-import-restart-recovery.md)
+for regressions, hard-exit evidence and the separate pre-copy model-initialization limit.
+
 ## Continue bounded recall past unreadable frames — 2026-11-16
 
 Keep decode failure separate from provider failure and an observed absence. Reproduced damaged-

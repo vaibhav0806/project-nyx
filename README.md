@@ -188,6 +188,11 @@ node --check src/nyx/web/voice.js
 node --check src/nyx/web/companion.js
 ```
 
+Decoded imports survive embedding/indexing failure. The backend can retry a retained failed
+import with `POST /api/videos/{video_id}/retry-index`; it returns the usual job ID and preserves
+source identity and capture time. Captures use their separate retry protocol. No automatic paid
+retry is enabled. See [recovery boundaries](docs/research/R28-import-restart-recovery.md).
+
 Browser tests use an installed Chrome. Automated developer verification uses synthetic inputs; real-provider evaluations are separate and can incur charges. Keep recordings, transcripts, generated audio, and credentials out of commits.
 
 <details>

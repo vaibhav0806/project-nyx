@@ -37,6 +37,8 @@ Research should answer a bounded question that changes a decision. Keep product 
 
 | R27 | Do saved sources decode fully and does recall survive damaged footage? | Full local video decode, three-route fault injection and API restore/restart | [Source recovery](R27-unreadable-source-recovery.md) | 92 sources decode intact; nonfatal decode handling implemented, broader acceptance open |
 
+| R28 | Do imports survive indexing outage and interrupted work? | API embedding faults, explicit retry guards and real subprocess hard exit | [Import recovery](R28-import-restart-recovery.md) | Decoded source preservation and metadata-only restart recovery implemented; pre-copy initialization remains separate |
+
 R1/R2 can run alongside early technical feasibility work once separately authorized. R5 does not block the initial R3 retrieval baseline. Do not assign a person or deadline without their agreement.
 
 ## Ready-to-share product brief

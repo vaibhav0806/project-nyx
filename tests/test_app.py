@@ -1057,7 +1057,14 @@ def test_restart_exposes_interrupted_import_for_explicit_retry_without_loading_m
 
 
 @pytest.mark.parametrize(
-    "kind,expected", [("missing", 409), ("outside", 400), ("capture", 409), ("ready", 409)]
+    "kind,expected",
+    [
+        ("missing", 409),
+        ("outside", 400),
+        ("capture", 409),
+        ("capture_session", 409),
+        ("ready", 409),
+    ],
 )
 def test_import_retry_rejects_unavailable_unmanaged_or_capture_sources_without_model(
     tmp_path, video, kind, expected
@@ -1079,7 +1086,14 @@ def test_import_retry_rejects_unavailable_unmanaged_or_capture_sources_without_m
         journal.mark(identifier, "failed", "Synthetic test")
     if kind == "outside":
         relative = "outside-managed-directory.mp4"
-    store.add_video("synthetic", relative, None, 2, identifier)
+    store.add_video(
+        "synthetic",
+        relative,
+        None,
+        2,
+        identifier,
+        capture_session="known-session" if kind == "capture_session" else None,
+    )
     if kind == "ready":
         store.finish_video(identifier)
     else:

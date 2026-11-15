@@ -677,6 +677,8 @@ def create_app(
                 raise HTTPException(404, "Saved import not found")
             if video["status"] != "failed":
                 raise HTTPException(409, "Only a failed saved import can be retried")
+            if video["capture_session"] is not None:
+                raise HTTPException(409, "Retry captured footage through its capture session")
             try:
                 workspace.capture.segment(video_id)
             except ValueError:
