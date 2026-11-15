@@ -108,8 +108,9 @@ class CloudVerifier:
             "runtime": "openrouter",
             "prompt_version": 7,
             "history_parallel_checks": self.history_concurrency,
-            "planner_prompt_version": 46,
-            "conversation_context_policy": "bounded-source-aware-v1",
+            "planner_prompt_version": 47,
+            "statement_selection_prompt_version": 2,
+            "conversation_context_policy": "bounded-source-aware-v2/live-availability",
             "spoken_context_prompt_version": 2,
             "reference_model": os.environ.get("NYX_REFERENCE_MODEL", "google/gemini-3.5-flash"),
             "reference_prompt_version": 2,
@@ -288,6 +289,8 @@ Allowed actions (search actions may also include optional excluded_frame_ids):
 {"action":"remember_statement","supersedes_turn_id":"actual returned user-report turn_id"}
 {"action":"search_statements","query":"object or location"}
 {"action":"search_statements","query":"object or location","as_of":"timezone-aware ISO timestamp requested by user"}
+{"action":"search_statements","query":"object description","selection":"latest_report"}
+Preserve report-selection intent separately from object wording: use selection=latest_report when the user asks only for the latest/newest/most recent saved user report, and omit it (or use all) when they ask for multiple/all reports. It may be combined with as_of for the latest report at an explicitly requested historical time. Do not confuse the newest report with a last visual sighting. An affirmative plan remains an intention even if the user says they have not done it yet; do not treat that as a negated plan.
 Use as_of only for an explicitly historical report-state question; omit it for current recall. Retractions are negative report history, never a positive location. Historical reports do not prove current placement. Tool IDs are internal and must not be read to the user.
 For object-location recall search both visual history and saved statements. To combine checked evidence use {"action":"finish","observation":VISUAL_INDEX,"statement_observation":STATEMENTS_INDEX}; indices must name actual observations.
 For an unresolved this/it in a lookup, use identify_shown_object first to identify what is being shown. Then use its resolved description to search both visual history and saved statements. If identity is ambiguous, ask; never use a guessed object. Use remember_statement for concrete user placement statements, including showing this/it. Use search_statements to recall saved user claims independently of visual matches. These are intentions/reports, never confirmed current location.

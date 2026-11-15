@@ -90,6 +90,29 @@ def test_unavailable_context_removes_answers_and_source_reference_metadata():
     assert not context[0]["plan"].get("statement_refs")
 
 
+def test_report_selection_and_historical_cutoff_survive_context_projection():
+    from nyx.conversation_context import recent_context
+
+    row = {
+        "status": "complete",
+        "transcript": "Use the newest report at that time",
+        "answer": "A saved report",
+        "plan": {
+            "steps": [
+                {
+                    "action": "search_statements",
+                    "query": "green phone",
+                    "as_of": "2026-11-07T12:00:00Z",
+                    "selection": "latest_report",
+                }
+            ]
+        },
+    }
+    step = recent_context([row])[0]["plan"]["steps"][0]
+    assert step["as_of"] == "2026-11-07T12:00:00Z"
+    assert step["selection"] == "latest_report"
+
+
 def test_live_context_keeps_current_tool_pair_and_instructions_when_history_is_evicted():
     from livekit.agents import llm
 

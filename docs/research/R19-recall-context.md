@@ -1,6 +1,6 @@
 # R19 — Complete report recall and context management
 
-Date: 2026-11-15. Status: baseline established; context audit and selected fixes in progress.
+Date: 2026-11-15. Status: report/context and candidate evaluations complete; visual review ongoing.
 Owner: inline implementation. Decision affected: next recall/context reliability pass.
 
 ## Method and frozen cases
@@ -120,3 +120,53 @@ uv run --no-sync python -m experiments.companion.candidate_pool_replay --data da
 The prior public text queries use category-proxy labels. They do not independently label every
 word of a query: for example COCO's bottle category does not establish a water bottle or contents.
 Do not turn those proxy scores into precise physical-instance/final-answer accuracy.
+
+## Final report/context review and fresh evaluation
+
+The first selected original holdout scored 6/8 versus baseline 7/8. Investigation found lost
+latest-report selection, an affirmative Hinglish plan rejected because it was not completed,
+and the harness's 60-request cap being treated as a tool-validation error. These original cases
+are now diagnostic regressions, not untouched holdout evidence. The cap raises `CloudError`;
+the workflow allowance is 96 requests under unchanged per-request spend/cumulative $2 guards.
+Failures and not-run cases remain in the denominator. Concurrent usage snapshots overlap and
+must not be summed as independent costs.
+
+Before the fixes, twelve fresh cases were frozen in `report_intent_workflows.json`, six per
+split with separate objects/wording. Baseline dev 3/6 and holdout 4/6 became selected 6/6 in each
+split, with zero incomplete cases. Forty requests per selected split. Dev query p50 7837→7447 ms;
+holdout 6693.5→6756.5 ms, so no latency win is established. Original diagnostic sets then passed
+8/8 each. This remains report attribution/contract evidence, not free-form answer accuracy.
+Artifacts: `data/runs/report-intent-{baseline,selected}-{dev,holdout}/results.json` and
+`data/runs/recall-context-diagnostic-final-{dev,holdout}/results.json`.
+
+`search_statements` now explicitly supports `selection=latest_report`, independently of `as_of`.
+It selects by known report timestamp after semantic citation verification; ties or unknown dates
+ask for clarification. Default `all` preserves multiple reports. Typed and native spoken tools
+preserve the selection constraint. Citation instructions distinguish an affirmative unfulfilled
+plan from a cancelled intention; plans never establish completed placement.
+
+Author review also reproduced deletion after spoken-session startup. Every continuation now
+rechecks persisted source availability through bounded SDK message-ID/turn-ID mappings, retaining
+the user question and withholding stale assistant/tool claims. Original SDK/saved rows are not
+mutated. Restart restores structured object/date/selection constraints. Fingerprints now record
+planner version47, statement selection version2, and `bounded-source-aware-v2/live-availability`.
+The earlier startup-only/context-v1 description above documents the initial checkpoint.
+Full deterministic suite at this checkpoint: 473 passed. Synthetic Chrome speech/cancellation,
+playback denial, old library, candidate controls and sustained activity passed with zero page
+errors; this uses fake devices and deterministic external model boundaries.
+
+The frozen source-balancing holdout scored crowded Recall@12 0.1220→0.8482 across sixteen
+queries; uncrowded 0.8884 was unchanged, with no individual regressions. Distinct pool sources
+increased 1.6875→15. Mean crowded SQL/diversity time increased about1.07→1.52 ms on this tiny
+corpus. Larger 10k-vector costs and synthetic multi-day recovery are reported separately in R21.
+
+## Real visual workflow finding
+
+A separate real decoder/embedding/verifier replay used four earlier public COCO development
+photos as generated still videos, plus an empty gray scene. Replay clocks are synthetic and
+original photo times unknown. Four of five category/source/time/media checks passed; a bottle
+query wrongly selected a soda can on the round table in image13659. Manual inspection confirmed
+the category/location error. This is a diagnostic failure to address, not proof that nearest
+neighbors or category labels establish a correct visual answer. Artifact:
+`data/runs/visual-workflow-final/results.json`. A bounded corroboration experiment follows before
+any claim that this check is resolved.

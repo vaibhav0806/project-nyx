@@ -41,6 +41,24 @@ def test_workflow_identity_cannot_escape_artifact_directory(workflow):
         workflow.validate_cases([case("../../outside")])
 
 
+def test_workflow_request_allowance_is_bounded_without_becoming_a_tool_validation_error(
+    workflow, monkeypatch
+):
+    from experiments.companion import correction_replay
+    from nyx.cloud import CloudError, OpenRouter
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "fixture")
+    monkeypatch.setattr(
+        correction_replay, "budget_snapshot", lambda client: {"usage": 1.4, "limit": 2}
+    )
+    monkeypatch.setattr(OpenRouter, "request", lambda *args, **kwargs: {"usage": {"cost": 0}})
+    client = correction_replay.BudgetedClient(0.20, max_requests=96)
+    for _ in range(96):
+        client.request("chat/completions", {})
+    with pytest.raises(CloudError, match="limit"):
+        client.request("chat/completions", {})
+
+
 def test_scoring_requires_exact_direct_reports_and_attributed_sources(workflow):
     score_answer = workflow.score_answer
     result = {

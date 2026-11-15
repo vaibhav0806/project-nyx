@@ -46,7 +46,12 @@ def validate_action(value):
     if action == "remember_statement":
         optional.add("supersedes_turn_id")
     if action == "search_statements":
-        optional.add("as_of")
+        optional.update({"as_of", "selection"})
+    if "selection" in value and (
+        not isinstance(value["selection"], str)
+        or value["selection"] not in {"all", "latest_report"}
+    ):
+        raise ValueError("Choose all reports or latest_report")
     if "supersedes_turn_id" in value and (
         not isinstance(value["supersedes_turn_id"], str)
         or not 1 <= len(value["supersedes_turn_id"]) <= 128

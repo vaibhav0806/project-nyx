@@ -344,6 +344,7 @@ def install_companion(app, workspace, voice):
                     identifier,
                     reference_image=references.get(identifier),
                     as_of=action.get("as_of"),
+                    selection=action.get("selection", "all"),
                 )
             if name in {"inspect_current", "identify_shown_object"}:
                 if name == "identify_shown_object":

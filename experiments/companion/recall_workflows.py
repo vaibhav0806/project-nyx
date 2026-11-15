@@ -88,7 +88,7 @@ def run(cases_path, output, split, max_spend):
     cases = validate_cases(json.loads(cases_path.read_text()))
     chosen = [case for case in cases if case["split"] == split]
     output.mkdir(parents=True, exist_ok=False)
-    client = BudgetedClient(max_spend)
+    client = BudgetedClient(max_spend, max_requests=96)
     encoder, verifier = CloudEncoder(client=client), CloudVerifier(client=client)
     clock = datetime.now(UTC)
     report = {
@@ -142,6 +142,15 @@ def run(cases_path, output, split, max_spend):
                             "correct": saved["status"] == source.get("expected_link", "complete"),
                         }
                     )
+                    if source.get("expected_kind"):
+                        with conversations.connect() as db:
+                            linked = db.execute(
+                                "SELECT kind FROM statements WHERE turn_id=?", (identifier,)
+                            ).fetchone()
+                        row["setup"][-1]["kind"] = linked[0] if linked else None
+                        row["setup"][-1]["correct"] &= bool(
+                            linked and linked[0] == source["expected_kind"]
+                        )
                     if source.get("invalidate"):
                         conversations.finish(
                             identifier, saved["answer"], ["synthetic-deleted-source"]
@@ -184,6 +193,7 @@ def run(cases_path, output, split, max_spend):
                 result = job.get("result") if job["status"] == "succeeded" else None
                 row.update(
                     status=job["status"],
+                    failure=job.get("error"),
                     query=query,
                     result=result,
                     score=score_answer(case, result, identifiers),
@@ -226,6 +236,7 @@ def main():
                 "status": report["status"],
                 "cases": len(report["cases"]),
                 "correct": sum(row["workflow_correct"] for row in report["cases"]),
+                "incomplete": sum(row["status"] != "succeeded" for row in report["cases"]),
                 "run_spend_usd": report["run_spend_usd"],
             },
             indent=2,

@@ -410,6 +410,101 @@ def test_spoken_context_restores_source_state_and_bounds_actual_model_continuati
     replay_voice_tools(tmp_path, monkeypatch, scenario)
 
 
+def test_live_continuation_withholds_evidence_deleted_after_session_start(tmp_path, monkeypatch):
+    from livekit.agents import llm
+
+    from nyx.voice import Conversations
+
+    conversations = Conversations(tmp_path)
+    old = conversations.begin("Find my green notebook", {})
+    conversations.finish(old, "Deleted sighting beside the orange vase", ["video-later-deleted"])
+    calls = []
+    monkeypatch.setattr(
+        realtime.Agent.default, "llm_node", lambda agent, ctx, tools, settings: calls.append(ctx)
+    )
+
+    async def scenario(session, socket, voice):
+        context = session.agent.chat_ctx.copy()
+        context.items.extend(
+            [
+                llm.FunctionCall(
+                    call_id="old-call",
+                    name="look_for_object",
+                    arguments='{"query":"green notebook"}',
+                ),
+                llm.FunctionCallOutput(
+                    call_id="old-call",
+                    name="look_for_object",
+                    output="Unsafe deleted tool result: orange vase",
+                    is_error=False,
+                ),
+            ]
+        )
+        voice.conversations.invalidate("video-later-deleted")
+        transcribe(session, "Where is that notebook?")
+        context.add_message(role="user", content="Where is that notebook?")
+        session.agent.llm_node(context, [], {})
+        sent = " ".join(
+            getattr(item, "text_content", "") or getattr(item, "output", "")
+            for item in calls[-1].items
+        )
+        assert "orange vase" not in sent
+        assert '"sources_available": false' in sent
+        assert "Where is that notebook?" in sent
+        # The SDK keeps its copy; filtering must be repeated on subsequent continuations.
+        assert any(
+            getattr(item, "output", "").startswith("Unsafe deleted") for item in context.items
+        )
+        voice.conversations.finish(
+            voice.turn["id"], "Second dynamic answer: red cabinet", ["dynamic-video"]
+        )
+        context.add_message(role="assistant", content="Second dynamic answer: red cabinet")
+        voice.conversations.invalidate("dynamic-video")
+        transcribe(session, "Check again")
+        context.add_message(role="user", content="Check again")
+        session.agent.llm_node(context.copy(), [], {})
+        assert all(
+            "orange vase" not in (getattr(item, "text_content", "") or getattr(item, "output", ""))
+            for item in calls[-1].items
+        )
+        assert all(
+            "red cabinet" not in (getattr(item, "text_content", "") or getattr(item, "output", ""))
+            for item in calls[-1].items
+        )
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
+def test_spoken_restart_restores_previous_report_query_constraints(tmp_path, monkeypatch):
+    from nyx.voice import Conversations
+
+    conversations = Conversations(tmp_path)
+    old = conversations.begin(
+        "Tell me the most recent report at that time",
+        {
+            "steps": [
+                {
+                    "action": "search_statements",
+                    "query": "green phone",
+                    "selection": "latest_report",
+                    "as_of": "2026-11-07T12:00:00Z",
+                }
+            ]
+        },
+    )
+    conversations.finish(old, "A saved report", [])
+
+    async def scenario(session, socket, voice):
+        restored = " ".join(
+            item.text_content for item in session.agent.chat_ctx.items if item.type == "message"
+        )
+        assert '"selection": "latest_report"' in restored
+        assert '"as_of": "2026-11-07T12:00:00Z"' in restored
+        assert '"query": "green phone"' in restored
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
 def test_spoken_tools_dispatch_report_correction_and_historical_time(tmp_path, monkeypatch):
     async def scenario(session, socket, voice):
         transcribe(session, "Correct my earlier phone report.")
@@ -430,6 +525,17 @@ def test_spoken_tools_dispatch_report_correction_and_historical_time(tmp_path, m
         )
         summary = await call
         assert '"statement_refs"' in summary
+        call = asyncio.create_task(
+            session.agent.search_statements(query="phone", selection="latest_report")
+        )
+        tool = await asyncio.wait_for(socket.tools.get(), 2)
+        assert tool["action"] == {
+            "action": "search_statements",
+            "query": "phone",
+            "selection": "latest_report",
+        }
+        await socket.reply(tool, ["transcript:claim-1"])
+        await call
         complete_reply(session)
 
     conversations = replay_voice_tools(tmp_path, monkeypatch, scenario)

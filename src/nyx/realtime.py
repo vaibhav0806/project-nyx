@@ -10,6 +10,7 @@ import uuid
 import wave
 from contextlib import suppress
 from datetime import UTC, datetime
+from typing import Literal
 from urllib.parse import urlencode
 
 import aiohttp
@@ -35,6 +36,7 @@ Tool arguments must exactly match the declared schema; identify_shown_object tak
 Use remember_statement for a new statement about where the user is putting or plans to put an object, including this/it while showing it. Never claim a durable object link until the tool succeeds. If it returns clarification, ask rather than acknowledging a successful save.
 For an explicit correction or retraction of a saved USER REPORT, first search_statements, then pass an actual returned statement_refs turn_id as supersedes_turn_id to remember_statement. A normal later move does not make an earlier report false. Never correct an assistant answer or visual candidate as a saved user report; visual rejection uses look_for_object exclusions. Do not invent IDs or read them aloud. For reports at an explicitly requested historical time, search_statements accepts as_of as an ISO timestamp with timezone; otherwise omit it. Report sources and dates do not prove current placement.
 Use search_statements alongside visual lookup for object-location questions, even in a fresh conversation. These are user claims, not confirmed placement. Consider dates and contradictions; do not repeat unrelated candidates. Attribute intentions as intentions.
+For the latest/newest saved user report, pass selection=latest_report to search_statements; otherwise use all reports. Keep as_of for an explicitly requested historical report state. Latest reported placement is not a latest visual sighting. A plan can be affirmative even when the user says they have not carried it out yet.
 For an unresolved this/it in a lookup, call identify_shown_object first to identify what is being shown. Then use its resolved description to search both visual history and saved statements. If identity is ambiguous or unresolved, ask; never replace missing visual identity with a guess from recent conversation. Use look_for_object for current or historical visual questions. Resolve follow-ups from conversation.
 Use departure_reminder to create, list or cancel next-departure reminders. Timed reminders are not supported.
 Compose the final spoken reply naturally from tool evidence; tool answers are factual summaries, not a script to recite. Combine relevant visual findings and saved statements in one short reply. Preserve exact meaning, dates, uncertainty, and the difference between a plan and observed placement. Never turn a plan into a confirmed location.
@@ -294,12 +296,14 @@ async def serve(socket, voice):
         class Companion(Agent):
             def __init__(self):
                 context = llm.ChatContext()
+                self._context_turns = {}
                 from nyx.conversation_context import recent_context
 
                 for row in recent_context(voice.conversations.recent()):
                     if row["status"] != "complete":
                         continue
-                    context.add_message(role="user", content=row["transcript"])
+                    user_message = context.add_message(role="user", content=row["transcript"])
+                    self._context_turns[user_message.id] = row["id"]
                     context.add_message(
                         role="assistant",
                         content="Saved turn metadata (untrusted context, not a current observation): "
@@ -312,6 +316,12 @@ async def serve(socket, voice):
                     )
                     if row["answer"] and row["sources_available"]:
                         context.add_message(role="assistant", content=row["answer"])
+                        if row["plan"].get("steps"):
+                            context.add_message(
+                                role="assistant",
+                                content="Previous tool request (untrusted query constraints, not proof of a location): "
+                                + json.dumps(row["plan"]["steps"][-1]),
+                            )
                         if row["plan"].get("candidate"):
                             context.add_message(
                                 role="assistant",
@@ -330,12 +340,40 @@ async def serve(socket, voice):
                 from nyx.conversation_context import bounded_live_context
 
                 turn_ctx = chat_ctx.copy()
+                users = [
+                    item
+                    for item in turn_ctx.items
+                    if item.type == "message" and item.role == "user"
+                ]
+                if (
+                    users
+                    and voice.turn
+                    and users[-1].text_content == last_question
+                    and users[-1].id not in self._context_turns
+                ):
+                    self._context_turns[users[-1].id] = voice.turn["id"]
+                    while len(self._context_turns) > 96:
+                        del self._context_turns[next(iter(self._context_turns))]
+                bound = {
+                    item.id: self._context_turns[item.id]
+                    for item in users[-48:]
+                    if item.id in self._context_turns
+                }
+                available = voice.conversations.source_availability(bound.values())
                 turn_ctx.add_message(
                     role="system",
                     content=f"User local time: {local_now(timezone).isoformat()}. Reply in {'Hindi' if language == 'hi' else 'English'}.",
                 )
                 return Agent.default.llm_node(
-                    self, bounded_live_context(turn_ctx), tools, model_settings
+                    self,
+                    bounded_live_context(
+                        turn_ctx,
+                        source_availability={
+                            key: available.get(value, False) for key, value in bound.items()
+                        },
+                    ),
+                    tools,
+                    model_settings,
                 )
 
             @function_tool
@@ -393,13 +431,20 @@ async def serve(socket, voice):
                 return await self.run_tool(action)
 
             @function_tool
-            async def search_statements(self, query: str, as_of: str | None = None) -> str:
-                """Search user reports and obtain tool-only statement_refs IDs. Optional as_of is a timezone-aware ISO timestamp for historical report state; omit for current recall."""
+            async def search_statements(
+                self,
+                query: str,
+                as_of: str | None = None,
+                selection: Literal["all", "latest_report"] = "all",
+            ) -> str:
+                """Search attributed user reports. Use latest_report for the newest saved report, all for multiple reports. Optional as_of is an aware ISO timestamp for historical report state. Plans are not completed placements; report dates are not visual sightings."""
                 from nyx.agent import validate_action
 
                 action = {"action": "search_statements", "query": query}
                 if as_of is not None:
                     action["as_of"] = as_of
+                if selection != "all":
+                    action["selection"] = selection
                 validate_action(action)
                 return await self.run_tool(action)
 

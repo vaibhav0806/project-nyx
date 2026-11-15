@@ -20,6 +20,8 @@ def _reference(value):
         ("video_id", 128),
         ("turn_id", 128),
         ("at", 64),
+        ("as_of", 64),
+        ("selection", 32),
         ("object_description", 240),
         ("kind", 64),
     ]:
@@ -84,7 +86,7 @@ def recent_context(turns, *, max_turns=12, max_chars=12000):
     return selected
 
 
-def bounded_live_context(chat_ctx, *, max_chars=24000, max_items=48):
+def bounded_live_context(chat_ctx, *, max_chars=24000, max_items=48, source_availability=None):
     """Keep whole user/tool exchanges. Budget counts text, not media or model tokens."""
     from livekit.agents import llm
 
@@ -111,6 +113,22 @@ def bounded_live_context(chat_ctx, *, max_chars=24000, max_items=48):
         raise CloudError("I couldn't finish that request. Please try a more specific question.")
     kept = []
     for group in reversed(groups):
+        if (source_availability or {}).get(group[0].id) is False:
+            # Retain the user query but withhold stale answers, tool results and candidate metadata.
+            group = [
+                group[0],
+                llm.ChatMessage(
+                    role="assistant",
+                    content=[
+                        'Earlier turn source state: {"sources_available": false}. Its assistant/tool evidence is withheld; retrieve available records or clarify.'
+                    ],
+                ),
+                *[
+                    item
+                    for item in group[1:]
+                    if item.type == "message" and item.role in {"system", "developer"}
+                ],
+            ]
         trial = [*instructions, *group, *kept]
         if len(trial) > max_items or size(trial) > max_chars:
             if not kept:

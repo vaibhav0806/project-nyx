@@ -341,6 +341,28 @@ class Conversations:
                 (source,),
             )
 
+    def source_availability(self, identifiers):
+        identifiers = list(dict.fromkeys(identifiers))[-48:]
+        if not identifiers:
+            return {}
+        with self.connect() as db:
+            rows = db.execute(
+                "SELECT id,sources_available,status FROM turns WHERE id IN ("
+                + ",".join("?" for _ in identifiers)
+                + ")",
+                identifiers,
+            ).fetchall()
+        available = {identifier: False for identifier in identifiers}
+        available.update(
+            {
+                row["id"]: bool(
+                    row["sources_available"] and row["status"] in {"complete", "pending"}
+                )
+                for row in rows
+            }
+        )
+        return available
+
 
 class Voice:
     def __init__(self, root, provider, recognizer=None, *, agent_mode=False):
