@@ -52,7 +52,14 @@ def test_supported_positive_preserves_location_and_uses_existing_reference_model
             calls.append((messages, model, kwargs))
             return (
                 json.dumps(
-                    {"supported": True, "ambiguous": False, "reason": "Bottle shape visible."}
+                    {
+                        "scene_description": "A bottle on a table.",
+                        "target_context": "physical",
+                        "matches_requested_context": True,
+                        "supported": True,
+                        "ambiguous": False,
+                        "reason": "Bottle shape visible.",
+                    }
                 )
                 if kwargs.get("schema")
                 else primary()
@@ -103,3 +110,53 @@ def test_confirmation_stays_opt_in_after_mixed_replay(monkeypatch):
     verifier = CloudVerifier(Client())
     assert verifier.fingerprint["positive_confirmation"] == "off"
     assert verifier.inspect(Image.new("RGB", (10, 10)), "a bottle")["visibility"] == "visible"
+
+
+def test_corroboration_accepts_a_supported_physical_scene_context(monkeypatch):
+    monkeypatch.setenv("NYX_VISUAL_CONFIRMATION", "1")
+
+    class Client:
+        def generate(self, messages, model, max_tokens, **kwargs):
+            return (
+                json.dumps(
+                    {
+                        "scene_description": "A room with a table and a bottle.",
+                        "target_context": "physical",
+                        "matches_requested_context": True,
+                        "supported": True,
+                        "ambiguous": False,
+                        "reason": "The bottle is on the actual table.",
+                    }
+                )
+                if kwargs.get("schema")
+                else primary()
+            )
+
+    result = CloudVerifier(Client()).inspect(Image.new("RGB", (10, 10)), "a bottle")
+    assert result["visibility"] == "visible" and result["target_context"] == "physical"
+
+
+def test_reference_candidate_also_withholds_an_embedded_depiction(monkeypatch):
+    monkeypatch.setenv("NYX_VISUAL_CONFIRMATION", "1")
+
+    class Client:
+        def generate(self, messages, model, max_tokens, **kwargs):
+            return (
+                json.dumps(
+                    {
+                        "scene_description": "A framed photograph showing a bottle.",
+                        "target_context": "depicted",
+                        "matches_requested_context": False,
+                        "supported": False,
+                        "ambiguous": False,
+                        "reason": "The item is only inside the photograph.",
+                    }
+                )
+                if kwargs.get("schema")
+                else primary()
+            )
+
+    result = CloudVerifier(Client()).inspect_reference(
+        Image.new("RGB", (10, 10)), Image.new("RGB", (10, 10)), "a bottle"
+    )
+    assert result["visibility"] == "uncertain" and result["location"] is None

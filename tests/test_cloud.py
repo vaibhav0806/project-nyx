@@ -248,6 +248,27 @@ def test_planner_and_visual_calls_use_their_selected_models(monkeypatch):
     assert calls == ["planner-model", "vision-model"]
 
 
+def test_object_model_override_does_not_change_general_vision_or_planner(monkeypatch):
+    from nyx.verification import CloudVerifier
+
+    monkeypatch.setenv("NYX_REASONING_MODEL", "planner-model")
+    monkeypatch.setenv("NYX_VISION_MODEL", "fast-vision")
+    monkeypatch.setenv("NYX_OBJECT_VISION_MODEL", "object-vision")
+    monkeypatch.setenv("NYX_VISUAL_CONFIRMATION", "0")
+    calls = []
+
+    class Client:
+        def generate(self, messages, model, max_tokens, **kwargs):
+            calls.append(model)
+            return '{"visibility":"not_visible","location":"","description":"No match.","matching_count":0,"ambiguous":false}'
+
+    verifier = CloudVerifier(Client())
+    verifier.inspect(Image.new("RGB", (10, 10)), "an object")
+    verifier.generate_json([])
+    verifier.generate_decision([])
+    assert calls == ["object-vision", "fast-vision", "planner-model"]
+
+
 def test_query_embedding_cache_is_bounded_and_returns_independent_vectors():
     class Client:
         calls = 0

@@ -74,3 +74,14 @@ freeze200ms internal leading silence as the candidate for heldout comparison. It
 aliases, wake phrases, input coverage or recording bytes. Do not add trailing silence: that
 development diagnostic did not help. Baseline/head heldout runs started after this selection;
 their detailed results remain out of tuning. Model cache, thresholds and source hashes stay fixed.
+
+## Heldout decision
+
+Both153-case runs completed with no failed inference. Baseline:136 correct, wake31/32,
+16 false activations (8homophone/7near-name/1public-speech), ordinary0. Head padding:133 correct,
+same31/32 wake recall,19 false activations (8homophone/8near-name/3public-speech), ordinary0.
+Reject head padding as a default: the small development gain did not generalize. Do not tune it
+on these heldout clips, add aliases, or hide the public-speaker errors. Current wake implementation
+stays unchanged. The233-case source/voice evidence is broader than R23, still not human-positive
+or room-acoustic acceptance. Dedicated acoustic/intent calibration and homophone limitations
+remain product work; paid credits do not resolve acoustically identical names by themselves.

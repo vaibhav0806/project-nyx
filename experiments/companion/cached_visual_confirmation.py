@@ -30,31 +30,41 @@ def run(data, source, output, max_spend):
     ):
         raise ValueError("Require a complete preserved primary comparison")
     for row in original["cases"]:
-        path = (data / "images" / row["file_name"]).resolve()
+        path = (
+            (data / "images" / row["file_name"]).resolve()
+            if "file_name" in row
+            else (data / row["file"]).resolve()
+        )
         if (
-            not path.is_relative_to((data / "images").resolve())
+            not path.is_relative_to(data.resolve())
             or hashlib.sha256(path.read_bytes()).hexdigest() != row["sha256"]
         ):
             raise ValueError("Public source identity differs")
     output.mkdir(parents=True, exist_ok=False)
     client = AuditClient(max_spend, max_requests=96)
     verifier = CloudVerifier(client=client, model=original["model"]["vision_model"])
-    rows = [
-        {
-            **row,
-            "primary_judgment": row["judgment"],
-            "status": "not_run" if row["judgment"]["visibility"] == "visible" else "complete",
-            "correct": False if row["judgment"]["visibility"] == "visible" else row["correct"],
-        }
-        for row in original["cases"]
-    ]
+    rows = []
+    for row in original["cases"]:
+        primary = row.get("primary_judgment", row["judgment"])
+        rows.append(
+            {
+                **row,
+                "primary_judgment": primary,
+                "judgment": primary,
+                "status": "not_run" if primary["visibility"] == "visible" else "complete",
+                **score(row["expected"], primary),
+            }
+        )
+        if primary["visibility"] == "visible":
+            rows[-1]["correct"] = False
     report = {
         "status": "running",
         "primary_artifact": str(source),
         "primary_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
         "primary_model": original["model"],
         "confirmation_model": verifier.fingerprint["reference_model"],
-        "mode": "existing category-location-v1 confirmation on cached positives",
+        "mode": "cached-positive-only confirmation",
+        "confirmation_policy": verifier.fingerprint.get("positive_confirmation_policy", 1),
         "budget_before": client.initial,
         "cases": rows,
         "limitations": "Same preserved first pass isolates the effect of an extra confirmation. No new primary inference, no relabeling or image selection from outputs. Category/count proxies do not measure precise location or instance identity. Primary/corroboration costs are separate artifacts.",
@@ -79,7 +89,8 @@ def run(data, source, output, max_spend):
             if row["status"] == "complete":
                 continue
             began = time.perf_counter()
-            with Image.open(data / "images" / row["file_name"]) as image:
+            path = data / "images" / row["file_name"] if "file_name" in row else data / row["file"]
+            with Image.open(path) as image:
                 judged = verifier.confirm_positive(image, row["query"], row["primary_judgment"])
             row.update(
                 status="complete",
