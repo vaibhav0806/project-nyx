@@ -126,12 +126,13 @@ class SarvamStream(stt.SpeechStream):
                 nonlocal pending_final, final_sent
                 if pending_final is None or speech_end is None or final_sent:
                     return
+                final_language = pending_final.get("language") or "en-IN"
                 self._event_ch.send_nowait(
                     stt.SpeechEvent(
                         type=stt.SpeechEventType.FINAL_TRANSCRIPT,
                         alternatives=[
                             stt.SpeechData(
-                                language=pending_final.get("language") or "en-IN",
+                                language=final_language,
                                 text=pending_final["text"].strip(),
                             )
                         ],
@@ -144,6 +145,7 @@ class SarvamStream(stt.SpeechStream):
                 pending_final = None
                 self._stt.log(
                     "realtime_stt_final",
+                    language=final_language,
                     after_provider_endpoint_ms=round((time.perf_counter() - speech_end) * 1000),
                 )
 

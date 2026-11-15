@@ -81,3 +81,47 @@ def test_explicit_named_object_needs_no_visual_claim():
         placement=True,
     )
     assert result["status"] == "resolved"
+
+
+@pytest.mark.parametrize(
+    "object_name,spoken_name", [("phone", "microphone"), ("keys", "monkeys"), ("cup", "cupboard")]
+)
+def test_explicit_object_cannot_be_a_fragment_of_a_different_word(object_name, spoken_name):
+    result = resolve_reference(
+        verifier(
+            decision(
+                object_description=object_name,
+                destination="desk",
+                source="explicit_text",
+                frame_index=-1,
+            )
+        ),
+        f"I will put my {spoken_name} on the desk",
+        [],
+        placement=True,
+    )
+    assert result["status"] == "clarify"
+
+
+@pytest.mark.parametrize(
+    "object_name,text",
+    [
+        ("black phone", "I'll put my BLACK PHONE, on the desk."),
+        ("चाबी", "मैं अपनी चाबी desk पर रखूँगी।"),
+    ],
+)
+def test_complete_explicit_phrases_remain_supported(object_name, text):
+    result = resolve_reference(
+        verifier(
+            decision(
+                object_description=object_name,
+                destination="desk",
+                source="explicit_text",
+                frame_index=-1,
+            )
+        ),
+        text,
+        [],
+        placement=True,
+    )
+    assert result["status"] == "resolved"

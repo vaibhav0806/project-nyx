@@ -40,3 +40,23 @@ NYX_VISUAL_CONFIRMATION=0 uv run --env-file .env --no-sync python -m experiments
 ```
 
 Replace model/output for a fresh comparison; never overwrite a prior run.
+
+## Rejected/incomplete development alternatives
+
+Flash hit its per-run guard after17/48 cases:17 correct run outcomes,31 not-run cases remain in
+the denominator. Its reported response cost was$0.080166 (guard reserves$0.02 inside$0.10); the
+early subset mostly covers remotes/bottles, not all four categories. Do not call this17/17
+whole-corpus accuracy or promote from the incomplete run.
+
+A general prompt8 candidate required diagnostic category support rather than similar purpose
+or shape; no fixture IDs, class lists or coordinates. It stopped after47/48 at its$0.06 guard:
+39 correct proxy outcomes,7 unsafe proxies, one not-run. Reported responsecost$0.0402806.
+It did not show the required improvement and was reverted to prompt7. Original JSON preserves
+the candidate fingerprint/outputs. This is one trial, not proof that all prompt work is useless.
+Lite baseline holdout completed32/32, aggregate27correct/3unsafe; the aggregate was printed but
+detailed heldout outcomes were not used to modify the candidate. No selected visual change has
+been promoted. A safe negative/clarification remains preferable to an unsupported positive, but
+strict proxy counts alone do not establish natural-language category correctness.
+
+Latest observed key snapshot after these experiments1.821041415/2, settlement may lag. Remaining
+budget is prioritized for actual spoken-model tool-policy checks; no cap increase or new key.

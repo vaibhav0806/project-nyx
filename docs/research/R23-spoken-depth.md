@@ -25,6 +25,16 @@ Eight new protocol cases plus twelve existing realtime tests pass. Broader house
 interruption/source tests follow before final verification. No real microphone or paid Sarvam
 audio was used, and acoustic/transcription/TTS quality remains unmeasured here.
 
+## Explicit object grounding audit
+
+Three failing regressions showed that a model's explicit-text object could be accepted as a
+substring of another word (phone/microphone, keys/monkeys, cup/cupboard). Those examples live in
+tests only. The backend now requires whole named phrases with Unicode letter/number/combining-
+mark boundaries, preserving punctuation, case-insensitive multiword English and Hindi. It also
+checks the folded prefix consistently when excluding destination-only names. No object-specific
+exception list or replacement is used. Five new phrase/fragment tests and the existing reference,
+statement and correction checks pass. Metadata records explicit-unicode-phrase-v2.
+
 ## Primary references, inspected 2026-11-15
 
 - [Sarvam realtime protocol](https://docs.sarvam.ai/api/api-guides-tutorials/speech-to-text/realtime-streaming)
