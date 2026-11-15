@@ -1,5 +1,19 @@
 # Milestones
 
+## Paired product audit — 2026-11-15
+
+Against stable cfe8fa4 with identical dependencies, crowded public-source candidate Recall@12
+reproduced 0.1220→0.8482; uncrowded stayed0.8884. Unavailable assistant claims are withheld
+before planning, unlike stable. On the existing 92-recording/1,085-frame library, 24 offline
+stored-vector queries matched exactly across versions; 24 sampled sources decoded a first frame
+and retained hashes. These are bounded compatibility checks, not household recognition labels.
+Six past real-provider report workflows passed; eight fresh public photos produced16/16 category/
+count proxy outcomes with zero unsafe positives. No new default vision/wake promotion. Repeated
+330-second synthetic ten-day/fault replay passed.528 tests and lint/format/JS checks passed.
+Conservative spend is about$3.21/5. See [R26](research/R26-paired-product-audit.md) for methods,
+tradeoffs, artifacts and remaining household/acoustic gates. UI/main/original media stay unchanged;
+this pass adds reusable audit tools/tests and evidence, without a production-policy change.
+
 ## Funded wake/visual validation checkpoint — 2026-11-15
 
 The user raised the cumulative test ceiling to **$5 total**. The bounded
