@@ -1,5 +1,23 @@
 # Scope
 
+## Complete household workflow engineering — 2026-11-16
+
+The user authorized the shown-item → remember → later recall experience, including normal moves,
+corrections, intentions, uncertainty and spoken tool boundaries. PR2 was merged by the teammate;
+this pass starts from bdb7ad0 on work/memory-reliability. It authorizes neither a new main push nor
+another PR/merge. Contributor UI and original recordings stay unchanged. Existing local videos
+are used offline; cloud evaluation uses public/synthetic footage with explicit replay clocks,
+under the existing cumulative $5 ceiling. No real capture hardware is activated.
+
+Backend workflow improvements and reproducible small public-source experiments are in scope;
+full household recognition, acoustic/human acceptance and permissioned demo production remain
+separate. Default ambiguity checks can veto a joint result and may miss a usable demonstration.
+The separated extraction/handoff pipeline is opt-in after an unsafe heldout save; its higher
+composite score did not authorize default promotion. No automatic expiry, storage-cap change, Hydra migration, new
+provider, embedding reindex or general autonomous household action was added. See
+[R29](research/R29-household-experience.md).
+
+
 ## Renewed reliability work and budget — 2026-11-15
 
 The user authorized continued reliability work/public datasets and explicitly raised the

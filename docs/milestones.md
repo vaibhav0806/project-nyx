@@ -1,5 +1,29 @@
 # Milestones
 
+## Household workflow engineering; acceptance remains open — 2026-11-16
+
+Continued on work/memory-reliability from merged PR2/bdb7ad0. Valid utterance-window availability
+now reaches planning; empty report recall is uncertain; reference/report completion returns the
+actual answer rather than internal instructions. Visual identity has an additional independent
+ambiguity veto. Source metadata, correction edges, user claims and visual findings remain separate.
+
+A separated text-claim/visual-identity pipeline and exact-owned-window identity handoff are
+implemented **opt-in**, with NYX_HOUSEHOLD_REFERENCE_POLICY=separated. They passed4/4 core development
+and the final native save/clarify diagnostic2/2; natural video passed with different save/recall
+frames. However final fresh heldout3/4 includes an unsafe two-phone save where matched baseline
+refused. Reject default promotion. Default joint preserves the merged primary schema/prompt and
+adds only the conservative veto: final known-case holdout3/4 (both ambiguous pairs unlinked), core
+development1/4, so the complete household experience remains unready. Do not report opt-in gains
+as default accuracy or collapse repeated development/diagnostic runs into unseen evidence.
+
+**577 tests passed in24.81s**, lint/format/JS/links/diff checks and synthetic Chrome boundaries passed.
+All92 existing local recordings decoded fully, hashes unchanged;256 stored-vector checks ran offline.
+Private media stayed local; UI, main, dependencies and original files unchanged. No new PR/merge
+or merge-readiness claim. Verified cumulative OpenRouter usage$4.73185091/$5; paid tests stopped.
+See [R29](research/R29-household-experience.md) for failures, rejected selections, protocol repairs,
+extra-call/clarification costs and the remaining physical-identity/acoustic/user acceptance work.
+
+
 ## Decoded-import outage and restart recovery — 2026-11-16
 
 Valid decoded imports now retain their saved bytes when embedding/indexing fails. Partial

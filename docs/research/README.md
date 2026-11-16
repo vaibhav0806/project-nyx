@@ -29,15 +29,12 @@ Research should answer a bounded question that changes a decision. Keep product 
 | R21 | What do multi-day lookup, recovery and separate storage components require? | Generated timeline, actual indexing/fault replay, nominal capacity math and 10k-vector queries | [Runtime/capacity findings](R21-multi-day-runtime.md) | Bounded replay passed; continuous cloud/hardware operation unmeasured |
 | R22 | Can broader category/ambiguity evaluation improve visual verification? | Frozen public-image positives, count proxies and negatives; general prompt/model comparisons | [Visual depth](R22-visual-depth.md) | Baseline80 cases; prompt candidate rejected and stronger comparison incomplete under budget |
 | R23 | Do spoken model choices execute and preserve evidence under faults? | Real SDK/socket protocol, synthetic household tool choices/continuations and actual offline wake inference | [Spoken depth](R23-spoken-depth.md) | General turn/grounding/schema fixes; native heldout6/6, wake weaknesses remain |
-
 | R24 | Can an offline keyword detector improve Nyx activation without extra false wakes? | Frozen source/voice-separated synthetic speech and public negatives, actual rolling-window inference | [Wake detector findings](R24-wake-detector.md) | Broader dev/holdout complete; keyword and padding candidates rejected, runtime unchanged |
 | R25 | Does funded stronger object verification improve category and physical-scene reliability? | Frozen public category/count cases, cached positive checks and synthetic embedded depictions | [Funded visual findings](R25-funded-visual.md) | Category/scene comparisons complete; default migrations rejected, scene gate remains opt-in |
-
 | R26 | Did the branch improve stable behavior on past/local and public examples? | Paired stable source, copied local index, cached public retrieval and fresh visual/report diagnostics | [Paired product audit](R26-paired-product-audit.md) | Retrieval/context improvements reproduced; local compatibility preserved, household accuracy still open |
-
 | R27 | Do saved sources decode fully and does recall survive damaged footage? | Full local video decode, three-route fault injection and API restore/restart | [Source recovery](R27-unreadable-source-recovery.md) | 92 sources decode intact; nonfatal decode handling implemented, broader acceptance open |
-
 | R28 | Do imports survive indexing outage and interrupted work? | API embedding faults, explicit retry guards and real subprocess hard exit | [Import recovery](R28-import-restart-recovery.md) | Decoded source preservation and metadata-only restart recovery implemented; pre-copy initialization remains separate |
+| R29 | Does show → save → later recall work across household moves, corrections and ambiguity? | Real API source-separated public/synthetic workflows, natural-video diagnostic, native tool continuations and offline local replay | [Household experience](R29-household-experience.md) | General backend fixes measured; false clarification and household/acoustic acceptance remain open |
 
 R1/R2 can run alongside early technical feasibility work once separately authorized. R5 does not block the initial R3 retrieval baseline. Do not assign a person or deadline without their agreement.
 

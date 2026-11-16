@@ -68,3 +68,45 @@ def test_complete_workflow_cannot_pass_when_an_earlier_save_was_lost():
         linked,
         [{"previous_turn_id": "first", "replacement_turn_id": "second"}],
     )
+
+
+def test_native_replay_uses_authenticated_owned_turn_and_existing_api(tmp_path):
+    from datetime import UTC, datetime
+
+    from fastapi.testclient import TestClient
+    from PIL import Image
+    from test_companion import Planner
+    from test_nyx import ColorEncoder
+
+    from nyx.app import create_app
+    from nyx.voice import Voice
+
+    speaker = Voice(tmp_path, object())
+    encoder, verifier = ColorEncoder(), Planner()
+    with TestClient(
+        create_app(
+            tmp_path,
+            encoder_factory=lambda: encoder,
+            verifier_factory=lambda: verifier,
+            voice_factory=lambda _: speaker,
+        )
+    ) as client:
+        headers = {"x-nyx-voice": client.post("/api/voice/session").json()["token"]}
+        text = "Hello"
+        identifier = speaker.conversations.begin(text, {"mode": "livekit"})
+        speaker.turn = {"id": identifier, "transcript": text}
+        job = module.request_turn(
+            tmp_path,
+            encoder,
+            verifier,
+            text,
+            [Image.new("RGB", (40, 40), "green")],
+            initial_action={"action": "chat", "message": "Hello"},
+            client=client,
+            voice_turn_id=identifier,
+            headers=headers,
+            context_at=datetime.now(UTC).isoformat(),
+        )
+        assert job["status"] == "succeeded"
+        assert job["result"]["voice_turn_id"] == identifier
+        assert job["result"]["turn_id"] == identifier

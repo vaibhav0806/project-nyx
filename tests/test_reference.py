@@ -7,6 +7,11 @@ from PIL import Image
 from nyx.reference import resolve_reference
 
 
+@pytest.fixture(autouse=True)
+def separated_candidate(monkeypatch):
+    monkeypatch.setenv("NYX_HOUSEHOLD_REFERENCE_POLICY", "separated")
+
+
 def decision(**changes):
     return {
         "object_description": "black phone",
@@ -314,3 +319,67 @@ def test_identity_lookup_cannot_invent_a_placement_claim():
     assert result["status"] == "resolved"
     assert result["kind"] == "none" and result["destination"] == ""
     assert "claim_source" not in result
+
+
+def test_identity_handoff_without_the_independent_check_is_refused():
+    identity = decision(kind="none", destination="")
+    result = resolve_reference(
+        verifier(decision(kind="reported_placement", destination="drawer")),
+        "I put this in the drawer.",
+        [{"image": Image.new("RGB", (10, 10)), "captured_at": "now"}],
+        placement=True,
+        identity=identity,
+    )
+    assert result["status"] == "clarify"
+
+
+def test_default_joint_policy_does_not_promote_a_refused_placement(monkeypatch):
+    monkeypatch.delenv("NYX_HOUSEHOLD_REFERENCE_POLICY", raising=False)
+    calls = []
+
+    def generate(*args, **kwargs):
+        fields = set(kwargs["schema"]["properties"])
+        calls.append(fields)
+        assert "kind" in fields and "object_description" in fields
+        return json.dumps(decision(kind="none", destination=""))
+
+    result = resolve_reference(
+        SimpleNamespace(generate_json=generate),
+        "I put this in the drawer.",
+        [{"image": Image.new("RGB", (10, 10)), "captured_at": "now"}],
+        placement=True,
+        identity={
+            **decision(),
+            "visual_identity_check": {"unique_referent": True, "ambiguous": False},
+        },
+    )
+    assert result["status"] == "clarify"
+    assert len(calls) == 1
+
+
+def test_default_joint_policy_requires_the_independent_check(monkeypatch):
+    monkeypatch.delenv("NYX_HOUSEHOLD_REFERENCE_POLICY", raising=False)
+    calls = []
+
+    def generate(*args, **kwargs):
+        fields = set(kwargs["schema"]["properties"])
+        calls.append(fields)
+        if "unique_referent" in fields:
+            return '{"targets":"two phones","unique_referent":false,"ambiguous":true}'
+        assert "kind" in fields and "object_description" in fields
+        return json.dumps(decision(kind="reported_placement", destination="drawer"))
+
+    result = resolve_reference(
+        SimpleNamespace(generate_json=generate),
+        "I put this in the drawer.",
+        [{"image": Image.new("RGB", (10, 10)), "captured_at": "now"}],
+        placement=True,
+    )
+    assert result["status"] == "clarify"
+    assert len(calls) == 2
+
+
+def test_invalid_household_policy_fails_before_inference(monkeypatch):
+    monkeypatch.setenv("NYX_HOUSEHOLD_REFERENCE_POLICY", "unknown")
+    with pytest.raises(ValueError, match="must be joint or separated"):
+        resolve_reference(SimpleNamespace(), "I put this in the drawer.", [], placement=True)

@@ -3,8 +3,8 @@
 import argparse
 import json
 import sqlite3
-from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 from experiments.companion.correction_replay import BudgetedClient
 from experiments.companion.embedding_replay import budget_snapshot
@@ -14,6 +14,7 @@ from nyx.capture import frame_image
 from nyx.perception import CloudEncoder
 from nyx.realtime import INSTRUCTIONS, INSTRUCTIONS_VERSION
 from nyx.verification import CloudVerifier
+from nyx.voice import Voice, local_now
 
 CASES = [
     {
@@ -69,6 +70,9 @@ def run(runs, output, max_spend, visual_data=None):
     report = {
         "status": "running",
         "instructions_version": INSTRUCTIONS_VERSION,
+        "verifier": verifier.fingerprint,
+        "encoder": encoder.fingerprint,
+        "replay_policy": "owned-turn-persistent-api-v2/live-clock",
         "budget_before": client.initial,
         "cases": [{**c, "status": "not_run", "rounds": []} for c in cases],
         "limitations": "Actual native model/SDK binding/dispatch plus real API save/retrieval from public/synthetic report stores. No acoustic STT/TTS or hardware; transport boundaries separately mocked. Final answer fidelity requires author audit, not keyword scoring.",
@@ -88,13 +92,20 @@ def run(runs, output, max_spend, visual_data=None):
                 "temperature": 0,
                 "max_tokens": 1024,
                 "reasoning": {"effort": "low", "exclude": True},
-                "messages": messages,
+                "messages": [
+                    *messages,
+                    {
+                        "role": "system",
+                        "content": f"User local time: {local_now('Asia/Kolkata').isoformat()}. Reply in English.",
+                    },
+                ],
                 "tools": captured["schemas"],
                 "tool_choice": "auto",
             },
         )["choices"][0]
 
     checkpoint()
+    api = None
     try:
         for case in report["cases"]:
             root = output / case["id"]
@@ -113,11 +124,26 @@ def run(runs, output, max_spend, visual_data=None):
             else:
                 source = runs / case["run"] / case["case"]
                 copy_report_database(source, root)
+            from fastapi.testclient import TestClient
+
+            from nyx.app import create_app
+
+            speaker = Voice(root, SimpleNamespace())
+            api = TestClient(
+                create_app(
+                    root,
+                    encoder_factory=lambda: encoder,
+                    verifier_factory=lambda: verifier,
+                    voice_factory=lambda _, speaker=speaker: speaker,
+                )
+            )
+            api.__enter__()
+            headers = {"x-nyx-voice": api.post("/api/voice/session").json()["token"]}
             messages = [
                 {"role": "system", "content": INSTRUCTIONS},
                 {
                     "role": "system",
-                    "content": f"Replay clock {datetime.now(UTC).isoformat()}. Reply in English."
+                    "content": "Reply in English."
                     + (" No current camera image is available." if not images else ""),
                 },
                 {"role": "user", "content": case["text"]},
@@ -127,6 +153,13 @@ def run(runs, output, max_spend, visual_data=None):
             for phase in [first_phase, "recall" if visual_data else "current-location-challenge"]:
                 if phase != first_phase:
                     messages.append({"role": "user", "content": case["challenge"]})
+                text = case["text"] if phase == first_phase else case["challenge"]
+                turn_id = speaker.conversations.begin(text, {"mode": "livekit"})
+                speaker.turn = {"id": turn_id, "transcript": text}
+                with speaker.conversations.connect() as db:
+                    context_at = db.execute(
+                        "SELECT at FROM turns WHERE id=?", (turn_id,)
+                    ).fetchone()[0]
                 for attempt in range(3):
                     choice = generate(messages)
                     message = choice["message"]
@@ -166,6 +199,10 @@ def run(runs, output, max_spend, visual_data=None):
                             case["text"] if phase == first_phase else case["challenge"],
                             images=images,
                             initial_action=action,
+                            client=api,
+                            voice_turn_id=turn_id,
+                            context_at=context_at,
+                            headers=headers,
                         )
                         if job["status"] != "succeeded":
                             raise ValueError("Actual API tool failed")
@@ -188,10 +225,14 @@ def run(runs, output, max_spend, visual_data=None):
                     checkpoint()
                 else:
                     raise ValueError("Native continuation did not finish within bound")
+            api.__exit__(None, None, None)
+            api = None
             case["status"] = "complete"
             checkpoint()
         report["status"] = "complete"
     finally:
+        if api is not None:
+            api.__exit__(None, None, None)
         if report["status"] != "complete":
             report["status"] = "failed"
         report["budget_after"] = budget_snapshot(client)

@@ -1228,3 +1228,85 @@ def test_planner_knows_utterance_images_exist_without_claiming_a_current_view(
     assert observed[0]["current_view"] is False
     assert observed[0]["turn_visual_context"] is with_window
     assert observed[0]["turn_visual_frame_count"] == int(with_window)
+
+
+@pytest.mark.parametrize("change", [None, "pixels", "timestamp", "context", "turn", "refusal"])
+def test_visual_identity_handoff_reuses_only_the_same_owned_window(tmp_path, change, monkeypatch):
+    monkeypatch.setenv("NYX_HOUSEHOLD_REFERENCE_POLICY", "separated")
+    from nyx.voice import Voice
+
+    identities, checks = [], []
+
+    class HandoffVerifier(Planner):
+        def generate_json(self, messages, *args, **kwargs):
+            fields = set(kwargs.get("schema", {}).get("properties", {}))
+            if fields == {"kind", "destination"}:
+                return '{"kind":"reported_placement","destination":"drawer"}'
+            if "unique_referent" in fields:
+                checks.append(True)
+                return '{"targets":"one phone","unique_referent":true,"ambiguous":false}'
+            identities.append(True)
+            if change == "refusal" and len(identities) == 2:
+                return '{"source":"unresolved","ambiguous":true}'
+            return (
+                '{"object_description":"phone","source":"visual","frame_index":0,"ambiguous":false}'
+            )
+
+    class HandoffEncoder(ColorEncoder):
+        def encode_text(self, text):
+            import numpy as np
+
+            return np.array([1, 0, 0], dtype=np.float32)
+
+    speaker = Voice(tmp_path, object())
+    with TestClient(
+        create_app(
+            tmp_path,
+            encoder_factory=HandoffEncoder,
+            verifier_factory=HandoffVerifier,
+            voice_factory=lambda root: speaker,
+        )
+    ) as client:
+        headers = {"x-nyx-voice": client.post("/api/voice/session").json()["token"]}
+        message = "I put this in the drawer."
+        identifier = speaker.conversations.begin(message, {"mode": "livekit"})
+        speaker.turn = {"id": identifier, "transcript": message}
+        now = datetime.now(UTC)
+        body = {
+            "message": message,
+            "voice_turn_id": identifier,
+            "request_id": "first-identify",
+            "context_at": now.isoformat(),
+            "visual_frames": [{"snapshot": snapshot(), "captured_at": now.isoformat()}],
+            "initial_action": {"action": "identify_shown_object"},
+        }
+        first = client.post("/api/agent", headers=headers, json=body)
+        assert wait_for_job(client, first.json()["id"])["result"]["status"] == "complete"
+        if change == "pixels":
+            body["visual_frames"][0]["snapshot"] = snapshot("red")
+        elif change == "timestamp":
+            body["visual_frames"][0]["captured_at"] = (now - timedelta(seconds=1)).isoformat()
+        elif change == "context":
+            body["context_at"] = (now + timedelta(seconds=1)).isoformat()
+        elif change == "turn":
+            identifier = speaker.conversations.begin(message, {"mode": "livekit"})
+            speaker.turn = {"id": identifier, "transcript": message}
+            body["voice_turn_id"] = identifier
+        if change == "refusal":
+            body["request_id"] = "second-identify"
+            rejected = client.post("/api/agent", headers=headers, json=body)
+            assert wait_for_job(client, rejected.json()["id"])["result"]["status"] == "clarify"
+        body.update(request_id="then-remember", initial_action={"action": "remember_statement"})
+        saved = client.post("/api/agent", headers=headers, json=body)
+        job = wait_for_job(client, saved.json()["id"])
+        assert job["status"] == "succeeded", job
+        assert job["result"]["status"] == "complete", job
+        assert len(identities) == (1 if change is None else 3 if change == "refusal" else 2)
+        assert len(checks) == (1 if change is None else 2)
+        with speaker.conversations.connect() as db:
+            row = db.execute(
+                "SELECT resolver FROM statements WHERE turn_id=?", (identifier,)
+            ).fetchone()
+        reference = json.loads(row[0])["reference"]
+        assert reference["kind"] == "reported_placement" and reference["destination"] == "drawer"
+        assert reference["visual_identity_check"]["unique_referent"] is True

@@ -7,6 +7,7 @@ import json
 import re
 import subprocess
 import time
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
@@ -196,7 +197,18 @@ def encoded(image):
 
 
 def request_turn(
-    root, encoder, verifier, message, images=None, *, initial_action=None, offsets=None
+    root,
+    encoder,
+    verifier,
+    message,
+    images=None,
+    *,
+    initial_action=None,
+    offsets=None,
+    client=None,
+    voice_turn_id=None,
+    context_at=None,
+    headers=None,
 ):
     from fastapi.testclient import TestClient
 
@@ -209,6 +221,8 @@ def request_turn(
     }
     if initial_action is not None:
         body["initial_action"] = initial_action
+    if voice_turn_id is not None:
+        body["voice_turn_id"] = voice_turn_id
     if images:
         offsets = offsets if offsets is not None else list(range(len(images)))
         if (
@@ -217,7 +231,7 @@ def request_turn(
             or offsets[-1] - offsets[0] > 15
         ):
             raise ValueError("Invalid source window offsets")
-        clock = datetime.now(UTC)
+        clock = datetime.fromisoformat(context_at) if context_at else datetime.now(UTC)
         body.update(
             context_at=clock.isoformat(),
             visual_frames=[
@@ -230,15 +244,20 @@ def request_turn(
                 for i, image in enumerate(images)
             ],
         )
-    with TestClient(
-        create_app(
-            root,
-            encoder_factory=lambda: encoder,
-            verifier_factory=lambda: verifier,
-            voice_factory=lambda root: None,
+    session = (
+        nullcontext(client)
+        if client is not None
+        else TestClient(
+            create_app(
+                root,
+                encoder_factory=lambda: encoder,
+                verifier_factory=lambda: verifier,
+                voice_factory=lambda root: None,
+            )
         )
-    ) as api:
-        response = api.post("/api/agent", json=body)
+    )
+    with session as api:
+        response = api.post("/api/agent", json=body, headers=headers)
         response.raise_for_status()
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline:

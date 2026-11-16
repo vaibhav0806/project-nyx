@@ -223,7 +223,8 @@ def test_empty_report_lookup_is_uncertain_without_claiming_complete_evidence(tmp
     assert result["status"] == "uncertain"
 
 
-def test_reference_check_failure_preserves_transcript_without_partial_memory(tmp_path):
+def test_reference_check_failure_preserves_transcript_without_partial_memory(tmp_path, monkeypatch):
+    monkeypatch.setenv("NYX_HOUSEHOLD_REFERENCE_POLICY", "separated")
     import pytest
 
     conversations = Conversations(tmp_path)

@@ -1,6 +1,7 @@
 """Companion API: local agent tools, live observation, and event-delivery lifecycle."""
 
 import base64
+import hashlib
 import json
 import re
 import time
@@ -83,6 +84,7 @@ def install_companion(app, workspace, voice):
     workspace.observer = observer
     requests = {}
     references = {}
+    resolved_references = {}
     last_observation = {"state": "idle", "note": "Camera off; no departure monitoring"}
 
     @app.get("/companion.js")
@@ -247,6 +249,25 @@ def install_companion(app, workspace, voice):
                     "video_id": frame["video_id"],
                 }
         identifier = body.voice_turn_id or conversations.begin(body.message, {"mode": "agent"})
+        reference_key = (
+            body.message,
+            body.context_at.isoformat() if body.context_at else None,
+            tuple(
+                (
+                    frame["captured_at"],
+                    frame["image"].size,
+                    frame["image"].mode,
+                    hashlib.sha256(frame["image"].tobytes()).digest(),
+                )
+                for frame in turn_frames
+            ),
+        )
+
+        with workspace.lock:
+            cached = resolved_references.get(identifier)
+            if cached and cached[0] != reference_key:
+                resolved_references.pop(identifier, None)
+                references.pop(identifier, None)
 
         def cancelled():
             if workspace.jobs[job_id].get("cancelled"):
@@ -328,6 +349,9 @@ def install_companion(app, workspace, voice):
                 statements = Statements(conversations)
                 workspace.model_store()
                 if name == "remember_statement":
+                    with workspace.lock:
+                        cached = resolved_references.get(identifier)
+                        identity = cached[1] if cached and cached[0] == reference_key else None
                     return statements.remember(
                         identifier,
                         workspace.visual_verifier(),
@@ -336,6 +360,7 @@ def install_companion(app, workspace, voice):
                         body.captured_at.isoformat() if body.captured_at else None,
                         frames=turn_frames,
                         supersedes_turn_id=action.get("supersedes_turn_id"),
+                        identity=identity,
                     )
                 return statements.recall(
                     action["query"],
@@ -350,6 +375,9 @@ def install_companion(app, workspace, voice):
                 if name == "identify_shown_object":
                     from nyx.reference import resolve_reference
 
+                    with workspace.lock:
+                        resolved_references.pop(identifier, None)
+                        references.pop(identifier, None)
                     reference = resolve_reference(
                         workspace.visual_verifier(), body.message, turn_frames
                     )
@@ -364,8 +392,11 @@ def install_companion(app, workspace, voice):
                     if reference["source"] == "visual":
                         with workspace.lock:
                             references[identifier] = turn_frames[reference["frame_index"]]["image"]
+                            resolved_references[identifier] = (reference_key, reference)
                             while len(references) > 8:
-                                del references[next(iter(references))]
+                                oldest = next(iter(references))
+                                del references[oldest]
+                                resolved_references.pop(oldest, None)
                     return {
                         "kind": "reference",
                         "status": "complete",

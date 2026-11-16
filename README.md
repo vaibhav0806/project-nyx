@@ -168,6 +168,12 @@ and positive-confirmation checks. These remain opt-in after mixed broader result
 [visual evaluation](docs/research/R25-funded-visual.md). Wake experiments also retained the current
 recognizer after rejected regressions ([findings](docs/research/R24-wake-detector.md)).
 
+Household report references default to the existing joint placement/identity decision with an
+additional ambiguity check. Backend-only `NYX_HOUSEHOLD_REFERENCE_POLICY=separated` enables an
+experimental separated extraction and same-utterance identity handoff. It remains opt-in after
+an unsafe ambiguous-object save; see [household validation](docs/research/R29-household-experience.md).
+Neither policy establishes physical placement or unique item identity.
+
 See the [architecture](docs/architecture.md) for the pipeline and [decisions](docs/decisions.md) for why it is built this way.
 
 ## Development

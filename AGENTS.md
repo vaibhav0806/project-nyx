@@ -10,6 +10,12 @@ cloud developer evaluation uses public/synthetic evidence under the existing $5 
 Do not interpret generic local-video use as permission to upload personal footage or activate
 hardware. The household plan/spec defines source-separated full-API workflows and remaining
 real-household/acoustic acceptance gates. No automatic new PR or merge was requested.
+R29 found an unsafe new saved link in the separated household pipeline. It remains opt-in via
+NYX_HOUSEHOLD_REFERENCE_POLICY=separated; default joint retains the merged placement decision plus
+an independent ambiguity veto. Do not promote the experimental path based on its higher small-
+corpus score. Verified cumulative OpenRouter usage is now$4.73185091/$5; paid tests stopped with
+$0.26814909 remaining. Household physical-identity/acoustic/user acceptance remains open.
+
 
 ## Latest authorization — 2026-11-15
 

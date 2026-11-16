@@ -1,7 +1,11 @@
 # R29 — Complete shown-item household workflow
 
-Date: 2026-11-16. Owner: inline. Status: first and second selections evaluated; identity-only candidate pending.
-Decision: improve the real show → save → later recall workflow, preserving source/identity limits.
+Date: 2026-11-16. Owner: inline. Status: comparisons complete; separated workflow remains opt-in after an unsafe heldout save.
+Decision: default retains the merged joint claim/identity decision plus the additional conservative
+ambiguity check. The separated reference6 pipeline and identity-save handoff are **opt-in only**
+(`NYX_HOUSEHOLD_REFERENCE_POLICY=separated`); default is `joint`. The final two-phone unsafe save
+prevented default promotion. Planning, answer attribution and empty-recall fixes remain active.
+This is an engineering/validation pass with an open household acceptance gate, not product completion.
 
 ## Scope and inputs
 
@@ -169,3 +173,123 @@ identity heldout conditions. Selection favors a coherent separated contract and 
 association; mixed clear-control results and extra inference remain explicit limitations.
 The earlier reference5 known-holdout regression passed4/4, including a recorded checker veto
 of a primary-model arbitrary selection. That is diagnostic reproduction, not fresh accuracy.
+
+## Third heldout: improvement with an unresolved unsafe case
+
+Frozen identity-only selection scored3/4 on new sources: Hindi completed placement and future
+intention controls passed, and the ambiguous bottle pair was refused. The two-phone composite
+FAILED: both primary and independent model described it as one held phone or multiple views of
+one phone; a report was saved and later cited rather than asking which item. This is a measured
+unsafe association under the predeclared two-source protocol. It remains a release/household
+acceptance issue. No prompt was tuned on these outputs and the failed case stays in the denominator.
+An independent check reduces some arbitrary assignments; it does not establish independent
+errors or guarantee correct physical identity. Do not call the branch universally household-ready
+or claim the added checker eliminates false associations. Main remains untouched.
+
+## Natural cross-view and spoken-save validation
+
+The final reference6 natural diagnostic passed1/1 with distinct source offsets: save22/23/28s,
+recall24/25s. No exact save frame was reused for recall. The observed brown bag/purse report was
+retrieved with its exact source after restart/context eviction. This is the same short scene,
+not cross-day identity, person recognition or physical confirmation of the synthetic destination.
+
+The first native save/recall harness trial saved the clear item, then exceeded its three-round
+continuation bound. Investigation found a harness mismatch: its single frozen initial system
+clock preceded the newly saved report, and the model supplied that as an as_of cutoff. Actual
+Companion.llm_node refreshes local time on every generation. Keep the failed artifact and repair
+the harness to mirror that behavior; do not count a stale-clock experiment as a product regression
+or silently expand continuation bounds. The refreshed-clock run is separate. Original utterances,
+models, tools, images and production instructions remain unchanged.
+
+## Same-utterance identity handoff repair
+
+The refreshed-clock native trial completed execution but its clear-item workflow FAILED: initial
+identification succeeded, remember_statement re-ran recognition and clarified, and no memory was
+saved. Ambiguous-object save/recall correctly clarified. Completion status alone is not a pass.
+A user-facing intermediate update confused those two; it was explicitly corrected after audit.
+
+A failing real authenticated API regression exposed the duplicate identity work. Reuse a checked
+server-owned identity only for the identical active turn, transcript, context timestamp, frame
+capture timestamps, dimensions/mode and pixel hashes. A new turn, changed pixels/clocks or later
+identity refusal invalidates it; the bounded eight-entry cache is not durable general memory.
+The text claim still has to pass separately, destination/object guards remain, and an identity
+without its independent unique-referent check is refused. Stored reference metadata records
+same-owned-window-v1. No client-supplied identity field is trusted or exposed.
+
+The native harness also needed a persistent authenticated API session and real owned turn per
+utterance to model this boundary. A regression caught accidental creation of a separate unowned
+API client. Preserve failed protocol trials (409 and a missing experiment import) without counting
+them as model-quality comparisons. The final harness supplies the actual native-selected action,
+fixed per-turn frames/clocks, signed session header and fresh local-time prompt per generation.
+No forced first action, extra continuation rounds or fixture-specific application behavior.
+
+Final owned-turn native diagnostic passed both authored outcomes (2/2): clear item identified,
+saved with same-owned-window provenance, then recalled with attributed wording; ambiguous pair
+asked which item at save and lookup and created zero links. Actual SQLite inspection found exactly
+one clear-case link and no ambiguous link. This is a repeated development diagnostic, not unseen
+speech or acoustic acceptance. It does not fix the separate heldout two-phone misidentification.
+
+Artifacts: household-native-save-clarify (stale clock), household-native-save-live-clock (clear
+workflow miss), household-native-owned-turn-handoff / household-native-owned-turn-final (protocol
+failures), household-native-owned-turn-verified (final owned-turn diagnostic). All remain ignored.
+
+## Matched baseline audit and default decision
+
+The immutable merged bdb7ad0 application scored1/4 on the same final identity holdout (planner47,
+identical dependencies). It created no links in all four cases. Its two-phone failure was an empty
+search marked complete, not an unsafe saved link. The separated candidate scored3/4 but created
+one incorrect link where baseline refused. This is a safety regression despite the higher composite
+score. Do not describe the comparison as strictly better or publish it as a solved household flow.
+
+Retain separated claim/identity/handoff only behind the explicit backend policy flag. Default
+joint preserves the exact merged primary schema, prompt and placement flag; a local AST/literal
+comparison verified both schema and prompt equality. The independent uniqueness check can only
+withhold an otherwise-valid result; it cannot override a joint refusal or fill its missing claim.
+Default-policy tests verify that even an apparently valid cached identity cannot promote a refused
+placement, while a negative independent check still vetoes a joint positive. Invalid policy values
+fail before inference. No object/fixture exceptions, threshold tuning or new model/provider.
+
+Final default on the four identity holdout cases scored3/4: Hindi placement and both ambiguity
+conditions passed; the future-plan cup remained a missed save. Both ambiguity cases created no
+links. This is a known-case regression comparison after selection, not a new unseen estimate.
+Positive claim failures and nondeterminism remain; the default does not promise complete household
+recall. Underlying primary decisions are unchanged, and extra checking adds cost/clarifications.
+
+## Final default regression, verification and accounting
+
+Core development with the final default scored1/4, equal to the strict matched baseline1/4:
+ambiguity passed, while the three positive workflows missed at least one save or recall. Do not
+substitute the opt-in pipeline's4/4 for this default result. The default is more conservative,
+not a completed show/remember household experience. The opt-in path is useful engineering work,
+but its unsafe heldout association and broader naming instability prevent promotion.
+
+Final verification:577 deterministic tests passed in24.81s; Ruff lint/format (185 files), four
+application JavaScript syntax checks, changed-document local links and whitespace passed.
+Synthetic Chrome speech/cancellation/playback-failure/library/candidate/reminder boundaries
+passed with zero page errors. Full offline local video decode/hash and256 stored-vector checks
+remain preservation evidence only. Author review found no UI, dependency, source-media or main
+changes. No hosted CI/independent-review/merge-ready claim; no new PR or merge was requested.
+
+Runtime: macOS Darwin24.6.0 arm64, Python3.12.11, FFmpeg8.1. Exact cloud model/encoder identifiers,
+prompt policies, source/manifest hashes, per-stage replies and usage are in ignored results.json
+artifacts; scripts/cases/tests and these anonymized findings are committed. Public COCO licensing/
+source metadata follow [R22](R22-visual-depth.md); Charades download and research-only restrictions
+follow [R8](R8-companion-loop.md). Edited photo crops are not true household identity labels.
+
+Cumulative OpenRouter usage verified **$4.73185091/$5 total**, matching conservative accounting:
+pre-household anchor$3.205437215 plus every household*/results.json provider_usage cost, including
+failed/rejected/protocol trials. Remaining$0.26814909. No refill/account purchase or paid acoustic
+route. Paid tests stopped with headroom. No private media/vectors were uploaded and no capture
+hardware activated.
+
+Reproduction uses experiments.companion.household_workflows with the committed case manifests;
+--prepare verifies cached source/annotation hashes and produces ignored fixtures without model
+calls. Actual /api/agent runs accept --data/--cases/--split/--output/--max-spend. For the experimental
+selection set NYX_HOUSEHOLD_REFERENCE_POLICY=separated explicitly; default joint is intentionally
+different. Native replay uses experiments.companion.household_spoken_replay --visual-data against
+prepared public fixtures. Every paid run needs cumulative-budget headroom and a new output directory.
+
+Next release work: source-labeled user-assisted disambiguation/confirmation for similar items,
+new independent physical-object/video groups, and acoustic/real-user acceptance. Do not keep tuning
+prompts against the exposed phone pair or promise that two agreeing models establish identity.
+The broader household goal remains open; the default and experimental limits are deliberate.

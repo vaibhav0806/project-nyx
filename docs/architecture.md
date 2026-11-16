@@ -1,5 +1,28 @@
 # Technical architecture
 
+## Household reference and report pipeline — 2026-11-16
+
+The planner receives validated turn-window availability/count separately from current-view
+availability; an earlier demonstrated object is usable without a fresh current snapshot.
+Default `NYX_HOUSEHOLD_REFERENCE_POLICY=joint` retains the merged claim/identity decision and its
+validators. An independent unique-referent check can withhold visual associations before embedding
+or persistence, without anchoring on the primary answer. It cannot fill a refused placement claim.
+This adds bounded inference cost/latency and can withhold valid but cluttered demonstrations.
+
+The opt-in `separated` policy extracts claim kind and exact destination from text, resolves visual
+identity independently and requires that same uniqueness check. Its bounded cache reuses checked
+identity only inside the identical owned utterance window: transcript, context/frame clocks and
+pixel hashes must match. A new turn/window or later identity refusal invalidates it. Claim extraction
+still runs separately. This pipeline improved positive controls but saved an ambiguous two-phone
+report; it is not the default and does not pass household acceptance. Existing links are not
+silently reverified or backfilled. Provider/protocol errors preserve original transcripts.
+
+Stored claim/checker metadata distinguish the user's words from image support; a destination is
+never proof of physical placement. Correction edges, timestamps and restart-independent statement
+retrieval retain their contracts. Empty report recall is uncertain. Successful reference/report
+completion returns the report answer rather than internal handoff instructions. See
+[R29](research/R29-household-experience.md) for misses, rejected default promotion and corpus limits.
+
 ## Decoded import preservation and explicit retry — 2026-11-16
 
 A decoded import survives embedding/index failure; failed frames remain excluded. Startup marks

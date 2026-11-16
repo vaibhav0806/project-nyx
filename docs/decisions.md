@@ -1,5 +1,21 @@
 # Decisions and open choices
 
+## Separate household claims from visual identity — 2026-11-16
+
+Keep a placement statement distinct from visual proof of an action. The separated claim/identity
+pipeline improved positive workflows but saved a report against an ambiguous two-phone target
+where matched main refused. Reject default promotion: retain it only with backend
+`NYX_HOUSEHOLD_REFERENCE_POLICY=separated`. Its exact-owned-window identity handoff avoids duplicate
+recognition but cannot repair an already wrong identity.
+
+Default `joint` keeps the merged primary schema/prompt and placement decision; add the independent,
+unanchored unique-referent check only as a veto. A joint refusal cannot be promoted by this check,
+text extraction or cached identity. Explicit named reports stay text-supported. Empty recall is
+uncertain, a reference is not a location, and internal tool instructions are not an answer.
+Malformed checks/outages preserve transcripts without partial links. Extra calls and false
+clarifications remain costs. See [R29](research/R29-household-experience.md) for all failed trials
+and why a higher small-corpus score is insufficient for household/acoustic acceptance.
+
 ## Preserve decoded imports on indexing failure — 2026-11-16
 
 Do not remove a successfully decoded saved video because embeddings or persistence failed.

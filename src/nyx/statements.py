@@ -146,6 +146,7 @@ and distinguish intention from reported placement. Return only the requested JSO
         frames=None,
         repair=False,
         supersedes_turn_id=None,
+        identity=None,
     ):
         if repair and supersedes_turn_id is not None:
             raise ValueError("Repair and report correction require separate operations")
@@ -198,7 +199,9 @@ and distinguish intention from reported placement. Return only the requested JSO
                 previous = self._correction_target(db, supersedes_turn_id, turn)
             reference = self._correction_reference(previous, turn, verifier)
         else:
-            reference = resolve_reference(verifier, turn["transcript"], frames, placement=True)
+            reference = resolve_reference(
+                verifier, turn["transcript"], frames, placement=True, identity=identity
+            )
         if reference["status"] != "resolved":
             self.conversations.event(
                 "statement_link_unresolved", turn_id=turn_id, frame_count=len(frames)

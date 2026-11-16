@@ -123,6 +123,9 @@ class CloudVerifier:
             raise ValueError("History concurrency must be between 1 and 8")
         self.device = "cloud"
         self.load_seconds = 0
+        from nyx.reference import household_reference_policy
+
+        separated_reference = household_reference_policy() == "separated"
         self.fingerprint = {
             "model": self.model,
             "vision_model": self.vision_model,
@@ -137,9 +140,13 @@ class CloudVerifier:
             "conversation_context_policy": "bounded-source-aware-v2/live-availability",
             "spoken_context_prompt_version": 2,
             "reference_model": os.environ.get("NYX_REFERENCE_MODEL", "google/gemini-3.5-flash"),
-            "reference_prompt_version": 6,
+            "household_reference_policy": "separated" if separated_reference else "joint",
+            "reference_prompt_version": 6 if separated_reference else 2,
+            "reference_handoff_policy": "same-owned-window-v1" if separated_reference else "off",
             "reference_ambiguity_policy": "independent-unique-v1",
-            "statement_claim_policy": "independent-text-v1",
+            "statement_claim_policy": "independent-text-v1"
+            if separated_reference
+            else "joint-reference-v2",
             "reference_grounding_policy": "explicit-unicode-phrase-v3/destination-spans",
             "positive_confirmation_policy": 3,
             "positive_confirmation": "scene-category-location-v3"
