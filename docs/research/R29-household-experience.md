@@ -1,6 +1,6 @@
 # R29 — Complete shown-item household workflow
 
-Date: 2026-11-16. Owner: inline. Status: development selection frozen; heldout pending.
+Date: 2026-11-16. Owner: inline. Status: second selection frozen; fresh ambiguity holdout pending.
 Decision: improve the real show → save → later recall workflow, preserving source/identity limits.
 
 ## Scope and inputs
@@ -72,3 +72,43 @@ household-selected-v2-development, household-selected-v3-development (rejected p
 household-claim-separation-probe and household-separated-development, all under data/runs.
 The original run scores precede the stricter scorer; use their hashed rescored sidecars for
 composite comparisons. Final answers require author audit separate from source-ID scoring.
+
+## First heldout and unsafe repetition
+
+Frozen reference4 scored3/4 versus merged baseline1/4 on the same four heldout workflows.
+Hindi placement, future intention and normal movement passed. The ambiguous pair refused its
+save, but lookup chose one object and returned an empty report search with status=complete.
+A deterministic regression changed empty statement recall to uncertain; absence of a report
+is not evidence of an object's absence.
+
+A diagnostic repetition of that known ambiguous case then SAVED a report against one arbitrarily
+selected cup (0/1). This is a stochastic identity failure and blocks an unqualified success claim.
+The original heldout results remain unchanged; repetitions are diagnostic, not fresh heldout data.
+
+## Independent reference check and second selection freeze
+
+A candidate independent visual check sees the utterance and chronological frames without the
+primary model's proposed description. It must explicitly agree that one referent is singled out;
+equally plausible targets without distinguishing words/holding/pointing cues require clarification.
+It uses the existing Lite vision route, while the primary reference resolver remains Flash.
+Malformed responses or provider failures propagate before embedding/persistence; the original
+transcript survives. Explicitly named text-only reports do not claim visual identity and skip it.
+This adds up to one vision call to visual saves/lookups, not a new model/provider or a category
+exception list. Fingerprints record reference5 / independent-unique-v1.
+
+On original DEV windows, the independent component probe accepted all three clear controls and
+refused the ambiguous pair (4/4). A newly frozen four-case source-separated confirmation corpus
+then passed its two development cases (one clear object, one ambiguous pair). Core workflow
+regression scored2/4: shown-item recall and ambiguity passed; the primary resolver refused the
+first phone save before the new check; the added check withheld bottle recall because another
+partially visible bottle was in the background. Both bottle saves and its correction edge passed.
+The conservative check therefore has an observed false clarification cost. Do not report4/4 core
+workflow accuracy or claim every dimension improved. Keep the safe refusal rather than arbitrary
+object assignment, and measure clear-object retention separately from ambiguity rejection.
+
+Freeze the exact independent-unique-v1 prompt and existing primary model before opening the two
+fresh confirmation heldout outcomes. No additional prompt/model selection will use their results.
+The new source IDs are disjoint from original household source groups; these are fresh household
+conditions over previously available public photos, not photographs unseen in all prior tasks.
+Artifacts: household-empty-state-regression, household-ambiguity-check-probe,
+household-confirmed-development and household-confirmed-core-development under data/runs.

@@ -478,7 +478,7 @@ For latest_report selection include the newest relevant dated report among the c
         )
         return {
             "kind": "statements",
-            "status": "clarify" if ambiguity else "complete",
+            "status": "clarify" if ambiguity else "complete" if selected else "uncertain",
             "matches": selected,
             "answer": answer,
             "sources": sources,

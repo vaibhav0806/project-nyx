@@ -22,6 +22,10 @@ def test_pronoun_link_survives_restart_without_recent_chat(tmp_path):
     seen = []
 
     def resolve(messages, limit, **kwargs):
+        if "unique_referent" in kwargs.get("schema", {}).get("properties", {}):
+            return json.dumps(
+                {"targets": "Fixture target", "unique_referent": True, "ambiguous": False}
+            )
         if set(kwargs.get("schema", {}).get("properties", {})) == {"kind", "destination"}:
             return json.dumps({"kind": "intention", "destination": "kitchen"})
         seen.append(next(p["image"] for p in messages[0]["content"] if p["type"] == "image"))
@@ -170,7 +174,15 @@ def test_repair_preserves_old_link_and_replaces_only_after_valid_resolution(tmp_
     }
     result = store.remember(
         turn,
-        SimpleNamespace(generate_json=lambda *a, **k: json.dumps(good)),
+        SimpleNamespace(
+            generate_json=lambda *a, **k: (
+                json.dumps(
+                    {"targets": "Fixture target", "unique_referent": True, "ambiguous": False}
+                )
+                if "unique_referent" in k.get("schema", {}).get("properties", {})
+                else json.dumps(good)
+            )
+        ),
         Encoder(),
         frames=[{"image": Image.new("RGB", (20, 20)), "captured_at": "2026-10-31T12:00:00Z"}],
         repair=True,
@@ -195,3 +207,55 @@ def test_repair_connection_does_not_interrupt_pending_turns(tmp_path):
     turn = conversations.begin("An active spoken turn", {})
     observer = Conversations(tmp_path, recover_pending=False)
     assert next(row for row in observer.recent() if row["id"] == turn)["status"] == "pending"
+
+
+def test_empty_report_lookup_is_uncertain_without_claiming_complete_evidence(tmp_path):
+    conversations = Conversations(tmp_path)
+    statements = Statements(conversations)
+
+    def no_selection(*args, **kwargs):
+        raise AssertionError("An empty store has no candidates to verify")
+
+    result = statements.recall(
+        "an unmentioned item", Encoder(), SimpleNamespace(generate_json=no_selection)
+    )
+    assert result["matches"] == [] and result["sources"] == []
+    assert result["status"] == "uncertain"
+
+
+def test_reference_check_failure_preserves_transcript_without_partial_memory(tmp_path):
+    import pytest
+
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("I put this in the drawer.", {})
+    store = Statements(conversations)
+
+    def resolve(*args, **kwargs):
+        fields = set(kwargs["schema"]["properties"])
+        if fields == {"kind", "destination"}:
+            return '{"kind":"reported_placement","destination":"drawer"}'
+        if "unique_referent" in fields:
+            raise OSError("Provider unavailable")
+        return json.dumps(
+            {
+                "object_description": "phone",
+                "destination": "",
+                "kind": "none",
+                "source": "visual",
+                "frame_index": 0,
+                "ambiguous": False,
+            }
+        )
+
+    with pytest.raises(OSError, match="Provider unavailable"):
+        store.remember(
+            turn,
+            SimpleNamespace(generate_json=resolve),
+            Encoder(),
+            Image.new("RGB", (40, 40)),
+            "2026-11-16T12:00:00Z",
+        )
+    with conversations.connect() as db:
+        assert db.execute("SELECT count(*) FROM statements").fetchone()[0] == 0
+    assert conversations.recent()[0]["id"] == turn
+    assert conversations.recent()[0]["transcript"] == "I put this in the drawer."

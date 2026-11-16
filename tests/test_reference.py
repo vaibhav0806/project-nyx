@@ -20,7 +20,14 @@ def decision(**changes):
 
 
 def verifier(result):
-    return SimpleNamespace(generate_json=lambda *a, **k: json.dumps(result))
+    def generate(*args, **kwargs):
+        if "unique_referent" in kwargs.get("schema", {}).get("properties", {}):
+            return json.dumps(
+                {"targets": "Fixture target", "unique_referent": True, "ambiguous": False}
+            )
+        return json.dumps(result)
+
+    return SimpleNamespace(generate_json=generate)
 
 
 def test_reference_selects_earlier_supporting_frame():
@@ -165,6 +172,10 @@ def test_report_claim_and_visual_identity_resolve_independently():
                 for part in message["content"]
             )
             return json.dumps({"kind": "reported_placement", "destination": "drawer"})
+        if len(calls) == 3:
+            return json.dumps(
+                {"targets": "Fixture target", "unique_referent": True, "ambiguous": False}
+            )
         return json.dumps(decision(kind="none", destination=""))
 
     result = resolve_reference(
@@ -176,7 +187,7 @@ def test_report_claim_and_visual_identity_resolve_independently():
     assert result["status"] == "resolved"
     assert result["kind"] == "reported_placement" and result["destination"] == "drawer"
     assert result["object_description"] == "black phone"
-    assert len(calls) == 2
+    assert len(calls) == 3
 
 
 def test_refused_claim_does_not_resolve_or_upload_visual_identity():
@@ -200,3 +211,71 @@ def test_refused_claim_does_not_resolve_or_upload_visual_identity():
         placement=True,
     )
     assert result["status"] == "clarify"
+
+
+def test_independent_ambiguity_check_can_withhold_an_apparently_resolved_target():
+    calls = []
+
+    def generate(messages, *args, **kwargs):
+        calls.append(kwargs.get("schema", {}))
+        if len(calls) == 1:
+            return json.dumps({"kind": "reported_placement", "destination": "drawer"})
+        if len(calls) == 2:
+            return json.dumps(decision(kind="none", destination=""))
+        return json.dumps(
+            {
+                "targets": "Two plausible objects are shown equally.",
+                "unique_referent": False,
+                "ambiguous": True,
+            }
+        )
+
+    result = resolve_reference(
+        SimpleNamespace(generate_json=generate),
+        "I put this in the drawer.",
+        [{"image": Image.new("RGB", (10, 10)), "captured_at": "now"}],
+        placement=True,
+    )
+    assert result["status"] == "clarify"
+    assert len(calls) == 3
+
+
+@pytest.mark.parametrize("unique,ambiguous", [(True, True), (False, False)])
+def test_visual_reference_requires_unambiguous_agreement(unique, ambiguous):
+    def generate(*args, **kwargs):
+        if "unique_referent" in kwargs.get("schema", {}).get("properties", {}):
+            return json.dumps(
+                {"targets": "Possible targets.", "unique_referent": unique, "ambiguous": ambiguous}
+            )
+        return json.dumps(decision())
+
+    result = resolve_reference(
+        SimpleNamespace(generate_json=generate),
+        "I put this in the kitchen.",
+        [{"image": Image.new("RGB", (10, 10)), "captured_at": "now"}],
+        placement=True,
+    )
+    assert result["status"] == "clarify"
+
+
+@pytest.mark.parametrize(
+    "check",
+    [
+        None,
+        {},
+        {"targets": "phone", "unique_referent": "true", "ambiguous": False},
+        {"targets": "", "unique_referent": True, "ambiguous": False},
+    ],
+)
+def test_malformed_visual_check_cannot_resolve_identity(check):
+    def generate(*args, **kwargs):
+        if "unique_referent" in kwargs.get("schema", {}).get("properties", {}):
+            return json.dumps(check)
+        return json.dumps(decision())
+
+    with pytest.raises(ValueError, match="Invalid visual reference check"):
+        resolve_reference(
+            SimpleNamespace(generate_json=generate),
+            "Where did I put this?",
+            [{"image": Image.new("RGB", (10, 10)), "captured_at": "now"}],
+        )

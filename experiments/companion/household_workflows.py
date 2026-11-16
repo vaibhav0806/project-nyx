@@ -195,7 +195,9 @@ def encoded(image):
     return base64.b64encode(out.getvalue()).decode()
 
 
-def request_turn(root, encoder, verifier, message, images=None):
+def request_turn(
+    root, encoder, verifier, message, images=None, *, initial_action=None, offsets=None
+):
     from fastapi.testclient import TestClient
 
     from nyx.app import create_app
@@ -205,14 +207,25 @@ def request_turn(root, encoder, verifier, message, images=None):
         "request_id": __import__("uuid").uuid4().hex,
         "timezone": "Asia/Kolkata",
     }
+    if initial_action is not None:
+        body["initial_action"] = initial_action
     if images:
+        offsets = offsets if offsets is not None else list(range(len(images)))
+        if (
+            len(offsets) != len(images)
+            or offsets != sorted(offsets)
+            or offsets[-1] - offsets[0] > 15
+        ):
+            raise ValueError("Invalid source window offsets")
         clock = datetime.now(UTC)
         body.update(
             context_at=clock.isoformat(),
             visual_frames=[
                 {
                     "snapshot": encoded(image),
-                    "captured_at": (clock - timedelta(seconds=len(images) - i - 1)).isoformat(),
+                    "captured_at": (
+                        clock - timedelta(seconds=offsets[-1] - offsets[i])
+                    ).isoformat(),
                 }
                 for i, image in enumerate(images)
             ],
@@ -236,7 +249,7 @@ def request_turn(root, encoder, verifier, message, images=None):
         raise ValueError("Household workflow timed out")
 
 
-def run(data, cases_path, output, split, max_spend):
+def run(data, cases_path, output, split, max_spend, case_id=None):
     from experiments.companion.correction_replay import BudgetedClient
     from experiments.companion.embedding_replay import budget_snapshot
     from nyx.perception import CloudEncoder
@@ -249,6 +262,9 @@ def run(data, cases_path, output, split, max_spend):
     if manifest["cases_sha256"] != digest(cases_path):
         raise ValueError("Frozen cases changed")
     assets = {r["id"]: r for r in manifest["cases"]}
+    chosen = [c for c in cases if c["split"] == split and (case_id is None or c["id"] == case_id)]
+    if not chosen:
+        raise ValueError("No frozen workflows match this selection")
     for case in cases:
         path = (data / assets[case["id"]]["video"]).resolve()
         if not path.is_relative_to(data.resolve()) or digest(path) != assets[case["id"]]["sha256"]:
@@ -278,16 +294,13 @@ def run(data, cases_path, output, split, max_spend):
         "status": "running",
         "scorer_version": 2,
         "split": split,
+        "case_filter": case_id,
         "cases_sha256": digest(cases_path),
         "fixture_manifest_sha256": digest(data / "manifest.json"),
         "verifier": verifier.fingerprint,
         "encoder": encoder.fingerprint,
         "budget_before": client.initial,
-        "cases": [
-            {**c, "status": "not_run", "correct": False, "stages": []}
-            for c in cases
-            if c["split"] == split
-        ],
+        "cases": [{**c, "status": "not_run", "correct": False, "stages": []} for c in chosen],
         "limitations": manifest["limitations"],
     }
 
@@ -303,11 +316,12 @@ def run(data, cases_path, output, split, max_spend):
             row["status"] = "running"
             root = output / row["id"]
             video = data / assets[row["id"]]["video"]
-            images = [frame_image(video, i) for i in range(3)]
+            offsets = assets[row["id"]].get("offsets", [0, 1, 2])
+            images = [frame_image(video, offset) for offset in offsets]
             ids = []
             for message in row["messages"]:
                 start = len(client.generations)
-                job = request_turn(root, encoder, verifier, message, images)
+                job = request_turn(root, encoder, verifier, message, images, offsets=offsets)
                 row["stages"].append(
                     {"phase": "save", "job": job, "generations": client.generations[start:]}
                 )
@@ -333,7 +347,9 @@ def run(data, cases_path, output, split, max_spend):
                 filler = conversations.begin(f"Unrelated conversation number {n}", {})
                 conversations.finish(filler, "Okay.")
             start = len(client.generations)
-            job = request_turn(root, encoder, verifier, row["query"], images[:2])
+            job = request_turn(
+                root, encoder, verifier, row["query"], images[:2], offsets=offsets[:2]
+            )
             row["stages"].append(
                 {"phase": "recall", "job": job, "generations": client.generations[start:]}
             )
@@ -368,11 +384,12 @@ if __name__ == "__main__":
     parser.add_argument("--prepare", action="store_true")
     parser.add_argument("--split", choices=["development", "holdout"], default="development")
     parser.add_argument("--max-spend", type=float, default=0.20)
+    parser.add_argument("--case-id", help="Replay one existing frozen case as a diagnostic")
     args = parser.parse_args()
     print(
         json.dumps(
             prepare(args.data, args.cases, args.output)
             if args.prepare
-            else run(args.data, args.cases, args.output, args.split, args.max_spend)
+            else run(args.data, args.cases, args.output, args.split, args.max_spend, args.case_id)
         )
     )

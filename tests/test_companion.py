@@ -986,6 +986,10 @@ def test_statement_tools_persist_across_app_restart(tmp_path):
 
     class StatementVerifier(Planner):
         def generate_json(self, messages, limit, **kwargs):
+            if "unique_referent" in kwargs.get("schema", {}).get("properties", {}):
+                return json.dumps(
+                    {"targets": "Fixture target", "unique_referent": True, "ambiguous": False}
+                )
             from nyx.voice import Conversations
 
             text = str(messages)
@@ -1109,6 +1113,10 @@ def test_deleted_media_invalidates_cached_statement_only_answer_and_request_repl
 def test_identify_shown_object_returns_description_for_subsequent_search(tmp_path):
     class ReferenceVerifier(Planner):
         def generate_json(self, *args, **kwargs):
+            if "unique_referent" in kwargs.get("schema", {}).get("properties", {}):
+                return json.dumps(
+                    {"targets": "Fixture target", "unique_referent": True, "ambiguous": False}
+                )
             return '{"object_description":"Green fixture","destination":"","kind":"none","source":"visual","frame_index":0,"ambiguous":false}'
 
     with TestClient(
@@ -1132,6 +1140,10 @@ def test_identify_shown_object_returns_description_for_subsequent_search(tmp_pat
 def test_utterance_window_uses_earlier_image_when_latest_snapshot_is_blank(tmp_path):
     class WindowVerifier(Planner):
         def generate_json(self, messages, *args, **kwargs):
+            if "unique_referent" in kwargs.get("schema", {}).get("properties", {}):
+                return json.dumps(
+                    {"targets": "Fixture target", "unique_referent": True, "ambiguous": False}
+                )
             images = [p["image"] for p in messages[0]["content"] if p["type"] == "image"]
             assert len(images) == 2
             assert images[0].getpixel((40, 40))[1] > 80

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "natural-handbag",
+      "split": "holdout",
+      "sources": [
+        "Charades:LZ07A"
+      ],
+      "kind": "reported_placement",
+      "messages": [
+        "I put this in the hallway cabinet."
+      ],
+      "query": "Where did I say I kept this?",
+      "expected_report": 0
+    }
+  ]
+}
