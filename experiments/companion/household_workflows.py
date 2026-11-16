@@ -228,7 +228,24 @@ def run(data, cases_path, output, split, max_spend):
         if not path.is_relative_to(data.resolve()) or digest(path) != assets[case["id"]]["sha256"]:
             raise ValueError("Video provenance differs")
     output.mkdir(parents=True, exist_ok=False)
-    client = BudgetedClient(max_spend, max_requests=96)
+
+    class AuditedClient(BudgetedClient):
+        def __init__(self):
+            super().__init__(max_spend, max_requests=96)
+            self.generations = []
+
+        def generate(self, messages, model, max_tokens, **kwargs):
+            raw = super().generate(messages, model, max_tokens, **kwargs)
+            self.generations.append(
+                {
+                    "model": model,
+                    "schema_fields": list((kwargs.get("schema") or {}).get("properties", {})),
+                    "response": raw,
+                }
+            )
+            return raw
+
+    client = AuditedClient()
     encoder = CloudEncoder(client)
     verifier = CloudVerifier(client)
     report = {
@@ -262,8 +279,11 @@ def run(data, cases_path, output, split, max_spend):
             images = [frame_image(video, i) for i in range(3)]
             ids = []
             for message in row["messages"]:
+                start = len(client.generations)
                 job = request_turn(root, encoder, verifier, message, images)
-                row["stages"].append({"phase": "save", "job": job})
+                row["stages"].append(
+                    {"phase": "save", "job": job, "generations": client.generations[start:]}
+                )
                 checkpoint()
                 if job["status"] != "succeeded":
                     raise ValueError("Save stage failed; inspect before further spending")
@@ -285,8 +305,11 @@ def run(data, cases_path, output, split, max_spend):
             for n in range(32):
                 filler = conversations.begin(f"Unrelated conversation number {n}", {})
                 conversations.finish(filler, "Okay.")
+            start = len(client.generations)
             job = request_turn(root, encoder, verifier, row["query"], images[:2])
-            row["stages"].append({"phase": "recall", "job": job})
+            row["stages"].append(
+                {"phase": "recall", "job": job, "generations": client.generations[start:]}
+            )
             expected = [] if row["expected_report"] is None else [ids[row["expected_report"]]]
             row["recall_score"] = score_recall(job.get("result"), expected)
             setup = (

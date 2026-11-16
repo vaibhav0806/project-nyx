@@ -1,5 +1,5 @@
 {"version":1,"cases":[
-{"id":"shown-remote","split":"development","sources":[66635],"kind":"reported_placement","messages":["I'm keeping this in the kitchen drawer."],"query":"Where did I say I kept this?","expected_report":0},
+{"id":"shown-remote","split":"development","sources":[66635],"kind":"reported_placement","messages":["I put this in the kitchen drawer."],"query":"Where did I say I kept this?","expected_report":0},
 {"id":"moved-phone","split":"development","sources":[1268],"kind":"reported_placement","messages":["I put this on the table.","I moved this to the bedroom drawer."],"query":"Where did I most recently say I kept this?","expected_report":1},
 {"id":"corrected-bottle","split":"development","sources":[7574],"kind":"reported_placement","messages":["I put this in the kitchen cupboard.","Correction: I actually put this in the hallway drawer, not the kitchen cupboard."],"query":"Where did I most recently say I kept this?","expected_report":1,"correction":true},
 {"id":"ambiguous-cups","split":"development","sources":[13659,34873],"kind":null,"messages":["I'm keeping this in the kitchen drawer."],"query":"Where did I say I kept this?","expected_report":null},

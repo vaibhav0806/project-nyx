@@ -1186,3 +1186,31 @@ def test_utterance_window_rejects_unrelated_old_frames(tmp_path):
         )
         assert response.status_code == 400
         assert "outside the utterance window" in response.text
+
+
+@pytest.mark.parametrize("with_window", [False, True])
+def test_planner_knows_utterance_images_exist_without_claiming_a_current_view(
+    tmp_path, with_window
+):
+    observed = []
+
+    class WindowPlanner(Planner):
+        def decide(self, state):
+            observed.append(state["available"])
+            return {"action": "chat", "message": "Boundary check."}
+
+    now = datetime.now(UTC)
+    body = {"message": "I put this in the drawer.", "request_id": "window-availability"}
+    if with_window:
+        body.update(
+            context_at=now.isoformat(),
+            visual_frames=[{"snapshot": snapshot(), "captured_at": now.isoformat()}],
+        )
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=WindowPlanner)
+    ) as client:
+        response = client.post("/api/agent", json=body)
+        assert wait_for_job(client, response.json()["id"])["status"] == "succeeded"
+    assert observed[0]["current_view"] is False
+    assert observed[0]["turn_visual_context"] is with_window
+    assert observed[0]["turn_visual_frame_count"] == int(with_window)

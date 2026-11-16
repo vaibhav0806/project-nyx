@@ -610,6 +610,8 @@ def install_companion(app, workspace, voice):
                     available={
                         "presented_candidate": presented_candidate,
                         "current_view": image is not None,
+                        "turn_visual_context": bool(turn_frames),
+                        "turn_visual_frame_count": len(turn_frames),
                         "history": bool(library),
                         "dated_history": any(row["recorded_at"] for row in library),
                         "undated_history": any(not row["recorded_at"] for row in library),
