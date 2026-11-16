@@ -150,3 +150,53 @@ def test_explicit_object_can_follow_the_destination(text, object_name, destinati
         placement=True,
     )
     assert result["status"] == "resolved"
+
+
+def test_report_claim_and_visual_identity_resolve_independently():
+    calls = []
+
+    def generate(messages, *args, **kwargs):
+        calls.append(messages)
+        if len(calls) == 1:
+            assert all(
+                part.get("type") != "image"
+                for message in messages
+                if isinstance(message["content"], list)
+                for part in message["content"]
+            )
+            return json.dumps({"kind": "reported_placement", "destination": "drawer"})
+        return json.dumps(decision(kind="none", destination=""))
+
+    result = resolve_reference(
+        SimpleNamespace(generate_json=generate),
+        "I put this in the drawer.",
+        [{"image": Image.new("RGB", (10, 10)), "captured_at": "now"}],
+        placement=True,
+    )
+    assert result["status"] == "resolved"
+    assert result["kind"] == "reported_placement" and result["destination"] == "drawer"
+    assert result["object_description"] == "black phone"
+    assert len(calls) == 2
+
+
+def test_refused_claim_does_not_resolve_or_upload_visual_identity():
+    calls = []
+
+    def generate(messages, *args, **kwargs):
+        calls.append(messages)
+        assert len(calls) == 1
+        assert all(
+            part.get("type") != "image"
+            for message in messages
+            if isinstance(message["content"], list)
+            for part in message["content"]
+        )
+        return json.dumps({"kind": "none", "destination": ""})
+
+    result = resolve_reference(
+        SimpleNamespace(generate_json=generate),
+        "I did not put this in the drawer.",
+        [{"image": Image.new("RGB", (10, 10)), "captured_at": "now"}],
+        placement=True,
+    )
+    assert result["status"] == "clarify"

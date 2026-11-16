@@ -77,6 +77,32 @@ def score_recall(result, expected):
     }
 
 
+def score_setup(case, identifiers, linked, edges):
+    if case["expected_report"] is None:
+        return not linked
+    records = {row["turn_id"]: row for row in linked}
+    for identifier in identifiers:
+        row = records.get(identifier)
+        if not row or row["kind"] != case["kind"]:
+            return False
+        resolver = row.get("resolver", {})
+        resolver = json.loads(resolver) if isinstance(resolver, str) else resolver
+        source = resolver.get("reference", {}).get("source")
+        if source != "visual" and not (
+            source == "prior_statement"
+            and any(
+                edge["replacement_turn_id"] == identifier
+                and edge["previous_turn_id"] in identifiers
+                for edge in edges
+            )
+        ):
+            return False
+    return not case.get("correction") or any(
+        edge["previous_turn_id"] == identifiers[0] and edge["replacement_turn_id"] == identifiers[1]
+        for edge in edges
+    )
+
+
 def prepare(data, cases_path, output):
     cases = validate_cases(json.loads(cases_path.read_text())["cases"])
     source = json.loads((data / "manifest.json").read_text())
@@ -250,6 +276,7 @@ def run(data, cases_path, output, split, max_spend):
     verifier = CloudVerifier(client)
     report = {
         "status": "running",
+        "scorer_version": 2,
         "split": split,
         "cases_sha256": digest(cases_path),
         "fixture_manifest_sha256": digest(data / "manifest.json"),
@@ -312,19 +339,7 @@ def run(data, cases_path, output, split, max_spend):
             )
             expected = [] if row["expected_report"] is None else [ids[row["expected_report"]]]
             row["recall_score"] = score_recall(job.get("result"), expected)
-            setup = (
-                (not linked)
-                if not expected
-                else all(
-                    any(x["turn_id"] == identifier and x["kind"] == row["kind"] for x in linked)
-                    for identifier in expected
-                )
-            )
-            if row.get("correction"):
-                setup = setup and any(
-                    x["previous_turn_id"] == ids[0] and x["replacement_turn_id"] == ids[1]
-                    for x in edges
-                )
+            setup = score_setup(row, ids, linked, edges)
             row.update(
                 status="complete" if job["status"] == "succeeded" else "failed",
                 correct=bool(setup and row["recall_score"]["correct"]),

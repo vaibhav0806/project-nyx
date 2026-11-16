@@ -990,3 +990,41 @@ def test_visual_success_still_allows_independent_statement_search():
         }
     )
     assert action == {"action": "search_statements", "query": "black phone"}
+
+
+def test_reference_handoff_is_not_repeated_as_a_location_answer():
+    from nyx.agent import agent_steps
+
+    choices = iter(
+        [
+            {"action": "identify_shown_object"},
+            {"action": "search_statements", "query": "the shown item"},
+            {"action": "finish", "observation": 0, "statement_observation": 1},
+        ]
+    )
+    outputs = iter(
+        [
+            {
+                "kind": "reference",
+                "status": "complete",
+                "answer": "Use this description to search saved statements.",
+            },
+            {
+                "kind": "statements",
+                "status": "complete",
+                "answer": "You said you put it in the drawer.",
+                "sources": ["transcript:report"],
+            },
+        ]
+    )
+    result = complete(
+        agent_steps(
+            "Where did I say I kept this?",
+            [],
+            lambda state: next(choices),
+            lambda action: next(outputs),
+        )
+    )
+    assert result["answer"] == "You said you put it in the drawer."
+    assert result["visual"] is None
+    assert result["sources"] == ["transcript:report"]

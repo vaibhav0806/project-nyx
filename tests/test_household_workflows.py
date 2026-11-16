@@ -39,3 +39,32 @@ def test_workflow_recall_requires_exact_report_attribution_and_negative_evidence
     assert not module.score_recall(None, [])["correct"]
     assert not module.score_recall({"answer": "I know.", "observations": []}, [])["correct"]
     assert module.score_recall({"answer": "Which item?", "status": "clarify"}, [])["correct"]
+
+
+def test_complete_workflow_cannot_pass_when_an_earlier_save_was_lost():
+    case = {"kind": "reported_placement", "expected_report": 1}
+    linked = [
+        {
+            "turn_id": "second",
+            "kind": "reported_placement",
+            "resolver": {"reference": {"source": "visual"}},
+        }
+    ]
+    assert not module.score_setup(case, ["first", "second"], linked, [])
+    linked.insert(
+        0,
+        {
+            "turn_id": "first",
+            "kind": "reported_placement",
+            "resolver": {"reference": {"source": "visual"}},
+        },
+    )
+    assert module.score_setup(case, ["first", "second"], linked, [])
+    case["correction"] = True
+    assert not module.score_setup(case, ["first", "second"], linked, [])
+    assert module.score_setup(
+        case,
+        ["first", "second"],
+        linked,
+        [{"previous_turn_id": "first", "replacement_turn_id": "second"}],
+    )

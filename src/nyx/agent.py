@@ -264,10 +264,17 @@ def agent_steps(
                 statement_index = action.get("statement_observation")
                 if statement_index is not None:
                     statement = observations[statement_index]
-                    selected = {
-                        **selected,
-                        "answer": selected["answer"] + " " + statement["answer"],
-                    }
+                    if selected.get("kind") == "reference":
+                        if selected.get("status") == "complete":
+                            selected = statement
+                        result["policy_adjustments"].append(
+                            {"reason": "reference_is_not_location_evidence"}
+                        )
+                    else:
+                        selected = {
+                            **selected,
+                            "answer": selected["answer"] + " " + statement["answer"],
+                        }
                 result.update(
                     answer=selected["answer"],
                     status=selected.get("status", "complete"),

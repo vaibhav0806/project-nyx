@@ -22,6 +22,8 @@ def test_pronoun_link_survives_restart_without_recent_chat(tmp_path):
     seen = []
 
     def resolve(messages, limit, **kwargs):
+        if set(kwargs.get("schema", {}).get("properties", {})) == {"kind", "destination"}:
+            return json.dumps({"kind": "intention", "destination": "kitchen"})
         seen.append(next(p["image"] for p in messages[0]["content"] if p["type"] == "image"))
         return json.dumps(
             {
@@ -138,7 +140,7 @@ def test_malformed_model_output_never_creates_link(tmp_path):
     conversations = Conversations(tmp_path)
     turn = conversations.begin("I'll put this in the kitchen", {})
     store = Statements(conversations)
-    with pytest.raises(ValueError, match="Invalid object reference"):
+    with pytest.raises(ValueError, match="Invalid (object reference|placement claim)"):
         store.remember(turn, SimpleNamespace(generate_json=lambda *_, **kwargs: "[]"), Encoder())
     assert not store.search("phone", Encoder())
 

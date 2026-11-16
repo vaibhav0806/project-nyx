@@ -989,6 +989,8 @@ def test_statement_tools_persist_across_app_restart(tmp_path):
             from nyx.voice import Conversations
 
             text = str(messages)
+            if set(kwargs.get("schema", {}).get("properties", {})) == {"kind", "destination"}:
+                return json.dumps({"kind": "intention", "destination": "kitchen"})
             if "Resolve the object" in text:
                 return '{"kind":"intention","object_description":"green phone","source":"visual","frame_index":0,"destination":"kitchen","ambiguous":false}'
             with Conversations(tmp_path).connect() as db:
