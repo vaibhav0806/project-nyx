@@ -1,5 +1,10 @@
 # Repository structure
 
+`conversation_context.py` owns bounded source-aware provider context copies and whole-exchange
+LiveKit context selection. It does not own persistence or generate memory summaries. `voice.py`
+retains authoritative transcripts/source flags; `statements.py` owns durable retrieval. The R19
+workflow harness evaluates real provider/API behavior separately from deterministic tests.
+
 `statements.py` owns the additive durable object-statement table, visual reference resolution,
 semantic candidate retrieval and citation checks. It shares the conversations database rather
 than introducing a separate service. Replay/comparison scripts stay under `experiments/companion/`;

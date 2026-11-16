@@ -2,6 +2,29 @@
 
 import json
 import re
+import unicodedata
+
+
+def _contains_named_phrase(text, phrase, *, outside=None):
+    """Match explicit words, not fragments of a different Unicode word."""
+    text, phrase = text.casefold(), phrase.casefold()
+    excluded = list(re.finditer(re.escape(outside.casefold()), text)) if outside else []
+
+    def word_character(character):
+        return (
+            character.isalnum()
+            or character == "_"
+            or unicodedata.category(character).startswith("M")
+        )
+
+    return any(
+        (match.start() == 0 or not word_character(text[match.start() - 1]))
+        and (match.end() == len(text) or not word_character(text[match.end()]))
+        and not any(
+            match.start() < region.end() and match.end() > region.start() for region in excluded
+        )
+        for match in re.finditer(re.escape(phrase), text)
+    )
 
 
 def resolve_reference(verifier, transcript, frames, *, placement=False):
@@ -63,12 +86,14 @@ Return only JSON matching the schema. """
         source == "explicit_text"
         and index == -1
         and isinstance(obj, str)
-        and obj.casefold() in transcript.casefold()
+        and _contains_named_phrase(transcript, obj)
     )
     if explicit_supported and isinstance(destination, str) and destination:
-        # An object name occurring only inside the destination is not an explicit target.
-        start = transcript.casefold().find(destination.casefold())
-        explicit_supported = start >= 0 and obj.casefold() in transcript[:start].casefold()
+        # The target can occur before OR after the destination, but not only inside it.
+        explicit_supported = (
+            destination.casefold() in transcript.casefold()
+            and _contains_named_phrase(transcript, obj, outside=destination)
+        )
     valid = (
         isinstance(obj, str)
         and 1 <= len(obj.strip()) <= 160

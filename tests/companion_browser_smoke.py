@@ -117,18 +117,41 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                         window.fakeStream=canvas.captureStream(10);return window.fakeStream;
                     };""")
                     page.goto(url)
-                    expect(page.locator("#companion-message")).to_be_visible()
-                    page.locator("#companion-message").fill("Remind me about water when I leave")
-                    page.locator("#companion-send").click()
+
+                    def close_dialogs():
+                        for name in ["source", "settings"]:
+                            if page.locator(f"#{name}-dialog").evaluate("d => d.open"):
+                                page.get_by_role("button", name=f"Close {name}", exact=True).click()
+
+                    def settings():
+                        close_dialogs()
+                        page.get_by_role("button", name="Settings", exact=True).click()
+                        summary = page.get_by_text("Experimental departure reminders", exact=True)
+                        if not summary.locator("..").evaluate("d => d.open"):
+                            summary.click()
+
+                    def ask(text, show_settings=False):
+                        close_dialogs()
+                        if not page.locator("#companion-message").is_visible():
+                            page.get_by_role("button", name="Type instead", exact=True).click()
+                        page.locator("#companion-message").fill(text)
+                        page.locator("#companion-send").click()
+                        page.wait_for_function("!companion.working")
+                        if show_settings:
+                            settings()
+
+                    ask("Remind me about water when I leave", show_settings=True)
                     expect(page.locator("#reminders")).to_contain_text(
                         "Take your water bottle", timeout=15000
                     )
                     expect(page.locator("#reminders")).to_contain_text(
                         "Waiting for your next departure"
                     )
-                    if not args.speech:
-                        page.locator("#start").click()
-                    expect(page.locator("#camera-state")).to_have_text("Recording video")
+                    if not page.evaluate("enabled"):
+                        close_dialogs()
+                        page.locator("#camera-toggle").click()
+                        settings()
+                    expect(page.locator("#camera-state")).to_have_text("Camera on")
                     assert page.evaluate("current.recorder.videoBitsPerSecond") == 1000000
                     assert page.evaluate("window.requestedVideoConstraints.frameRate.max") == 15
                     assert page.evaluate("stream.getAudioTracks().length") == 0
@@ -155,10 +178,7 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                         page.wait_for_function("!companion.delivering")
                         assert page.evaluate("window.reminderAudioStarts") == 0
                         requests.clear()
-                        page.locator("#companion-message").fill(
-                            "Remind me about water when I leave"
-                        )
-                        page.locator("#companion-send").click()
+                        ask("Remind me about water when I leave", show_settings=True)
                     expect(page.locator("#reminders")).to_contain_text(
                         "Spoken; awaiting your acknowledgement"
                         if args.speech
@@ -182,10 +202,7 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                         page.evaluate("""() => { window.testReminderPlay=HTMLAudioElement.prototype.play;
                             HTMLAudioElement.prototype.play=()=>Promise.reject(
                                 new DOMException('Synthetic playback denial','NotAllowedError')); };""")
-                        page.locator("#companion-message").fill(
-                            "Remind me about water when I leave"
-                        )
-                        page.locator("#companion-send").click()
+                        ask("Remind me about water when I leave", show_settings=True)
                         expect(page.locator("#reminders")).to_contain_text(
                             "Could not speak", timeout=20000
                         )
@@ -196,13 +213,18 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                         page.evaluate(
                             "() => { HTMLAudioElement.prototype.play=window.testReminderPlay; }"
                         )
-                    page.locator("#companion-message").fill("Where is the green thing?")
-                    page.locator("#companion-send").click()
+                    ask("Where is the green thing?")
                     expect(page.locator("#companion-thread")).to_contain_text(
                         "I can see green", timeout=15000
                     )
+                    page.get_by_role("button", name=re.compile("^View source")).click()
                     expect(page.locator("#snapshot-evidence")).to_be_visible()
-                    page.locator("#stop").click()
+                    settings()
+                    close_dialogs()
+                    page.locator("#camera-toggle").click()
+                    expect(page.locator("#camera-state")).to_have_text("Recording paused")
+                    settings()
+                    page.get_by_role("button", name="Stop recording", exact=True).click()
                     expect(page.locator("#camera-state")).to_have_text("Camera off")
                     assert page.evaluate(
                         "window.fakeStream.getTracks().every(t=>t.readyState==='ended')"
@@ -231,6 +253,9 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                         page.locator("#object-query").fill("green")
                         page.locator("#history-mode").select_option("relevance")
                         page.locator("#ask-history").click()
+                        page.wait_for_function("!document.getElementById('ask-history').disabled")
+                        close_dialogs()
+                        page.get_by_role("button", name=re.compile("^View source")).click()
                         confirm = page.get_by_role("button", name="This is the item", exact=True)
                         expect(confirm).to_be_visible(timeout=15000)
                         expect(page.locator("#answer-text")).to_contain_text("Is this the item")
@@ -240,8 +265,8 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                             "src", before, timeout=15000
                         )
                         second_image = page.locator("#answer-evidence img").get_attribute("src")
-                        page.locator("#companion-message").fill("nah man its not this item")
-                        page.locator("#companion-send").click()
+                        ask("nah man its not this item")
+                        page.get_by_role("button", name=re.compile("^View source")).click()
                         expect(page.locator("#answer-evidence img")).not_to_have_attribute(
                             "src", second_image, timeout=15000
                         )
@@ -252,8 +277,7 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                         reviewed_result = page.request.get(
                             url + "/api/jobs/" + page.evaluate("companion.job")
                         ).json()["result"]["visual"]
-                        page.locator("#companion-message").fill("Thanks, pause")
-                        page.locator("#companion-send").click()
+                        ask("Thanks, pause")
                         expect(page.locator("#companion-thread")).to_contain_text("Okay, paused.")
                         page.wait_for_function(
                             "!companion.working && companion.reviewCandidate === null"
@@ -261,6 +285,7 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                         expect(page.locator("#answer-panel")).to_be_hidden()
                         # Explicitly displaying a saved result establishes a new reference.
                         page.evaluate("output => showAnswer(output)", reviewed_result)
+                        page.get_by_role("button", name=re.compile("^View source")).click()
                         confirm.click()
                         expect(page.locator("#answer-source-label")).to_have_text(
                             "Confirmed by you"
@@ -277,6 +302,7 @@ uvicorn.run(create_app(sys.argv[1], encoder_factory=ColorEncoder, verifier_facto
                             ]["mode"]
                             == "user_confirmation"
                         )
+                    settings()
                     library = [
                         {
                             "id": f"{index:032x}",

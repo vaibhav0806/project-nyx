@@ -1,10 +1,44 @@
 # Scope
 
-## Publication authorization — 2026-11-15
+## Renewed reliability work and budget — 2026-11-15
+
+The user authorized continued reliability work/public datasets and explicitly raised the
+OpenRouter key's test allowance to **$5 total**. This supersedes the earlier $2 ceiling for new
+tests; historical reports retain their original limits. Keep per-run guards and settlement
+headroom, no uncapped spending/new paid account, no hardware/private-media developer tests,
+no main/UI changes and the existing source-preservation/recording cap. Work remains inline on
+work/memory-reliability with regular commits and optional branch-only backups.
+
+## Local backend reliability work — 2026-11-15
+
+The follow-up pass includes source-aware bounded context, candidate-pool balancing and synthetic
+multi-day/fault/capacity evaluation. Ten days is a searchable-memory target, not a requirement
+to compress continuous footage into 1 GiB. The existing cap remains until a separate capacity
+choice; no expiry or cap increase was introduced. See [R21](research/R21-multi-day-runtime.md).
+
+The latest user instruction permits optional pushes only to `work/memory-reliability`, with
+regular commits on that branch. Main remains stable; demo production is excluded from this pass.
+Positive visual corroboration is experimental/off by default after mixed evaluation, with no
+new provider/account. Broader household/speech acceptance and actual continuous ten-day operation
+remain unproven; this bounded engineering pass does not claim product completion.
+
+The user authorized the memory reliability implementation, then required a local work branch,
+no push to main and no UI changes. Preserve contributor frontend work. New adaptive indexing may
+use the evaluated two-second sampling floor; this changes derived samples, not source retention
+or live event qualification. Keep the 1 GiB stop-without-delete boundary and existing provider
+test budget. See [R15](research/R15-sampling-coverage.md).
+
+The authorized report-memory slice now includes explicit correction/retraction links and aware
+historical report lookup. Preserve prior reports, media and attribution. Freshness priority is
+versioned/opt-in, disabled by default; it does not expire sources or establish truth. Only public
+or synthetic developer fixtures were used. See [R17](research/R17-memory-policy.md).
+
+## Earlier foundation publication — 2026-11-15
 
 The user explicitly requested publishing the latest existing work to main. This supersedes
-the earlier local-only publication boundary for the pilot foundation. New HydraDB integration
-and retrieval changes are being researched and discussed before implementation.
+the earlier local-only publication boundary for the completed pilot foundation (`cfe8fa4`). The
+later local-branch/no-push instruction above controls all new implementation. Hydra/retrieval
+work is recorded in R14–R18; no new publication is authorized by this historical entry.
 
 ## Ten-day pilot — 2026-11-03
 

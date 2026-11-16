@@ -1,5 +1,42 @@
 # Working on Nyx
 
+## Latest authorization — 2026-11-15
+
+The latest user increased the OpenRouter test-key limit to **$5 total**, superseding the prior
+$2 cumulative test ceiling for new work. Verified key metadata reports limit5 and prior usage
+about1.97. This is not an additional$5 and does not authorize account purchases or uncapped tests.
+Continue wake/visual/reliability work on the same branch; all UI/source/main boundaries remain.
+
+The subsequent user request authorized a deeper [visual/spoken reliability pass](docs/superpowers/plans/2026-11-15-visual-spoken-depth.md),
+with broader testing and general fixes, never fixture-specific runtime rules. Keep the same
+branch-only publication, no-UI, source-preservation and cumulative $2 provider-test boundaries.
+R22/R23 record measured failures and rejected alternatives; do not promote vision/wake changes
+merely to improve a small fixture score. Real household/acoustic acceptance remains separate.
+
+The user authorized the next [recall/context engineering pass](docs/superpowers/plans/2026-11-15-recall-context.md)
+and sustained execution, excluding demo production. Stay on `work/memory-reliability`; make
+regular commits. Optional pushes are authorized only to this branch, never main. Main stays stable,
+UI stays unchanged, and existing source/spending boundaries remain. Ten days is a search target,
+not a requirement to fit continuous ten-day footage inside 1 GiB; measure capacity separately.
+
+The earlier local-branch restriction superseded publication/main execution wording below.
+The latest authorization above additionally permits a branch-only backup push; never push main.
+Remote main remains the tested `cfe8fa4` foundation. Local main was returned to origin/main after
+preserving the new commit on the work branch.
+
+The user explicitly required retaining contributors' UI work and no UI changes in this slice.
+Do not edit `src/nyx/web/` or change interface layout, styling, wording or interaction behavior.
+Keep implementation in backend/retrieval/storage/experiments and preserve existing UI contracts.
+
+The user approved the [memory reliability design](docs/superpowers/specs/2026-11-15-memory-reliability-design.md)
+and implementation order, asked to proceed and requested regular commits. Work inline on the
+work branch. The earlier foundation publication is complete; the latest branch-only authorization
+controls all new work. They authorized SSH access to the teammate's Hydra host and
+separate Nyx storage/service isolation, preserving the other project. Reuse compatible existing
+vectors; do not assume the graph deployment supplies vector retrieval or embedding inference.
+Shared embedding alternatives are conditional on measured accuracy. Preserve prior provider-budget,
+public/synthetic developer-test, source-preservation and 1 GiB stop-without-delete boundaries.
+
 ## Latest authorization — 2026-10-29
 
 The user authorized merging the companion MVP (completed via PR #1), then working

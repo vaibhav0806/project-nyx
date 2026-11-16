@@ -197,6 +197,7 @@ class Workspace:
                     video_id=segment["id"],
                     name=f"Recording {segment['recorded_at']} · part {segment['sequence'] + 1}",
                     adaptive=True,
+                    capture_session=segment["session_id"],
                     batch_size=8,
                 )
             except Exception as exc:
@@ -263,7 +264,9 @@ class Workspace:
         self.capture.finish_deletion(video_id)
         for job in self.jobs.values():
             result = job.get("result", {})
-            if any(row["video_id"] == video_id for row in result.get("checked", [])):
+            if video_id in result.get("sources", []) or any(
+                row["video_id"] == video_id for row in result.get("checked", [])
+            ):
                 job.update(
                     status="failed", error="Source deleted; ask again using the remaining history."
                 )
@@ -280,6 +283,21 @@ class Workspace:
             except OSError:
                 # Keep evidence hidden and cleanup pending for an explicit retry.
                 continue
+
+    def recover_imports(self):
+        store = self.store()
+        if store is None:
+            return
+        with store.connection() as db:
+            interrupted = db.execute("SELECT id FROM videos WHERE status = 'indexing'").fetchall()
+        for row in interrupted:
+            try:
+                self.capture.segment(row["id"])
+            except ValueError:
+                store.fail_video(
+                    row["id"],
+                    "Indexing interrupted by restart; retained source can be retried explicitly.",
+                )
 
 
 def create_app(
@@ -326,6 +344,7 @@ def create_app(
     async def lifespan(app):
         workspace.recover_deletions()
         workspace.capture.recover()
+        workspace.recover_imports()
         for segment in workspace.capture.pending():
             workspace.submit_segment(segment)
         workspace.thread.start()
@@ -552,7 +571,9 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(404, "Saved segment not found") from exc
         path = workspace.root / segment["path"]
-        if segment["state"] in {"deleting", "deleted"} or not segment["size"] or not path.is_file():
+        if segment["state"] in {"deleting", "deleted"} or not workspace.capture.source_available(
+            segment
+        ):
             raise HTTPException(404, "Segment upload did not complete")
         return FileResponse(path)
 
@@ -646,6 +667,50 @@ def create_app(
 
         workspace.submit(job_id, index)
         return {"id": job_id}
+
+    @app.post("/api/videos/{video_id}/retry-index", status_code=202)
+    def retry_import(video_id: str):
+        with workspace.upload_slot():
+            store = workspace.store()
+            video = store.video(video_id) if store else None
+            if video is None:
+                raise HTTPException(404, "Saved import not found")
+            if video["status"] != "failed":
+                raise HTTPException(409, "Only a failed saved import can be retried")
+            if video["capture_session"] is not None:
+                raise HTTPException(409, "Retry captured footage through its capture session")
+            try:
+                workspace.capture.segment(video_id)
+            except ValueError:
+                pass
+            else:
+                raise HTTPException(409, "Retry captured footage through its capture session")
+            source = (workspace.root / video["path"]).resolve()
+            if source.parent != workspace.root / "recordings" or source.stem != video_id:
+                raise HTTPException(
+                    400, "Import source must stay in its managed recording location"
+                )
+            if not source.is_file() or not source.stat().st_size:
+                raise HTTPException(
+                    409, "Saved import source is unavailable; existing files are kept"
+                )
+            job_id = workspace.reserve("index")
+
+            def retry():
+                return (
+                    yield from index_video_batches(
+                        source,
+                        workspace.model_store(),
+                        workspace.encoder,
+                        interval=video["interval_seconds"],
+                        recorded_at=video["recorded_at"],
+                        video_id=video_id,
+                        name=video["name"],
+                    )
+                )
+
+            workspace.submit(job_id, retry)
+            return {"id": job_id}
 
     @app.post("/api/search", status_code=202)
     def query(body: SearchRequest):
@@ -781,6 +846,12 @@ def create_app(
             record = db.execute(sql, (identifier,)).fetchone()
         if record is None:
             raise HTTPException(404, "Source not found.")
+        try:
+            segment = workspace.capture.segment(record[1])
+        except ValueError:
+            segment = None  # Imported videos have no capture-journal row.
+        if segment is not None and not workspace.capture.source_available(segment):
+            raise HTTPException(404, "Source file is unavailable.")
         path = (store.root / record[0]).resolve()
         if not path.is_relative_to(store.root) or not path.is_file():
             raise HTTPException(404, "Source file is unavailable.")
@@ -788,12 +859,12 @@ def create_app(
 
     @app.get("/api/videos/{video_id}/media")
     def source(video_id: str):
-        return media_file("SELECT path FROM videos WHERE id = ? AND status = 'ready'", video_id)
+        return media_file("SELECT path,id FROM videos WHERE id = ? AND status = 'ready'", video_id)
 
     @app.get("/api/frames/{frame_id}")
     def thumbnail(frame_id: int):
         return media_file(
-            """SELECT f.thumbnail FROM frames f JOIN videos v ON v.id = f.video_id
+            """SELECT f.thumbnail,f.video_id FROM frames f JOIN videos v ON v.id = f.video_id
             WHERE f.id = ? AND v.status = 'ready'""",
             frame_id,
         )

@@ -1,5 +1,129 @@
 # Technical architecture
 
+## Decoded import preservation and explicit retry — 2026-11-16
+
+A decoded import survives embedding/index failure; failed frames remain excluded. Startup marks
+interrupted non-capture index rows failed without inference. Backend-only
+`POST /api/videos/{video_id}/retry-index` reuses a retained failed import under the same ID,
+clock and interval on the existing worker. Managed-path, capture-ownership, state and duplicate
+job guards apply. No auto-inference retry or UI change. Capture journal recovery stays separate.
+Model initialization before a saved copy/index row remains outside this recovery path. See
+[R28](research/R28-import-restart-recovery.md).
+
+## Nonfatal source-frame failures — 2026-11-16
+
+History distinguishes an unreadable source from an observed negative. Decode failures/timeouts
+produce unavailable/uncertain entries without inference or a location; other bounded candidates
+can still be verified in order. Scope includes unavailable and model-checked counts, and request
+metrics exclude skipped inference. Provider errors still propagate. This applies to source-frame,
+batch-image and reference routes. Sources are preserved and restoring bytes requires no reindex
+or permanent exclusion. Policy metadata records `unavailable-not-negative-v1`.
+See [R27](research/R27-unreadable-source-recovery.md).
+
+## Isolated object-verification experiments — 2026-11-15
+
+`NYX_OBJECT_VISION_MODEL` can override object inspection without changing general/departure
+`NYX_VISION_MODEL` or the typed planner. By default object inspection inherits the existing Lite
+vision model and prompt7. `NYX_VISUAL_SCENE_POLICY=1` enables experimental prompt9, distinguishing
+physical objects from depictions. `NYX_VISUAL_CONFIRMATION=1` independently checks positive
+scene context/category/attributes/location with the existing reference model; it also applies to
+reference-image candidates, with extra calls counted. It cannot create a new location and fails
+closed on malformed/ambiguous/unclear responses; provider failure propagates. The versioned
+structured whole-scene policy remains opt-in after mixed broader evaluation. Model/policy
+fingerprints record these choices; shared embedding vectors/indexes and UI contracts are unchanged.
+See [R25](research/R25-funded-visual.md).
+
+## Spoken evidence and utterance boundaries — 2026-11-15 depth pass
+
+Sarvam finals are committed once per observed utterance boundary, with bounded integer-index
+deduplication. Early finals wait for end/new start/graceful session end. Empty/duplicate packets
+do not create new turns; repeated words in distinct utterances remain distinct. No acoustic
+timestamp is invented. Ordered ended-boundary state survives a later start so delayed finals do
+not drop the next utterance; an excessive unfinished backlog fails explicitly. Native history
+tool schemas advertise only executable backend windows.
+Spoken instruction version3 retains possible identity for visual candidates, separate from past
+time/current-location uncertainty and user reports, and preserves supplied temporal precision
+instead of treating UTC hours as local time. Explicit object grounding requires whole
+Unicode phrases outside destination spans, with no word-order requirement. See
+[R23](research/R23-spoken-depth.md). UI and the local wake recognizer are unchanged.
+
+## Report selection and live invalidation — 2026-11-15
+
+Typed/native spoken tools distinguish `selection=latest_report` from `all`, independently of
+historical `as_of`. Ordering follows known report timestamps after citation validation; missing
+or tied dates clarify. An unfulfilled plan remains an intention. Live model continuations recheck
+bounded persisted turn/source flags through SDK message-ID mappings, withholding stale assistant
+and tool evidence without mutating saved or SDK history. Restart preserves structured query
+constraints. See [R19](research/R19-recall-context.md).
+
+An experimental `NYX_VISUAL_CONFIRMATION=1` gate checks positive object findings with the existing
+reference model. It only withholds unsupported category/location claims, counts its extra calls,
+and fails honestly on provider outage. Mixed public replay results and extra latency keep it off
+by default. It does not establish instance identity or remove default-model category mistakes.
+
+## Saved-capture availability — 2026-11-15
+
+Capture coverage and media/thumbnail serving check that captured originals retain their registered
+byte count. Incomplete files remain preserved, are excluded from coverage and counted as
+unavailable. This is not a checksum guarantee. Synthetic multi-day replay keeps capture clocks,
+gaps and query horizons distinct from elapsed runtime; capacity projections separate video,
+vectors and thumbnails. See [R21](research/R21-multi-day-runtime.md). No cap or UI change.
+
+## Balance sources before candidate-pool truncation — 2026-11-15
+
+Semantic latest-history nomination reserves rounds of four samples per known-session UTC minute
+or otherwise per video before filling the 64-slot pool. Later four-second diversity and the
+12-frame verification bound remain. Filtering precedes ranking, ordinary search order is unchanged,
+and source timestamps/IDs are not rewritten. This prevents one dense recording from consuming
+every nomination before diversity runs. It does not create semantic episodes or prove presence.
+The held-out crowded comparison improved candidate Recall@12 without uncrowded regressions;
+10k-vector warm-query median increased 26.64→92.24 ms. See
+[R19](research/R19-recall-context.md) and [R21](research/R21-multi-day-runtime.md).
+
+## Bounded source-aware conversation context — 2026-11-15
+
+`conversation_context.py` projects recent stored turns into bounded provider context without
+rewriting durable transcripts. Typed planning withholds unavailable assistant claims, retains
+query/source-time metadata and marks clipped text. Spoken startup restores those same boundaries;
+each live continuation retains whole user/tool exchanges and refuses an oversized active exchange
+before inference. Model-context limits are character/item bounds, not token/media/process-memory
+guarantees. Durable statement retrieval remains independent of recent context eviction. See
+[R19](research/R19-recall-context.md). Existing UI remains unchanged.
+
+## Recovery of saved sources — 2026-11-15
+
+An explicit retry of a failed capture index may requeue the complete original recording after
+metadata/size and backlog checks, without replacing its bytes. Incomplete originals remain
+preserved and refused. Deleting a video also removes cached job answers that depend on it through
+statement sources. SQLite remains active; the Hydra capability gate did not establish a useful
+native similarity route. See [R18](research/R18-backend-recovery.md). UI files remain unchanged.
+
+## Attributed report lifecycle — 2026-11-15
+
+Additive SQLite correction edges supersede explicit user reports for current recall, preserving
+original transcripts and historical `as_of` state. A dedicated model check validates the same
+referent and distinguishes replacement, intention and retraction from a normal later move.
+Semantic and transcript fallback routes share temporal/source eligibility and recheck selected
+IDs after inference. Corrections and recalled answers retain transitive source dependencies.
+Typed and spoken tools expose optional correction IDs and aware historical timestamps; existing
+UI files are unchanged. Versioned freshness ranking is opt-in with weight 0 by default, based on
+the mixed/adversarial results in [R17](research/R17-memory-policy.md). No source expiry.
+
+## Candidate continuity and reference route — 2026-11-15
+
+Videos may carry the capture journal's explicit session ID. Candidate diversity spans clip
+boundaries only with known same-session capture timestamps. Imports are not linked by proximity.
+An opt-in reference-image route searches existing compatible vectors, reserves nominations for
+text and image routes, and retains source filters and final verification. It is disabled by
+default pending broader evaluation. No UI changes. See [R16](research/R16-candidate-retrieval.md).
+
+## Index coverage floor — 2026-11-15
+
+New adaptive indexing combines activity samples with a two-second periodic floor over available
+decoded frames. Policy `activity-v2` records this choice. Existing files/indexes are preserved;
+live proactive event qualification is unchanged. The offline labeled replay harness compares
+coverage and sample counts without model calls. See [R15](research/R15-sampling-coverage.md).
+
 ## Ten-day pilot design — 2026-11-03
 
 The approved [pilot design](pilot.md) connects turn ownership, source-linked object/event memory

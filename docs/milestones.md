@@ -1,5 +1,251 @@
 # Milestones
 
+## Decoded-import outage and restart recovery — 2026-11-16
+
+Valid decoded imports now retain their saved bytes when embedding/indexing fails. Partial
+evidence stays excluded. An explicit backend retry reuses the same source ID, capture clock and
+interval without a new video copy; ready/duplicate/unavailable/unmanaged/capture-owned requests
+are refused. Retained failed media counts toward the cap, and retry works at a full cap.
+Startup marks interrupted imports failed without inference while capture recovery stays separate.
+A real subprocess exited after a partial committed batch; metadata-only recovery and explicit
+retry passed with unchanged source hashes. **547 tests passed in25.47s**, lint/format/JS/diff and
+synthetic Chrome boundary checks passed. No paid inference, UI/main changes or user-source edits.
+See [R28](research/R28-import-restart-recovery.md), including the separate pre-copy model-load
+upload limit. This closes two backend failure paths, not the household recognition/wake gates.
+
+## Unreadable-source recovery — 2026-11-16
+
+Strict full-video decode passed for all 92 local recording files with unchanged hashes; no cloud
+uploads or hardware use. Fault injection then exposed six history aborts on damaged frames.
+General decoding failure isolation now continues to valid bounded candidates, records unavailable
+frames without model checks or absence claims, and preserves provider errors. API restore/restart
+checks pass without reindexing. **538 tests passed in 24.86s**, lint/format/JS/diff checks passed,
+and synthetic browser speech/cancellation/playback/library/reminder checks passed with zero errors.
+See [R27](research/R27-unreadable-source-recovery.md). No paid inference; about $3.21/$5 remains
+the conservative cumulative spend. Main/UI/original files remain unchanged. This is another
+backend reliability improvement; visual, wake, human-household and long-run acceptance remain open.
+
+## Paired product audit — 2026-11-15
+
+Against stable cfe8fa4 with identical dependencies, crowded public-source candidate Recall@12
+reproduced 0.1220→0.8482; uncrowded stayed0.8884. Unavailable assistant claims are withheld
+before planning, unlike stable. On the existing 92-recording/1,085-frame library, 24 offline
+stored-vector queries matched exactly across versions; 24 sampled sources decoded a first frame
+and retained hashes. These are bounded compatibility checks, not household recognition labels.
+Six past real-provider report workflows passed; eight fresh public photos produced16/16 category/
+count proxy outcomes with zero unsafe positives. No new default vision/wake promotion. Repeated
+330-second synthetic ten-day/fault replay passed.528 tests and lint/format/JS checks passed.
+Conservative spend is about$3.21/5. See [R26](research/R26-paired-product-audit.md) for methods,
+tradeoffs, artifacts and remaining household/acoustic gates. UI/main/original media stay unchanged;
+this pass adds reusable audit tools/tests and evidence, without a production-policy change.
+
+## Funded wake/visual validation checkpoint — 2026-11-15
+
+The user raised the cumulative test ceiling to **$5 total**. The bounded
+[funded plan](superpowers/plans/2026-11-15-wake-funded-vision.md) completed broader offline
+wake/public-image comparisons, failure audits and preservation checks. This is a validation
+checkpoint, not completion of product reliability or demo preparation.
+
+Frozen wake233 cases cover four TTS voices, rate/noise/window conditions and73 public speech
+negatives. Keyword candidates lost wake recall; leading padding raised heldout false activations
+16→19 at unchanged31/32 wake recall. Both were rejected; current wake settings/dependencies stay.
+Real human positives, rooms and homophones remain acceptance work ([R24](research/R24-wake-detector.md)).
+
+Completed Flash development looked better, but heldout category/count score27/32 matched Lite
+with four unsafe positives versus three; a Luna primary alternative failed development33/48.
+Reject default migrations. The optional whole-scene check helps constructed screen/poster cases
+(dev11/12 with one false remaining; hold12/12 vs9/12 ungated), but mixed broader recall/category
+results keep it opt-in. Object-model and scene-policy overrides preserve default Lite/prompt7,
+general/departure model roles and shared embeddings. No fixture-specific runtime exceptions.
+See [R25](research/R25-funded-visual.md).
+
+Actual default decode/retrieval/verification replay completed5/5 cases,4/5 source-category outcomes;
+the known can-as-bottle false candidate persists. Synthetic Chrome speech/cancellation, playback
+failure, saved-source/candidate controls and reminder checks passed with zero page errors in
+data/runs/wake-funded-browser-boundaries. **526 tests passed in24.27s**; Ruff lint/format,
+three JavaScript syntax and diff checks passed. Author review only; no hosted CI, independent
+review, PR or merge-readiness claim. Main and all UI files remain unchanged at the stable base;
+only the work branch is eligible for backup. Original media remain preserved.
+
+Conservative cumulative provider accounting:$3.15729184/5; metadata snapshot$3.14245214 may lag.
+No refill needed. Household visual/location accuracy, human speech/acoustics, actual continuous
+operation, intended-user acceptance and permissioned demo rehearsal remain open. The1 GiB
+stop-without-delete cap and ten-day query horizon are unchanged.
+
+## Deeper visual/spoken engineering pass — 2026-11-15
+
+The user authorized further testing/iterations with general fixes, preserving the work branch,
+stable main, contributor UI, original media and existing spending/storage boundaries. The
+[depth plan](superpowers/plans/2026-11-15-visual-spoken-depth.md) and findings in
+[R22](research/R22-visual-depth.md)/[R23](research/R23-spoken-depth.md) record the actual scope.
+
+Implemented after failing regressions: one final transcript per observed utterance boundary;
+bounded duplicate-final suppression; retained ended boundaries across a later speech start;
+whole Unicode object-name matching outside destination spans without a word-order assumption;
+native history schemas constrained to executable backend windows; and spoken candidate identity
+and temporal precision preservation. No fixture IDs, object exception lists, aliases, scene
+coordinates or canned replies were added to runtime code. UI/main/SQLite/wake settings stay.
+
+Broader visual baseline:80 frozen public-photo category/count proxy cases,48 development and32
+heldout. Lite scored41/48 and27/32. These are imperfect annotation proxies, not household/final-
+answer accuracy. Stronger Flash stopped after17/48 under its per-run guard; a general stricter
+prompt stopped after47/48 with39 correct and7 proxy-unsafe positives versus baseline6. Unrun
+cases remain in denominators. No visual-default promotion: prompt7/Lite and opt-in corroboration
+are retained. Category/lookalike confusion and source-label caveats remain open.
+
+Native spoken model: fresh frozen household development/heldout expected choices dispatched6/6
+each through actual SDK/tool methods, with synthetic external results. A shape-only baseline
+had hidden an invalid48-hour argument; actual baseline executable score was5/6. The corrected
+development score rebinds preserved model messages after a harness positional-argument bug;
+it is not another provider run. Diagnostic/fresh semantic continuations preserve uncertainty,
+failed-save clarification and source IDs after identified identity/time-of-day errors. These
+remain author-audited examples, not free-form/acoustic/full-household accuracy.
+
+Actual cached local wake inference on10 generated English clips scored5/10:1/4 intended wakes,
+4/4 ordinary negatives and2/2 near-name false activations. VAD, priming and beam ablations did
+not improve it; no wake runtime change was promoted. Hands-free wake reliability is still a
+product gate. No hardware, private uploads, live Sarvam audio or demo production was used.
+
+Final verification after the last fault regression: **515 tests passed in22.68s**, Ruff lint
+and format checks passed (166 files), three JavaScript syntax checks passed, all checked local
+Markdown targets resolved and diff checks passed. Synthetic Chrome speech/cancellation, playback-denial,
+library/candidate controls and activity/reminder checks passed with zero page errors in
+data/runs/visual-spoken-depth-browser-boundaries. Source/UI preservation was verified. Author
+review only; no hosted CI, independent review, PR or merge-readiness claim. Branch-only backup
+is authorized; final Git verification records its remote head without touching main.
+Observed cumulative OpenRouter key usage after the last paid test:$1.966184815/2, settlement
+may lag. No further paid inference in this pass. Long-duration hardware, real household/user
+acceptance, acoustic speech quality, exact calendar-date fidelity and ten-day continuous storage
+remain unproven; the1 GiB stop-without-delete cap is unchanged.
+
+## Recall/context engineering pass — complete on work branch, 2026-11-15
+
+User approved sustained engineering excluding demo production, staying on `work/memory-reliability`
+with regular commits and optional branch-only pushes. Main/UI/source preservation remains.
+Source-aware context suppresses invalidated typed/live answers, bounds model history and retains
+date/selection constraints and active tool exchanges. Author review reproduced and fixed deletion
+after spoken-session startup and report temporal/intent mistakes. Fresh frozen report-intent
+development/holdout attribution scores improved 3/6 and 4/6→6/6 each, with no incomplete cases.
+Original sixteen workflows now pass as diagnostic regressions, following unblinding/fixes;
+they are not fresh holdout evidence. No broad quality/latency claim. See
+[R19](research/R19-recall-context.md).
+
+Source-balanced nomination improves crowded cached-photo candidate Recall@12 from 0.1873→0.6847
+on 24 development queries and 0.1220→0.8482 on 16 held-out queries, without uncrowded regressions.
+These are source/candidate stress results, not final visual answers or household accuracy.
+Multi-day replay passed: 30 in-window sources, three correctly excluded edge cases, all 33 source
+hashes preserved and six fault checks passed. Added size-aware captured-source availability after
+reproducing misleading coverage/media serving for a truncated file. Nominal capacity separates
+video/vectors/thumbnails; no ten-day continuous-storage guarantee or cap increase. All 464 tests
+passed in 23.01s. See [R21](research/R21-multi-day-runtime.md). Hydra follow-up is complete:
+current source/deployment revision matches, health/read controls pass, but no supported native
+vector route is established; retain SQLite ([R20](research/R20-hydra-interface-verdict.md)).
+
+Actual public still-video workflow exposed a can/bottle confusion. An opt-in stronger-model
+corroboration gate withheld it, but the rerun's strict positive-source score 4/5→3/5 and increased
+latency do not establish an overall win. It remains off by default; default visual-category
+mistakes remain a known limitation, alongside ambiguity and missed positives. Shared Gemini
+Embedding2 text/image vectors remain; no raw-audio embedding route or unsupported Hydra adapter.
+
+Final application checks: **484 tests passed in 23.17s**, Ruff lint/format passed (152 files),
+three JavaScript syntax checks passed, 243 local Markdown targets resolved and diff checks passed.
+Synthetic existing-UI Chrome speech/cancellation, playback-denial, library/candidate controls and
+activity/reminder flow passed with zero page errors (`data/runs/recall-context-browser-verified`).
+Author review only; no independent review, hosted CI, PR or merge-readiness claim.
+
+All UI files remain identical to `cfe8fa4`; local/remote main were verified at that stable foundation.
+Regular implementation commits stay on `work/memory-reliability`, backed up to the same remote
+branch without a PR or main push. Original recordings are preserved; only public/synthetic
+fixtures were used, with observed cumulative provider usage $1.625779715/2
+(settlement may lag). No real camera/microphone tests, private uploads or demo production.
+
+Remaining product gates: broader manually labeled household/category/location and real speech
+workflow acceptance, intended-user trials, actual long-duration hardware/cloud operation,
+permissioned recording rehearsal, and a continuous ten-day storage/duty-cycle decision.
+Ten days remains a query horizon; the unchanged 1 GiB stop-without-delete cap is not that capacity.
+
+## Local engineering checkpoint — 2026-11-15
+
+The bounded [memory reliability plan](superpowers/plans/2026-11-15-memory-reliability.md) is complete
+on `work/memory-reliability`, with regular local commits and no new pushes. Remote/local main
+remain the tested `cfe8fa4` foundation. All files under `src/nyx/web/` are unchanged from that base.
+Author review covered the full runtime diff, migrations, source/correction lifecycle, candidate
+filtering and experiment claims; no independent review or hosted CI is claimed.
+
+Final application checks: **442 tests passed in 21.05s**, Ruff lint/format passed, app/voice/companion
+JavaScript syntax passed, 213 local Markdown targets resolved and diff checks passed. The complete
+synthetic existing-UI browser flow passed with no page errors; see [R18](research/R18-backend-recovery.md).
+Frozen source-separated embedding and generated sampling evaluations include misses/regressions;
+[R15](research/R15-sampling-coverage.md), [R16](research/R16-candidate-retrieval.md) and
+[R17](research/R17-memory-policy.md) record splits, costs and limitations. No held-out tuning was
+used to promote reference nomination or recency; both remain disabled by default.
+
+Delivered: two-second index coverage floor, known-session candidate diversity, opt-in reference
+nomination, attributed correction/retraction and historical report state, transitive source
+invalidation, and explicit saved-index retry. SQLite/shared text-image embeddings stay active;
+Hydra native vector retrieval was not established and native-video transport was rejected.
+
+Remaining product gates: broader labeled household and speech workflow accuracy, permissioned
+demo rehearsal/recording, intended-user acceptance, and a storage-capacity choice for continuous
+ten-day coverage. The query horizon is ten days; the unchanged 1 GiB stop-without-delete cap does
+not guarantee ten days of footage. No raw media or credentials were committed.
+
+## Saved-source recovery — 2026-11-15
+
+Fixed explicit retry after capture model-loading/embedding failures and invalidation of cached
+statement-only answers when a supporting video is deleted. Saved bytes/timestamps remain intact;
+retries respect backlog and refuse incomplete files. Existing-UI synthetic browser checks now
+follow the contributor's current dialogs/controls and pass capture, reminder/audio failure,
+pagination, rejection/confirmation and reload checks. No frontend file changed. Active retrieval
+remains SQLite because the Hydra trial did not establish native vector ranking. See
+[R18](research/R18-backend-recovery.md). Final verification is recorded above.
+
+## Report correction and ranking policy — 2026-11-15
+
+Implemented explicit attributed report corrections/retractions, historical `as_of` lookup,
+shared semantic/transcript temporal eligibility, post-inference citation validation and transitive
+source dependencies. Original reports remain historical evidence. Typed and spoken backend tools
+accept these operations; contributor UI files are unchanged. Freshness priority is versioned and
+disabled by default after an adversarial cached-vector comparison. The real correction model got
+7/8 development and 8/8 held-out synthetic pairs correct; one Hindi correction clarified. All 16
+restart/history checks passed. A real four-turn typed API/planner/embedding workflow passed saving,
+correction, current recall and exact historical lookup. These are bounded fixtures, not household
+or speech acceptance. See [R17](research/R17-memory-policy.md). Recovery checks followed in R18.
+
+## Memory reliability implementation — 2026-11-15
+
+The user approved the implementation order and regular commits. An isolated, resource-limited
+Nyx Hydra service/network/volume/token is created without changing the existing application's
+service or storage. Health and authentication/scope rejection passed. A synthetic 768-d vector
+was stored/read via the graph API. The deployed query engine rejected tested similarity/dot-product
+expressions; no supported server-side vector retrieval path is established. SQLite remains the
+active backend. See [R14](research/R14-self-hosted-hydra.md) and the
+[execution plan](superpowers/plans/2026-11-15-memory-reliability.md).
+
+Shared embedding research is recorded in [R13](research/R13-shared-multimodal-embeddings.md).
+Sampling, candidate nomination, correction/policy and recovery improvements are in progress;
+no new retrieval-quality result or complete pilot is claimed by the server setup.
+
+The indexing coverage slice is now implemented: activity samples plus a two-second floor retain
+the R12 small-object example. A 100-condition generated replay reports held-out event retention
+3/32 -> 23/32, with sample count 60 -> 219; this is not semantic household accuracy. Existing
+media, storage cap and live activity qualification are preserved. Validation: 399 tests passed
+in 23.15s; lint/format passed. All changes are local on `work/memory-reliability`; frontend files
+are unchanged. See [R15](research/R15-sampling-coverage.md).
+
+Candidate retrieval now records explicit capture-session continuity and can diversify across
+segment boundaries. An optional reference-image route preserves time/source/exclusion filters,
+reserves both candidate routes and retains visual verification. It remains disabled by default.
+The small public real-encoder comparison in [R16](research/R16-candidate-retrieval.md) improved
+reference Recall@3 on three development examples; text instructions tied the bare baseline.
+407 tests passed in 21.13s for this slice; broader photo evaluation is still in progress.
+
+The subsequent 40-photo CC-BY COCO comparison is complete: reference fusion's held-out Recall@3
+improved 0.25 -> 0.375 but reciprocal rank fell 0.2913 -> 0.2708. Keep the route disabled by default;
+bare text remains selected. A native-video request shape returned HTTP 400 and is not integrated.
+These are representation/candidate results, not final household answers. [R16](research/R16-candidate-retrieval.md)
+records per-split metrics, source hashes, request failures and budget snapshots.
+
 ## Ten-day pilot foundation — 2026-11-03
 
 The user approved all three reliability workstreams and chose ten days of searchable history.

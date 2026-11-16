@@ -17,6 +17,60 @@ from nyx.app import create_app
 pytest_plugins = ["test_nyx"]
 
 
+def test_correction_and_historical_report_arguments_reach_real_persistence(tmp_path):
+    from test_statement_corrections import Encoder, begin, verifier
+
+    from nyx.statements import Statements
+    from nyx.voice import Conversations
+
+    conversations = Conversations(tmp_path)
+    statements = Statements(conversations)
+    old = begin(conversations, "My phone is in the kitchen", "2026-11-06T12:00:00Z")
+    statements.remember(old, verifier(), Encoder())
+    model = verifier("bag")
+    model.decide = lambda state: {"action": "finish", "observation": 0}
+    original = model.generate_json
+
+    def generate(messages, *args, **kwargs):
+        if kwargs.get("schema") is None:
+            return json.dumps({"statement_ids": [old]})
+        return original(messages, *args, **kwargs)
+
+    model.generate_json = generate
+    with TestClient(
+        create_app(tmp_path, encoder_factory=Encoder, verifier_factory=lambda: model)
+    ) as client:
+        response = client.post(
+            "/api/agent",
+            json={
+                "message": "Correction: my phone is in the bag",
+                "request_id": "correction-api",
+                "initial_action": {"action": "remember_statement", "supersedes_turn_id": old},
+            },
+        )
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "succeeded", job
+        new = job["result"]["turn_id"]
+        assert [r["turn_id"] for r in statements.search("phone", Encoder())] == [new]
+        response = client.post(
+            "/api/agent",
+            json={
+                "message": "What did I report that day?",
+                "request_id": "as-of-api",
+                "initial_action": {
+                    "action": "search_statements",
+                    "query": "phone",
+                    "as_of": "2026-11-06T18:00:00Z",
+                },
+            },
+        )
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "succeeded", job
+        assert job["result"]["observations"][0]["matches"][0]["turn_id"] == old
+        assert job["result"]["review_context"]["statement_refs"][0]["turn_id"] == old
+        assert f"transcript:{old}" in job["result"]["sources"]
+
+
 def test_ten_day_search_includes_day_nine_and_preserves_older_recordings(tmp_path, video):
     with TestClient(
         create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Planner)
@@ -972,6 +1026,82 @@ def test_statement_tools_persist_across_app_restart(tmp_path):
         assert job["status"] == "succeeded", json.dumps(job)
         assert "kitchen" in job["result"]["answer"]
         assert "not visual confirmation" in job["result"]["answer"]
+
+
+def test_optional_statement_source_lost_during_verification_preserves_visual_result(
+    tmp_path, video
+):
+    from nyx.voice import Conversations
+
+    conversations = Conversations(tmp_path)
+    claim = conversations.begin("The green thing is in the kitchen", {})
+    conversations.finish(claim, sources=["other-spoken-clip"])
+
+    class ContextVerifier(Planner):
+        def generate_json(self, messages, *args, **kwargs):
+            conversations.invalidate("other-spoken-clip")
+            return json.dumps({"statement_ids": [claim]})
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=ContextVerifier)
+    ) as client:
+        imported = client.post("/api/import?name=fixture.mp4", content=video.read_bytes()).json()
+        video_id = wait_for_job(client, imported["id"])["result"]["video_id"]
+        response = client.post(
+            "/api/agent",
+            json={
+                "message": "Find the green thing",
+                "request_id": "context-loss",
+                "initial_action": {"action": "search_matches", "query": "green"},
+            },
+        )
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "succeeded", job
+        result = job["result"]
+        assert result["visual"]["evidence"]["video_id"] == video_id
+        assert not result["visual"].get("spoken_context")
+        assert result["sources"] == [video_id]
+        assert not conversations.recent()[0]["sources_available"]
+
+
+def test_deleted_media_invalidates_cached_statement_only_answer_and_request_replay(tmp_path, video):
+    from test_statement_corrections import verifier
+
+    from nyx.statements import Statements
+    from nyx.voice import Conversations
+
+    class ReportEncoder(ColorEncoder):
+        def encode_text(self, text):
+            return super().encode_text("green")
+
+    conversations = Conversations(tmp_path)
+    statements = Statements(conversations)
+    model = verifier()
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ReportEncoder, verifier_factory=lambda: model)
+    ) as client:
+        imported = client.post("/api/import?name=fixture.mp4", content=video.read_bytes()).json()
+        video_id = wait_for_job(client, imported["id"])["result"]["video_id"]
+        claim = conversations.begin("My phone is in the kitchen", {})
+        statements.remember(claim, model, ReportEncoder())
+        conversations.finish(claim, sources=[video_id])
+        model.generate_json = lambda *args, **kwargs: json.dumps({"statement_ids": [claim]})
+        request = {
+            "message": "What did I say about my phone?",
+            "request_id": "statement-only",
+            "initial_action": {"action": "search_statements", "query": "phone"},
+        }
+        response = client.post("/api/agent", json=request)
+        job_id = response.json()["id"]
+        result = wait_for_job(client, job_id)["result"]
+        assert not result["checked"] and video_id in result["sources"]
+        assert client.delete(f"/api/videos/{video_id}").status_code == 200
+        cached = client.get("/api/jobs/" + job_id).json()
+        assert cached["status"] == "failed" and "result" not in cached
+        replay = client.post("/api/agent", json=request).json()
+        assert replay["id"] == job_id
+        assert client.get("/api/jobs/" + job_id).json()["status"] == "failed"
+        assert not conversations.recent()[-1]["sources_available"]
 
 
 def test_identify_shown_object_returns_description_for_subsequent_search(tmp_path):

@@ -1,5 +1,117 @@
 # Decisions and open choices
 
+## Preserve decoded imports on indexing failure — 2026-11-16
+
+Do not remove a successfully decoded saved video because embeddings or persistence failed.
+Exclude partial evidence, preserve bytes, and expose an explicit backend retry through the
+existing queue. Recover interrupted import metadata at startup without inference; captured
+footage keeps its journal protocol. Retry retains IDs/clocks and does not require a new video
+copy at a full budget. Invalid uploads retain cleanup. See [R28](research/R28-import-restart-recovery.md)
+for regressions, hard-exit evidence and the separate pre-copy model-initialization limit.
+
+## Continue bounded recall past unreadable frames — 2026-11-16
+
+Keep decode failure separate from provider failure and an observed absence. Reproduced damaged-
+source aborts now yield unavailable entries, allowing valid older evidence within the same
+bounds. An all-unreadable search is explicitly uncertain; it does not infer that the item was
+absent. Original sources and ordering remain intact, restored bytes work after reopen, and
+provider exceptions are not swallowed. Full strict video decode passed for all 92 local files
+without byte changes. See [R27](research/R27-unreadable-source-recovery.md). This does not promote
+a visual/wake model, repair corrupt files, change UI or establish household recognition quality.
+
+## Reject default visual/wake migrations that fail broader checks — 2026-11-15 funded pass
+
+The approved test budget is now$5 total. Broader wake tests reject both the open-vocabulary
+keyword detector (recall loss) and leading padding (heldout false activations16→19); keep the
+current recognizer/settings. Complete Flash/prompt9 development improved the category proxy, but
+heldout27/32 matched Lite with four unsafe findings versus three. Cached whole-scene confirmation
+did not fix those heldout category errors and withheld valid proxy controls in development.
+Reject these default migrations; keep Lite/prompt7. Explicit object-model and scene-policy switches
+preserve bounded reproducible alternatives without changing general/departure vision.
+
+Whole-scene confirmation does help the constructed screen/poster boundary: development11/12
+(one poster false remains), heldout12/12 versus9/12 ungated. That narrow gain does not justify a
+global default or a household accuracy claim. Confirmation/scene policy remain opt-in. No fixture
+exceptions, private uploads, hardware capture, new provider account or UI changes. See
+[R24](research/R24-wake-detector.md) and [R25](research/R25-funded-visual.md).
+
+## Prefer measured spoken repairs over unproven vision/wake changes — 2026-11-15 depth pass
+
+Keep general utterance-boundary, Unicode phrase/destination-span grounding and executable tool
+schema fixes. Preserve candidate identity uncertainty and supported temporal precision in spoken replies. Native heldout6/6 tool
+choices dispatched, but this does not measure acoustic or whole-answer accuracy. See
+[R23](research/R23-spoken-depth.md). Keep Lite/prompt7 and existing wake settings: the stricter
+visual prompt did not improve the wider development proxy score; the stronger model exhausted
+its per-run allowance early; wake VAD/prompt/beam ablations did not improve the synthetic result.
+Do not compensate with fixture-derived rules or aliases. [R22](research/R22-visual-depth.md)
+records failures/costs. Category confusion, wake false/missed activations and household acceptance
+remain explicit gates rather than silently promoted experiments.
+
+## Preserve report intent and explicit temporal selection — 2026-11-15
+
+Add explicit latest-report selection, independent of historical as-of state, with unknown/tied
+date clarification. Keep affirmative unfulfilled intentions distinct from negated plans and
+completed placements. Recheck source availability during live spoken sessions, including after
+startup. Fresh report-intent dev/holdout cases improved 3/6 and4/6→6/6 each; original cases are
+now diagnostic regressions. These are bounded report-attribution results. See
+[R19](research/R19-recall-context.md).
+
+## Keep positive visual corroboration experimental — 2026-11-15
+
+A real public replay exposed a can-as-bottle false positive. A bounded stronger-model gate
+withheld that claim but the rerun did not establish better overall positive-source accuracy
+(4/5→3/5, with ambiguity and a first-pass remote miss), and added latency. Keep
+`NYX_VISUAL_CONFIRMATION=1` opt-in; do not claim the default error is resolved. Further labeled
+hard negatives/attributes are a product gate, not a reason to promote unproven behavior.
+See [R19](research/R19-recall-context.md).
+
+## Retain SQLite after the Hydra interface gate — 2026-11-15
+
+The current public engine revision matches the deployed Nyx image. Fresh isolated controls pass,
+but native-cosine/procedure compatibility probes fail and no supported vector interface is
+established in the inspected source/docs. The hosted memory service is a separate layer. Retain
+SQLite/shared embeddings; no runtime adapter or misleading client-side ranking substitute.
+See [R20](research/R20-hydra-interface-verdict.md). The other project remains untouched.
+
+## Spread nomination across sources before the bounded check — 2026-11-15
+
+Select four-per-source rounds for semantic latest-history candidate pools, based on the reproduced
+dense-source miss and 24 cached-vector development queries with no individual regressions.
+Known-session minute buckets prevent clip boundaries from bypassing the reservation. Retain
+the existing 64/12 pool/check bounds, filters, source IDs and verification. Explicit opt-out is
+`NYX_SOURCE_BALANCED_CANDIDATES=0`. Sixteen held-out candidate queries improved under crowding
+without uncrowded regressions; the 10k-vector query overhead is recorded separately. Ordinary
+similarity search is unchanged. See [R19](research/R19-recall-context.md) and
+[R21](research/R21-multi-day-runtime.md).
+
+## Bound context copies and preserve source truth — 2026-11-15
+
+Use one source-aware recent-context projection for typed/spoken recall, suppressing invalidated
+assistant claims and keeping known dates/query constraints. Bound live model context by whole
+user/tool exchanges, preserving active function calls/results. Do not generate an unverified
+summary or rewrite saved reports to save context. The frozen development attribution cases remain
+8/8 after the change; that small replay does not establish household accuracy or faster service.
+See [R19](research/R19-recall-context.md). Keep decay/reference nomination defaults unchanged.
+
+## Preserve corrected reports and keep recency experimental — 2026-11-15
+
+Use explicit, attributed correction/retraction edges between actual saved report IDs. Preserve
+the earlier report for historical lookup and never treat report correction as visual confirmation.
+Apply source/future-time eligibility before ranking, including the transcript fallback route.
+Keep nonzero freshness weight disabled: cached-vector stress tests improve when relevant items
+are new and regress when they are old. Small real-model correction tests support the mechanism
+but include a Hindi false negative; they are not household reliability evidence. See
+[R17](research/R17-memory-policy.md). No access reinforcement or expiry is enabled.
+
+## Preserve index coverage between activity events — 2026-11-15
+
+Use activity plus a two-second floor for new adaptive index samples, selected against a five-second
+alternative on synthetic development conditions. Held-out condition retention improved from 3/32
+to 23/32, with selected samples rising from 60 to 219. This is a sampling result, not household
+recall accuracy. Accept the explicit frame-count tradeoff for this bounded pilot work; measure
+embedding/storage cost before claiming daily feasibility. Keep originals, current cap and live
+proactive filtering. See [R15](research/R15-sampling-coverage.md).
+
 ## Ten-day pilot — 2026-11-03
 
 The user selected all three reliability workstreams, approved proceeding and chose the last ten

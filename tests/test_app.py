@@ -54,6 +54,29 @@ def test_web_import_search_playback_and_reopen_preserve_evidence(tmp_path, video
         assert wait_for_job(client, query.json()["id"])["status"] == "succeeded"
 
 
+def test_incompatible_index_fails_search_without_replacing_vectors_or_media(tmp_path, video):
+    from nyx.memory import Store
+    from nyx.retrieval import index_video
+
+    store = Store(tmp_path, ColorEncoder.fingerprint, 3)
+    indexed = index_video(video, store, ColorEncoder())
+
+    class ChangedEncoder(ColorEncoder):
+        fingerprint: ClassVar = {**ColorEncoder.fingerprint, "revision": "incompatible"}
+
+    with TestClient(create_app(tmp_path, encoder_factory=ChangedEncoder)) as client:
+        response = client.post("/api/search", json={"query": "green"})
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "failed" and "different encoder" in job["error"]
+        assert client.get("/api/videos").json()[0]["frame_count"] == 2
+        assert client.get(f"/api/videos/{indexed['video_id']}/media").content == video.read_bytes()
+    with TestClient(create_app(tmp_path, encoder_factory=ColorEncoder)) as client:
+        response = client.post("/api/search", json={"query": "green"})
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "succeeded"
+        assert job["result"]["results"][0]["video_id"] == indexed["video_id"]
+
+
 def test_web_index_failure_cleans_upload_and_excludes_evidence(tmp_path):
     root = tmp_path / "data"
     with TestClient(create_app(root, encoder_factory=ColorEncoder)) as client:
@@ -256,6 +279,78 @@ def test_saved_but_unindexed_capture_stays_playable_when_model_is_unavailable(tm
         assert source.status_code == 206
         assert source.content == video.read_bytes()[:8]
         assert client.get("/api/videos").json() == []
+
+
+def test_truncated_capture_media_and_thumbnail_are_unavailable_without_deleting_bytes(
+    tmp_path, video
+):
+    with TestClient(create_app(tmp_path, encoder_factory=ColorEncoder)) as client:
+        session = client.post("/api/capture/start", json={"at": "2026-10-19T10:00:00Z"}).json()
+        response = client.post(
+            f"/api/capture/{session['id']}/segments/0",
+            params={
+                "recorded_at": "2026-10-19T10:00:00Z",
+                "ended_at": "2026-10-19T10:00:04Z",
+                "format": "mp4",
+            },
+            content=video.read_bytes(),
+        )
+        identifier = response.json()["id"]
+        assert wait_for_job(client, identifier)["status"] == "succeeded"
+        query = client.post("/api/search", json={"query": "green"}).json()
+        result = wait_for_job(client, query["id"])["result"]["results"][0]
+        path = tmp_path / "recordings" / (identifier + ".mp4")
+        path.write_bytes(video.read_bytes()[:128])
+        assert client.get(f"/api/capture/segments/{identifier}/media").status_code == 404
+        assert client.get(result["media_url"]).status_code == 404
+        assert client.get(result["thumbnail_url"]).status_code == 404
+        health = client.get("/api/capture").json()
+        assert health["searchable_through"] is None and health["unavailable_segment_count"] == 1
+        assert path.read_bytes() == video.read_bytes()[:128]
+
+
+@pytest.mark.parametrize("failure_stage", ["model_load", "embedding"])
+def test_retry_reindexes_saved_failed_capture_without_replacing_source(
+    tmp_path, video, failure_stage
+):
+    available = False
+
+    class TransientEncoder(ColorEncoder):
+        def encode_images(self, images):
+            if not available:
+                raise RuntimeError("Temporary embedding outage")
+            return super().encode_images(images)
+
+    def model():
+        if not available and failure_stage == "model_load":
+            raise RuntimeError("Temporary provider outage")
+        return TransientEncoder()
+
+    with TestClient(create_app(tmp_path, encoder_factory=model)) as client:
+        session = client.post("/api/capture/start", json={"at": "2026-10-19T10:00:00Z"}).json()
+        url = f"/api/capture/{session['id']}/segments/0"
+        params = {
+            "recorded_at": "2026-10-19T10:00:00Z",
+            "ended_at": "2026-10-19T10:00:04Z",
+            "format": "mp4",
+        }
+        response = client.post(url, params=params, content=video.read_bytes())
+        segment_id = response.json()["id"]
+        assert wait_for_job(client, segment_id)["status"] == "failed"
+        source = client.get(f"/api/capture/segments/{segment_id}/media")
+        assert source.content == video.read_bytes()
+        assert client.get("/api/capture").json()["searchable_through"] is None
+        available = True
+        retry = client.post(url, params=params, content=b"must not replace the saved recording")
+        assert retry.status_code == 202
+        assert retry.json()["id"] == segment_id
+        job = wait_for_job(client, segment_id)
+        assert job["status"] == "succeeded", job
+        assert client.get(f"/api/capture/segments/{segment_id}/media").content == video.read_bytes()
+        record = client.get("/api/videos").json()[0]
+        assert record["capture_session"] == session["id"]
+        assert record["recorded_at"] == "2026-10-19T10:00:00+00:00"
+        assert client.get("/api/capture").json()["counts"].get("failed", 0) == 0
 
 
 def test_interrupted_capture_indexes_clip_offsets_without_inventing_frame_clock_time(
@@ -798,3 +893,215 @@ def test_visual_work_is_bounded_while_controls_and_search_requests_stay_responsi
             assert wait_for_job(client, first["id"])["status"] == "succeeded"
     finally:
         release.set()
+
+
+def test_history_recovers_from_unreadable_source_and_reuses_restored_original(
+    tmp_path, video, monkeypatch
+):
+    import json
+
+    from nyx.memory import Store
+    from nyx.retrieval import index_video
+    from nyx.verification import CloudVerifier
+
+    monkeypatch.setenv("NYX_VISUAL_CONFIRMATION", "0")
+    root = tmp_path / "library"
+    store = Store(root, ColorEncoder.fingerprint, 3)
+    older = index_video(video, store, ColorEncoder(), recorded_at="2026-11-15T10:00:00Z")
+    newer = index_video(video, store, ColorEncoder(), recorded_at="2026-11-15T11:00:00Z")
+    with store.connection() as db:
+        source = (
+            root
+            / db.execute("SELECT path FROM videos WHERE id=?", (newer["video_id"],)).fetchone()[0]
+        )
+    original = source.read_bytes()
+    source.write_bytes(b"x" * len(original))
+
+    class Client:
+        def generate(self, *args, **kwargs):
+            return json.dumps(
+                {
+                    "visibility": "visible",
+                    "location": "on the test table",
+                    "description": "Generated boundary fixture.",
+                    "matching_count": 1,
+                    "ambiguous": False,
+                }
+            )
+
+    def factory():
+        return create_app(
+            root,
+            encoder_factory=ColorEncoder,
+            verifier_factory=lambda: CloudVerifier(Client()),
+            voice_factory=lambda root: None,
+        )
+
+    with TestClient(factory()) as api:
+        job = api.post("/api/answer", json={"object_query": "green"})
+        assert job.status_code == 202, job.json()
+        result = wait_for_job(api, job.json()["id"])
+        assert result["status"] == "succeeded"
+        assert result["result"]["evidence"]["video_id"] == older["video_id"]
+        assert result["result"]["scope"]["unavailable_frame_count"] > 0
+    source.write_bytes(original)
+    with TestClient(factory()) as api:
+        job = api.post("/api/answer", json={"object_query": "green"})
+        assert job.status_code == 202, job.json()
+        result = wait_for_job(api, job.json()["id"])
+        assert result["result"]["evidence"]["video_id"] == newer["video_id"]
+        assert result["result"]["scope"]["unavailable_frame_count"] == 0
+    assert source.read_bytes() == original
+
+
+@pytest.mark.parametrize("block_retry", [False, True])
+def test_failed_valid_import_preserves_saved_source_and_retries_after_restart(
+    tmp_path, video, block_retry
+):
+    import hashlib
+
+    root = tmp_path / "library"
+
+    class UnavailableEncoder(ColorEncoder):
+        def encode_images(self, images):
+            raise RuntimeError("Synthetic embedding outage")
+
+    with TestClient(
+        create_app(
+            root, encoder_factory=UnavailableEncoder, video_budget_bytes=video.stat().st_size
+        )
+    ) as api:
+        response = api.post(
+            "/api/import",
+            params={"name": "kept.mp4", "recorded_at": "2026-11-15T10:00:00Z"},
+            content=video.read_bytes(),
+        )
+        job = wait_for_job(api, response.json()["id"])
+        assert job["status"] == "failed"
+        row = api.get("/api/videos").json()[0]
+        source = root / row["path"]
+        assert source.is_file(), "A valid saved import must survive embedding failure"
+        assert source.read_bytes() == video.read_bytes()
+        assert (
+            api.post(
+                "/api/import", params={"name": "another.mp4"}, content=video.read_bytes()
+            ).status_code
+            == 413
+        )
+        assert row["status"] == "failed" and row["frame_count"] == 0
+        assert api.get(f"/api/videos/{row['id']}/media").status_code == 404
+    before = hashlib.sha256(source.read_bytes()).hexdigest()
+    from threading import Event
+
+    started, release = Event(), Event()
+
+    class RecoveredEncoder(ColorEncoder):
+        def encode_images(self, images):
+            if block_retry:
+                started.set()
+                assert release.wait(3)
+            return super().encode_images(images)
+
+    with TestClient(
+        create_app(root, encoder_factory=RecoveredEncoder, video_budget_bytes=video.stat().st_size)
+    ) as api:
+        response = api.post(f"/api/videos/{row['id']}/retry-index")
+        assert response.status_code == 202, response.json()
+        if block_retry:
+            try:
+                assert started.wait(2)
+                assert api.post(f"/api/videos/{row['id']}/retry-index").status_code == 409
+            finally:
+                release.set()
+        result = wait_for_job(api, response.json()["id"])
+        assert result["status"] == "succeeded", result
+        restored = api.get("/api/videos").json()
+        assert len(restored) == 1
+        assert restored[0]["id"] == row["id"]
+        assert restored[0]["recorded_at"] == row["recorded_at"]
+        assert restored[0]["status"] == "ready" and restored[0]["frame_count"] > 0
+        assert api.post(f"/api/videos/{row['id']}/retry-index").status_code == 409
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == before
+
+
+def test_restart_exposes_interrupted_import_for_explicit_retry_without_loading_model(
+    tmp_path, video
+):
+    from nyx.memory import Store
+    from nyx.retrieval import index_video_batches
+
+    root = tmp_path / "library"
+    store = Store(root, ColorEncoder.fingerprint, 3)
+    steps = index_video_batches(
+        video, store, ColorEncoder(), batch_size=1, recorded_at="2026-11-15T10:00:00Z"
+    )
+    progress = next(steps)
+    steps.close()
+    source = root / store.video(progress["video_id"])["path"]
+    before = source.read_bytes()
+
+    def no_model():
+        pytest.fail("Startup must not infer or load a model to recover metadata")
+
+    with TestClient(create_app(root, encoder_factory=no_model)) as api:
+        row = api.get("/api/videos").json()[0]
+        assert row["status"] == "failed" and row["frame_count"] == 0
+        assert source.read_bytes() == before
+    with TestClient(create_app(root, encoder_factory=ColorEncoder)) as api:
+        response = api.post(f"/api/videos/{row['id']}/retry-index")
+        assert response.status_code == 202
+        result = wait_for_job(api, response.json()["id"])
+        assert result["status"] == "succeeded"
+        assert api.get("/api/videos").json()[0]["id"] == row["id"]
+    assert source.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "kind,expected",
+    [
+        ("missing", 409),
+        ("outside", 400),
+        ("capture", 409),
+        ("capture_session", 409),
+        ("ready", 409),
+    ],
+)
+def test_import_retry_rejects_unavailable_unmanaged_or_capture_sources_without_model(
+    tmp_path, video, kind, expected
+):
+    from nyx.memory import Store
+    from nyx.recording import CaptureJournal
+
+    root = tmp_path / "library"
+    store = Store(root, ColorEncoder.fingerprint, 3)
+    identifier = "a" * 32
+    relative = f"recordings/{identifier}.mp4"
+    if kind == "capture":
+        journal = CaptureJournal(root)
+        session = journal.start("2026-11-15T10:00:00Z")
+        record = journal.begin_segment(
+            session["id"], 0, "2026-11-15T10:00:00Z", "2026-11-15T10:00:10Z", ".mp4"
+        )
+        identifier, relative = record["id"], record["path"]
+        journal.mark(identifier, "failed", "Synthetic test")
+    if kind == "outside":
+        relative = "outside-managed-directory.mp4"
+    store.add_video(
+        "synthetic",
+        relative,
+        None,
+        2,
+        identifier,
+        capture_session="known-session" if kind == "capture_session" else None,
+    )
+    if kind == "ready":
+        store.finish_video(identifier)
+    else:
+        store.fail_video(identifier, "Synthetic test")
+
+    def no_model():
+        pytest.fail("A refused retry must not initialize inference")
+
+    with TestClient(create_app(root, encoder_factory=no_model)) as api:
+        assert api.post(f"/api/videos/{identifier}/retry-index").status_code == expected
+        assert api.post(f"/api/videos/{'f' * 32}/retry-index").status_code == 404

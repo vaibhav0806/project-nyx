@@ -1,4 +1,33 @@
+from itertools import pairwise
+
 from PIL import Image, ImageDraw
+
+
+def test_activity_indexing_keeps_small_object_below_motion_threshold():
+    from nyx.attention import select_activity_frames
+
+    background = Image.new("RGB", (1280, 720), (100, 100, 100))
+    object_frame = background.copy()
+    ImageDraw.Draw(object_frame).rectangle((600, 350, 624, 362), fill=(210, 210, 210))
+    frames = [(i / 10, object_frame if 30 <= i < 60 else background) for i in range(100)]
+    selected = select_activity_frames(frames)
+    assert any(3 <= at < 6 for at, _ in selected)
+    assert all(any(row is original for original in frames) for row in selected)
+    assert max(b[0] - a[0] for a, b in pairwise(selected)) <= 2.01
+
+
+def test_index_coverage_floor_is_explicit_and_legacy_comparison_remains_available():
+    import pytest
+
+    from nyx.attention import select_activity_frames
+
+    image = Image.new("RGB", (160, 96), "gray")
+    frames = [(i / 10, image) for i in range(100)]
+    assert [at for at, _ in select_activity_frames(frames, coverage_interval=None)] == [0]
+    assert [at for at, _ in select_activity_frames(frames, coverage_interval=2)] == [0, 2, 4, 6, 8]
+    for interval in [0, -1, float("nan"), float("inf")]:
+        with pytest.raises(ValueError, match="coverage"):
+            select_activity_frames(frames, coverage_interval=interval)
 
 
 def test_static_frames_are_sparse_but_keep_periodic_coverage():
@@ -57,10 +86,13 @@ def test_adaptive_indexing_preserves_sources_and_records_selection_policy(tmp_pa
     monkeypatch.setattr("nyx.retrieval.extract_frames", frames)
     store = Store(tmp_path / "index", ColorEncoder.fingerprint, 3)
     result = index_video(source, store, ColorEncoder(), adaptive=True)
-    assert result["frame_count"] == 2
+    assert result["frame_count"] == 30
     assert result["decoded_samples"] == 600
-    assert store.video(result["video_id"])["sampling_policy"].startswith("activity-v1/scan=0.1s")
-    assert len(list((store.root / "frames").rglob("*.jpg"))) == 2
+    assert (
+        store.video(result["video_id"])["sampling_policy"]
+        == "activity-v2/scan=0.1s/0.5s-persistence/coverage=2s"
+    )
+    assert len(list((store.root / "frames").rglob("*.jpg"))) == 30
     assert (
         store.root / "recordings" / f"{result['video_id']}.mp4"
     ).read_bytes() == source.read_bytes()

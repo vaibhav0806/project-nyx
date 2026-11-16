@@ -96,6 +96,63 @@ def test_no_dated_history_does_not_load_verifier_or_invent_absence(tmp_path):
     assert "not prove" in done.value.value["answer"]
 
 
+def test_source_balanced_pool_reaches_verified_older_scene_beyond_dense_distractors(
+    tmp_path, video
+):
+    import numpy as np
+    from test_agent import complete
+    from test_nyx import ColorEncoder
+
+    from nyx.answers import history_steps
+    from nyx.memory import Store
+    from nyx.retrieval import index_video
+
+    store = Store(tmp_path / "history", ColorEncoder.fingerprint, 3)
+    older = index_video(video, store, ColorEncoder(), recorded_at="2026-11-05T12:00:00Z")
+    newer = index_video(video, store, ColorEncoder(), recorded_at="2026-11-06T12:00:00Z")
+    with store.connection() as db:
+        thumbnail = db.execute(
+            "SELECT thumbnail FROM frames WHERE video_id=? LIMIT 1", (newer["video_id"],)
+        ).fetchone()[0]
+        db.execute("DELETE FROM frames WHERE video_id=?", (newer["video_id"],))
+        db.execute("DELETE FROM frames WHERE video_id=? AND offset_seconds=0", (older["video_id"],))
+    store.add_frames(newer["video_id"], [(i / 100, thumbnail) for i in range(80)], [[0, 1, 0]] * 80)
+    # Controlled inference error: the correct older scene has a lower nomination score.
+    from nyx.memory import _vector
+
+    with store.connection() as db:
+        db.execute(
+            "UPDATE frames SET embedding=? WHERE video_id=?",
+            (_vector([0.4, 0.9, 0], 3), older["video_id"]),
+        )
+
+    class Verifier:
+        fingerprint: ClassVar = {"model": "color-check"}
+
+        def inspect(self, image, query):
+            visible = np.asarray(image).mean(axis=(0, 1))[1] > 100
+            return {
+                "visibility": "visible" if visible else "not_visible",
+                "location": "center" if visible else None,
+                "description": "Generated color fixture",
+            }
+
+    flat = complete(
+        history_steps(
+            "green", store, ColorEncoder(), Verifier, semantic_latest=True, source_balanced=False
+        )
+    )
+    assert flat["evidence"] is None
+    balanced = complete(
+        history_steps(
+            "green", store, ColorEncoder(), Verifier, semantic_latest=True, source_balanced=True
+        )
+    )
+    assert balanced["evidence"]["video_id"] == older["video_id"]
+    assert balanced["evidence"]["observed_at"] == "2026-11-05T12:00:02+00:00"
+    assert balanced["evidence"]["media_url"].endswith(older["video_id"] + "/media")
+
+
 pytest_plugins = ["test_nyx"]
 
 
@@ -206,8 +263,9 @@ def test_visible_requires_exactly_one_reported_match(count):
 
 
 @pytest.mark.parametrize("ambiguous_first", [False, True])
+@pytest.mark.parametrize("confirmation_requests", [0, 1])
 def test_batch_keeps_candidate_order_and_stops_after_first_decisive_batch(
-    tmp_path, video, ambiguous_first
+    tmp_path, video, ambiguous_first, confirmation_requests
 ):
     from test_nyx import ColorEncoder
 
@@ -230,6 +288,7 @@ def test_batch_keeps_candidate_order_and_stops_after_first_decisive_batch(
                     "visibility": "uncertain" if i == 0 and ambiguous_first else "visible",
                     "ambiguous": i == 0 and ambiguous_first,
                     "location": "desk",
+                    "confirmation_requests": confirmation_requests,
                 }
                 for i in range(len(images))
             ]
@@ -242,7 +301,9 @@ def test_batch_keeps_candidate_order_and_stops_after_first_decisive_batch(
         except StopIteration as done:
             result = done.value
             break
-    assert result["timings"]["vision_requests"] == len(result["checked"])
+    assert result["timings"]["vision_requests"] == len(result["checked"]) * (
+        1 + confirmation_requests
+    )
     if ambiguous_first:
         assert result["status"] == "clarify" and result["evidence"] is None
     else:
@@ -260,6 +321,54 @@ def test_diverse_history_candidates_spread_moments_and_keep_sparse_neighbors():
     assert [r["offset_seconds"] for r in diverse_candidates(rows[:3], 3)] == [0, 1, 2]
     other = {"id": 6, "video_id": "other", "offset_seconds": 0}
     assert diverse_candidates([rows[0], other], 2) == [rows[0], other]
+
+
+def test_diversity_crosses_clip_boundaries_only_with_known_capture_continuity():
+    from datetime import UTC, datetime, timedelta
+
+    from nyx.answers import diverse_candidates
+
+    at = datetime(2026, 11, 15, tzinfo=UTC)
+    rows = [
+        {
+            "id": i,
+            "video_id": f"clip-{i}",
+            "offset_seconds": 0,
+            "capture_session": "session-a",
+            "observed_at": (at + timedelta(seconds=i)).isoformat(),
+        }
+        for i in [0, 1, 2, 8, 16]
+    ]
+    assert [r["id"] for r in diverse_candidates(rows, 3)] == [0, 8, 16]
+    unrelated = {**rows[1], "capture_session": "session-b"}
+    assert diverse_candidates([rows[0], unrelated], 2) == [rows[0], unrelated]
+    unknown = {**rows[1], "observed_at": None}
+    assert diverse_candidates([rows[0], unknown], 2) == [rows[0], unknown]
+
+
+def test_reference_nomination_is_explicit_and_does_not_replace_verification(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from nyx.answers import history_steps
+
+    seen = []
+    monkeypatch.setattr("nyx.answers.search", lambda *a, **kw: seen.append(kw) or [])
+    reference = object()
+    for enabled in [False, True]:
+        steps = history_steps(
+            "keys",
+            SimpleNamespace(root=tmp_path),
+            None,
+            lambda: pytest.fail("No candidate to verify"),
+            reference_image=reference,
+            reference_candidates=enabled,
+        )
+        while True:
+            try:
+                next(steps)
+            except StopIteration:
+                break
+        assert seen[-1].get("reference_image") is (reference if enabled else None)
 
 
 def test_history_checks_reference_image_instead_of_category_only(tmp_path, monkeypatch):
@@ -305,3 +414,75 @@ def test_history_checks_reference_image_instead_of_category_only(tmp_path, monke
             break
     assert seen == [(image, reference, "phone")]
     assert result["evidence"] is None
+
+
+@pytest.mark.parametrize("route", ["cloud_frames", "fallback", "reference"])
+@pytest.mark.parametrize("all_damaged", [False, True])
+def test_unreadable_sources_do_not_hide_other_history_or_become_negative_sightings(
+    tmp_path, video, monkeypatch, route, all_damaged
+):
+    import json
+
+    from PIL import Image
+    from test_agent import complete
+    from test_nyx import ColorEncoder
+
+    from nyx.answers import history_steps
+    from nyx.memory import Store
+    from nyx.retrieval import index_video
+    from nyx.verification import CloudVerifier
+
+    monkeypatch.setenv("NYX_VISUAL_CONFIRMATION", "0")
+    store = Store(tmp_path / "history", ColorEncoder.fingerprint, 3)
+    older = index_video(video, store, ColorEncoder(), recorded_at="2026-11-15T10:00:00Z")
+    newer = index_video(video, store, ColorEncoder(), recorded_at="2026-11-15T11:00:00Z")
+    for source in [newer, older] if all_damaged else [newer]:
+        with store.connection() as db:
+            path = (
+                store.root
+                / db.execute(
+                    "SELECT path FROM videos WHERE id=?", (source["video_id"],)
+                ).fetchone()[0]
+            )
+        path.write_bytes(b"x" * path.stat().st_size)
+
+    calls = []
+
+    class Client:
+        def generate(self, messages, model, max_tokens, **kwargs):
+            calls.append(model)
+            return json.dumps(
+                {
+                    "visibility": "visible",
+                    "location": "beside the chair",
+                    "description": "Generated fixture.",
+                    "matching_count": 1,
+                    "ambiguous": False,
+                }
+            )
+
+    verifier = CloudVerifier(Client())
+    if route == "fallback":
+        verifier.inspect_frames = None
+    result = complete(
+        history_steps(
+            "green",
+            store,
+            ColorEncoder(),
+            lambda: verifier,
+            reference_image=Image.new("RGB", (20, 20)) if route == "reference" else None,
+        )
+    )
+    assert result["scope"]["unavailable_frame_count"] >= 1
+    assert all(
+        not row["model_checked"]
+        for row in result["checked"]
+        if row["judgment"].get("source_unavailable")
+    )
+    assert result["timings"]["vision_requests"] == len(calls)
+    if all_damaged:
+        assert result["status"] == "uncertain" and result["evidence"] is None and not calls
+        assert "could not be read" in result["answer"]
+    else:
+        assert result["evidence"]["video_id"] == older["video_id"]
+        assert result["evidence"]["observed_at"].startswith("2026-11-15T10:")

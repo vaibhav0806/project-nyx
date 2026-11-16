@@ -56,6 +56,45 @@ def test_indexing_and_failed_videos_are_excluded(store):
     assert store.list_videos()[0]["status"] == "failed"
 
 
+def test_balanced_nomination_reserves_other_sources_before_pool_is_full(store):
+    for i in range(80):
+        source = store.add_video(
+            f"segment-{i}",
+            f"recordings/{i}.mp4",
+            "2026-11-06T12:00:00Z",
+            2,
+            capture_session="one-session",
+        )
+        store.add_frames(source, [(i / 10, f"frames/{i}.jpg")], [[0, 1, 0]])
+        store.finish_video(source)
+    target = store.add_video("other-day", "recordings/target.mp4", "2026-11-05T12:00:00Z", 2)
+    store.add_frames(target, [(0, "frames/target.jpg")], [[0.4, 0.9, 0]])
+    store.finish_video(target)
+    assert target not in {r["video_id"] for r in store.search([0, 1, 0], limit=64)}
+    balanced = store.search([0, 1, 0], limit=64, source_balanced=True)
+    assert target in {r["video_id"] for r in balanced[:5]}
+    target_frame = next(r["id"] for r in balanced if r["video_id"] == target)
+    excluded = store.search(
+        [0, 1, 0], limit=64, source_balanced=True, excluded_frame_ids=[target_frame]
+    )
+    assert target not in {r["video_id"] for r in excluded}
+    dated = store.search(
+        [0, 1, 0], limit=64, source_balanced=True, seen_after="2026-11-06T00:00:00Z"
+    )
+    assert target not in {r["video_id"] for r in dated}
+
+
+def test_balanced_nomination_fills_remaining_slots_from_a_single_recording(store):
+    source = store.add_video("one import", "recordings/one.mp4", None, 2)
+    store.add_frames(source, [(2 * i, f"frames/{i}.jpg") for i in range(80)], [[0, 1, 0]] * 80)
+    store.finish_video(source)
+    rows = store.search([0, 1, 0], limit=64, source_balanced=True)
+    assert len(rows) == 64
+    assert {row["video_id"] for row in rows} == {source}
+    assert [row["offset_seconds"] for row in rows] == list(range(0, 128, 2))
+    assert "source_rank" not in rows[0] and "nomination_group" not in rows[0]
+
+
 def test_encoder_revision_and_preprocessing_cannot_be_mixed(store):
     for field in ["model", "revision", "preprocessing"]:
         changed = {**ColorEncoder.fingerprint, field: "changed"}
@@ -83,6 +122,66 @@ def test_time_filters_apply_before_ranking(store):
     results = store.search([1, 0, 0], start=3, end=5)
     assert [result["offset_seconds"] for result in results] == [4.0]
     assert store.search([1, 0, 0], video_id="missing") == []
+
+
+def test_capture_session_survives_store_restart_without_guessing_import_continuity(tmp_path):
+    first = Store(tmp_path, ColorEncoder.fingerprint, 3)
+    video_id = first.add_video(
+        "capture", "capture.mp4", "2026-11-15T10:00:00Z", 2, capture_session="known-session"
+    )
+    first.add_frames(video_id, [(0, "frame.jpg")], [[1, 0, 0]])
+    first.finish_video(video_id)
+    restarted = Store(tmp_path, ColorEncoder.fingerprint, 3)
+    assert restarted.search([1, 0, 0])[0]["capture_session"] == "known-session"
+    imported = restarted.add_video("import", "import.mp4", None, 2)
+    assert restarted.video(imported)["capture_session"] is None
+
+
+def test_index_retry_can_add_known_session_but_cannot_reassign_it(store, video):
+    result = index_video(video, store, ColorEncoder())
+    index_video(
+        video,
+        store,
+        ColorEncoder(),
+        video_id=result["video_id"],
+        capture_session="original-session",
+    )
+    assert store.video(result["video_id"])["capture_session"] == "original-session"
+    with pytest.raises(ValueError, match="session"):
+        index_video(
+            video,
+            store,
+            ColorEncoder(),
+            video_id=result["video_id"],
+            capture_session="unrelated-session",
+        )
+
+
+def test_reference_nomination_adds_image_candidates_without_bypassing_filters(store):
+    video_id = store.add_video("scene", "scene.mp4", "2026-11-15T10:00:00Z", 2)
+    store.add_frames(
+        video_id,
+        [(0, "red.jpg"), (2, "blue.jpg"), (4, "green.jpg")],
+        [[1, 0, 0], [0.2, 0.2, 0.96], [0, 1, 0]],
+    )
+    store.finish_video(video_id)
+    reference = Image.new("RGB", (32, 32), "lime")
+    baseline = search("red", store, ColorEncoder(), limit=2)
+    assert all(r["offset_seconds"] != 4 for r in baseline)
+    combined = search("red", store, ColorEncoder(), reference_image=reference, limit=2)
+    assert {r["offset_seconds"] for r in combined} == {0, 4}
+    green = next(r for r in combined if r["offset_seconds"] == 4)
+    assert "reference_image" in green["retrieval_routes"]
+    constrained = search(
+        "red",
+        store,
+        ColorEncoder(),
+        reference_image=reference,
+        limit=2,
+        end=2,
+        excluded_frame_ids=[baseline[0]["id"]],
+    )
+    assert [r["offset_seconds"] for r in constrained] == [2]
 
 
 @pytest.fixture
@@ -162,17 +261,23 @@ def test_failed_indexing_preserves_an_already_saved_recording(store, video):
     assert store.search([1, 0, 0]) == []
 
 
-def test_encoding_failure_cleans_up_partial_evidence(store, video):
+@pytest.mark.parametrize("failure_batch", [0, 1])
+def test_encoding_failure_preserves_source_and_cleans_partial_evidence(store, video, failure_batch):
     class BrokenEncoder(ColorEncoder):
+        calls = 0
+
         def encode_images(self, images):
-            raise RuntimeError("model failed")
+            if self.calls == failure_batch:
+                raise RuntimeError("model failed")
+            self.calls += 1
+            return super().encode_images(images)
 
     with pytest.raises(RuntimeError, match="model failed"):
-        index_video(video, store, BrokenEncoder())
+        index_video(video, store, BrokenEncoder(), batch_size=1)
     record = store.list_videos()[0]
     assert record["status"] == "failed"
     assert record["frame_count"] == 0
-    assert not (store.root / record["path"]).exists()
+    assert (store.root / record["path"]).read_bytes() == video.read_bytes()
     assert list((store.root / "frames").glob("*")) == []
 
 

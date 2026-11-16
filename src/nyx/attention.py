@@ -78,15 +78,20 @@ def select_frames(frames):
     return [row for i, row in enumerate(frames) if i in selected]
 
 
-def select_activity_frames(frames):
+def select_activity_frames(frames, coverage_interval=2.0):
     """Dense cheap observations select sparse evidence; original rows retain offsets."""
     from nyx.activity import ActivityWindow
 
+    if coverage_interval is not None and (
+        not np.isfinite(coverage_interval) or coverage_interval <= 0
+    ):
+        raise ValueError("Index coverage interval must be finite and positive")
     window = ActivityWindow()
     selected = set()
     event_start = None
     selected_event = None
     last_selected = None
+    last_coverage = None
     for index, (at, source) in enumerate(frames):
         if isinstance(source, Image.Image):
             activity = window.observe(source, at)
@@ -96,6 +101,10 @@ def select_activity_frames(frames):
         if index == 0 or activity["discontinuity"]:
             selected.add(index)
             last_selected = at
+            last_coverage = at
+        if coverage_interval is not None and at - last_coverage >= coverage_interval - 1e-9:
+            selected.add(index)
+            last_coverage = at
         if activity["state"] == "collecting" and activity["started_at"] == at:
             event_start = index
         if activity["qualified"]:

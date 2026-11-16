@@ -155,8 +155,16 @@ class CaptureJournal:
                     != identity
                 ):
                     raise ValueError("Segment retry metadata differs from the saved source")
-                if existing["state"] != "failed" or (self.root / path).exists():
+                if existing["state"] != "failed":
                     return dict(existing)
+                source = self.root / path
+                saved = source.is_file()
+                if source.exists() and (
+                    not saved or not existing["size"] or source.stat().st_size != existing["size"]
+                ):
+                    raise ValueError(
+                        "Saved segment is incomplete; preserve it and inspect the source before retrying"
+                    )
             count = db.execute(
                 "SELECT COUNT(*) FROM segments WHERE state IN ('uploading','staged','queued','indexing')"
             ).fetchone()[0]
@@ -164,8 +172,8 @@ class CaptureJournal:
                 raise ValueError("Indexing backlog is full; stop recording until it catches up")
             if existing:
                 db.execute(
-                    "UPDATE segments SET state = 'uploading', error = NULL WHERE id = ?",
-                    (segment_id,),
+                    "UPDATE segments SET state = ?, error = NULL, last_sample_seconds = NULL WHERE id = ?",
+                    ("queued" if saved else "uploading", segment_id),
                 )
             else:
                 db.execute(
@@ -183,6 +191,16 @@ class CaptureJournal:
 
     def partial_path(self, segment_id):
         return self.root / "incoming" / f"capture-{segment_id}.part"
+
+    def source_available(self, segment):
+        """Present with its registered byte count; this is not checksum verification."""
+        try:
+            path = self.root / segment["path"]
+            return bool(
+                segment["size"] and path.is_file() and path.stat().st_size == segment["size"]
+            )
+        except OSError:
+            return False
 
     def deletion(self, video_id):
         with self.connection() as db:
@@ -309,7 +327,7 @@ class CaptureJournal:
                     "SELECT * FROM segments WHERE size > 0 AND state NOT IN ('deleting','deleted')"
                 )
             ]
-        saved = [row for row in coverage if (self.root / row["path"]).exists()]
+        saved = [row for row in coverage if self.source_available(row)]
         known = [row for row in saved if not row["timing_uncertain"]]
         ready = [
             row
@@ -325,6 +343,7 @@ class CaptureJournal:
             "video_budget_bytes": self.budget_bytes,
             "segment_seconds": 10,
             "sample_seconds": 2,
+            "unavailable_segment_count": len(coverage) - len(saved),
             "timing_uncertain_count": sum(bool(row["timing_uncertain"]) for row in saved),
             "recorded_through": max((row["ended_at"] for row in known), default=None),
             "searchable_through": max(

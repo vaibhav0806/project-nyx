@@ -335,6 +335,7 @@ def install_companion(app, workspace, voice):
                         image,
                         body.captured_at.isoformat() if body.captured_at else None,
                         frames=turn_frames,
+                        supersedes_turn_id=action.get("supersedes_turn_id"),
                     )
                 return statements.recall(
                     action["query"],
@@ -342,6 +343,8 @@ def install_companion(app, workspace, voice):
                     workspace.visual_verifier(),
                     identifier,
                     reference_image=references.get(identifier),
+                    as_of=action.get("as_of"),
+                    selection=action.get("selection", "all"),
                 )
             if name in {"inspect_current", "identify_shown_object"}:
                 if name == "identify_shown_object":
@@ -483,7 +486,7 @@ def install_companion(app, workspace, voice):
                         result["timings"]["spoken_context_ms"] = round(
                             (time.perf_counter() - context_started) * 1000
                         )
-                    except CloudError:
+                    except (CloudError, ValueError):
                         result["answer"] += " Spoken context could not be checked right now."
                 conversations.event(
                     "history_timing",
@@ -652,11 +655,29 @@ def install_companion(app, workspace, voice):
                     if body.captured_at
                     else None,
                 }
+                statement_observations = [
+                    r for r in result.get("observations", []) if r.get("kind") == "statements"
+                ]
+                plan["statement_refs"] = (
+                    [
+                        {
+                            key: match.get(key)
+                            for key in ["turn_id", "at", "object_description", "kind"]
+                        }
+                        for observation in statement_observations
+                        for match in observation.get("matches", [])
+                    ][-3:]
+                    if statement_observations
+                    else previous.get("statement_refs", [])
+                )
                 conversations.update_plan(
                     identifier,
                     plan,
                 )
-                result["review_context"] = plan["candidate"]
+                review = dict(plan["candidate"] or {})
+                if plan["statement_refs"]:
+                    review["statement_refs"] = plan["statement_refs"]
+                result["review_context"] = review or None
                 conversations.event(
                     "agent_completed",
                     turn_id=identifier,

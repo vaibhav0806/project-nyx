@@ -61,6 +61,23 @@ def test_capture_budget_counts_existing_video_without_deleting_it(tmp_path):
     assert old.read_bytes() == b"12345678"
 
 
+def test_truncated_saved_capture_does_not_claim_complete_coverage(tmp_path):
+    journal = CaptureJournal(tmp_path)
+    session = journal.start(START)
+    saved = save_segment(journal, session["id"], data=b"original-video")
+    journal.mark(saved["id"], "ready", last_sample_seconds=8)
+    path = tmp_path / saved["path"]
+    path.write_bytes(b"truncated")
+    health = journal.snapshot()
+    assert health["recorded_through"] is None
+    assert health["searchable_through"] is None
+    assert health["unavailable_segment_count"] == 1
+    assert path.read_bytes() == b"truncated"
+    path.write_bytes(b"original-video")
+    assert journal.snapshot()["recorded_through"] == END
+    assert journal.snapshot()["unavailable_segment_count"] == 0
+
+
 def test_capture_backlog_is_bounded_and_duplicate_delivery_uses_no_slot(tmp_path):
     journal = CaptureJournal(tmp_path, max_pending=1)
     session = journal.start(START)
@@ -70,6 +87,35 @@ def test_capture_backlog_is_bounded_and_duplicate_delivery_uses_no_slot(tmp_path
         journal.begin_segment(session["id"], 1, END, "2026-10-19T10:00:20Z", ".webm")
     journal.mark(saved["id"], "ready", last_sample_seconds=8)
     assert journal.snapshot()["searchable_through"] == "2026-10-19T10:00:08+00:00"
+
+
+def test_explicit_failed_index_retry_after_restart_obeys_backlog_and_preserves_source(tmp_path):
+    journal = CaptureJournal(tmp_path, max_pending=1)
+    session = journal.start(START)
+    saved = save_segment(journal, session["id"])
+    journal.mark(saved["id"], "failed", "Provider unavailable")
+    other = save_segment(journal, session["id"], 1)
+    reopened = CaptureJournal(tmp_path, max_pending=1)
+    reopened.recover()
+    with pytest.raises(ValueError, match="backlog"):
+        reopened.begin_segment(session["id"], 0, START, END, ".webm")
+    reopened.mark(other["id"], "ready", last_sample_seconds=8)
+    retry = reopened.begin_segment(session["id"], 0, START, END, ".webm")
+    assert retry["state"] == "queued" and retry["id"] == saved["id"]
+    assert retry["error"] is None and retry["last_sample_seconds"] is None
+    assert (tmp_path / saved["path"]).read_bytes() == b"video"
+
+
+def test_failed_index_retry_preserves_incomplete_source_without_claiming_it_can_reindex(tmp_path):
+    journal = CaptureJournal(tmp_path)
+    session = journal.start(START)
+    saved = save_segment(journal, session["id"])
+    journal.mark(saved["id"], "failed", "Provider unavailable")
+    (tmp_path / saved["path"]).write_bytes(b"truncated")
+    with pytest.raises(ValueError, match="incomplete"):
+        journal.begin_segment(session["id"], 0, START, END, ".webm")
+    assert (tmp_path / saved["path"]).read_bytes() == b"truncated"
+    assert journal.segment(saved["id"])["state"] == "failed"
 
 
 def test_capture_pause_resume_and_invalid_timestamps_are_explicit(tmp_path):

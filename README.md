@@ -162,6 +162,12 @@ LiveKit manages conversational turns, interruptions, streaming speech, and playb
 
 Spoken turns and tool selection use Gemini 3.5 Flash (`NYX_VOICE_MODEL`); the typed planner uses GPT-6 Luna.
 
+Object checks inherit the Lite vision model. Backend-only `NYX_OBJECT_VISION_MODEL` can override
+that role; `NYX_VISUAL_SCENE_POLICY=1` and `NYX_VISUAL_CONFIRMATION=1` enable experimental scene
+and positive-confirmation checks. These remain opt-in after mixed broader results; see
+[visual evaluation](docs/research/R25-funded-visual.md). Wake experiments also retained the current
+recognizer after rejected regressions ([findings](docs/research/R24-wake-detector.md)).
+
 See the [architecture](docs/architecture.md) for the pipeline and [decisions](docs/decisions.md) for why it is built this way.
 
 ## Development
@@ -181,6 +187,11 @@ node --check src/nyx/web/app.js
 node --check src/nyx/web/voice.js
 node --check src/nyx/web/companion.js
 ```
+
+Decoded imports survive embedding/indexing failure. The backend can retry a retained failed
+import with `POST /api/videos/{video_id}/retry-index`; it returns the usual job ID and preserves
+source identity and capture time. Captures use their separate retry protocol. No automatic paid
+retry is enabled. See [recovery boundaries](docs/research/R28-import-restart-recovery.md).
 
 Browser tests use an installed Chrome. Automated developer verification uses synthetic inputs; real-provider evaluations are separate and can incur charges. Keep recordings, transcripts, generated audio, and credentials out of commits.
 
