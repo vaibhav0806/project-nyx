@@ -1,6 +1,6 @@
 # R29 — Complete shown-item household workflow
 
-Date: 2026-11-16. Owner: inline. Status: second selection frozen; fresh ambiguity holdout pending.
+Date: 2026-11-16. Owner: inline. Status: first and second selections evaluated; identity-only candidate pending.
 Decision: improve the real show → save → later recall workflow, preserving source/identity limits.
 
 ## Scope and inputs
@@ -112,3 +112,60 @@ The new source IDs are disjoint from original household source groups; these are
 conditions over previously available public photos, not photographs unseen in all prior tasks.
 Artifacts: household-empty-state-regression, household-ambiguity-check-probe,
 household-confirmed-development and household-confirmed-core-development under data/runs.
+
+## Second selection outcomes and remaining issue
+
+Fresh confirmation heldout scored1/2. The ambiguous pair was refused without a saved link; the
+clear phone failed its save because the PRIMARY resolver returned unresolved before the new
+check ran. Lookup later identified the phone, but truthfully returned uncertain with no report.
+This is a missed memory, not a successful workflow. No checker prompt was adjusted on these cases.
+The fresh ambiguity case did not reach the checker; it cannot demonstrate incremental checker
+benefit. Actual conditional vetoes are traced separately in the original regression artifacts.
+
+The natural Charades LZ07A clip diagnostic passed1/1 both before and after the added check.
+Frames at22/24 seconds show a brown handbag; it is absent at28 seconds. The associated cabinet
+statement is synthetic, not a claim that the video proves that destination. Each API turn
+restarts and recall follows32 unrelated turns. The original clip is research-only, kept ignored;
+it is not cleared as a demo or redistribution asset. One clip is not a natural-video benchmark.
+
+Native spoken-boundary replay completed2/2 cases using the actual tool schemas, SDK binding and
+dispatch, actual API retrieval over copied public/synthetic report databases, and native model
+continuation. The plan reply explicitly stayed a plan; the corrected report named the new
+location, then refused to confirm current presence without visual evidence. Dispatch transport
+uses a mocked acknowledgement before the actual API evidence is supplied to the real model.
+No STT/TTS acoustics, microphone, room noise or human listening was tested.
+
+Offline existing-library replay strictly decoded all92 videos; all source hashes stayed unchanged.
+It exercised256 stored-vector queries and source/context invalidation in a copied index. This is
+preservation/compatibility evidence, not household semantic or identity labels. No private media
+or stored vectors were uploaded. Synthetic Chrome boundaries also passed without UI changes.
+
+## Identity-only contract hypothesis
+
+Tracing the clear missed saves showed that the nominally independent identity stage still
+requests claim kind and destination in its schema/prompt. Those outputs are discarded in favor
+of the preceding text stage, yet still burden the identity task. A failing contract regression
+requires an identity-only schema. Candidate selection will use existing development workflows
+and a new source-separated six-case corpus; two development and four heldout conditions are
+frozen before inference. Preserve all prior failures and report later repeats as regressions.
+
+## Third selection freeze: identity-only schema
+
+Reference6 asks only object_description/source/frame_index/ambiguity at the identity stage;
+claim kind/destination are supplied exclusively by the independent text stage (or none/empty
+for lookup). The downstream response shape, stored source metadata and validators stay intact.
+A failing identity-only contract test now passes; a lookup cannot leak a placement claim from
+an identity response. No checker prompt, model, embedding, threshold or correction policy changed.
+
+Core development regression passed4/4. The new development pair scored1/2: ambiguity was refused;
+the single phone crop saved under a frame-like description but recall was withheld by the checker,
+which reported another plausible object. Preserve this failure, including inconsistent category
+names. A single annotated crop can include background objects; its expected-target protocol is
+not a human proof of an unambiguous physical referent. Do not retroactively change the label or
+count that case as a success. These results do not establish general category recognition gains.
+
+Freeze reference6 / independent-text-v1 / independent-unique-v1 before running the four new
+identity heldout conditions. Selection favors a coherent separated contract and conservative
+association; mixed clear-control results and extra inference remain explicit limitations.
+The earlier reference5 known-holdout regression passed4/4, including a recorded checker veto
+of a primary-model arbitrary selection. That is diagnostic reproduction, not fresh accuracy.

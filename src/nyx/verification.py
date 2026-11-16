@@ -137,7 +137,7 @@ class CloudVerifier:
             "conversation_context_policy": "bounded-source-aware-v2/live-availability",
             "spoken_context_prompt_version": 2,
             "reference_model": os.environ.get("NYX_REFERENCE_MODEL", "google/gemini-3.5-flash"),
-            "reference_prompt_version": 5,
+            "reference_prompt_version": 6,
             "reference_ambiguity_policy": "independent-unique-v1",
             "statement_claim_policy": "independent-text-v1",
             "reference_grounding_policy": "explicit-unicode-phrase-v3/destination-spans",

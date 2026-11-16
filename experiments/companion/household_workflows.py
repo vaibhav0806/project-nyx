@@ -347,8 +347,10 @@ def run(data, cases_path, output, split, max_spend, case_id=None):
                 filler = conversations.begin(f"Unrelated conversation number {n}", {})
                 conversations.finish(filler, "Okay.")
             start = len(client.generations)
+            recall_offsets = assets[row["id"]].get("recall_offsets", offsets[:2])
+            recall_images = [frame_image(video, offset) for offset in recall_offsets]
             job = request_turn(
-                root, encoder, verifier, row["query"], images[:2], offsets=offsets[:2]
+                root, encoder, verifier, row["query"], recall_images, offsets=recall_offsets
             )
             row["stages"].append(
                 {"phase": "recall", "job": job, "generations": client.generations[start:]}

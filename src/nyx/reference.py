@@ -105,16 +105,12 @@ def resolve_reference(verifier, transcript, frames, *, placement=False):
         "type": "object",
         "properties": {
             "object_description": {"type": "string"},
-            "destination": {"type": "string"},
-            "kind": {"type": "string", "enum": ["intention", "reported_placement", "none"]},
             "source": {"type": "string", "enum": ["visual", "explicit_text", "unresolved"]},
             "frame_index": {"type": "integer"},
             "ambiguous": {"type": "boolean"},
         },
         "required": [
             "object_description",
-            "destination",
-            "kind",
             "source",
             "frame_index",
             "ambiguous",
@@ -133,14 +129,13 @@ explicitly names an object you may use source=explicit_text and frame_index=-1 w
 visual confirmation. For this/it, visual support is mandatory; nearby time alone isn't identity.
 If target identity is unsupported or ambiguous, source=unresolved, object_description='',
 frame_index=-1, ambiguous=true. Do not select an arbitrary object.
-For a concrete placement statement extract destination as an EXACT substring of the transcript (no invented or paraphrased place) and intention/reported_placement;
-questions, hypotheticals and negated claims have kind=none. For lookup requests kind=none
-is normal; still resolve the shown object. Never infer actual placement from a plan.
+Resolve identity only. Claim classification is handled separately. Do not infer actual
+placement, action completion, or the object's current location from the utterance.
 Return only JSON matching the schema. """
     content = [
         {
             "type": "text",
-            "text": prompt + json.dumps({"transcript": transcript, "placement": False}),
+            "text": prompt + json.dumps({"transcript": transcript}),
         }
     ]
     for i, frame in enumerate(frames):
@@ -152,8 +147,7 @@ Return only JSON matching the schema. """
     raw = json.loads(generate([{"role": "user", "content": content}], 500, schema=schema))
     if not isinstance(raw, dict):
         raise ValueError("Invalid object reference")  # noqa: TRY004 — tool validation failure
-    if claim is not None:
-        raw = {**raw, **claim}
+    raw = {**raw, **(claim or {"kind": "none", "destination": ""})}
     obj = raw.get("object_description", "")
     source, index = raw.get("source"), raw.get("frame_index")
     destination = raw.get("destination", "")
@@ -208,6 +202,6 @@ Return only JSON matching the schema. """
         "status": "resolved",
         **({"visual_identity_check": identity_check} if identity_check is not None else {}),
         **({"claim_source": "transcript"} if placement else {}),
-        **{key: raw.get(key) for key in schema["required"]},
+        **{key: raw.get(key) for key in [*schema["required"], "kind", "destination"]},
         "object_description": obj.strip(),
     }

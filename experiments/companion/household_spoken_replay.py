@@ -8,8 +8,9 @@ from pathlib import Path
 
 from experiments.companion.correction_replay import BudgetedClient
 from experiments.companion.embedding_replay import budget_snapshot
-from experiments.companion.household_workflows import request_turn
+from experiments.companion.household_workflows import digest, request_turn
 from experiments.companion.spoken_policy_replay import bind_call, dispatch, schemas
+from nyx.capture import frame_image
 from nyx.perception import CloudEncoder
 from nyx.realtime import INSTRUCTIONS, INSTRUCTIONS_VERSION
 from nyx.verification import CloudVerifier
@@ -32,18 +33,45 @@ CASES = [
 ]
 
 
-def run(runs, output, max_spend):
+def copy_report_database(source, target):
+    with (
+        sqlite3.connect(
+            f"{(source / 'conversations.sqlite3').resolve().as_uri()}?mode=ro", uri=True
+        ) as original,
+        sqlite3.connect(target / "conversations.sqlite3") as copied,
+    ):
+        original.backup(copied)
+
+
+SAVE_CASES = [
+    {
+        "id": "native-clear-save-and-recall",
+        "text": "I left this in the hallway cupboard.",
+        "challenge": "Where did I say I left this? Please search my saved statements.",
+        "fixture": "fresh-clear-object",
+    },
+    {
+        "id": "native-ambiguous-save-and-recall",
+        "text": "I left this on the bedroom shelf.",
+        "challenge": "Where did I say I left this? Please search my saved statements.",
+        "fixture": "fresh-ambiguous-remotes",
+    },
+]
+
+
+def run(runs, output, max_spend, visual_data=None):
     output.mkdir(parents=True, exist_ok=False)
     captured = schemas(output / "schemas")
     client = BudgetedClient(max_spend, max_requests=32)
     encoder = CloudEncoder(client)
     verifier = CloudVerifier(client)
+    cases = SAVE_CASES if visual_data else CASES
     report = {
         "status": "running",
         "instructions_version": INSTRUCTIONS_VERSION,
         "budget_before": client.initial,
-        "cases": [{**c, "status": "not_run", "rounds": []} for c in CASES],
-        "limitations": "Actual native model/SDK binding/dispatch plus real API retrieval from copied public/synthetic report stores. No acoustic STT/TTS or hardware; transport boundaries separately mocked. Final answer fidelity requires author audit, not keyword scoring.",
+        "cases": [{**c, "status": "not_run", "rounds": []} for c in cases],
+        "limitations": "Actual native model/SDK binding/dispatch plus real API save/retrieval from public/synthetic report stores. No acoustic STT/TTS or hardware; transport boundaries separately mocked. Final answer fidelity requires author audit, not keyword scoring.",
     }
 
     def checkpoint():
@@ -71,25 +99,33 @@ def run(runs, output, max_spend):
         for case in report["cases"]:
             root = output / case["id"]
             root.mkdir()
-            source = runs / case["run"] / case["case"]
-            with (
-                sqlite3.connect(
-                    f"{(source / 'conversations.sqlite3').resolve().as_uri()}?mode=ro", uri=True
-                ) as original,
-                sqlite3.connect(root / "conversations.sqlite3") as target,
-            ):
-                original.backup(target)
+            images = None
+            if visual_data:
+                manifest = json.loads((visual_data / "manifest.json").read_text())
+                asset = next(c for c in manifest["cases"] if c["id"] == case["fixture"])
+                video = (visual_data / asset["video"]).resolve()
+                if (
+                    not video.is_relative_to(visual_data.resolve())
+                    or digest(video) != asset["sha256"]
+                ):
+                    raise ValueError("Visual fixture changed")
+                images = [frame_image(video, offset) for offset in [0, 1, 2]]
+            else:
+                source = runs / case["run"] / case["case"]
+                copy_report_database(source, root)
             messages = [
                 {"role": "system", "content": INSTRUCTIONS},
                 {
                     "role": "system",
-                    "content": f"Replay clock {datetime.now(UTC).isoformat()}. No current camera image is available. Reply in English.",
+                    "content": f"Replay clock {datetime.now(UTC).isoformat()}. Reply in English."
+                    + (" No current camera image is available." if not images else ""),
                 },
                 {"role": "user", "content": case["text"]},
             ]
             case["status"] = "running"
-            for phase in ["recall", "current-location-challenge"]:
-                if phase != "recall":
+            first_phase = "save" if visual_data else "recall"
+            for phase in [first_phase, "recall" if visual_data else "current-location-challenge"]:
+                if phase != first_phase:
                     messages.append({"role": "user", "content": case["challenge"]})
                 for attempt in range(3):
                     choice = generate(messages)
@@ -109,13 +145,14 @@ def run(runs, output, max_spend):
                         native = [{"name": function["name"], "arguments": arguments}]
                         dispatched = dispatch(
                             root / f"dispatch-{len(case['rounds'])}-{len(row['tools'])}",
-                            case["text"] if phase == "recall" else case["challenge"],
+                            case["text"] if phase == first_phase else case["challenge"],
                             native,
                         )
                         if len(dispatched) != 1 or not dispatched[0].get("valid"):
                             raise ValueError("Native dispatch failed")
                         action = dispatched[0]["action"]
-                        if action["action"] not in {
+                        allowed = {"remember_statement"} if visual_data else set()
+                        if action["action"] not in allowed | {
                             "search_statements",
                             "inspect_current",
                             "search_history",
@@ -126,7 +163,8 @@ def run(runs, output, max_spend):
                             root,
                             encoder,
                             verifier,
-                            case["text"] if phase == "recall" else case["challenge"],
+                            case["text"] if phase == first_phase else case["challenge"],
+                            images=images,
                             initial_action=action,
                         )
                         if job["status"] != "succeeded":
@@ -161,7 +199,7 @@ def run(runs, output, max_spend):
     return {
         "status": report["status"],
         "complete": sum(c["status"] == "complete" for c in report["cases"]),
-        "cases": len(CASES),
+        "cases": len(cases),
     }
 
 
@@ -170,5 +208,10 @@ if __name__ == "__main__":
     parser.add_argument("--runs", type=Path, default=Path("data/runs"))
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--max-spend", type=float, default=0.15)
+    parser.add_argument(
+        "--visual-data",
+        type=Path,
+        help="Run native save/clarify workflows on prepared public fixtures",
+    )
     args = parser.parse_args()
-    print(json.dumps(run(args.runs, args.output, args.max_spend)))
+    print(json.dumps(run(args.runs, args.output, args.max_spend, args.visual_data)))

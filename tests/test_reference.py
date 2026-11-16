@@ -279,3 +279,38 @@ def test_malformed_visual_check_cannot_resolve_identity(check):
             "Where did I put this?",
             [{"image": Image.new("RGB", (10, 10)), "captured_at": "now"}],
         )
+
+
+def test_identity_stage_requests_only_identity_not_a_second_placement_decision():
+    calls = []
+
+    def generate(messages, *args, **kwargs):
+        fields = set(kwargs["schema"]["properties"])
+        calls.append(fields)
+        if fields == {"kind", "destination"}:
+            return '{"kind":"reported_placement","destination":"drawer"}'
+        if "unique_referent" in fields:
+            return '{"targets":"phone","unique_referent":true,"ambiguous":false}'
+        assert fields == {"object_description", "source", "frame_index", "ambiguous"}
+        return '{"object_description":"phone","source":"visual","frame_index":0,"ambiguous":false}'
+
+    result = resolve_reference(
+        SimpleNamespace(generate_json=generate),
+        "I put this in the drawer.",
+        [{"image": Image.new("RGB", (10, 10)), "captured_at": "now"}],
+        placement=True,
+    )
+    assert result["status"] == "resolved"
+    assert result["kind"] == "reported_placement" and result["destination"] == "drawer"
+    assert len(calls) == 3
+
+
+def test_identity_lookup_cannot_invent_a_placement_claim():
+    result = resolve_reference(
+        verifier(decision(kind="reported_placement", destination="invented location")),
+        "Which item am I showing?",
+        [{"image": Image.new("RGB", (10, 10)), "captured_at": "now"}],
+    )
+    assert result["status"] == "resolved"
+    assert result["kind"] == "none" and result["destination"] == ""
+    assert "claim_source" not in result

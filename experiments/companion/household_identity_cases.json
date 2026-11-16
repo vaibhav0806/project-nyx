@@ -1,0 +1,85 @@
+{
+  "cases": [
+    {
+      "id": "identity-clear-phone",
+      "split": "development",
+      "sources": [
+        76416
+      ],
+      "kind": "reported_placement",
+      "messages": [
+        "I put this in the hallway drawer."
+      ],
+      "query": "Where did I say I left this?",
+      "expected_report": 0
+    },
+    {
+      "id": "identity-ambiguous-remotes",
+      "split": "development",
+      "sources": [
+        110449,
+        168974
+      ],
+      "kind": null,
+      "messages": [
+        "I put this in the kitchen cupboard."
+      ],
+      "query": "Where did I say I left this?",
+      "expected_report": null
+    },
+    {
+      "id": "identity-clear-bottle-hi",
+      "split": "holdout",
+      "sources": [
+        20553
+      ],
+      "kind": "reported_placement",
+      "messages": [
+        "मैंने इसे रसोई की दराज में रखा है।"
+      ],
+      "query": "Where did I say I left this?",
+      "expected_report": 0
+    },
+    {
+      "id": "identity-clear-cup-plan",
+      "split": "holdout",
+      "sources": [
+        63047
+      ],
+      "kind": "intention",
+      "messages": [
+        "I plan to put this on the bedroom shelf later."
+      ],
+      "query": "Where did I say I would keep this?",
+      "expected_report": 0
+    },
+    {
+      "id": "identity-ambiguous-phones",
+      "split": "holdout",
+      "sources": [
+        78170,
+        100624
+      ],
+      "kind": null,
+      "messages": [
+        "I put this on the table."
+      ],
+      "query": "Where did I say I left this?",
+      "expected_report": null
+    },
+    {
+      "id": "identity-ambiguous-bottles",
+      "split": "holdout",
+      "sources": [
+        22705,
+        25057
+      ],
+      "kind": null,
+      "messages": [
+        "I left this in the hallway cupboard."
+      ],
+      "query": "Where did I say I left this?",
+      "expected_report": null
+    }
+  ]
+}
