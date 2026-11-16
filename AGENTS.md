@@ -1,5 +1,16 @@
 # Working on Nyx
 
+## Household workflow authorization — 2026-11-16
+
+PR2 merged the reliability work at bdb7ad0. The user then authorized engineering the complete
+shown-item/remember/later-recall household experience, using existing laptop and public data.
+Continue inline on work/memory-reliability from the merged baseline, regular commits and optional
+branch-only backups. Keep main/UI/original media untouched. Private recordings stay offline;
+cloud developer evaluation uses public/synthetic evidence under the existing $5 TOTAL ceiling.
+Do not interpret generic local-video use as permission to upload personal footage or activate
+hardware. The household plan/spec defines source-separated full-API workflows and remaining
+real-household/acoustic acceptance gates. No automatic new PR or merge was requested.
+
 ## Latest authorization — 2026-11-15
 
 The latest user increased the OpenRouter test-key limit to **$5 total**, superseding the prior
