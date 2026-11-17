@@ -3,11 +3,14 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
 from experiments.companion import household_workflows, spoken_fresh_evidence
 from nyx import reference
+from nyx.agent_policy import VISION_MODEL
+from nyx.cloud import OpenRouter
 
 
 def run(args):
@@ -19,12 +22,24 @@ def run(args):
         "prompt": prompt,
         "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
         "policy": "Experiment-only module replacement, no runtime switch or additional inference",
+        "reasoning_effort": args.effort,
     }
     try:
         if args.task == "reference":
             if not args.data or not args.cases:
                 raise ValueError("Reference workflows require a frozen fixture and cases")
-            with patch.object(reference, "REFERENCE_INSTRUCTIONS", prompt):
+            original_request = OpenRouter.request
+            vision_model = os.environ.get("NYX_VISION_MODEL", VISION_MODEL)
+
+            def request(client, path, payload, **kwargs):
+                if payload.get("model") == vision_model:
+                    payload = {**payload, "reasoning": {"effort": args.effort, "exclude": True}}
+                return original_request(client, path, payload, **kwargs)
+
+            with (
+                patch.object(reference, "REFERENCE_INSTRUCTIONS", prompt),
+                patch.object(OpenRouter, "request", request),
+            ):
                 result = household_workflows.run(
                     args.data, args.cases, args.output, args.split, args.max_spend
                 )
