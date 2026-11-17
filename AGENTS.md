@@ -11,6 +11,13 @@ idle-audio upload, hardware activation, or unrelated private data. Preserve orig
 $8 cumulative, sequential guarded runs <=$0.25 with settlement headroom. Latest metadata at
 benchmark setup is$6.34252565/$8. No runtime model promotion until measured review/choice.
 
+Comparison complete:20 responses with valid PCM; all12 shown-image replies recognized the basic
+category. Flash-Lite selected an incorrect background referent in the endpoint-only case.
+Luna6 remains the integration candidate; no runtime change. R33 records timings, limitations and
+the19.8s frame-freeze defect. Latest key metadata$6.47447075/$8 includes application activity;
+raw response observer duplicated usage entries, conservative summed total$0.0409782. Stop paid
+comparison here; no prompt/model sweep or extra dataset expansion is required.
+
 The user's scope clarification: basic category recognition such as a smartphone is sufficient;
 proving a particular instance's unique identity is out of scope. Unclear images must remain
 uncertain; do not invent objects or current presence from an earlier frame. Current browser

@@ -1,5 +1,15 @@
 # Milestones
 
+## Multimodal acknowledgement comparison — 2026-11-18
+
+Twenty explicitly authorized real-trial image/text requests completed across four models with
+actual streaming TTS. All12 shown-image repetitions recognized the basic category. Endpoint-only
+Flash-Lite chose an incorrect background referent; other models clarified. Shown-image median
+first PCM was2.29–4.02s, but outliers reached10–13s. This excludes STT/browser/memory and is not
+an end-to-end shipped gain. The delayed question event froze one continuation's frames19.8s late.
+Recommend preserving utterance frames before downstream processing and testing Luna6 with
+background memory; no runtime switch implemented. See [R33](research/R33-multimodal-conversation.md).
+
 ## Pause and memory isolation follow-up — 2026-11-18
 
 The next trial saved a shown-item report and a location plan. Live transcript continuation,
