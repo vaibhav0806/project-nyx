@@ -30,6 +30,7 @@ def run(args):
     report = {
         "status": "running",
         "contract": args.contract,
+        "candidate_source_sha256": digest(Path(__file__).with_name("scene_contract_probe.py")),
         "verifier": verifier.fingerprint,
         "manifest_sha256": digest(args.data / "manifest.json"),
         "budget_before": client.initial,
