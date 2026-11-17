@@ -1,6 +1,7 @@
-"""Companion API: local agent tools, live observation, and event-delivery lifecycle."""
+"""Companion API: shared agent tools, owned visual evidence and memory."""
 
 import base64
+import hashlib
 import json
 import time
 import traceback
@@ -77,6 +78,7 @@ def install_companion(app, workspace, voice):
     workspace.conversations = conversations
     requests = {}
     references = {}
+    reference_checks = {}
     last_observation = {"state": "inactive", "note": "Proactive reminders are not enabled"}
 
     @app.get("/companion.js")
@@ -261,29 +263,61 @@ def install_companion(app, workspace, voice):
         def observe_reference():
             from nyx.reference import resolve_reference
 
-            if cancelled():
-                raise ValueError("Request cancelled")
-            if body.context_at:
-                fresh(body.context_at.isoformat(), limit=90)
-            reference = resolve_reference(workspace.visual_verifier(), body.message, turn_frames)
-            if cancelled():
-                raise ValueError("Request cancelled")
-            conversations.event("reference_resolved", turn_id=identifier, reference=reference)
-            if reference["status"] != "resolved":
-                return {"kind": "reference", **reference}
-            frame = turn_frames[reference["frame_index"]]
+            def validate_owner():
+                if cancelled():
+                    raise ValueError("Request cancelled")
+                if body.context_at:
+                    fresh(body.context_at.isoformat(), limit=90)
+                with conversations.connect() as db:
+                    owner = db.execute(
+                        "SELECT sources_available FROM turns WHERE id=?", (identifier,)
+                    ).fetchone()
+                if not owner or not owner[0]:
+                    raise ValueError("Visual input is no longer available")
+
+            validate_owner()
+            key = (
+                identifier,
+                body.message,
+                tuple(
+                    (
+                        frame["captured_at"],
+                        frame["image"].size,
+                        hashlib.sha256(frame["image"].tobytes()).digest(),
+                    )
+                    for frame in turn_frames
+                ),
+            )
             with workspace.lock:
-                references[identifier] = frame["image"]
+                result = reference_checks.get(key)
+            if result is None:
+                reference = resolve_reference(
+                    workspace.visual_verifier(), body.message, turn_frames
+                )
+                validate_owner()
+                conversations.event("reference_resolved", turn_id=identifier, reference=reference)
+                result = {"kind": "reference", **reference}
+                if reference["status"] == "resolved":
+                    result.update(
+                        image=turn_frames[reference["frame_index"]]["image"],
+                        answer="Shown object: "
+                        + reference["object_description"]
+                        + ". This identifies the demonstrated object, not its current location.",
+                    )
+            else:
+                validate_owner()
+                conversations.event("reference_reused", turn_id=identifier)
+            with workspace.lock:
+                reference_checks[key] = result
+                while len(reference_checks) > 8:
+                    del reference_checks[next(iter(reference_checks))]
+                if result["status"] == "resolved":
+                    references[identifier] = result["image"]
+                else:
+                    references.pop(identifier, None)
                 while len(references) > 8:
                     del references[next(iter(references))]
-            return {
-                "kind": "reference",
-                **reference,
-                "image": frame["image"],
-                "answer": "Shown object: "
-                + reference["object_description"]
-                + ". This identifies the demonstrated object, not its current location.",
-            }
+            return result.copy()
 
         def prepare_memory():
             memory = workspace.personal_memory()
@@ -338,8 +372,6 @@ def install_companion(app, workspace, voice):
                     "snapshot_url": f"data:{image.info['nyx_mime']};base64,{body.snapshot}",
                 }
                 result["answer"] = spoken_answer(result)
-                if name == "identify_shown_object" and result["status"] == "seen":
-                    result["answer"] = "Shown object: " + judgment["description"]
                 return result
             if name in {"search_history", "search_matches"}:
                 if workspace.store() is None:
@@ -418,7 +450,7 @@ def install_companion(app, workspace, voice):
                     {**row, "sources_available": availability.get(row["id"], False)}
                     for row in context
                 ]
-                context_sources = [
+                context_sources = ["transcript:" + identifier] + [
                     "transcript:" + row["id"] for row in current_context if row["sources_available"]
                 ]
 

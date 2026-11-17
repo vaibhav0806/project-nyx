@@ -818,3 +818,138 @@ def test_stale_single_snapshot_cannot_bypass_utterance_window_before_inference(t
             },
         )
         assert response.status_code == 400
+
+
+@pytest.mark.parametrize("ambiguous", [False, True])
+def test_memory_and_native_tool_share_one_reference_check_per_owned_window(tmp_path, ambiguous):
+    from test_personal_memory import response as memory_response
+
+    class ReferenceVerifier(Planner):
+        calls = 0
+
+        def memory_reply(self, payload, schema):
+            return memory_response(needs_visual=payload["visual"] is None)
+
+        def generate_json(self, *args, **kwargs):
+            self.calls += 1
+            return json.dumps(
+                {
+                    "targets": "Multiple targets" if ambiguous else "A green object",
+                    "target_count": 2 if ambiguous else 1,
+                    "object_description": "" if ambiguous else "green object",
+                    "frame_index": -1 if ambiguous else 0,
+                    "ambiguous": ambiguous,
+                }
+            )
+
+        def agent_reply(self, messages, tools):
+            if any(row["role"] == "tool" for row in messages):
+                return {"role": "assistant", "content": "Which item?" if ambiguous else "Noted."}
+            return {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "reference",
+                        "type": "function",
+                        "function": {"name": "identify_shown_object", "arguments": "{}"},
+                    }
+                ],
+            }
+
+    model = ReferenceVerifier()
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=lambda: model)
+    ) as client:
+        now = datetime.now(UTC).isoformat()
+        for number in range(2):
+            job = client.post(
+                "/api/agent",
+                json={
+                    "message": "I put this in the drawer.",
+                    "request_id": f"window-{number}",
+                    "context_at": now,
+                    "visual_frames": [{"snapshot": snapshot(), "captured_at": now}],
+                },
+            ).json()
+            result = wait_for_job(client, job["id"])
+            assert result["status"] == "succeeded", result
+            assert model.calls == number + 1
+
+
+def test_voice_reference_reuse_requires_same_turn_pixels_and_clocks(tmp_path):
+    from nyx.voice import Voice
+
+    class ReferenceVerifier(Planner):
+        calls = 0
+
+        def generate_json(self, *args, **kwargs):
+            self.calls += 1
+            return json.dumps(
+                {
+                    "targets": "A fixture object",
+                    "target_count": 1,
+                    "object_description": "fixture object",
+                    "frame_index": 0,
+                    "ambiguous": False,
+                }
+            )
+
+    model, speaker = ReferenceVerifier(), Voice(tmp_path, None)
+    with TestClient(
+        create_app(
+            tmp_path,
+            encoder_factory=ColorEncoder,
+            verifier_factory=lambda: model,
+            voice_factory=lambda _: speaker,
+        )
+    ) as client:
+        token = client.post("/api/voice/session").json()["token"]
+        now = datetime.now(UTC)
+        text = "What am I showing?"
+        turn = speaker.conversations.begin(text, {"mode": "livekit"})
+        speaker.turn = {"id": turn, "transcript": text}
+        for number, (color, offset) in enumerate(
+            [("green", 0), ("green", 0), ("blue", 0), ("blue", -1)]
+        ):
+            job = client.post(
+                "/api/agent",
+                headers={"x-nyx-voice": token},
+                json={
+                    "message": text,
+                    "voice_turn_id": turn,
+                    "request_id": f"identify-{number}",
+                    "initial_action": {"action": "identify_shown_object"},
+                    "context_at": now.isoformat(),
+                    "visual_frames": [
+                        {
+                            "snapshot": snapshot(color),
+                            "captured_at": (now + timedelta(seconds=offset)).isoformat(),
+                        }
+                    ],
+                },
+            ).json()
+            result = wait_for_job(client, job["id"])
+            assert result["status"] == "succeeded", result
+            assert model.calls == [1, 1, 2, 3][number]
+        with speaker.conversations.connect() as db:
+            db.execute("UPDATE turns SET sources_available=0 WHERE id=?", (turn,))
+        job = client.post(
+            "/api/agent",
+            headers={"x-nyx-voice": token},
+            json={
+                "message": text,
+                "voice_turn_id": turn,
+                "request_id": "deleted-reference",
+                "initial_action": {"action": "identify_shown_object"},
+                "context_at": now.isoformat(),
+                "visual_frames": [
+                    {
+                        "snapshot": snapshot("blue"),
+                        "captured_at": (now - timedelta(seconds=1)).isoformat(),
+                    }
+                ],
+            },
+        ).json()
+        assert wait_for_job(client, job["id"])["status"] == "failed"
+        assert model.calls == 3
