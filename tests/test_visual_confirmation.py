@@ -8,6 +8,51 @@ from PIL import Image
 from nyx.verification import PROMPT, CloudVerifier
 
 
+@pytest.mark.parametrize("with_reference", [False, True])
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_inspection_wire_requires_one_object_and_never_unwraps_a_model_array(
+    with_reference, wrapped
+):
+    from io import BytesIO
+
+    from nyx.cloud import OpenRouter
+
+    observed = {
+        "visibility": "visible",
+        "location": "on the table",
+        "description": "An object",
+        "matching_count": 1,
+        "ambiguous": False,
+    }
+    calls = []
+
+    def transport(request, timeout):
+        body = json.loads(request.data)
+        calls.append(body)
+        shape = body["response_format"]
+        assert shape["type"] == "json_schema"
+        assert shape["json_schema"]["strict"] is True
+        schema = shape["json_schema"]["schema"]
+        assert schema["type"] == "object" and schema["additionalProperties"] is False
+        assert set(schema["required"]) == set(observed)
+        raw = json.dumps([observed] if wrapped else observed)
+        return BytesIO(
+            json.dumps(
+                {"choices": [{"finish_reason": "stop", "message": {"content": raw}}]}
+            ).encode()
+        )
+
+    verifier = CloudVerifier(OpenRouter(key="offline-fixture", transport=transport))
+    image = Image.new("RGB", (10, 10))
+    result = (
+        verifier.inspect_reference(image, image, "an object")
+        if with_reference
+        else verifier.inspect(image, "an object")
+    )
+    assert len(calls) == 1
+    assert result["visibility"] == ("uncertain" if wrapped else "visible")
+
+
 @pytest.mark.parametrize(
     "visibility,count,ambiguous,expected",
     [

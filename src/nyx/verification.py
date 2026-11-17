@@ -9,6 +9,19 @@ Describe a clear single match using visible physical landmarks. Do not invent hi
 Return JSON: description (brief observed evidence), matching_count (integer), ambiguous (boolean), visibility (visible/not_visible/uncertain), location (visible physical landmark or empty string).
 Object description: """
 
+INSPECTION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "description": {"type": "string"},
+        "matching_count": {"type": "integer"},
+        "ambiguous": {"type": "boolean"},
+        "visibility": {"type": "string", "enum": ["visible", "not_visible", "uncertain"]},
+        "location": {"type": "string"},
+    },
+    "required": ["description", "matching_count", "ambiguous", "visibility", "location"],
+    "additionalProperties": False,
+}
+
 
 def parse_judgment(raw):
     uncertain = {
@@ -86,6 +99,7 @@ class CloudVerifier:
             "agent_policy_version": 8,
             "memory_policy_version": 5,
             "prompt_version": 10,
+            "inspection_schema_version": 1,
             "reference_prompt_version": 9,
             "identity_evidence_contract": "appearance-unverified/user-confirmed-v1",
             "spoken_evidence_contract": "neutral-identity-qualified-v2",
@@ -107,7 +121,9 @@ class CloudVerifier:
                 ],
             }
         ]
-        judgment = parse_judgment(self.client.generate(messages, self.vision_model, 180))
+        judgment = parse_judgment(
+            self.client.generate(messages, self.vision_model, 180, schema=INSPECTION_SCHEMA)
+        )
         return judgment
 
     def inspect_reference(self, image, reference, object_query):
@@ -126,7 +142,11 @@ class CloudVerifier:
                 + " Compare candidate appearance against the reference. Reject visibly different objects. Generic category similarity alone cannot prove unique identity. For indistinguishable lookalikes return uncertain/ambiguous. Describe visible matching or conflicting details. Never copy the reference location into the historical location.",
             },
         ]
-        judgment = parse_judgment(self.generate_json([{"role": "user", "content": content}], 350))
+        judgment = parse_judgment(
+            self.generate_json(
+                [{"role": "user", "content": content}], 350, schema=INSPECTION_SCHEMA
+            )
+        )
         return judgment
 
     def inspect_batch(self, images, object_query):
