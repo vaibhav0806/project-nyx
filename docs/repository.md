@@ -6,7 +6,8 @@ Current ownership supersedes the historical inventory below: `agent_policy.py` (
 model roles), `agent_tools.py` (shared SDK native tools), `agent.py` (bounded typed execution),
 `realtime.py` (speech adapter), `personal_memory.py` (general memory interpretation/retrieval,
 source validation and transactional persistence), `reference.py` (one visual reference task).
-`verification.py` contains Luna/Flash-Lite transports and visual inspection; `context.py` now
+`verification.py` contains Luna/Flash-Lite transports, one-call ordinary scene inspection and
+reference-image comparison with distinct evidence schemas; `context.py` now
 only owns bounded playback. `statements.py`, `intentions.py` and `observation.py` are removed.
 `voice.py` still owns authoritative transcripts and source availability. Memory tables share the
 existing conversations database; original statement/reminder data remains intact. No new service.

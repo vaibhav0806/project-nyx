@@ -13,8 +13,8 @@ evaluation and strictly offline private recording audits remain the developer-te
 No camera/microphone activation or private-media upload. All original sources stay untouched.
 Older dated sections below describe previous scope and experiments.
 
-The latest user instruction narrows this checkpoint to simple root-cause repairs and verification;
-do not expand prompt experiments or add rules for individual examples. Household physical-identity
+The latest user instruction requires simple root-cause repairs and verification;
+do not add rules for individual examples or more orchestration. Model-role changes remain a user decision. Household physical-identity
 and acoustic acceptance remain open. Rejected experiments do not authorize runtime promotion.
 
 

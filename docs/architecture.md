@@ -8,7 +8,13 @@ adapter. SQLite recursively checks availability, so a followup cannot launder a 
 into fresh evidence. Independent user statements remain available when a lookup is deleted;
 explicit frame confirmations retain recording dependencies. Legacy rows migrate conservatively.
 No extra inference, service or summarization layer is involved. Inspection and reference-image
-comparison use strict object response schemas; rejected scene-contract experiments are not runtime.
+comparison use strict object response schemas; rejected paired-scene experiments are not runtime.
+
+Ordinary inspection now returns scene context and physical/depicted/absent/uncertain presence
+from one Flash-Lite call, normalized to the existing visibility response. Reference-image
+comparison retains its earlier task/schema and one call. They are different visual tasks in the
+same verifier, not a second judge. After explicit historical recall, both adapters scope automatic
+background memory to its cutoff before continuing generation. Memory receipts/history are preserved.
 
 This supersedes the historical household pipeline below. `agent_policy.py` contains the short
 shared personality/behavior policy; `agent_tools.py` defines native lookup, shown-object and

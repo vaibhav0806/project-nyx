@@ -137,3 +137,20 @@ Still open beyond this checkpoint: core ambiguous-object/physical-scene quality 
 acoustic/user acceptance. These are explicit remaining goal gates, not reasons to add infrastructure.
 Local engineering verification and documentation are complete; optional publication is restricted
 to the work branch. No new PR or merge is requested. The overall goal remains open for the gates above.
+
+
+## Followup at4db9329 — historical scope and ordinary inspection
+
+Historical-recall background scope now follows the explicit lookup cutoff in both adapters;
+recall-v4 passes8/8 source/workflow proxies and8 reviewed final replies. Ordinary single-image
+scene inspection is adopted separately: exact call equivalence to the tested candidate, all4
+full public-history workflows reviewed correct, and reference-image comparison request unchanged.
+The failed combined scene/appearance candidate remains experimental. Full suite479 passed25.81s;
+lint/format113 files and JavaScript checks pass. SeeR30 for the new category-proxy error and all
+model-comparison failures, not just aggregate improvements.
+
+The shorter whole-view reference experiment still fails the phone ambiguity gate. The current
+Lite reference role remains as selected by the user. A concrete unapplied proposal uses Luna for
+both reference tasks and Lite for ordinary inspection; offline dispatch checks pass, but broader
+acceptance is unproven. This default model-role decision and household/acoustic/user acceptance
+remain open. Conservative cumulative provider usage5.37098615/8; all paid runs stopped.

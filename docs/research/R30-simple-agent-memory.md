@@ -2,7 +2,70 @@
 
 Owner: Codex inline. Date: 2026-11-17. **Engineering/evaluation in progress; household acceptance fails.**
 
-## Current checkpoint: root-cause repairs and rejected vision changes
+## Current followup: historical scope and ordinary scene inspection
+
+Code51e71eb applies an explicit recall cutoff to automatic background memory before the next
+text or voice generation. The old background could contain a later correction even after the
+explicit historical lookup returned the right earlier report. A shared, deterministic filter
+now applies the same cutoff to those background records and their sources; the memory write
+receipt and stored history remain intact. No new prompt, model call or query classifier.
+The8-condition recall holdout-v4 now passes8/8 workflow/source proxies, including the earlier
+historical mismatch; all8 final replies were read inline and correct. Actual response cost is
+0.004588975 (the lower metadata delta is not used as cost). Three regressions cover typed final
+context/citations, non-mutating time scoping and actual voice continuations/restored current scope.
+Prior conversational context and already-used explicit tool results remain conservatively linked;
+this repair does not erase the durable dialogue or claim every supplied source is a final citation.
+
+Code319a49f adopts **ordinary single-image inspection only** from the tested scene contract.
+It asks for physical/depicted/absent/uncertain presence and whole-scene context in the same one
+Flash-Lite call, then maps that to the existing visibility API. The generic task is71 words;
+shared agent95, memory140 and shown-object reference122 remain unchanged. Reference-image
+comparison retains its prior prompt/schema/request, rather than the failed combined candidate.
+An exact recorded-request comparison confirms both properties: ordinary inspection matches the
+frozen4e89fe3 candidate; reference-image comparison matchesf383341 byte-for-byte in request data.
+No extra judge, fallback model, runtime mode, UI change or embedding rebuild.
+
+The scoped candidate's complete public-history replay passes reviewed basic criteria in all4
+conditions: qualified dated remote, nine-day Hindi coffee, absent cane and undated coffee with
+unknown date/current-location uncertainty. It reuses hash-verified public vectors. Paid cost:
+0.017224875. Earlier same-contract single-image tests were12/12 physical holdout (old app4/12),
+11/12 fresh physical (old6/12), and27/32 category/count (old24/32; unsafe positives7→4).
+There is **one newly unsafe category proxy**,383842/bottle, alongside repaired cases. Do not
+claim every example improved or relabel that frozen negative; inspection of the public photo is
+inconclusive about the small background container. The fresh cup label disagreement stays failed.
+These constructed conditions do not establish natural household accuracy.
+
+A shorter45-word shown-reference task plus whole-view schema field was frozen ate4b6115.
+It still scores3/4 on the known hard identity set: Flash-Lite calls the separate phones two views
+of one phone. Reject promotion; the runtime reference task remains unchanged. The mechanism is
+visual conflation, not missing input or a source/SQLite failure. Earlier Luna reference-only
+workflows passed4/4 on this same small set; changing that model role needs a user decision.
+A bounded Luna scene comparison passed4/4 appearance controls but11/12 ordinary physical checks,
+incorrectly treating a real phone as depicted, so it does not justify changing all vision to Luna.
+Reference-image diagnostics with Luna on the existing task score9/12,3 unsafe, versus the
+recorded Lite baseline2/12,10 unsafe. The experimental combined scene task with Luna scores10/12,
+0 unsafe but refuses the real-phone positive and misstates the ambiguous-controller condition.
+A frozen camera-view clarification scores11/12,1 unsafe; it repairs the phone but still selects
+one controller in the ambiguous pair. Neither experimental comparison task is promoted. All
+three12-call costs are retained:0.00289415,0.0034262 and0.003554225 respectively. The appearance
+4/4 result applies to the earlier scene task, not the later camera clarification.
+
+A concrete, unapplied model-split patch is kept in the ignored execution directory: Luna for
+shown-object resolution/reference comparison, Lite for ordinary inspection; no extra model call
+or judge. An offline request-dispatch check verifies those roles. This would change the user's
+explicitly selected Flash-Lite reference role, so it requires their decision and fresh validation;
+it is not a readiness claim. Current runtime still uses Lite for both reference tasks.
+
+Final key metadata5.36986215/8; saved simple-pass response costs0.63913524; conservative cumulative
+**5.37098615/8**, remaining2.62901385. All paid runs are complete/stopped, no refill is needed.
+
+Final deterministic suite after ordinary inspection: **479 passed25.81s**, with113 Python files
+passing Ruff lint/format and unchanged JavaScript passing syntax checks. Two recovery test fixtures
+were updated to return the new valid scene wire format; their damaged/restored source assertions
+remain. The browser compatibility check from the source checkpoint remains valid wiring evidence;
+no new physical/acoustic or hardware acceptance is claimed. UI/main/original media stay untouched.
+
+## Earlier checkpoint atf383341: root-cause repairs and rejected combined vision changes
 
 At8fd7c8f, the shared policy remains95 words, memory140, reference122 and inspection87.
 Models remain Luna for conversation/memory and Flash-Lite for vision. No extra judge, runtime

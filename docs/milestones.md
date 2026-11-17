@@ -10,9 +10,9 @@ Old data converts additively without inference or media changes. Memory retains 
 plans, corrections/retractions and historical state; source/cancellation/write failures preserve
 raw input. Native API/voice protocol tests retain source attribution and candidate review.
 
-**471 tests passed in45.40s**, lint/format/JS and synthetic browser checks pass. Latest general
-memory-v3 has16/16 correct reviewed final replies; recall has8 correct replies with7/8 exact-source
-proxies (historical context overinclusion remains). All4 complete public-video history workflows
+**479 tests passed in25.81s**, lint/format/JS and synthetic browser checks pass. Latest general
+memory-v3 has16/16 correct reviewed final replies; recall has8 correct replies with8/8 exact-source
+proxies after the historical background-scope repair. All4 complete public-video history workflows
 pass reviewed basic criteria after strict vision schema and neutral evidence-summary repairs.
 Explicit unverified identity metadata repairs the small English/Hindi stream diagnostic; broader
 acoustic fidelity remains untested. Earlier offline92-video/256-vector checks and two-record
@@ -23,11 +23,12 @@ assistant evidence, and repeated answers retain their prior context dependencies
 video withholds derived answers without erasing an independent user fact. Both adapters share
 this source contract. The web extra now includes the existing locked SDK needed by shared tools.
 
-**Acceptance still fails:** default hard identity3/4 includes an unsafe two-phone binding. A
-scene-first experiment improves screen/photo negatives but regresses appearance matching, so
-it stays outside runtime. Physical identity, real household and acoustic/user acceptance remain
+**Acceptance still fails:** default hard identity3/4 includes an unsafe two-phone binding. The combined
+scene/appearance rewrite regresses appearance matching and stays experimental. Ordinary single-
+image scene inspection was adopted separately after physical/fresh/category checks and4 complete
+public-history workflows; the reference-image comparison request is unchanged. Physical identity, real household and acoustic/user acceptance remain
 open. See [R30](research/R30-simple-agent-memory.md) for failed trials and limits.
-No UI/main changes or new PR/merge; conservative provider usage$5.32630835/$8.
+No UI/main changes or new PR/merge. Final provider reconciliation is recorded inR30.
 See [plan](superpowers/plans/2026-11-17-simple-agent-memory.md) for remaining work.
 
 

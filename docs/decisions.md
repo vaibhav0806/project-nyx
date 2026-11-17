@@ -7,8 +7,16 @@ answers derived from it across followups without invalidating an unrelated fact 
 Persist bounded context links and resolve source availability in SQLite; do not add an AI judge
 or make the conversational prompt responsible for provenance. Legacy input dependencies migrate
 conservatively. Strict visual response schemas repair protocol errors; malformed output remains
-uncertain. Reject scene-first runtime promotion after appearance-control regressions, despite
+uncertain. Reject the combined scene/appearance rewrite after appearance-control regressions, despite
 better screen/photo scores. See [R30](research/R30-simple-agent-memory.md).
+
+Apply an explicit historical recall cutoff to prepared background records as well as the
+lookup result; do not add another interpretation call. Adopt scene context/presence for ordinary
+single-image inspection only after source-separated tests and full public-history replay. Preserve
+the existing reference-image comparison task exactly; the combined scene/appearance rewrite is
+still rejected. The new shorter reference experiment also fails the phone ambiguity case and
+stays out of runtime. Luna for reference recognition is a measured option, not an authorized
+default change. SeeR30 for gains, the new category-proxy error and remaining acceptance gates.
 
 The user's approved [design](superpowers/specs/2026-11-17-simple-agent-memory-design.md)
 supersedes the joint/separated household policy below. Voice/text now share a short policy,
