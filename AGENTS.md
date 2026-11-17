@@ -1,5 +1,24 @@
 # Working on Nyx
 
+## Multimodal conversational comparison — 2026-11-18
+
+The user requested comparing Gemini3.5 Flash, Flash-Lite, GPT5.6 Luna and GPT6 Luna for one
+image-grounded conversational call before choosing a production model. They then explicitly
+asked to use their recent localhost trial data for these tests. This authorizes the selected
+saved trial image, corresponding utterances and time-aligned replay frames for this bounded
+four-model comparison through the existing providers. It does not authorize bulk/full-video or
+idle-audio upload, hardware activation, or unrelated private data. Preserve originals and budget:
+$8 cumulative, sequential guarded runs <=$0.25 with settlement headroom. Latest metadata at
+benchmark setup is$6.34252565/$8. No runtime model promotion until measured review/choice.
+
+The user's scope clarification: basic category recognition such as a smartphone is sufficient;
+proving a particular instance's unique identity is out of scope. Unclear images must remain
+uncertain; do not invent objects or current presence from an earlier frame. Current browser
+buffer captures every500ms, retains12s/24frames and selects up to6 when the question event arrives.
+The trial's delayed completion hook froze the continuation window19.8s after its raw final;
+end-of-speech replay no longer shows the phone. Benchmark earlier-plus-latest as well as one-frame
+input; do not call a delayed freeze safe merely because a rolling buffer exists.
+
 ## Current handoff — 2026-11-18
 
 Paused-speech preview/append, native short-pause coalescing, small-ingest embedding avoidance
