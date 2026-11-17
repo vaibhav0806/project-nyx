@@ -34,6 +34,21 @@ SCHEMA = {
     ],
     "additionalProperties": False,
 }
+REFERENCE_SCHEMA = {
+    **SCHEMA,
+    "properties": {
+        "comparison": {
+            "type": "string",
+            "description": "Compare visible reference and candidate appearance, including conflicts.",
+        },
+        "appearance_match": {
+            "type": "string",
+            "enum": ["supported", "different", "uncertain"],
+        },
+        **SCHEMA["properties"],
+    },
+    "required": ["comparison", "appearance_match", *SCHEMA["required"]],
+}
 
 
 class SceneVerifier(CloudVerifier):
@@ -43,7 +58,7 @@ class SceneVerifier(CloudVerifier):
             (PROMPT + json.dumps(SCHEMA, sort_keys=True)).encode()
         ).hexdigest()
         self.fingerprint["reference_comparison_experiment"] = hashlib.sha256(
-            REFERENCE_TASK.encode()
+            (REFERENCE_TASK + json.dumps(REFERENCE_SCHEMA, sort_keys=True)).encode()
         ).hexdigest()
         self.fingerprint["reference_task_role"] = "system"
 
@@ -85,7 +100,7 @@ class SceneVerifier(CloudVerifier):
                 ],
                 self.vision_model,
                 350,
-                schema=SCHEMA,
+                schema=REFERENCE_SCHEMA if reference_task else SCHEMA,
             )
         )
         if (
@@ -99,8 +114,23 @@ class SceneVerifier(CloudVerifier):
             "absent": "not_visible",
             "uncertain": "uncertain",
         }[raw["presence"]]
+        if reference_task:
+            match = raw.get("appearance_match")
+            if match == "different":
+                visibility = "not_visible"
+            elif match != "supported":
+                visibility = "uncertain"
         result = parse_judgment(json.dumps({**raw, "visibility": visibility}))
-        return {**result, "presence": raw["presence"], "scene_context": raw.get("scene_context")}
+        return {
+            **result,
+            "presence": raw["presence"],
+            "scene_context": raw.get("scene_context"),
+            **(
+                {key: raw.get(key) for key in ("comparison", "appearance_match")}
+                if reference_task
+                else {}
+            ),
+        }
 
 
 if __name__ == "__main__":
