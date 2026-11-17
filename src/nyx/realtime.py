@@ -380,7 +380,7 @@ async def serve(socket, voice):
 
             async def llm_node(self, chat_ctx, tools, model_settings):
                 from nyx.conversation_context import bounded_live_context
-                from nyx.personal_memory import PersonalMemory
+                from nyx.personal_memory import PersonalMemory, memory_context_at
 
                 requested_turn = turn_id
                 if requested_turn and requested_turn not in self._prepared_turns:
@@ -428,6 +428,15 @@ async def serve(socket, voice):
                                 "SELECT plan FROM turns WHERE id=?", (requested_turn,)
                             ).fetchone()[0]
                         )
+                    recalled = next(
+                        (
+                            step
+                            for step in reversed(plan.get("steps", []))
+                            if step.get("action") == "recall_memory"
+                        ),
+                        {},
+                    )
+                    memory = memory_context_at(memory, recalled.get("as_of"))
                     turn_ctx.add_message(
                         role="system",
                         content="Available context: " + json.dumps(plan.get("available", {})),

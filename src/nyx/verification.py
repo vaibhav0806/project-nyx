@@ -105,7 +105,7 @@ class CloudVerifier:
             "spoken_evidence_contract": "neutral-identity-qualified-v2",
             "history_parallel_checks": self.history_concurrency,
             "history_source_failure_policy": "unavailable-not-negative-v1",
-            "conversation_context_policy": "bounded-source-aware-v3/input-answer-dependencies",
+            "conversation_context_policy": "bounded-source-aware-v4/input-answer-dependencies/scoped-memory",
             "max_image_side": 768,
         }
 

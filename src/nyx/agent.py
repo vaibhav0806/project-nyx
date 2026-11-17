@@ -149,7 +149,9 @@ def native_agent_steps(
         }
     )
     messages.append({"role": "user", "content": message})
+    memory_index = None
     if memory_context:
+        memory_index = len(messages)
         messages.append(
             {
                 "role": "system",
@@ -180,6 +182,15 @@ def native_agent_steps(
             and action.get("before_frame_id") != history_boundary
         ):
             raise ValueError(f"Retain before_frame_id={history_boundary} for this search")
+        if action["action"] == "recall_memory" and memory_context:
+            from nyx.personal_memory import memory_context_at
+
+            scoped = memory_context_at(memory_context, action.get("as_of"))
+            observations[0] = scoped
+            messages[memory_index] = {
+                "role": "system",
+                "content": "Memory context: " + json.dumps(_model_tool_result(scoped)),
+            }
         key = json.dumps(action, sort_keys=True)
         if key in cached:
             return cached[key]

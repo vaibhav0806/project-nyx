@@ -110,6 +110,47 @@ def call(name="look_for_object", **arguments):
     }
 
 
+def test_historical_recall_scopes_prepared_memory_before_final_generation():
+    current = {
+        "id": "new",
+        "turn_id": "new",
+        "content": "CURRENT_CUPBOARD",
+        "at": "2026-11-12T12:00:00Z",
+        "sources": ["transcript:new"],
+    }
+    prepared = {
+        "kind": "memory",
+        "status": "noop",
+        "records": [current],
+        "sources": ["transcript:new"],
+    }
+    generations = []
+
+    def generate(messages, tools):
+        generations.append(json.dumps(messages))
+        if len(generations) == 1:
+            return call("recall_memory", query="camera", as_of="2026-11-11T12:00:00Z")
+        assert "CURRENT_CUPBOARD" not in generations[-1]
+        return {"role": "assistant", "content": "Your report then said dining shelf."}
+
+    result = finish(
+        native_agent_steps(
+            "What did I report as of November 11?",
+            [],
+            generate,
+            lambda action: {
+                "kind": "memories",
+                "status": "retrieved",
+                "matches": [],
+                "sources": ["transcript:old"],
+            },
+            memory_context=prepared,
+        )
+    )
+    assert result["sources"] == ["transcript:old"]
+    assert prepared["records"] == [current]
+
+
 @pytest.mark.parametrize("stage", ["generation", "tool"])
 def test_provider_failure_is_not_retried_or_converted_into_success(stage):
     from nyx.cloud import CloudError

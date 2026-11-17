@@ -526,6 +526,70 @@ def test_live_followup_retains_prior_answer_dependency(tmp_path, monkeypatch):
     replay_voice_tools(tmp_path, monkeypatch, scenario)
 
 
+def test_live_historical_recall_scopes_automatic_memory_on_continuation(tmp_path, monkeypatch):
+    from test_personal_memory import Encoder, operation, response
+
+    from nyx.personal_memory import PersonalMemory
+    from nyx.voice import Conversations
+
+    conversations = Conversations(tmp_path)
+    current = conversations.begin("My camera is in the cupboard", {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response(
+            [operation(current, "My camera is in the cupboard", "CURRENT_CUPBOARD")]
+        ),
+    )
+    memory_id = memory.process(current)["saved_ids"][0]
+    conversations.finish(current, "Noted")
+    with conversations.connect() as db:
+        db.execute("UPDATE turns SET at='2026-11-12T12:00:00Z' WHERE id=?", (current,))
+    calls = []
+    monkeypatch.setattr(
+        realtime.Agent.default, "llm_node", lambda agent, ctx, tools, settings: calls.append(ctx)
+    )
+
+    async def scenario(session, socket, voice):
+        transcribe(session, "What did I report as of November 11?")
+        context = session.agent.chat_ctx.copy()
+        context.add_message(role="user", content="What did I report as of November 11?")
+        await consume_node(session.agent.llm_node(context, [], {}))
+
+        def background():
+            return next(
+                item.text_content
+                for item in calls[-1].items
+                if item.type == "message" and item.text_content.startswith("Memory context: ")
+            )
+
+        assert "CURRENT_CUPBOARD" in background()
+        turn = voice.turn["id"]
+        for cutoff in ["2026-11-11T12:00:00Z", None]:
+            voice.conversations.update_plan(
+                turn,
+                {
+                    "steps": [
+                        {
+                            "action": "recall_memory",
+                            "query": "camera",
+                            **({"as_of": cutoff} if cutoff else {}),
+                        },
+                        {"action": "inspect_current", "query": "camera"},
+                    ]
+                },
+            )
+            await consume_node(session.agent.llm_node(context, [], {}))
+            assert ("CURRENT_CUPBOARD" in background()) is (cutoff is None)
+
+    replay_voice_tools(
+        tmp_path,
+        monkeypatch,
+        scenario,
+        memory_reply=lambda *args: response(relevant_ids=[memory_id]),
+    )
+
+
 def test_spoken_restart_restores_previous_report_query_constraints(tmp_path, monkeypatch):
     from nyx.voice import Conversations
 

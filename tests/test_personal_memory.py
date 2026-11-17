@@ -60,6 +60,25 @@ def test_general_fact_survives_restart_and_is_processed_only_once(tmp_path):
     assert len(calls) == 1
 
 
+def test_memory_context_time_scope_is_shared_non_mutating_and_reversible():
+    from nyx.personal_memory import memory_context_at
+
+    old = {"at": "2026-11-10T12:00:00Z", "sources": ["transcript:old"]}
+    new = {"at": "2026-11-12T12:00:00Z", "sources": ["transcript:new"]}
+    undated = {"at": None, "sources": ["transcript:undated"]}
+    context = {
+        "status": "saved",
+        "answer": "Memory saved.",
+        "records": [old, new, undated],
+        "sources": ["transcript:old", "transcript:new", "transcript:undated"],
+    }
+    scoped = memory_context_at(context, "2026-11-11T12:00:00Z")
+    assert scoped["records"] == [old] and scoped["sources"] == ["transcript:old"]
+    assert scoped["status"] == "saved" and scoped["answer"] == "Memory saved."
+    assert context["records"] == [old, new, undated]
+    assert memory_context_at(context, None) == context
+
+
 def test_independent_user_fact_survives_deletion_of_assistant_lookup_evidence(tmp_path):
     conversations = Conversations(tmp_path)
     text = "I prefer tea without sugar. Where are my keys?"
