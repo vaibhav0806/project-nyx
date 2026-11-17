@@ -37,7 +37,7 @@ class BackgroundMemory:
         from nyx.personal_memory import PersonalMemory
 
         context = {
-            "kind": "memory_candidates",
+            "kind": "saved_user_memories",
             "status": "unavailable",
             "records": [],
             "sources": [],
@@ -52,7 +52,7 @@ class BackgroundMemory:
             return {**context, "status": "failed"}
         wanted = {row["id"] for row in task.result()["matches"]}
         if not wanted:
-            return {**context, "status": "candidates"}
+            return {**context, "status": "retrieved"}
         rows, _ = PersonalMemory._read_rows(self.workspace.conversations, as_of=as_of)
         by_id = {row["id"]: row for row in rows}
         records = [
@@ -65,7 +65,7 @@ class BackgroundMemory:
         ]
         return {
             **context,
-            "status": "candidates",
+            "status": "retrieved",
             "records": records,
             "sources": sorted({source for row in records for source in row["sources"]}),
         }

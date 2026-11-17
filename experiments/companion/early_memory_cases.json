@@ -1,0 +1,11 @@
+{
+  "models": ["openai/gpt-6-luna"],
+  "shared_agent": true,
+  "allow_memory_lookup": true,
+  "allow_visual_lookup": true,
+  "cases": [
+    {"id": "source-separated-recall", "images": ["shown_image", "endpoint_image"], "utterance": "combined", "repeats": 3, "criterion": "Answer the actual missing-phone question from the latest saved location plan. Keep attribution and planned status naturally, give a short useful answer, avoid repeated caveats and unnecessary foreground visual tools. The original conversation and previous answer are excluded."},
+    {"id": "explicit-visual-verification", "images": ["shown_image", "endpoint_image"], "utterance": "combined", "text": "Please look through the recordings to confirm where you last saw my phone, rather than just repeating my plan.", "repeats": 1, "expected_tool": "look_for_object", "criterion": "Explicit visual verification must still select the visual lookup tool. Routing-only control; no result or speech acceptance claimed."},
+    {"id": "memory-not-in-early-context", "images": [], "utterance": "combined", "text": "Do you remember where I said I keep my wallet?", "repeats": 1, "expected_tool": "recall_memory", "criterion": "The supplied phone records cannot answer this wallet-memory question; select further memory lookup. Routing-only control."}
+  ]
+}

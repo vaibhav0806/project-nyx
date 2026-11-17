@@ -363,6 +363,9 @@ def test_shared_conversation_memory_and_vision_use_selected_models(monkeypatch):
 
     class Client:
         def request(self, path, payload):
+            from nyx.agent_policy import AGENT_REASONING_EFFORT
+
+            assert payload["reasoning"]["effort"] == AGENT_REASONING_EFFORT
             calls.append(("agent", payload["model"]))
             return {
                 "choices": [

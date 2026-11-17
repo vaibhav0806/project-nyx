@@ -23,7 +23,7 @@ class AgentTools:
         before_frame_id: int | None = None,
         undated: bool = False,
     ) -> str:
-        """Look for an object in current view, or history for last-seen questions. A candidate may be a lookalike; preserve identity and time uncertainty. History hours: 2, 24, 168, 240 (ten days), or 0 for all dated history. Keep rejected frame IDs in excluded_frame_ids; before_frame_id searches strictly before that dated frame. Either constraint selects history. Use undated=true to search recordings by similarity when capture dates are unknown. Resolve object details from context."""
+        """Look for an object in live or recorded images when memory provides no useful lead, or the user wants visual evidence. Suggest useful remembered locations first. Use history for last-seen questions. A candidate may be a lookalike; preserve identity and time uncertainty. History hours: 2, 24, 168, 240 (ten days), or 0 for all dated history. Keep rejected frame IDs in excluded_frame_ids; before_frame_id searches strictly before that dated frame. Either constraint selects history. Use undated=true to search recordings by similarity when capture dates are unknown. Resolve object details from context."""
         from nyx.agent import validate_action
 
         historical = history or bool(excluded_frame_ids) or before_frame_id is not None
@@ -49,7 +49,7 @@ class AgentTools:
 
     @function_tool
     async def recall_memory(self, query: str, as_of: str | None = None) -> str:
-        """Recall source-linked user facts, preferences, events or plans. For a time-specific historical question, use as_of (an aware ISO timestamp) to retrieve the state then rather than current context. Reports and plans do not establish a current visual location."""
+        """Search beyond the supplied memories for user facts, preferences, events or plans when more context is needed. For a time-specific historical question, use as_of (an aware ISO timestamp) to retrieve the state then rather than current context. Reports and plans do not establish a current visual location."""
         from nyx.agent import validate_action
 
         action = {"action": "recall_memory", "query": query}

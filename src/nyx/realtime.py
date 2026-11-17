@@ -23,7 +23,7 @@ from starlette.websockets import WebSocketDisconnect
 from websockets.asyncio.client import connect
 
 from nyx.agent_policy import AGENT_INSTRUCTIONS as INSTRUCTIONS
-from nyx.agent_policy import AGENT_MODEL
+from nyx.agent_policy import AGENT_MODEL, AGENT_REASONING_EFFORT
 from nyx.agent_tools import AgentTools
 from nyx.speech import ACKNOWLEDGEMENTS, acknowledgement_path
 from nyx.voice import local_now
@@ -571,7 +571,7 @@ async def serve(socket, voice, memory_lane):
                         sources = list(dict.fromkeys([*sources, *early_context["sources"]]))
                     turn_ctx.add_message(
                         role="system",
-                        content="Optional early memory candidates (not exhaustive; use further lookup when needed): "
+                        content="Optional saved user memories (not exhaustive; use further lookup when needed): "
                         + json.dumps(early_context),
                     )
                     turn_ctx.add_message(
@@ -586,7 +586,7 @@ async def serve(socket, voice, memory_lane):
                         )
                     turn_ctx.add_message(
                         role="system",
-                        content="Memory processing: "
+                        content="Current input memory saving: "
                         + json.dumps(memory_lane.status(requested_turn)),
                     )
                 bounded = bounded_live_context(
@@ -709,7 +709,7 @@ async def serve(socket, voice, memory_lane):
         log(
             "voice_model_selected",
             model=voice_model,
-            reasoning_effort="low",
+            reasoning_effort=AGENT_REASONING_EFFORT,
             instructions_version=INSTRUCTIONS_VERSION,
         )
         session = AgentSession(
@@ -719,7 +719,7 @@ async def serve(socket, voice, memory_lane):
                 model=voice_model,
                 api_key=os.environ["OPENROUTER_API_KEY"],
                 base_url="https://openrouter.ai/api/v1",
-                reasoning_effort="low",
+                reasoning_effort=AGENT_REASONING_EFFORT,
                 max_completion_tokens=2048,
                 parallel_tool_calls=True,
                 extra_body={"provider": {"data_collection": "deny"}},

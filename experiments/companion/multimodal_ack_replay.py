@@ -23,7 +23,7 @@ from experiments.companion.streaming_voice import UsageStream
 from nyx.cloud import image_part
 
 
-async def run(evidence_path, output, max_spend, recipe_path=None):
+async def run(evidence_path, output, max_spend, recipe_path=None, reasoning_effort="low"):
     output.mkdir(parents=True, exist_ok=False)
     recipe_path = recipe_path or Path(__file__).with_name("multimodal_ack_cases.json")
     recipe = json.loads(recipe_path.read_text())
@@ -52,9 +52,17 @@ async def run(evidence_path, output, max_spend, recipe_path=None):
         with Image.open(path) as image:
             images[name] = image_part(image, side=640)["image_url"]["url"]
 
-    guard = BudgetedClient(max_spend, max_requests=20)
+    guard = BudgetedClient(max_spend, max_requests=60 if recipe.get("allow_visual_lookup") else 20)
+    replay_tools = None
+    if recipe.get("allow_visual_lookup"):
+        from experiments.companion.replay_tools import ReplayTools
+
+        replay_tools = ReplayTools(root, guard, evidence)
     report = {
         "status": "running",
+        "reasoning_effort": reasoning_effort,
+        "recipe": recipe,
+        "instructions": instructions,
         "budget_before": guard.initial,
         "recipe_sha256": hashlib.sha256(recipe_path.read_bytes()).hexdigest(),
         "instructions_sha256": hashlib.sha256(instructions.encode()).hexdigest(),
@@ -97,17 +105,18 @@ async def run(evidence_path, output, max_spend, recipe_path=None):
             if request.url.path != "/api/v1/chat/completions":
                 raise ValueError("Unexpected inference route")
             await asyncio.to_thread(guard.before_request)
-            started = time.perf_counter()
+            if started is None:
+                started = time.perf_counter()
 
         async def response_hook(response):
             response.stream = UsageStream(response.stream, guard)
 
         context = llm.ChatContext()
         context.add_message(role="system", content=instructions)
-        if recipe.get("shared_agent"):
+        if recipe.get("shared_agent") and not evidence.get("optional_memory_context"):
             context.add_message(
                 role="system",
-                content='Memory processing: {"status": "pending"}. Available context: {"current_view": true, "turn_visual_context": true}',
+                content='Current input memory saving: {"status": "pending"}. Available context: {"current_view": true, "turn_visual_context": true}',
             )
         content = []
         for name in case["images"]:
@@ -129,11 +138,29 @@ async def run(evidence_path, output, max_spend, recipe_path=None):
             if case["utterance"] == "first"
             else evidence["utterance"]
         )
+        utterance = case.get("text", utterance)
         if recipe.get("shared_agent"):
             content.insert(0, utterance)
         else:
             content.append("User's spoken words: " + utterance)
         context.add_message(role="user", content=content)
+        if evidence.get("optional_memory_context"):
+            context.add_message(
+                role="system",
+                content="User local time: " + evidence["replay_at"] + ". Reply in English.",
+            )
+            context.add_message(
+                role="system",
+                content="Optional saved user memories (not exhaustive; use further lookup when needed): "
+                + json.dumps(evidence["optional_memory_context"]),
+            )
+            context.add_message(
+                role="system",
+                content='Available context: {"current_view": true, "turn_visual_context": true, "turn_visual_frame_count": 2}',
+            )
+            context.add_message(
+                role="system", content='Current input memory saving: {"status": "pending"}'
+            )
         options = APIConnectOptions(max_retry=0, timeout=35, liveness_timeout=35)
         async with (
             httpx.AsyncClient(
@@ -150,7 +177,7 @@ async def run(evidence_path, output, max_spend, recipe_path=None):
             model = LLM(
                 model=model_id,
                 client=client,
-                reasoning_effort="low",
+                reasoning_effort=reasoning_effort,
                 max_completion_tokens=2048 if recipe.get("shared_agent") else 512,
                 extra_body={"provider": {"data_collection": "deny"}},
             )
@@ -164,7 +191,7 @@ async def run(evidence_path, output, max_spend, recipe_path=None):
                 enable_preprocessing=True,
             )
             speech = tts.stream(conn_options=options)
-            stream = model.chat(chat_ctx=context, tools=tools, conn_options=options)
+            streams = []
             report["tts_requests"] += 1
             pcm_bytes = 0
 
@@ -182,31 +209,96 @@ async def run(evidence_path, output, max_spend, recipe_path=None):
 
             audio_task = asyncio.create_task(audio())
             text = []
+            routing_only = False
             try:
                 async with asyncio.timeout(50):
-                    async for chunk in stream:
-                        if chunk.delta and chunk.delta.tool_calls:
+                    for _ in range(3):
+                        stream = model.chat(chat_ctx=context, tools=tools, conn_options=options)
+                        streams.append(stream)
+                        calls, hop_text = [], []
+                        async for chunk in stream:
+                            if chunk.delta:
+                                calls.extend(chunk.delta.tool_calls or [])
+                            if chunk.delta and chunk.delta.content:
+                                delta = chunk.delta.content
+                                elapsed = time.perf_counter() - started
+                                row.setdefault("first_text_seconds", elapsed)
+                                row["chunks"].append({"seconds": elapsed, "text": delta})
+                                text.append(delta)
+                                hop_text.append(delta)
+                                speech.push_text(delta)
+                                report["tts_characters"] += len(delta)
+                        await stream.aclose()
+                        if not calls:
+                            break
+                        row.setdefault("tool_calls", []).extend(call.model_dump() for call in calls)
+                        if case.get("expected_tool"):
+                            if case["expected_tool"] not in {call.name for call in calls}:
+                                raise ValueError("Expected routing tool was not selected")
+                            routing_only = True
+                            break
+                        if replay_tools is None and (
+                            not recipe.get("allow_memory_lookup")
+                            or any(call.name != "recall_memory" for call in calls)
+                        ):
                             raise ValueError(
-                                "Unexpected tool call in isolated acknowledgement task"
+                                "Unexpected foreground tool: "
+                                + ", ".join(call.name for call in calls)
                             )
-                        if chunk.delta and chunk.delta.content:
-                            delta = chunk.delta.content
-                            elapsed = time.perf_counter() - started
-                            row.setdefault("first_text_seconds", elapsed)
-                            row["chunks"].append({"seconds": elapsed, "text": delta})
-                            text.append(delta)
-                            speech.push_text(delta)
-                            report["tts_characters"] += len(delta)
+                        from nyx.perception import CloudEncoder
+                        from nyx.personal_memory import PersonalMemory
+                        from nyx.verification import CloudVerifier
+                        from nyx.voice import Conversations
+
+                        component = PersonalMemory(
+                            Conversations(root),
+                            CloudEncoder(client=guard),
+                            CloudVerifier(client=guard).memory_reply,
+                        )
+                        if hop_text:
+                            context.add_message(role="assistant", content="".join(hop_text))
+                        for call in calls:
+                            context.items.append(
+                                llm.FunctionCall(
+                                    call_id=call.call_id, name=call.name, arguments=call.arguments
+                                )
+                            )
+                            arguments = json.loads(call.arguments)
+                            result = (
+                                await asyncio.to_thread(
+                                    replay_tools.execute, call.name, call.arguments
+                                )
+                                if replay_tools
+                                else await asyncio.to_thread(
+                                    component.recall,
+                                    arguments["query"],
+                                    as_of=arguments.get("as_of"),
+                                    select=True,
+                                )
+                            )
+                            row.setdefault("tool_results", []).append(result)
+                            context.items.append(
+                                llm.FunctionCallOutput(
+                                    call_id=call.call_id,
+                                    name=call.name,
+                                    output=json.dumps(result),
+                                    is_error=False,
+                                )
+                            )
+                    else:
+                        raise ValueError("Replay exceeded its native tool budget")
                     row["text_complete_seconds"] = time.perf_counter() - started
                     speech.end_input()
-                    await audio_task
-                if not text or not pcm_bytes:
+                    if not routing_only:
+                        await audio_task
+                if not routing_only and (not text or not pcm_bytes):
                     raise ValueError("No usable text/audio reply")
                 row.update(
                     status="complete",
                     text="".join(text),
                     pcm_bytes=pcm_bytes,
                     audio_seconds=pcm_bytes / 48000,
+                    routing_only=routing_only,
                 )
             except Exception as error:  # noqa: BLE001 — record and stop the bounded experiment
                 row.update(
@@ -218,7 +310,8 @@ async def run(evidence_path, output, max_spend, recipe_path=None):
             finally:
                 audio_task.cancel()
                 await asyncio.gather(audio_task, return_exceptions=True)
-                await stream.aclose()
+                for stream in streams:
+                    await stream.aclose()
                 await speech.aclose()
                 await tts.aclose()
                 await client.close()
@@ -265,5 +358,6 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--max-spend", type=float, default=0.15)
     parser.add_argument("--recipe", type=Path)
+    parser.add_argument("--reasoning-effort", choices=["low", "medium"], default="low")
     args = parser.parse_args()
-    asyncio.run(run(args.evidence, args.output, args.max_spend, args.recipe))
+    asyncio.run(run(args.evidence, args.output, args.max_spend, args.recipe, args.reasoning_effort))

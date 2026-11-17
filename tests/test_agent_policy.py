@@ -1,4 +1,4 @@
-from nyx.agent_policy import AGENT_INSTRUCTIONS, AGENT_MODEL, VISION_MODEL
+from nyx.agent_policy import AGENT_INSTRUCTIONS, AGENT_MODEL, AGENT_REASONING_EFFORT, VISION_MODEL
 
 
 def test_voice_uses_shared_policy_and_approved_model():
@@ -7,6 +7,7 @@ def test_voice_uses_shared_policy_and_approved_model():
     assert realtime.INSTRUCTIONS is AGENT_INSTRUCTIONS
     assert realtime.AGENT_MODEL == AGENT_MODEL == "openai/gpt-6-luna"
     assert VISION_MODEL == "google/gemini-3.5-flash-lite"
+    assert realtime.AGENT_REASONING_EFFORT == AGENT_REASONING_EFFORT == "medium"
 
 
 def test_shared_policy_is_short_and_keeps_personality_and_evidence_distinctions():
@@ -25,3 +26,4 @@ def test_runtime_model_defaults_use_the_shared_role_configuration(monkeypatch):
     monkeypatch.delenv("NYX_VISION_MODEL", raising=False)
     verifier = CloudVerifier(client=object())
     assert verifier.model == AGENT_MODEL and verifier.vision_model == VISION_MODEL
+    assert verifier.fingerprint["agent_reasoning_effort"] == AGENT_REASONING_EFFORT

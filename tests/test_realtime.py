@@ -225,6 +225,7 @@ def replay_voice_tools(
 
     class Session:
         def __init__(self, **options):
+            self.options = options
             self.sdk = session_factory(**options) if session_factory else None
             self.input = self.sdk.input if self.sdk else SimpleNamespace()
             self.output = self.sdk.output if self.sdk else SimpleNamespace()
@@ -266,7 +267,7 @@ def replay_voice_tools(
     monkeypatch.setenv("OPENROUTER_API_KEY", "fixture")
     monkeypatch.setattr(realtime, "AgentSession", Session)
     monkeypatch.setattr(realtime.sarvam, "TTS", TTS)
-    monkeypatch.setattr(realtime.openai, "LLM", lambda **options: None)
+    monkeypatch.setattr(realtime.openai, "LLM", lambda **options: SimpleNamespace(**options))
     monkeypatch.setattr(realtime.aiohttp, "ClientSession", HTTP)
     voice = Voice(tmp_path, None)
     token = voice.start()["token"]
@@ -1223,6 +1224,7 @@ def test_first_reply_receives_optional_saved_memory_while_writer_is_blocked(tmp_
 
     async def scenario(session, socket, voice):
         try:
+            assert session.options["llm"].reasoning_effort == realtime.AGENT_REASONING_EFFORT
             restored = " ".join(
                 item.text_content for item in session.agent.chat_ctx.items if item.type == "message"
             )
@@ -1238,7 +1240,7 @@ def test_first_reply_receives_optional_saved_memory_while_writer_is_blocked(tmp_
                 item.text_content
                 for item in calls[-1].items
                 if item.type == "message"
-                and item.text_content.startswith("Optional early memory candidates")
+                and item.text_content.startswith("Optional saved user memories")
             )
             assert "Plans to leave umbrella by the door" in early
             assert session.memory_lane.status(voice.turn["id"])["status"] == "pending"
@@ -1291,7 +1293,7 @@ def test_slow_early_lookup_has_a_deadline_and_does_not_disable_further_recall(
                 '"status": "pending"' in item.text_content
                 for item in calls[-1].items
                 if item.type == "message"
-                and item.text_content.startswith("Optional early memory candidates")
+                and item.text_content.startswith("Optional saved user memories")
             )
             lookup = asyncio.create_task(session.agent.recall_memory(query="umbrella"))
             tool = await asyncio.wait_for(socket.tools.get(), 1)
