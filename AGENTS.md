@@ -17,7 +17,7 @@ usage $4.73185091, remaining $3.26814909. This supersedes $5 for this work, not 
 Use guarded paid runs, public/synthetic inputs only, preserve settlement headroom. Private
 recordings stay offline; no hardware capture or new paid account/provider.
 
-Latest checkpoint: conservative cumulative usage$5.37098615/$8; paid tests stopped. Keep the
+Latest checkpoint: conservative cumulative usage$5.392088575/$8; paid tests stopped. Keep the
 95-word shared policy and selected model roles. Paired-image scene changes remain experimental
 after appearance-control regressions; do not promote their better depiction score. Ordinary
 single-image scene inspection was adopted separately at319a49f after fresh physical/category
@@ -27,9 +27,17 @@ sources/availability and assistant/context dependencies are now separate in conv
 preserve that distinction and conservative legacy migration. The user's latest instruction is
 simple root-cause fixes, no overengineering. Historical background cutoff repair51e71eb now
 passes8/8 recall workflows; full runtime suite479 passed25.81s at4db9329. Later shorter reference
-and paired-camera variants failed quality gates and remain experimental. Current Lite reference
-model stays unchanged; an unapplied Luna-reference/Lite-inspection proposal is recorded for the
-user's model decision. Physical/acoustic acceptance remains open. SeeR30.
+and paired-camera variants failed quality gates and remain experimental. Fresh reference
+confirmation favors keeping the selected roles: Lite5/5, Luna4/5 with a clear-cup
+refusal. The earlier unapplied Luna-reference proposal is withdrawn; no model-choice decision is
+pending. Later named recall without another image passes6 reviewed replies. Fixed synthetic
+acknowledgements are prepared and the local wake model loads. A live isolated server at
+http://127.0.0.1:8001 is for a user-run household/voice check only; do not open its browser/camera/
+microphone during automated verification. Public human Hindi STT passes one control; short
+synthetic Hindi retains errors. Actual LiveKit/Sarvam streaming TTS returns valid English/Hindi
+PCM without playback; this proves transport compatibility, not intelligibility. Physical/acoustic
+acceptance and known visual limits remain open.
+Do not add prompt rules or architecture for those fixtures. SeeR30.
 
 ## Household workflow authorization — 2026-11-16
 

@@ -15,8 +15,9 @@ lookup result; do not add another interpretation call. Adopt scene context/prese
 single-image inspection only after source-separated tests and full public-history replay. Preserve
 the existing reference-image comparison task exactly; the combined scene/appearance rewrite is
 still rejected. The new shorter reference experiment also fails the phone ambiguity case and
-stays out of runtime. Luna for reference recognition is a measured option, not an authorized
-default change. SeeR30 for gains, the new category-proxy error and remaining acceptance gates.
+stays out of runtime. Fresh confirmation rejects the Luna-reference migration: Lite 5/5 versus
+Luna 4/5. Keep the selected model roles and withdraw the earlier split proposal. See R30 for
+gains, the new category-proxy error and remaining acceptance gates.
 
 The user's approved [design](superpowers/specs/2026-11-17-simple-agent-memory-design.md)
 supersedes the joint/separated household policy below. Voice/text now share a short policy,

@@ -154,3 +154,40 @@ Lite reference role remains as selected by the user. A concrete unapplied propos
 both reference tasks and Lite for ordinary inspection; offline dispatch checks pass, but broader
 acceptance is unproven. This default model-role decision and household/acoustic/user acceptance
 remain open. Conservative cumulative provider usage5.37098615/8; all paid runs stopped.
+
+
+## User-run household and voice check
+
+Status: pending. The isolated instance is running at **http://127.0.0.1:8001**, using
+`data/household-check-2026-11-17`; original recordings/memories were not imported. Its12 lookup
+acknowledgement clips are prepared and the pinned wake model loads. No browser or hardware was
+opened by automated testing. The normal app uses the configured cloud providers for selected
+images and activated speech. Use the existing controls yourself when ready.
+Actual LiveKit/Sarvam streaming reply synthesis also returns valid English/Hindi audio; playback
+quality and room behaviour remain part of this check.
+
+1. Show one clear everyday item and say “Hey Nyx, I put this in the hallway drawer.” Lower it,
+   then ask by name where you said you put it. Expect the remembered report with a useful item
+   description; it must not claim the item is still there or invent a proven identity.
+2. Report a normal move, then explicitly correct that report. Ask for the latest remembered
+   place. Expect the corrected report, with earlier reports retained as history.
+3. Say you plan to put an item somewhere later. Ask whether you have already done it. Expect
+   a plan, without a claim of completed placement, scheduling or proactive delivery.
+4. Present two plausible items and say only “I put this on the table.” Expect a clarification.
+   Supply the distinguishing detail and check that the intended item is remembered.
+5. Try an English and a Hindi spoken question, including wake, an interruption and the reply.
+   Check intelligibility, correct language, microphone mute/stop and whether normal room noise
+   or the assistant's own speech causes unwanted turns.
+
+Report pass/fail and the issue type; raw household footage/private transcripts do not need to be
+sent to the thread. These user-run observations are required because automated verification is
+limited to synthetic/public inputs and may not activate actual camera/microphone hardware.
+If the server is stopped, restart it with:
+
+```bash
+uv run --env-file .env --no-sync nyx --data-dir data/household-check-2026-11-17 serve --port 8001
+```
+
+The model split proposal is withdrawn: fresh reference tests score Lite5/5 versus Luna4/5.
+Keep the selected defaults. The old ambiguous-phone/paired-depiction failures and short synthetic
+Hindi errors remain documented; this check does not silently waive those acceptance gates.

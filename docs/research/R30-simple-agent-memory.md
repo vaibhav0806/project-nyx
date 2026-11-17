@@ -2,7 +2,63 @@
 
 Owner: Codex inline. Date: 2026-11-17. **Engineering/evaluation in progress; household acceptance fails.**
 
-## Current followup: historical scope and ordinary scene inspection
+## Latest confirmation: keep the agreed models; live acceptance remains open
+
+A new reference confirmation was frozen ata2ed566 before model calls:5 workflows over8 public
+sources disjoint from the earlier core/identity corpora. These photos had appeared in other visual
+studies; they are not unseen model-training data. The existing crop renderer and annotation IDs
+are frozen in fresh_reference_recipe.json. Manual preflight corrected held/unheld cue ambiguity
+before inference; the unevaluated six-case draft remains separate. No post-result relabeling.
+
+**Flash-Lite passes5/5; Luna passes4/5.** Both clarify all3 genuinely ambiguous pairs without saved
+links. Lite saves/recalls both clear items; Luna safely refuses the clear cup and never saves its
+plan. All actual replies were read inline. Reference categories remain coarse for the black phone
+(“black electronic device”), so these source/workflow scores do not prove precise categorization.
+Costs are0.012903275 and0.00558665 respectively. **Withdraw the proposed Luna reference-model
+split.** Its better old four-case score does not justify the new false refusal. Keep Luna for
+conversation/memory and Flash-Lite for all vision. No model-choice approval remains pending.
+
+A further frozen probe, cf8c92a, asks later by name with no new camera image, after chat eviction
+and database-copy/reopen. All6 native spoken-model replies across3 conditions were read correct:
+qualified phone/device report in the hallway drawer, bedroom-shelf cup plan rather than completed
+placement, and no unsupported assertion that the generic device was a TV remote. They do not
+claim current location or proven identity. Actual shared native schema/binding/API, no acoustic
+input in this probe; source databases retain hashes. Cost0.0026125. No runtime change was needed.
+
+The isolated user-check workspace is provisioned at data/household-check-2026-11-17. Both provider
+keys are configured, the pinned local wake model loads offline, and12 fixed acknowledgement clips
+were synthesized/validated as mono24kHz16-bit WAV. This used12 Sarvam HTTP TTS requests/282 characters;
+one additional fixed Hindi question brings HTTP synthesis to13 requests/303 characters. A separate
+actual installed LiveKit/Sarvam WebSocket TTS check passed both selected English/Hindi voices with
+retries disabled: two requests/69 characters, nonempty mono24kHz16-bit PCM (2.58s and2.42s).
+This proves reply-path compatibility, not intelligibility: no audio was played. Total synthesis
+input across both routes is15 requests/372 Unicode characters. No hardware or private media was
+opened. Sarvam does not supply per-response monetary cost; those counts are
+separate from OpenRouter usage and do not imply an audited Sarvam invoice.
+
+Actual speech-recognition checks used five bounded Sarvam connections, retries disabled. The
+English transcript matched the synthetic input phrase. The initial first-final probe stopped Hindi input early; it is not a
+semantic pass. Corrected full-input collection still exposes short synthetic Hindi misrecognition/
+Romanization with an English tag. In contrast, one public human Hindi FLEURS recording transcribed
+correctly in Devanagari with hi-IN. Do not infer broad acoustic accuracy or change settings to fit
+the synthetic clip. Current [realtime parameters](https://docs.sarvam.ai/api/api-guides-tutorials/speech-to-text/realtime-streaming)
+and [output-mode contract](https://docs.sarvam.ai/api/api-guides-tutorials/speech-to-text/how-to/select-output-mode)
+are provider-supported; [HTTP speech synthesis](https://docs.sarvam.ai/api/api-guides-tutorials/text-to-speech/streaming-api/http-stream)
+correctly uses language_code. No speech-model/configuration/prompt change was promoted.
+The [FLEURS source](https://huggingface.co/datasets/google/fleurs) is CC-BY4.0; one583,738-byte WAV
+was streamed from the Hindi test archive using481,280 compressed bytes, not a full dataset download.
+Raw audio/row/hash provenance stays ignored. One recording is a control, not a household benchmark.
+
+The normal app server is ready at http://127.0.0.1:8001 with the isolated workspace and0 original
+recordings imported. Only metadata endpoints were checked; no browser/hardware was activated.
+The [remaining user-run check](../superpowers/plans/2026-11-17-simple-agent-memory.md#user-run-household-and-voice-check)
+is required for physical identity, real speech/wake and room acoustics. The known old two-phone
+failure and paired-depiction limits remain; fresh5/5 does not erase them. No more prompt/architecture
+expansion is justified by these results. Full runtime479 tests remain valid; only experiment data
+and documentation changed in this confirmation. OpenRouter conservative usage5.392088575/8,
+remaining2.607911425; all developer inference runs are stopped.
+
+## Prior followup: historical scope and ordinary scene inspection
 
 Code51e71eb applies an explicit recall cutoff to automatic background memory before the next
 text or voice generation. The old background could contain a later correction even after the

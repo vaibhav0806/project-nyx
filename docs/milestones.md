@@ -29,7 +29,13 @@ image scene inspection was adopted separately after physical/fresh/category chec
 public-history workflows; the reference-image comparison request is unchanged. Physical identity, real household and acoustic/user acceptance remain
 open. See [R30](research/R30-simple-agent-memory.md) for failed trials and limits.
 No UI/main changes or new PR/merge. Final provider reconciliation is recorded inR30.
-See [plan](superpowers/plans/2026-11-17-simple-agent-memory.md) for remaining work.
+Fresh reference confirmation: Lite5/5, Luna4/5; keep the agreed defaults and withdraw the proposed
+reference-model split. Later named recall without another image has6 correctly qualified reviewed
+replies. Speech provisioning and bounded actual provider checks are complete; public human Hindi
+works in one control while short synthetic Hindi retains errors. Actual LiveKit/Sarvam streaming
+TTS returns valid English/Hindi PCM; listening quality remains unverified. An isolated local instance is
+ready for the required user-run household/voice check. Known visual gates remain unresolved.
+See [plan](superpowers/plans/2026-11-17-simple-agent-memory.md#user-run-household-and-voice-check) for the check.
 
 
 ## Household workflow engineering; acceptance remains open — 2026-11-16
