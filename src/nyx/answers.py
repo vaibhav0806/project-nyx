@@ -244,6 +244,7 @@ def history_steps(
         "timings": timings,
         "object_query": object_query,
         "status": "clarify" if ambiguous else "candidate" if selected else "uncertain",
+        "identity_verified": False,
         "answer": answer,
         "evidence": selected,
         "checked": checked,

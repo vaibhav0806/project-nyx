@@ -127,7 +127,7 @@ def install_companion(app, workspace, voice):
                     raise HTTPException(409, "Confirmation ID belongs to a different choice")
                 if not existing["sources_available"]:
                     raise HTTPException(404, "That source has been deleted")
-                return plan["result"]
+                return {**plan["result"], "identity_verified": True}
             store = workspace.store()
             rows = store.frame_context(body.frame_id) if store else []
             evidence = next((row for row in rows if row["id"] == body.frame_id), None)
@@ -141,6 +141,7 @@ def install_companion(app, workspace, voice):
                 "kind": "history",
                 "status": "confirmed",
                 "confirmation": "user",
+                "identity_verified": True,
                 "object_query": body.object_query,
                 "turn_id": identifier,
                 "answer": f"You confirmed this item in the recorded frame at {when}. This does not establish its current location or a later sighting.",
@@ -355,6 +356,7 @@ def install_companion(app, workspace, voice):
                 judgment = verifier.inspect(image, action["query"])
                 result = {
                     "kind": "snapshot",
+                    "identity_verified": False,
                     "object_query": action["query"],
                     "status": "clarify"
                     if judgment.get("ambiguous")

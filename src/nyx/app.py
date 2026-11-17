@@ -836,6 +836,7 @@ def create_app(
             )
             return {
                 "kind": "snapshot",
+                "identity_verified": False,
                 "object_query": object_query,
                 "status": "clarify" if ambiguous else "seen" if seen else "uncertain",
                 "answer": "Which one do you mean? Please describe its color, position, or another distinguishing detail."

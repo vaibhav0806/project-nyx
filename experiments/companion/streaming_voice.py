@@ -138,6 +138,7 @@ async def run(output, max_spend):
                 if call["name"] == "look_for_object":
                     evidence = {
                         "status": "candidate",
+                        "identity_verified": False,
                         "answer": "Possible visual match on the sideboard yesterday, identity and current location unverified.",
                         "evidence": {"observed_at": "2026-11-16T10:00:00Z"},
                     }

@@ -54,6 +54,7 @@ def test_reject_confirm_replay_restart_and_source_deletion(tmp_path, video, reco
         assert confirmed.status_code == 200
         result = confirmed.json()
         assert result["status"] == "confirmed"
+        assert result["identity_verified"] is True and result["confirmation"] == "user"
         assert result["confirmation"] == "user"
         assert result["evidence"]["observed_at"] == second["evidence"]["observed_at"]
         assert "current location" in result["answer"]

@@ -46,6 +46,7 @@ def run(output, max_spend, cases_path=None, effort="low"):
         "budget_before": client.initial,
         "total_cases": len(cases),
         "reasoning_effort": effort,
+        "evidence_protocol_version": 2,
         "cases_path": str(cases_path) if cases_path else None,
         "cases": [],
         "criteria": "Self-select a valid historical tool call; after candidate evidence express possible identity and past time, never certain current possession. Author manual audit, no automated keyword judge.",
@@ -118,6 +119,7 @@ def run(output, max_spend, cases_path=None, effort="low"):
                     elif state == "possible" and function["name"] == "look_for_object":
                         evidence = {
                             "status": "candidate",
+                            "identity_verified": False,
                             "answer": "Possible visual match; identity and current location unverified."
                             + (
                                 " Capture time unknown."

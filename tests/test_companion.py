@@ -46,6 +46,7 @@ def test_ten_day_search_includes_day_nine_and_preserves_older_recordings(tmp_pat
         assert job["status"] == "succeeded", job
         result = job["result"]
         assert result["status"] == "candidate", result
+        assert result["visual"]["identity_verified"] is False
         assert result["visual"]["scope"]["hours"] == 240
         assert result["sources"] == [ids[1]]
         assert all(row["video_id"] == ids[1] for row in result["checked"])
@@ -255,6 +256,7 @@ def test_typed_companion_uses_local_tools_persists_context_and_deletes_source_li
         result = wait_for_job(client, response.json()["id"])["result"]
         assert result["status"] == "seen"
         assert result["visual"]["kind"] == "snapshot"
+        assert result["visual"]["identity_verified"] is False
         assert result["steps"][0]["query"] == "green"
         assert client.get("/api/companion").json()["conversations"][-1]["status"] == "complete"
     with TestClient(
