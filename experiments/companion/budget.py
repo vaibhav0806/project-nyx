@@ -16,7 +16,8 @@ class BudgetedClient(OpenRouter):
         self.max_requests = max_requests
         check_budget(self.initial, self.initial["usage"], max_spend)
 
-    def request(self, *args, **kwargs):
+    def before_request(self):
+        """Use the same guard for HTTP and the separately evaluated SDK stream."""
         if self.requests >= self.max_requests:
             raise CloudError("Evaluation request limit reached")
         try:
@@ -33,4 +34,7 @@ class BudgetedClient(OpenRouter):
         except ValueError as error:
             raise CloudError(str(error)) from None
         self.requests += 1
+
+    def request(self, *args, **kwargs):
+        self.before_request()
         return super().request(*args, **kwargs)

@@ -23,7 +23,7 @@ class AgentTools:
         before_frame_id: int | None = None,
         undated: bool = False,
     ) -> str:
-        """Look for an object in current view, or history for last-seen questions. History hours: 2, 24, 168, 240 (ten days), or 0 for all dated history. Keep rejected frame IDs in excluded_frame_ids; before_frame_id searches strictly before that dated frame. Either constraint selects history. Use undated=true to search recordings by similarity when capture dates are unknown. Resolve object details from context."""
+        """Look for an object in current view, or history for last-seen questions. A candidate may be a lookalike; preserve identity and time uncertainty. History hours: 2, 24, 168, 240 (ten days), or 0 for all dated history. Keep rejected frame IDs in excluded_frame_ids; before_frame_id searches strictly before that dated frame. Either constraint selects history. Use undated=true to search recordings by similarity when capture dates are unknown. Resolve object details from context."""
         from nyx.agent import validate_action
 
         historical = history or bool(excluded_frame_ids) or before_frame_id is not None

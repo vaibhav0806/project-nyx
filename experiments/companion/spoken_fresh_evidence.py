@@ -70,46 +70,57 @@ def run(output, max_spend):
                 },
                 {"role": "user", "content": case["text"]},
             ]
-            initial = generate(messages)
-            row["initial"] = initial
-            message = initial["message"]
-            messages.append(message)
-            calls = []
-            for call in message.get("tool_calls", []):
-                function = call["function"]
-                arguments = bind_call(captured["tools"][function["name"]], function["arguments"])
-                calls.append({"name": function["name"], "arguments": arguments})
-                if function["name"] == "look_for_object":
-                    evidence = {
-                        "status": "candidate",
-                        "answer": "Possible visual match yesterday; identity and current location unverified.",
-                        "evidence": {
-                            "observed_at": "2026-11-14T10:00:00Z",
-                            "judgment": {"visibility": "visible", "location": case["location"]},
-                        },
-                    }
-                elif function["name"] == "recall_memory":
-                    evidence = {
-                        "status": "uncertain",
-                        "kind": "memories",
-                        "matches": [],
-                        "answer": "No matching saved user reports.",
-                    }
-                else:
-                    evidence = {
-                        "status": "clarify",
-                        "answer": "This synthetic replay has no evidence for this tool.",
-                    }
-                messages.append(
-                    {"role": "tool", "tool_call_id": call["id"], "content": json.dumps(evidence)}
+            row["rounds"] = []
+            for index in range(4):
+                choice = generate(messages)
+                step = {"choice": choice, "calls": []}
+                row["rounds"].append(step)
+                message = choice["message"]
+                messages.append(message)
+                if not message.get("tool_calls"):
+                    row["status"] = (
+                        "complete" if index and message.get("content") else "no_tool_call"
+                    )
+                    break
+                for call in message["tool_calls"]:
+                    function = call["function"]
+                    arguments = bind_call(
+                        captured["tools"][function["name"]], function["arguments"]
+                    )
+                    step["calls"].append({"name": function["name"], "arguments": arguments})
+                    if function["name"] == "look_for_object":
+                        evidence = {
+                            "status": "candidate",
+                            "answer": "Possible visual match yesterday; identity and current location unverified.",
+                            "evidence": {
+                                "observed_at": "2026-11-14T10:00:00Z",
+                                "judgment": {"visibility": "visible", "location": case["location"]},
+                            },
+                        }
+                    elif function["name"] == "recall_memory":
+                        evidence = {
+                            "status": "uncertain",
+                            "kind": "memories",
+                            "matches": [],
+                            "answer": "No matching saved user reports.",
+                        }
+                    else:
+                        evidence = {
+                            "status": "clarify",
+                            "answer": "This synthetic replay has no evidence for this tool.",
+                        }
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": call["id"],
+                            "content": json.dumps(evidence),
+                        }
+                    )
+                step["dispatches"] = dispatch(
+                    output / case["id"] / str(index), case["text"], step["calls"]
                 )
-            row["calls"] = calls
-            row["dispatches"] = dispatch(output / case["id"], case["text"], calls)
-            if calls:
-                row["continuation"] = generate(messages)
-                row["status"] = continuation_status(row["continuation"])
             else:
-                row["status"] = "no_tool_call"
+                row["status"] = "continuation_limit"
     finally:
         report["budget_after"] = budget_snapshot(client)
         report["provider_usage"] = client.usage
