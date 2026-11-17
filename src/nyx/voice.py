@@ -42,18 +42,6 @@ def local_now(timezone=None):
         ) from None
 
 
-def clock_reply(text, now):
-    text = wake_command(text) if wake_command(text) is not None else text
-    if re.fullmatch(
-        r"(?:please[ ,]+)?(?:what(?:'s| is) the (?:current )?time|what time is it|tell me (?:the )?time)"
-        r"(?:\s+(?:right now|now))?(?:[ ,]+(?:please|nyx|ma'am|mam))?[?.! ]*",
-        text.strip(),
-        re.IGNORECASE,
-    ):
-        return f"It's {now.strftime('%I:%M %p').lstrip('0').lower()}."
-    return None
-
-
 def relative_time(value, now=None):
     if not value:
         return None
@@ -393,10 +381,9 @@ class Conversations:
 
 
 class Voice:
-    def __init__(self, root, provider, recognizer=None, *, agent_mode=False):
+    def __init__(self, root, provider, recognizer=None):
         self.provider = provider
         self.recognizer = recognizer
-        self.agent_mode = agent_mode
         self.root = Path(root)
         self.conversations = Conversations(root)
         self.lock = Lock()
