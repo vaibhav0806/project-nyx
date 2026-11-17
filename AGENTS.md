@@ -7,17 +7,20 @@ src/nyx/web/voice.js edit. This supersedes the web-file ban only for the audio a
 and its necessary verification. Keep layout, styling and wording unchanged; no TypeScript/build
 migration or other UI edits. Preserve current recordings and check capture state before restarting.
 The patch is now applied and verified:483 tests pass28.77s,11 actual-JavaScript synthetic transport
-checks pass, lint/format114 files and JS syntax pass. The live8001 process still uses earlier
-backend code while its capture is recording; do not claim the repair is live or the household
-trial passes. No new paid inference/hardware/private upload. SeeR31 for limits.
+checks pass, lint/format114 files and JS syntax pass. After capture became interrupted/page closed,
+the8001 service restarted normally on edc12ef (PID44647/session53617). All154 saved clips and4
+conversation turns are preserved; served JS matches the committed transport. The repair is loaded,
+but a user page reload and new household trial remain required. No paid inference/hardware/private
+upload for verification. SeeR31 for limits.
 
 ## Voice trial follow-up — 2026-11-17
 
 Real trial: one complete greeting, three interrupted turns, zero memories. At8f0a263, spoken
 input ownership and memory preparation move to LiveKit's completed-user-turn hook; actual-SDK
 synthetic regression fails the old owner race and passes the repair. Full suite481 passed29.41s.
-See [R31](docs/research/R31-voice-turn-lifecycle.md). The live8001 process still uses the earlier
-code; preserve active capture before any restart. Do not claim a new household trial passed.
+See [R31](docs/research/R31-voice-turn-lifecycle.md). The live8001 process was subsequently updated
+as recorded above. Preserve active capture before any further restart. Do not claim a new household
+trial passed.
 
 Audio-gate expiry was subsequently repaired under the explicit exception above. The earlier
 proposal remains as provenance at .superpowers/sdd/2026-11-17-simple-agent-memory/voice-flow/

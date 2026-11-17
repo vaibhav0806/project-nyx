@@ -21,9 +21,12 @@ replay also asserts that native user speech state is sent through Nyx's socket c
 
 Full deterministic suite: **483 pass in28.77s**. Ruff lint/format114 Python files, JavaScript
 syntax and the standalone Node check pass. No private input upload, paid inference, real browser,
-camera/microphone or playback is used. The current8001 service remains on the earlier backend
-while capture is active. A coordinated restart and page reload are needed before user acceptance;
-do not call this a successful new household trial or a measured acoustic/latency improvement.
+camera/microphone or playback is used. Once capture became interrupted with a page-closed reason,
+the8001 process shut down normally and restarted on edc12ef (PID44647). All154 saved clips retain
+their hashes and all4 stored conversation turns retain their content/status. The served voice.js
+bytes match the committed repair. Existing capture remains honestly marked interrupted; no final
+delivery uncertainty is erased. The user must reload their page before acceptance; do not call
+this a successful new household trial or a measured acoustic/latency improvement.
 
 ## Question and decision
 
