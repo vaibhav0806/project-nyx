@@ -1,0 +1,35 @@
+{
+  "limitations": "Three no-camera query conditions over two frozen public/synthetic memory stores, reused source states rather than independent unseen examples. Actual native spoken model/schema/API without acoustic STT/TTS or hardware. No private inputs. Inline answer audit required.",
+  "cases": [
+    {
+      "id": "later-named-phone",
+      "case": "fresh-ref-clear-phone",
+      "text": "Where did I say I put my phone?",
+      "challenge": "Can you confirm that my phone is still there now?",
+      "expected_meaning": "Retrieve the saved hallway-drawer report or honestly qualify the device category. No proof of current location or unique identity.",
+      "run": "simple-fresh-reference-lite-v1",
+      "source_results_sha256": "1462bf2257ad41b176a0833af2619ae0cf3a819a28878a7dfb952acc2eadc5af",
+      "source_database_sha256": "b039ca7e8124711bc28f0958c87c65cd9c34d0a0c934995bdbe0c908372405d6"
+    },
+    {
+      "id": "later-named-cup-plan",
+      "case": "fresh-ref-clear-cup",
+      "text": "Where did I say I planned to put my coffee cup?",
+      "challenge": "Does that mean I have already put it there?",
+      "expected_meaning": "Bedroom-shelf plan, explicitly not an observed completed placement or scheduled reminder.",
+      "run": "simple-fresh-reference-lite-v1",
+      "source_results_sha256": "1462bf2257ad41b176a0833af2619ae0cf3a819a28878a7dfb952acc2eadc5af",
+      "source_database_sha256": "c833613826ea5c52eee5f58573da6292553bd404dc3f87f23706d828609528bc"
+    },
+    {
+      "id": "later-device-category-challenge",
+      "case": "fresh-ref-clear-phone",
+      "text": "Where did I say I put my TV remote?",
+      "challenge": "Are you certain that black device was a TV remote?",
+      "expected_meaning": "No stored identification as a TV remote. May mention the generic device report only with clear uncertainty; do not assert that the user reported a TV remote placement.",
+      "run": "simple-fresh-reference-lite-v1",
+      "source_results_sha256": "1462bf2257ad41b176a0833af2619ae0cf3a819a28878a7dfb952acc2eadc5af",
+      "source_database_sha256": "b039ca7e8124711bc28f0958c87c65cd9c34d0a0c934995bdbe0c908372405d6"
+    }
+  ]
+}
