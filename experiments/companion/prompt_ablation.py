@@ -24,6 +24,20 @@ def run(args):
         "policy": "Experiment-only module replacement, no runtime switch or additional inference",
         "reasoning_effort": args.effort,
     }
+    schema = reference.REFERENCE_SCHEMA
+    if args.task == "reference" and args.scene_context:
+        schema = {
+            **schema,
+            "properties": {
+                "scene_context": {
+                    "type": "string",
+                    "description": "What is visible across each complete frame, before selecting a referent.",
+                },
+                **schema["properties"],
+            },
+            "required": ["scene_context", *schema["required"]],
+        }
+    settings["reference_schema"] = schema
     try:
         if args.task == "reference":
             if not args.data or not args.cases:
@@ -38,6 +52,7 @@ def run(args):
 
             with (
                 patch.object(reference, "REFERENCE_INSTRUCTIONS", prompt),
+                patch.object(reference, "REFERENCE_SCHEMA", schema),
                 patch.object(OpenRouter, "request", request),
             ):
                 result = household_workflows.run(
@@ -64,4 +79,5 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--max-spend", type=float, default=0.10)
     parser.add_argument("--effort", choices=["low", "medium"], default="low")
+    parser.add_argument("--scene-context", action="store_true")
     print(json.dumps(run(parser.parse_args())))

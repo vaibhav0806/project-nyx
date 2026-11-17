@@ -18,8 +18,11 @@ Use guarded paid runs, public/synthetic inputs only, preserve settlement headroo
 recordings stay offline; no hardware capture or new paid account/provider.
 
 Latest checkpoint: conservative cumulative usage$5.32630835/$8; paid tests stopped. Keep the
-95-word shared policy and selected model roles. Scene-first vision changes remain experimental
-after appearance-control regressions; do not promote their better depiction score. User input
+95-word shared policy and selected model roles. Paired-image scene changes remain experimental
+after appearance-control regressions; do not promote their better depiction score. Ordinary
+single-image scene inspection was adopted separately at319a49f after fresh physical/category
+checks, four complete public-history workflows and exact request comparison proving the prior
+reference-image task remains unchanged. Identity/paired depiction acceptance remains open. User input
 sources/availability and assistant/context dependencies are now separate in conversations.sqlite3;
 preserve that distinction and conservative legacy migration. The user's latest instruction is
 simple root-cause fixes, no overengineering or further expansion of this checkpoint. SeeR30.
