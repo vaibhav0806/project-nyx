@@ -2,6 +2,52 @@
 
 Owner: Codex inline. Date: 2026-11-17. **Engineering/evaluation in progress; household acceptance fails.**
 
+## Later checkpoint: evidence repair after full-path testing
+
+Latest code36d16a4 uses a **95-word shared policy**, versus681 words in the previous spoken
+policy. Policy8 adds a short Hindi instruction to preserve unconfirmed identity. Memory5 and
+chosen Luna/Lite defaults remain. Bounded source flags and summaries are now consistent:
+`identity_verified=false` on model sightings, true only for actual user confirmation; historical
+summaries retain identity/current-location caveats and never rewrite “the person” into “you.”
+
+The full public history workflow uncovered why prompt-only fixes were inconsistent: the old
+`spoken_answer` replaced the safe retrieval answer with “I think I saw your…” and removed its
+explicit caveat. It also manufactured listener ownership from generic people/hands. These
+legacy rewrites and an unused statement-attachment branch are removed. Neutral summaries retain
+physical landmarks and known/unknown time. Tests first reproduced11 failures, then95 targeted
+checks passed. This is a general source-boundary repair, not a fixture-specific answer.
+
+A second repair reuses visual checks only for identical owned turn, utterance, pixels and clocks.
+Both resolved and ambiguous results are bounded to8 entries; changed evidence/new turns rerun,
+source availability/freshness is rechecked, and cancelled/failed work cannot become a cached save.
+Three regressions first showed duplicate calls, then passed; broader targeted81 checks passed.
+This avoids repeated inconsistent inference without adding a judge or changing the UI.
+
+Experimental shorter reference prompt:core4/4, hard identity3/4 with the same unsafe phones.
+Increasing reasoning still3/4. Neither is promoted. Single Flash vision4/4 identity but7/12
+physical/depiction, matching Luna there and failing the gate at higher cost. Flash conversation
+comparison completed8 cases but lost identity caveats and introduced time overprecision; rejected.
+The latest primary catalogue was checked via OpenRouter's models endpoint; stored costs are
+observed responses, not a price-based quality claim. Main/default vision remains Lite.
+
+Controlled bilingual wording retained identity caveats across8 possible-match replies, but the
+actual streaming-v4 and complete-history-v1 still lost Hindi caveats. Adding explicit source flags
+made streaming-v5 retain both English/Hindi caveats. **This small result is not universal fidelity.**
+Full-history-v2 after summary repair now retains caveats for dated English and nine-day Hindi
+positives and truthfully rejects a purple-cane negative. Its undated coffee lookup abstains where
+v1 found the cup; inspect query/vision behavior before calling the complete workflow accepted.
+All4 jobs complete, no negative is silently omitted. Latest general-memory reruns are ongoing.
+
+All13 cached public media files were hash-matched against the known four-photo fixture before
+API evaluation; compatible Gemini2 vectors were reused. Only copied DB dates were simulated
+(1day,9days,unknown), original clocks/files unchanged. This is a public edited-video diagnostic,
+not nine days of continuous natural footage. An offline exact-payload audit retained both640×480
+frames with RGB mean error<0.047; the two-phone failure is not missing/cropped input.
+
+Last full suite before latest summary repair:459 passed26.61s, lint/format/JS and synthetic Chrome
+passed. Summary repair targeted95 passed5.44s. Final full suite/cost reconciliation still pending.
+Earlier checkpoint tables below describe their named revisions and remain valid as history.
+
 ## Decision and method
 
 Execute the approved [design](../superpowers/specs/2026-11-17-simple-agent-memory-design.md):

@@ -18,6 +18,13 @@ provider ceiling is $8 cumulative, with sequential per-run caps ≤$0.25 and $0.
 headroom. Main, UI, original recordings, embeddings and Sarvam remain unchanged.
 
 
+Later full-path testing found a legacy evidence-summary rewrite dropping caveats and inventing
+“your” ownership. Remove it, preserve source uncertainty/people/time, and expose explicit
+identity-verification metadata. Reuse exactly owned visual checks to avoid duplicate inference;
+never reuse across changed frames/clocks or unavailable sources. Prompt/model candidates that
+fail hard identity/depiction gates stay experimental; no automatic model substitution.
+
+
 ## Separate household claims from visual identity — 2026-11-16
 
 Keep a placement statement distinct from visual proof of an action. The separated claim/identity

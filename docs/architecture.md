@@ -26,6 +26,13 @@ status and empty deliveries; retired mutations return410. Existing reminder data
 modified. See the [approved design](superpowers/specs/2026-11-17-simple-agent-memory-design.md).
 
 
+Reference checks are shared within an exact owned turn/window using bounded pixel/clock keys;
+changed inputs/new turns cannot reuse them. User source availability and freshness are rechecked
+before/after inference and on reuse. Clarification remains clarification. Sightings carry
+`identity_verified=false`; explicit user confirmation alone carries true. Tool summaries preserve
+these caveats and generic people/hands; they never manufacture listener ownership. The shared
+conversational policy is95 words atpolicy8. SeeR30 for the still-failing visual acceptance gates.
+
 ## Household reference and report pipeline — 2026-11-16
 
 The planner receives validated turn-window availability/count separately from current-view
