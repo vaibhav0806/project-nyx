@@ -88,7 +88,7 @@ class CloudVerifier:
             "agent_policy_version": 4,
             "memory_policy_version": 3,
             "prompt_version": 10,
-            "reference_prompt_version": 7,
+            "reference_prompt_version": 8,
             "history_parallel_checks": self.history_concurrency,
             "history_source_failure_policy": "unavailable-not-negative-v1",
             "conversation_context_policy": "bounded-source-aware-v2/live-availability",

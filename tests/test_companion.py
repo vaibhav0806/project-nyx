@@ -517,7 +517,7 @@ def test_identify_shown_object_returns_description_for_subsequent_search(tmp_pat
                 return json.dumps(
                     {"targets": "Fixture target", "unique_referent": True, "ambiguous": False}
                 )
-            return '{"object_description":"Green fixture","frame_index":0,"ambiguous":false}'
+            return '{"targets":"One green object","target_count":1,"object_description":"Green fixture","frame_index":0,"ambiguous":false}'
 
     with TestClient(
         create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=ReferenceVerifier)
@@ -548,7 +548,7 @@ def test_utterance_window_uses_earlier_image_when_latest_snapshot_is_blank(tmp_p
             assert len(images) == 2
             assert images[0].getpixel((40, 40))[1] > 80
             assert max(images[1].getpixel((40, 40))) < 10
-            return '{"object_description":"green phone","frame_index":0,"ambiguous":false}'
+            return '{"targets":"One green phone","target_count":1,"object_description":"green phone","frame_index":0,"ambiguous":false}'
 
     now = datetime.now(UTC)
     with TestClient(

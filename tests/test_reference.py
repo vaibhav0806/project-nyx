@@ -8,7 +8,14 @@ from nyx.reference import REFERENCE_INSTRUCTIONS, resolve_reference
 
 
 def decision(**changes):
-    return {"object_description": "black phone", "frame_index": 0, "ambiguous": False, **changes}
+    return {
+        "targets": "One black phone is held",
+        "target_count": 1,
+        "object_description": "black phone",
+        "frame_index": 0,
+        "ambiguous": False,
+        **changes,
+    }
 
 
 def verifier(result, calls):
@@ -44,6 +51,9 @@ def test_one_visual_call_selects_earlier_supporting_frame_without_classifying_me
         {"ambiguous": "false"},
         {"object_description": "x" * 161},
         {"extra": "invented"},
+        {"target_count": 2},
+        {"target_count": True},
+        {"targets": ""},
     ],
 )
 def test_unsupported_reference_protocol_requires_clarification(changes):
