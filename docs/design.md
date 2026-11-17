@@ -10,6 +10,10 @@ task. Proactive departure behavior is retired. Contributor UI and recording cont
 The implementation passes deterministic checks; household, acoustic and real-model acceptance
 remain separate and are not established by passing unit tests. Older dated sections are history.
 
+Source withdrawal applies to evidence-derived answers across followups, while independent facts
+the person stated remain available. This distinction belongs to storage/context, not more agent
+instructions. Rejected vision changes stay experimental even when one benchmark improves.
+
 
 ## Current memory behavior and preserved interface — 2026-11-15
 

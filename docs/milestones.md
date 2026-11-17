@@ -10,17 +10,24 @@ Old data converts additively without inference or media changes. Memory retains 
 plans, corrections/retractions and historical state; source/cancellation/write failures preserve
 raw input. Native API/voice protocol tests retain source attribution and candidate review.
 
-**456 tests passed in27.05s**, lint/format/JS and synthetic browser checks pass. Latest general
-memory16/16 final replies are correct in Codex inline review; recall8/8 final replies are correct,
-with7/8 exact-source proxies (historical context overinclusion remains). Native save/recall and
-plan/current-location challenges work in bounded public/synthetic tests. All92 private recordings
-were decoded offline unchanged; final two-record conversion preserves vectors/photos/original DB.
+**471 tests passed in45.40s**, lint/format/JS and synthetic browser checks pass. Latest general
+memory-v3 has16/16 correct reviewed final replies; recall has8 correct replies with7/8 exact-source
+proxies (historical context overinclusion remains). All4 complete public-video history workflows
+pass reviewed basic criteria after strict vision schema and neutral evidence-summary repairs.
+Explicit unverified identity metadata repairs the small English/Hindi stream diagnostic; broader
+acoustic fidelity remains untested. Earlier offline92-video/256-vector checks and two-record
+conversion preserved all original bytes, vectors and photos.
 
-**Acceptance still fails:** default hard identity3/4 includes an unsafe two-phone binding; both
-Lite and single-Luna alternatives fail broader depiction boundaries; Hindi speech can overstate
-possible-match identity. Current work continues with isolated shorter-prompt comparisons, no
-runtime promotion. See [R30](research/R30-simple-agent-memory.md) for all failed runs and costs.
-No UI/main changes or new PR/merge; pre-ablation conservative provider usage about$4.910/$8.
+Two reproduced storage bugs now have a common repair: user input availability is distinct from
+assistant evidence, and repeated answers retain their prior context dependencies. Deleting a
+video withholds derived answers without erasing an independent user fact. Both adapters share
+this source contract. The web extra now includes the existing locked SDK needed by shared tools.
+
+**Acceptance still fails:** default hard identity3/4 includes an unsafe two-phone binding. A
+scene-first experiment improves screen/photo negatives but regresses appearance matching, so
+it stays outside runtime. Physical identity, real household and acoustic/user acceptance remain
+open. See [R30](research/R30-simple-agent-memory.md) for failed trials and limits.
+No UI/main changes or new PR/merge; conservative provider usage$5.32630835/$8.
 See [plan](superpowers/plans/2026-11-17-simple-agent-memory.md) for remaining work.
 
 

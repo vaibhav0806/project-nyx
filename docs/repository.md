@@ -10,12 +10,15 @@ source validation and transactional persistence), `reference.py` (one visual ref
 only owns bounded playback. `statements.py`, `intentions.py` and `observation.py` are removed.
 `voice.py` still owns authoritative transcripts and source availability. Memory tables share the
 existing conversations database; original statement/reminder data remains intact. No new service.
+It separates user-input dependencies from assistant evidence and persists bounded context links;
+`conversation_context.py` projects those states for both providers without changing durable text.
 
 Current experiment entry points and retired-driver provenance are listed in
 [the experiment migration note](../experiments/companion/retired-2026-11-17.md). JSON datasets and
 research findings remain; old results are not current-path acceptance. Private outputs stay ignored.
 
 
+Historical ownership before the2026-11-17 migration:
 `conversation_context.py` owns bounded source-aware provider context copies and whole-exchange
 LiveKit context selection. It does not own persistence or generate memory summaries. `voice.py`
 retains authoritative transcripts/source flags; `statements.py` owns durable retrieval. The R19

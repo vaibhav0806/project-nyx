@@ -2,7 +2,68 @@
 
 Owner: Codex inline. Date: 2026-11-17. **Engineering/evaluation in progress; household acceptance fails.**
 
-## Later checkpoint: evidence repair after full-path testing
+## Current checkpoint: root-cause repairs and rejected vision changes
+
+At8fd7c8f, the shared policy remains95 words, memory140, reference122 and inspection87.
+Models remain Luna for conversation/memory and Flash-Lite for vision. No extra judge, runtime
+fallback, UI change or main publication was added. The user's latest direction is to stop
+broadening this checkpoint and fix root causes rather than build rules for individual examples.
+
+**Conversation provenance:** two failing regressions reproduced the same data-model problem.
+The store treated an independent user statement and the assistant's lookup evidence as one
+source. Deleting a lookup could hide a valid tea preference, while repeating a visual answer
+without a new tool call lost the original evidence dependency and survived its deletion.
+The store now distinguishes input sources/availability from assistant evidence and records the
+bounded prior turns actually supplied to generation. SQLite follows those dependencies at read
+time instead of copying an ever-growing ancestry into every answer. Both interfaces withhold
+unavailable answers/tool metadata while preserving independently available user input. Explicit
+frame confirmations remain dependent on their recording; legacy rows retain conservative old
+dependencies during additive migration. Source withdrawal, correction races and future clocks
+retain their guards. These are storage/context repairs, with no new AI calls or prompt rules.
+
+Both reproductions now pass, with60 successive source-linked followups, legacy conversion,
+explicit input withdrawal and actual voice-adapter coverage. Full suite:471 passed45.40s;
+latest targeted checks after metadata/source-guard cleanup:150 passed5.59s. Synthetic Chrome
+typed lookup, inactive polling and camera stop passed with0 page errors/paid calls/hardware use.
+
+**Structured vision responses:** the coffee failure was a protocol failure, not a synonym rule:
+Lite often returned a JSON array when the parser required an object. Both visual inspection
+methods now request a strict object schema; malformed arrays still fail closed. Paired retest
+recognized all6 coffee positives and retained both cane negatives. The complete native public
+history replay-v3 then completed all4 workflows with reviewed correct basic answers: dated remote,
+nine-day Hindi coffee, absent cane and undated coffee with unknown-date/current-location caveats.
+It reuses hash-verified public Gemini2 vectors, not private recordings or a reembedded library.
+Broader strict-schema app checks score13/16 fresh conditions,24/32 category/count (7 unsafe
+positives), and4/12 physical/depiction. The schema repair does not solve visual understanding.
+
+Latest general memory-v3 development/holdout each passed8/8 source/workflow proxies; all16 final
+answers were read inline and correct. Earlier recall-v3 remains7/8 exact-source proxies with8
+correct final replies; historical context overinclusion remains. These are bounded authored
+conditions, not measured real-household or acoustic accuracy.
+
+**Vision experiment rejected for runtime promotion:** one-call scene-first output improved the
+old physical holdout4/12→12/12, fresh physical6/12→11/12, and category/count24/32→27/32
+(unsafe positives7→4). The frozen fresh cup condition has an annotation disagreement: the image
+shows two cups despite its single-target label. It remains a scored failure, not a relabeled win.
+However paired-image appearance controls regressed: current app4/4; candidate revisions3/4,
+2/4 and3/4. The latest still accepted a beer bottle against a soap-dispenser reference. Changes
+to task placement and an explicit appearance field did not establish a safe complete contract.
+All scene/comparison changes therefore remain experiment-only. Do not report their gains as
+current product accuracy. Default hard reference identity still fails the known two-phone case.
+
+The web-only clean install also exposed a real packaging failure: shared native tool definitions
+need LiveKit Agents, previously installed only by the voice extra. Added the already-locked SDK
+to the web extra; isolated typed API smoke passes. All125 resolved package versions/sources are
+unchanged. No Whisper/Torch or cloud call was needed by that clean-install smoke.
+
+Provider metadata:5.32518435/8 total;76 saved simple-pass reports contain0.59445744 in response
+costs. Conservative cumulative usage is **5.32630835/8**, leaving2.67369165; metadata may settle
+later. Paid runs are stopped for this checkpoint. Private92-video decode/256-vector checks and
+two-record lossless conversion remain earlier offline evidence, not cloud semantic testing.
+Real physical identity, acoustic speech/wake and user acceptance remain open; no PR or merge
+readiness is claimed. See named ignored run artifacts in the execution ledger for reproduction.
+
+## Historical checkpoint atb83faf8: evidence repair after full-path testing
 
 Latest code36d16a4 uses a **95-word shared policy**, versus681 words in the previous spoken
 policy. Policy8 adds a short Hindi instruction to preserve unconfirmed identity. Memory5 and
@@ -89,7 +150,7 @@ reference9/inspection10. Model names do not pin immutable provider weights.
 - Same SDK tools across interfaces; bounded native iterations, validation, cancellation, source
   rechecks, and explicit provider/embedding/persistence failures. No fixture IDs or coordinate rules.
 
-## Current measured outcomes
+## Earlier measured outcomes before strict-schema/source repairs
 
 | Evaluation | Result | Practical limit |
 | --- | --- | --- |
@@ -144,9 +205,10 @@ at ≤$0.25, with$0.10 cumulative settlement reserve and$0.02 run reserve. No pu
 At the pre-ablation checkpoint, key metadata reports$4.90887277; accumulated response costs
 are$0.17784856, giving conservative cumulative$4.90969947. Settlement can lag/decrease across
 replicas; use response-cost sums and the larger cumulative estimate, not per-run metadata deltas.
-Short-prompt ablation costs are additional and will be reconciled before final handoff.
+Final checkpoint reconciliation: metadata5.32518435; saved response costs0.59445744;
+conservative cumulative5.32630835/8. The top checkpoint supersedes the pre-ablation totals.
 
-Representative response costs: general latest16 cases$0.006459175; default hard identity4 cases
+Representative earlier response costs: general-v2 16 cases$0.006459175; default hard identity4 cases
 $0.0108847 vs single Luna$0.00518268; COCO32$0.0158893 vs$0.0056416; native report challenges
 $0.00159135; unsupported4$0.0009463. These observed costs/latencies are workload/provider-specific.
 Prior interim metadata-delta costs for recall-v1/v2 were incomplete; actual response sums are
@@ -169,15 +231,17 @@ limitations remain those recorded in R29; do not redistribute cached Charades fr
 
 ## Verification and recommendation
 
-At61da728: **456 tests passed in27.05s**; Ruff lint/format (107 Python files), JavaScript syntax,
-diff whitespace and synthetic Chrome API/capture-stop/inactive-poll checks pass with zero page
-errors, external network or paid inference. Original UI tree and main refs remain untouched.
-Existing embeddings are compatible with both copied old memories; no reembedding needed.
+At8fd7c8f: **471 tests passed in45.40s**; Ruff lint/format (113 Python files), JavaScript syntax,
+diff whitespace, local Markdown links and synthetic Chrome API/capture-stop/inactive-poll checks
+pass. Browser replay uses zero paid inference or real hardware and has zero page errors.
+UI has zero diff from128e2fe; local main remainscfe8fa4 and remote mainbdb7ad0. All125 locked
+package versions/sources remain unchanged; only the web-extra SDK requirement was corrected.
+Existing embeddings remain compatible; no private reembedding occurred.
 
-Keep the simpler architecture and general persistence repairs on the work branch for review.
-Do not call the product or a PR merge-ready: no new PR/CI review is requested or completed, and
-visual identity/depiction plus Hindi source fidelity still fail. Luna vision is cheaper and
-helps some conditions, but ties fresh accuracy and still fails physical boundaries; default
-promotion is not justified by4/4. Continue bounded prompt/input diagnostics without extra judges
-or fixture-specific rules. Physical household identity, acoustic/wake/turn-taking, long-run
-runtime and human acceptance remain distinct gates. No demo production in this pass.
+Keep the simpler architecture and root-cause repairs on the work branch. Do not call the product
+or a PR merge-ready: visual identity/depiction acceptance still fails, and no new PR/CI review
+is requested or completed. The English/Hindi identity-stream repair passed only a small diagnostic;
+actual acoustic/wake/turn-taking, physical household and human acceptance remain open. Reject the
+scene-first default migration after appearance regressions. The user requested no further expansion
+of this checkpoint, no overengineering and root-cause repairs instead of individual-case rules.
+No demo production is included.

@@ -37,6 +37,9 @@ Nyx puts help within reach through a simple conversation. It is designed around 
 | **Check the source** — inspect the supporting image and replay the recorded moment. | Select **View source**. |
 
 The current engineering branch focuses on general memory and recall: facts, preferences, reports and plans remain source-linked. Proactive departure reminders are retired; household and acoustic acceptance testing remains open.
+User statements and assistant evidence have separate source availability: deleting a lookup video
+withholds answers derived from it while preserving unrelated user memories. Current measured
+results and remaining visual failures are recorded in [R30](docs/research/R30-simple-agent-memory.md).
 
 ## The experience
 

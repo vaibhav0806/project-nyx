@@ -85,29 +85,29 @@ Files: companion.py, realtime.py, observation.py, intentions.py, reminders.py, v
 
 Files: experiments/companion/recall_workflows.py, household_workflows.py and frozen general/household cases;
  docs/research/R30-simple-agent-memory.md; tests for reproduced general defects.
-- [ ] Freeze development and source-separated heldout dialogues before paid calls, covering the
+- [x] Freeze development and source-separated heldout dialogues before paid calls, covering the
   spec's positive, ambiguous, temporal and failure workflows with exact expected source relations.
-- [ ] Run selected Luna/Lite defaults, unforced native actions and actual SQLite writes/reopen.
+- [x] Run selected Luna/Lite defaults, unforced native actions and actual SQLite writes/reopen.
   Log every call, latency, usage, actual saved content, selected sources and final answer.
-- [ ] Trace failures by stage; reproduce general defects with a failing regression before repair.
+- [x] Trace failures by stage; reproduce general defects with a failing regression before repair.
   No fixture-specific runtime rules or omitted failed saves. Opened holdouts become development/regressions;
   any proposed promotion requires fresh source-separated confirmation.
-- [ ] A bounded Flash comparison may diagnose model limitations; no automatic runtime fallback or
+- [x] A bounded Flash comparison may diagnose model limitations; no automatic runtime fallback or
   silent model substitution. Report a failed selected-model gate rather than claim readiness.
-- [ ] Run final fresh dialogues, natural public-video diagnostic and offline local-data checks.
+- [x] Run final fresh dialogues, natural public-video diagnostic and offline local-data checks.
 
 ## Task 7: Final verification, cleanup, evidence and backup
 
-- [ ] Run full pytest, Ruff lint/format, existing JS syntax, synthetic browser boundaries and local
+- [x] Run full pytest, Ruff lint/format, existing JS syntax, synthetic browser boundaries and local
   source preservation checks. Inspect failures before changing code. No real capture hardware.
-- [ ] Search imports/callers to prove deleted planners, judges and departure implementations are
+- [x] Search imports/callers to prove deleted planners, judges and departure implementations are
   gone; one shared policy/tool contract remains. Keep data migration and API adapters clearly scoped.
-- [ ] Update decisions/design/architecture/scope/milestones/README/AGENTS together with measured
+- [x] Update decisions/design/architecture/scope/milestones/README/AGENTS together with measured
   outcomes, model IDs, remaining failures and exact provider usage. No CI/merge-ready shortcut.
-- [ ] Review the whole diff inline, resolve material findings, commit; optional backup ONLY to
+- [x] Review the whole diff inline, resolve material findings, commit; optional backup ONLY to
   work/memory-reliability. Verify remote main/UI/original recordings unchanged. No new PR yet.
 
-## Execution checkpoint — 2026-11-17
+## Historical execution checkpoint at61da728 — 2026-11-17
 
 Tasks1–5 implemented and committed; no UI/main changes. Task6 found general memory16/16 correct
 final answers, recall7/8 exact-source proxies with8 correct answers, but default identity/depiction
@@ -117,3 +117,23 @@ No new PR/merge or readiness claim. Current quality iteration: experiment-only s
 prompt passed core4/4; hard identity retest pending. Alternative agent wording did not fix Hindi;
 new8-case bilingual source fidelity conditions frozen before low/medium reasoning comparison.
 Default prompts/models stay until broader confirmation, not just the small development score.
+
+
+## Root-cause checkpoint — 2026-11-17,8fd7c8f
+
+Task6's bounded evaluations were executed; **the visual acceptance gate remains failed**.
+Marking the measurement steps executed does not mark the overall product goal complete.
+Scene-first output helps depiction tests but regresses appearance controls; it stays experiment-only.
+The latest user requires minimal root-cause repairs, no further expansion of this checkpoint.
+
+Two source regressions were first reproduced, then repaired at the storage/context boundary:
+independent user facts survive unrelated lookup deletion; repeated assistant answers retain their
+original evidence dependencies in both adapters. Legacy rows migrate conservatively. No new
+judge, model fallback or prompt rule. Full suite471 passed45.40s; latest targeted150 passed5.59s.
+Ruff113 files, JS syntax and synthetic Chrome compatibility pass. UI/main are unchanged.
+Conservative cumulative usage5.32630835/8; paid runs stopped. Updated evidence is inR30.
+
+Still open beyond this checkpoint: core ambiguous-object/physical-scene quality and real household/
+acoustic/user acceptance. These are explicit remaining goal gates, not reasons to add infrastructure.
+Local engineering verification and documentation are complete; optional publication is restricted
+to the work branch. No new PR or merge is requested. The overall goal remains open for the gates above.

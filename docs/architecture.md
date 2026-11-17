@@ -2,6 +2,14 @@
 
 ## Shared native agent and general memory — 2026-11-17
 
+Conversation rows distinguish `input_sources`/`input_available` from the assistant's `sources`.
+`context_turns` records bounded prior input/answer dependencies actually supplied by either
+adapter. SQLite recursively checks availability, so a followup cannot launder a deleted answer
+into fresh evidence. Independent user statements remain available when a lookup is deleted;
+explicit frame confirmations retain recording dependencies. Legacy rows migrate conservatively.
+No extra inference, service or summarization layer is involved. Inspection and reference-image
+comparison use strict object response schemas; rejected scene-contract experiments are not runtime.
+
 This supersedes the historical household pipeline below. `agent_policy.py` contains the short
 shared personality/behavior policy; `agent_tools.py` defines native lookup, shown-object and
 memory-recall tools for voice and text. `agent.py` executes bounded native calls for the API;

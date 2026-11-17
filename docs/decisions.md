@@ -2,6 +2,14 @@
 
 ## Simplify shared agent and general memory — 2026-11-17
 
+Keep user input separate from assistant evidence in storage. A lookup deletion must invalidate
+answers derived from it across followups without invalidating an unrelated fact the user said.
+Persist bounded context links and resolve source availability in SQLite; do not add an AI judge
+or make the conversational prompt responsible for provenance. Legacy input dependencies migrate
+conservatively. Strict visual response schemas repair protocol errors; malformed output remains
+uncertain. Reject scene-first runtime promotion after appearance-control regressions, despite
+better screen/photo scores. See [R30](research/R30-simple-agent-memory.md).
+
 The user's approved [design](superpowers/specs/2026-11-17-simple-agent-memory-design.md)
 supersedes the joint/separated household policy below. Voice/text now share a short policy,
 native tool definitions and Luna. Automatic source-linked general memory owns matching,

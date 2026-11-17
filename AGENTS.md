@@ -17,6 +17,13 @@ usage $4.73185091, remaining $3.26814909. This supersedes $5 for this work, not 
 Use guarded paid runs, public/synthetic inputs only, preserve settlement headroom. Private
 recordings stay offline; no hardware capture or new paid account/provider.
 
+Latest checkpoint: conservative cumulative usage$5.32630835/$8; paid tests stopped. Keep the
+95-word shared policy and selected model roles. Scene-first vision changes remain experimental
+after appearance-control regressions; do not promote their better depiction score. User input
+sources/availability and assistant/context dependencies are now separate in conversations.sqlite3;
+preserve that distinction and conservative legacy migration. The user's latest instruction is
+simple root-cause fixes, no overengineering or further expansion of this checkpoint. SeeR30.
+
 ## Household workflow authorization — 2026-11-16
 
 PR2 merged the reliability work at bdb7ad0. The user then authorized engineering the complete
