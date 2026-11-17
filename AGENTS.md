@@ -1,5 +1,15 @@
 # Working on Nyx
 
+## Fast visual conversation implementation — 2026-11-18
+
+User explicitly approved keeping Luna6 and implementing image-aware quick voice replies with
+background memory, then preparing localhost for manual testing. This authorizes the narrow
+voice.js frame transport edit required to freeze evidence promptly; no layout/styling changes.
+Keep completed input memory independent of reply cancellation, ordered with later recall, and
+truthful about pending/failed saves. See the fast-visual-conversation plan. User closed the
+capture tab and authorized deleting a little unrelated recording while preserving actual test
+footage. Identify/protect trial sources first; do not delete all recordings or activate hardware.
+
 ## Multimodal conversational comparison — 2026-11-18
 
 The user requested comparing Gemini3.5 Flash, Flash-Lite, GPT5.6 Luna and GPT6 Luna for one
