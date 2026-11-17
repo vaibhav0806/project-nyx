@@ -11,7 +11,9 @@ judges. Departure tools, observer and scheduling are retired; persisted reminder
 Existing statement data imports losslessly into additive memory tables without reembedding.
 
 This is an authorized architectural simplification, not a measured claim of improved household
-accuracy. Deterministic checks pass; real-model/public workflow gates are next. The verified
+accuracy. Deterministic checks pass; general memory and native report replies improve, but default visual identity,
+physical/depiction separation and Hindi identity caveats fail measured gates. Keep these explicit
+([R30](research/R30-simple-agent-memory.md)); no automatic model promotion. The verified
 provider ceiling is $8 cumulative, with sequential per-run caps ≤$0.25 and $0.10 settlement
 headroom. Main, UI, original recordings, embeddings and Sarvam remain unchanged.
 

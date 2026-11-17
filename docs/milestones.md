@@ -10,9 +10,17 @@ Old data converts additively without inference or media changes. Memory retains 
 plans, corrections/retractions and historical state; source/cancellation/write failures preserve
 raw input. Native API/voice protocol tests retain source attribution and candidate review.
 
-**434 deterministic tests passed in30.02s** after replacing retired-feature assertions. Real-model
-workflow/visual evaluation and offline local replay are next; acceptance is not complete. No UI
-or main changes, no PR/merge. Verified usage remains $4.73185091/$8 before new paid inference.
+**456 tests passed in27.05s**, lint/format/JS and synthetic browser checks pass. Latest general
+memory16/16 final replies are correct in Codex inline review; recall8/8 final replies are correct,
+with7/8 exact-source proxies (historical context overinclusion remains). Native save/recall and
+plan/current-location challenges work in bounded public/synthetic tests. All92 private recordings
+were decoded offline unchanged; final two-record conversion preserves vectors/photos/original DB.
+
+**Acceptance still fails:** default hard identity3/4 includes an unsafe two-phone binding; both
+Lite and single-Luna alternatives fail broader depiction boundaries; Hindi speech can overstate
+possible-match identity. Current work continues with isolated shorter-prompt comparisons, no
+runtime promotion. See [R30](research/R30-simple-agent-memory.md) for all failed runs and costs.
+No UI/main changes or new PR/merge; pre-ablation conservative provider usage about$4.910/$8.
 See [plan](superpowers/plans/2026-11-17-simple-agent-memory.md) for remaining work.
 
 

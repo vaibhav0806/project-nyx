@@ -1,62 +1,137 @@
-# R30 — Does a simpler agent preserve reliable general memory and household recall?
+# R30 — Can a simpler agent preserve useful memory and household recall?
 
-Owner: Codex inline, user-authorized 2026-11-17. **In progress; not household acceptance.**
+Owner: Codex inline. Date: 2026-11-17. **Engineering/evaluation in progress; household acceptance fails.**
 
 ## Decision and method
 
-Implement the approved [design](../superpowers/specs/2026-11-17-simple-agent-memory-design.md)
-with one shared native agent policy/tools, Luna conversation/memory and Flash-Lite vision.
-Remove the legacy typed planner, separate judges and departure-specific runtime. Keep UI/main,
-original sources, Gemini Embedding2 and Sarvam unchanged. Development cloud inputs are exclusively
-synthetic/public; private Mac recordings remain offline. Key metadata verified $8 cumulative,
-starting usage $4.73185091; per-run ≤$0.25 with settlement headroom, no overlapping paid runs.
+Execute the approved [design](../superpowers/specs/2026-11-17-simple-agent-memory-design.md):
+one shared native policy/tools, Luna conversation and memory, Flash-Lite vision. SQLite,
+Gemini Embedding2 and Sarvam stay. No UI/main changes or new PR. Public/synthetic cloud inputs
+only; private laptop media, transcripts and vectors remain offline. No real hardware activation.
 
-Real-model runs use `recall_workflows.py` and `household_workflows.py` through actual memory
-interpretation, embeddings, SQLite and native API response generation. Source attribution scores
-are **proxies**, not final-answer semantic accuracy. Inspect actual answers, setup records,
-visual support, correction links and provider traces. Failed runs stay in the denominator.
-Old R29 cases are reused regression/development evidence, not fresh unseen household accuracy.
+The conversational policy is81 words; memory140, reference122 and inspection87 at61da728.
+There is one focused memory interpretation policy for ingest/relevance and one prompt per visual
+task. A needed image can require a second memory interpretation after observation; this is not
+an extra judge. Removed JSON planning, separate ambiguity/correction/positive judges, duplicate
+reference modes, departure detection and active delivery. Existing reminder/statement data stays.
 
-## Interim measured findings
+Actual API runs cover embeddings, SQLite, interpretation, source links, unforced native tools,
+restart/chat eviction and final replies. Source/setup scores are **proxies**, not semantic or
+physical identity accuracy. Final answers are read by Codex inline, not a separate model judge
+or human-user acceptance. Old opened R29 conditions remain reused regressions. New synthetic
+conditions were frozen before inference; public-source splits exclude shared image IDs.
 
-- Deterministic migration checkpoint:434 tests passed30.02s at bb669d9, Ruff/diff checks clean.
-  Retired assertions were replaced with actual shared SDK/API, source, persistence and failure
-  coverage; the reduced count is not a before/after coverage metric.
-- `data/runs/simple-memory-recall-development-v1`:8/8 source/workflow proxies, actual final answers
-  reviewed and consistent with expected meanings. Cost$0.0024302. Includes plans, normal moves,
-  corrections, Hindi, source loss and restart/chat eviction. This is a small synthetic regression.
-- `simple-memory-recall-holdout-v1`:3 clear passing completed cases, historical/irrelevant-source
-  failures and malformed memory operations; run aborted during seventh setup, eighth not run.
-  No successful-job-only denominator. Memory selection and ingest protocol were repaired rather
-  than restoring an extra judge. Current user quotes are required; future prior turns excluded.
-- `simple-memory-recall-holdout-v2` at dbf4799:8/8 **source proxies**, cost$0.0031297. Final-answer
-  review found a real unsafe answer in the future-date negative: the memory query excluded the
-  future report but ordinary conversation history exposed its text. This run is **not8/8 semantic
-  acceptance**. Added source/clock-aware transcript withholding and regression tests; rerun pending.
-- `simple-memory-household-development-v1`:1/4 complete setup+recall proxies. The agent could save
-  an unspecified deictic report before asking for visual identity, then recall that ungrounded
-  record despite having clarified at the surface. Latest-only selection also returned both moves.
-  Corrected bottle passed; generic/unsupported identity records are not acceptable household memory.
-  Repair in progress: memory must resolve references before saving/selecting, use real related IDs
-  for context-derived meaning, retain inherited visual clocks/photos and transitive sources.
-- `simple-memory-local-audit-v1`: all92 existing videos fully decoded, original byte hashes unchanged;
-  256 stored-vector queries against a copied1085-frame index. No acoustic or private semantic inference.
-- `simple-memory-private-conversion-v1`: actual two old statement rows converted on a copied database;
-  original rows/database/vectors/photos unchanged, zero inference. Original timestamps preserved.
+Machine/runtime measured: Apple arm64, macOS15.7.3, Python3.12.11; LiveKit agents/OpenAI plugin
+1.8.10, OpenAI SDK3.42.0, NumPy2.5.4, sqlite-vec0.1.9. Models: openai/gpt-6-luna,
+google/gemini-3.5-flash-lite, google/gemini-embedding-2. At61da728 policy7/memory5,
+reference9/inspection10. Model names do not pin immutable provider weights.
 
-## Fresh conditions frozen before inference
+## Implemented repairs
 
-`experiments/companion/general_memory_workflows.json` adds16 synthetic general-memory conditions:
-preferences, habits, events, multiple facts, plans, ordinary changes, corrections/retraction,
-Hindi/Hinglish, hypothetical/question negatives, missing referents and restart/eviction. Each
-records expected meaning for manual answer review, separate development/holdout source groups.
-These are authored synthetic conditions, not a natural user population or external benchmark.
-The file is committed before its first provider run; retain its hash in each result artifact.
+- General source-linked facts, preferences, habits, events, reports and plans; automatic processing
+  before typed/spoken generation. Related-record matching and correction/retraction belong to memory.
+- Ordinary moves append; corrections version actual prior records. Quotes, dependencies, clocks,
+  source availability and compatible vectors are validated; writes are atomic and idempotent.
+- Missing/deleted/future evidence is withheld in provider context copies, including raw prior
+  transcripts. Original input stays durable. A failed response never deletes the user's input.
+- Per-operation text/visual/memory grounding prevents one shown photo attaching to unrelated facts.
+  Resolve visual pronouns before saving and refresh candidates with the actual observed description.
+- Voice receives server-owned structured evidence through the existing transport/shared database;
+  both adapters receive the same available context. Partial STT does not trigger memory writes.
+- Stale single snapshots cannot bypass utterance-window clocks. Contradictory clarification plus
+  proposed writes now clarifies without writes. Remembering a plan does not promise future delivery.
+- Same SDK tools across interfaces; bounded native iterations, validation, cancellation, source
+  rechecks, and explicit provider/embedding/persistence failures. No fixture IDs or coordinate rules.
 
-## Still required
+## Current measured outcomes
 
-Rerun repaired recall and shown-item paths, challenge ambiguous/lookalike regressions, verify
-fresh general-memory conditions and public visual category/depiction/natural-video data, exercise
-spoken native selection/continuation with the same automatic memory preparation, and audit final
-answers. Preserve all failures and actual costs. Real physical household identity, acoustic
-turn-taking and human acceptance remain separate; no demo/recording production in this pass.
+| Evaluation | Result | Practical limit |
+| --- | --- | --- |
+| General memory, development-v2 + holdout-v2 |8/8 +8/8 source/workflow proxies; all16 final answers read correctly | Authored synthetic conditions, policy4/memory4; later targeted policy changes separately tested |
+| Recall holdout-v3 |7/8 exact-source proxies; all8 final answers read correctly | Historical lookup returned correct old state but automatic preparation also offered current state; extra source/context remains a limitation |
+| Default household core development-v5 / holdout-v2 |3/4 +4/4 | Development bottle initially refused, no unsafe save; later stages cannot erase failed setup. Coarse/misclassified object descriptions limit recognition claims |
+| Default hard identity holdout-v2 |3/4 | **Unsafe two-phone binding persists.** R29 merged joint baseline refused this known condition; simplification is not a global reliability win |
+| Single Luna vision identity override |4/4 | Reused small regression; default remains user-selected Lite |
+| Luna vision core development / holdout |3/4 +4/4 | Bottle remains unresolved; one better identity score does not establish broad superiority |
+| Public COCO category/count,32 heldout conditions |Lite23/32, Luna24/32; unsafe proxies8 vs6 | Annotation/category proxy; small, occluded/incomplete annotations; not unique identity |
+| New public-source16 conditions |Lite12/16, Luna12/16; unsafe proxies3 vs2 | Eight newly selected CC-BY photos, new to recorded local evaluation, not necessarily model training |
+| Physical object vs screen/poster,12 conditions |Lite4/12, Luna7/12 | Lite7/8 depiction negatives falsely visible; Luna4/8. **Both fail physical/depiction gate** |
+| Natural Charades cross-view diagnostic |1/1 each | One scripted bag clip, unknown original capture clock; replay clocks simulated |
+| Native spoken clear/ambiguous save then recall |2 workflows complete; actual replies/source behavior reviewed | Clear bottle remembered; ambiguous pair unlinked; raw conversation quote explicitly distinguished from a saved memory |
+| Native spoken plan/corrected report plus current-location challenge |2 workflows,4 final replies reviewed correct | Copied public report stores; no acoustic STT/TTS or live physical acceptance |
+| Unsupported actions-v2 |4/4 API completions; all4 final replies correctly decline unsupported action | Requests can be remembered as plans; no scheduling, calls or recording actually performed |
+| Spoken synthetic evidence-v3 / real LiveKit stream-v3 |2/2 complete each; English identity caveat correct, **Hindi identity caveat fails** | Hindi says “your remote” despite only a possible match; current-location caveat does not repair identity overstatement |
+| Offline private library |92 full strict video decodes,256 stored-vector queries on copied1085-frame index | All bytes unchanged; no private semantic recognition or acoustic inference |
+| Final private conversion-v2 |2/2 old records preserve vectors/photos/rows; original database unchanged | Copied database, zero inference; no private reembedding |
+
+The shared agent explicitly preserving uncertainty and the lookup tool describing possible
+lookalikes did **not** repair the repeated Hindi caveat failure. Do not count transport completion
+as a semantic pass. Two experiment-only short prompt candidates are frozen atddff1e2; results
+are pending. No runtime prompt/model promotion based on a single opened case.
+
+## Failed trials retained
+
+Recall holdout-v1 had3 clear successes of8 planned conditions, failed historical/irrelevant/future
+selection and malformed operations, aborted seventh setup, eighth not run. Holdout-v2's8/8 proxy
+hid an actual future-record false answer through chat; repaired context withholding was verified
+in-v3. The v3 as-of source envelope still contains excess current context despite correct answer.
+
+Household development-v1 was1/4 (unresolved pronouns saved and recalled), v2 was3/4 (unsafe cups),
+v3 was4/4, latest protocol v5 returned3/4 with a refused bottle. Holdout-v1/v2 both4/4.
+Development-v4 stopped **before any inference** on a decreasing provider usage snapshot; other
+three cases not run. Budget guard now retains the high-water/locally reported usage without
+loosening caps. Hard identity-v1 and-v2 each3/4 with the same unsafe phones. Preserve these failures;
+never aggregate repeated repaired runs as unseen household accuracy.
+
+Unsupported actions-v1 falsely promised a future reminder and failed the camera request's memory
+protocol. Short plan/scheduling distinction and clarification-without-writes repaired-v2.
+Spoken evidence-v2 completed1/2 because the harness only allowed one tool continuation; the
+model legitimately requested a second tool. A bounded full continuation loop fixed that harness,
+not semantic Hindi uncertainty. Streaming setup-v1 failed in the harness before paid requests
+(plugin initialization in a worker thread); imports were moved to the main thread. No hardware
+or provider inference occurred in that failed setup.
+
+## Budget, costs and artifacts
+
+Verified ceiling is$8 TOTAL, starting usage$4.73185091. All paid runs are sequential and capped
+at ≤$0.25, with$0.10 cumulative settlement reserve and$0.02 run reserve. No purchases/new keys.
+At the pre-ablation checkpoint, key metadata reports$4.90887277; accumulated response costs
+are$0.17784856, giving conservative cumulative$4.90969947. Settlement can lag/decrease across
+replicas; use response-cost sums and the larger cumulative estimate, not per-run metadata deltas.
+Short-prompt ablation costs are additional and will be reconciled before final handoff.
+
+Representative response costs: general latest16 cases$0.006459175; default hard identity4 cases
+$0.0108847 vs single Luna$0.00518268; COCO32$0.0158893 vs$0.0056416; native report challenges
+$0.00159135; unsupported4$0.0009463. These observed costs/latencies are workload/provider-specific.
+Prior interim metadata-delta costs for recall-v1/v2 were incomplete; actual response sums are
+$0.00307135 and$0.004122 respectively. No success-only cost accounting.
+
+Raw permitted generations/results stay ignored under data/runs/simple-*; original private
+artifacts remain local. Frozen recipes/cases and drivers live under experiments/companion/:
+general_memory_workflows.json, household_workflows.json, household_identity_cases.json,
+capability_cases.json, simple_fresh_visual_cases.json; recall_workflows.py, household_workflows.py,
+household_spoken_replay.py, spoken_fresh_evidence.py, streaming_voice.py, capability_replay.py,
+visual_verification_replay.py, physical_scene_replay.py, fresh_visual.py, local_replay_audit.py.
+Streaming uses the installed SDK's actual request parameters/tools/parser, guarded HTTP hooks
+and observed SSE usage; evaluation retries disabled. It opens no microphone or synthesis stream.
+
+New public images:8 photos,1.16MiB, licensed provenance/credits/hashes retained in local manifest;
+16 conditions frozen before calls. [COCO](https://cocodataset.org/) and
+[CC BY2.0](https://creativecommons.org/licenses/by/2.0/) describe the source dataset/license;
+those are source-reported provenance, not laptop accuracy evidence. Natural-video license/source
+limitations remain those recorded in R29; do not redistribute cached Charades frames.
+
+## Verification and recommendation
+
+At61da728: **456 tests passed in27.05s**; Ruff lint/format (107 Python files), JavaScript syntax,
+diff whitespace and synthetic Chrome API/capture-stop/inactive-poll checks pass with zero page
+errors, external network or paid inference. Original UI tree and main refs remain untouched.
+Existing embeddings are compatible with both copied old memories; no reembedding needed.
+
+Keep the simpler architecture and general persistence repairs on the work branch for review.
+Do not call the product or a PR merge-ready: no new PR/CI review is requested or completed, and
+visual identity/depiction plus Hindi source fidelity still fail. Luna vision is cheaper and
+helps some conditions, but ties fresh accuracy and still fails physical boundaries; default
+promotion is not justified by4/4. Continue bounded prompt/input diagnostics without extra judges
+or fixture-specific rules. Physical household identity, acoustic/wake/turn-taking, long-run
+runtime and human acceptance remain distinct gates. No demo production in this pass.
