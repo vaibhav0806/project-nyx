@@ -90,7 +90,17 @@ def run(cases_path, output, split, max_spend):
     chosen = [case for case in cases if case["split"] == split]
     output.mkdir(parents=True, exist_ok=False)
     client = BudgetedClient(max_spend, max_requests=96)
-    encoder, verifier = CloudEncoder(client=client), CloudVerifier(client=client)
+
+    class AuditedVerifier(CloudVerifier):
+        def memory_reply(self, payload, schema):
+            reply = super().memory_reply(payload, schema)
+            with (output / "memory-interpretations.jsonl").open("a") as handle:
+                handle.write(
+                    json.dumps({"input": payload, "reply": reply}, ensure_ascii=False) + "\n"
+                )
+            return reply
+
+    encoder, verifier = CloudEncoder(client=client), AuditedVerifier(client=client)
     clock = datetime.now(UTC)
     report = {
         "status": "running",

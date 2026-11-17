@@ -467,3 +467,65 @@ def test_database_write_failure_rolls_back_memory_and_turn_marker(tmp_path):
         )
         db.execute("DROP TRIGGER refuse_memory")
     assert memory.process(turn)["status"] == "saved"
+
+
+def test_future_dated_user_reports_are_not_reintroduced_through_recent_turns(tmp_path):
+    conversations = Conversations(tmp_path)
+    old = conversations.begin("My watch is in the cabinet", {})
+    conversations.finish(old, "Noted")
+    with conversations.connect() as db:
+        db.execute("UPDATE turns SET at='2099-01-01T00:00:00Z' WHERE id=?", (old,))
+    turn = conversations.begin("What have I said about my watch up to now?", {})
+
+    def interpret(payload, schema):
+        assert not payload["recent_user_turns"] and not payload["memories"]
+        assert payload["current_turn"]["turn_id"] == turn
+        return response()
+
+    result = PersonalMemory(conversations, Encoder(), interpret).process(turn)
+    assert result["status"] == "noop" and not result["saved_ids"]
+
+
+def test_recall_selects_relevant_records_in_memory_component_without_writing(tmp_path):
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("My headphones are in the cabinet", {})
+    replies = [
+        response([operation(turn, "My headphones are in the cabinet", "Headphones in cabinet")]),
+        response(),
+    ]
+    calls = []
+
+    def interpret(payload, schema):
+        calls.append(payload)
+        return replies.pop(0)
+
+    memory = PersonalMemory(conversations, Encoder(), interpret)
+    memory.process(turn)
+    result = memory.recall("Have I told you where my scarf is?", select=True)
+    assert result["status"] == "uncertain" and result["matches"] == []
+    assert calls[-1]["mode"] == "recall" and len(calls[-1]["memories"]) == 1
+    with conversations.connect() as db:
+        assert db.execute("SELECT count(*) FROM memories").fetchone()[0] == 1
+
+
+def test_recall_selection_cannot_return_fabricated_or_newly_deleted_sources(tmp_path):
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("I like black tea", {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response([operation(turn, "I like black tea", "Likes black tea")]),
+    )
+    identifier = memory.process(turn)["saved_ids"][0]
+    memory.interpret = lambda *args: response(relevant_ids=["invented"])
+    with pytest.raises(ValueError, match="selection"):
+        memory.recall("tea", select=True)
+
+    def deleting(*args):
+        with conversations.connect() as db:
+            db.execute("UPDATE turns SET sources_available=0 WHERE id=?", (turn,))
+        return response(relevant_ids=[identifier])
+
+    memory.interpret = deleting
+    with pytest.raises(ValueError, match="source changed"):
+        memory.recall("tea", select=True)

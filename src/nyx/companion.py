@@ -287,7 +287,10 @@ def install_companion(app, workspace, voice):
                 return prepare_memory()
             if name == "recall_memory":
                 return workspace.personal_memory().recall(
-                    action["query"], as_of=action.get("as_of")
+                    action["query"],
+                    as_of=action.get("as_of"),
+                    select=True,
+                    active=lambda: not cancelled(),
                 )
             if name in {"inspect_current", "identify_shown_object"}:
                 if name == "identify_shown_object":

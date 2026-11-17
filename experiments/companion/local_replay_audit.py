@@ -45,6 +45,53 @@ def source_context():
     }
 
 
+def memory_conversion(data, output):
+    """Exercise actual legacy conversion on a copy, without models or private output text."""
+    from nyx.personal_memory import PersonalMemory
+    from nyx.voice import Conversations
+
+    original_path = data / "conversations.sqlite3"
+    if not original_path.is_file():
+        return {"status": "not_present"}
+    before = digest(original_path)
+    copied = output / "copied-conversations"
+    copied.mkdir()
+    with (
+        sqlite3.connect(f"{original_path.as_uri()}?mode=ro", uri=True) as source,
+        sqlite3.connect(copied / "conversations.sqlite3") as target,
+    ):
+        source.backup(target)
+    conversations = Conversations(copied, recover_pending=False)
+    with conversations.connect() as db:
+        has_statements = db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='statements'"
+        ).fetchone()
+        old = list(db.execute("SELECT * FROM statements")) if has_statements else []
+
+    def forbidden(*args):
+        raise AssertionError("Private migration audit must not perform inference")
+
+    PersonalMemory(conversations, None, forbidden)
+    with conversations.connect() as db:
+        preserved = all(
+            (row := db.execute("SELECT * FROM memories WHERE id=?", (item["turn_id"],)).fetchone())
+            and all(row[key] == item[key] for key in ["embedding", "encoder", "image"])
+            for item in old
+        )
+        original_rows = list(db.execute("SELECT * FROM statements")) if old else []
+        unchanged = [tuple(row) for row in original_rows] == [tuple(row) for row in old]
+        count = db.execute("SELECT count(*) FROM memories").fetchone()[0]
+    return {
+        "status": "complete",
+        "original_statement_count": len(old),
+        "memory_count": count,
+        "vectors_and_photos_preserved": bool(preserved),
+        "legacy_rows_unchanged": unchanged,
+        "original_database_unchanged": before == digest(original_path),
+        "inference_requests": 0,
+    }
+
+
 def run(data, output, limit=24, full_decode=False):
     if not 1 <= limit <= 256:
         raise ValueError("Bounded sample size must be 1–256")
@@ -85,6 +132,7 @@ def run(data, output, limit=24, full_decode=False):
         "full_video_decode": full_decode,
         "library_counts": counts,
         "context": source_context(),
+        "memory_conversion": memory_conversion(data, output),
         "queries": [],
         "media": [],
     }
@@ -184,6 +232,7 @@ if __name__ == "__main__":
                     for status in ["readable", "unavailable", "decode_failed"]
                 },
                 "context": result["context"],
+                "memory_conversion": result["memory_conversion"],
             }
         )
     )

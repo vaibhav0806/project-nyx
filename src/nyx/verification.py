@@ -86,7 +86,7 @@ class CloudVerifier:
             "vision_model": self.vision_model,
             "runtime": "openrouter",
             "agent_policy_version": 4,
-            "memory_policy_version": 1,
+            "memory_policy_version": 2,
             "prompt_version": 10,
             "reference_prompt_version": 7,
             "history_parallel_checks": self.history_concurrency,

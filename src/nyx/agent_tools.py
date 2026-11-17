@@ -49,7 +49,7 @@ class AgentTools:
 
     @function_tool
     async def recall_memory(self, query: str, as_of: str | None = None) -> str:
-        """Recall source-linked user facts, preferences, events or plans. Optional as_of is an aware ISO timestamp for historical state. Reports and plans do not establish a current visual location."""
+        """Recall source-linked user facts, preferences, events or plans. For a time-specific historical question, use as_of (an aware ISO timestamp) to retrieve the state then rather than current context. Reports and plans do not establish a current visual location."""
         from nyx.agent import validate_action
 
         action = {"action": "recall_memory", "query": query}
