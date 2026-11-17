@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from experiments.companion.budget import BudgetedClient
@@ -36,10 +37,12 @@ def run(output, max_spend, cases_path=None, effort="low"):
     if not 1 <= len(cases) <= 8 or effort not in {"low", "medium"}:
         raise ValueError("Bounded explicit dialogue selection required")
     output.mkdir(parents=True, exist_ok=False)
+    model = os.environ.get("NYX_AGENT_MODEL", AGENT_MODEL)
     captured = schemas(output / "schema-session")
     client = BudgetedClient(max_spend, max_requests=4 * len(cases))
     report = {
         "instructions_version": INSTRUCTIONS_VERSION,
+        "agent_model": model,
         "budget_before": client.initial,
         "total_cases": len(cases),
         "reasoning_effort": effort,
@@ -53,7 +56,7 @@ def run(output, max_spend, cases_path=None, effort="low"):
         return client.request(
             "chat/completions",
             {
-                "model": AGENT_MODEL,
+                "model": model,
                 "temperature": 0,
                 "max_tokens": 1024,
                 "reasoning": {"effort": effort, "exclude": True},

@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import json
+import os
 from pathlib import Path
 
 import httpx2 as httpx
@@ -51,10 +52,11 @@ class UsageStream(httpx.AsyncByteStream):
 async def run(output, max_spend):
     output.mkdir(parents=True, exist_ok=False)
     captured = await asyncio.to_thread(schemas, output / "schema-session")
+    selected_model = os.environ.get("NYX_AGENT_MODEL", AGENT_MODEL)
     guard = BudgetedClient(max_spend, max_requests=4)
     report = {
         "status": "running",
-        "model": AGENT_MODEL,
+        "model": selected_model,
         "instructions_version": INSTRUCTIONS_VERSION,
         "budget_before": guard.initial,
         "cases": [],
@@ -80,7 +82,7 @@ async def run(output, max_spend):
         http_client=http,
     )
     model = LLM(
-        model=AGENT_MODEL,
+        model=selected_model,
         client=client,
         reasoning_effort="low",
         max_completion_tokens=2048,

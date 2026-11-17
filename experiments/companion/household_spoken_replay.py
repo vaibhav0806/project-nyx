@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
@@ -64,6 +65,7 @@ SAVE_CASES = [
 
 def run(runs, output, max_spend, visual_data=None):
     output.mkdir(parents=True, exist_ok=False)
+    model = os.environ.get("NYX_AGENT_MODEL", AGENT_MODEL)
     captured = schemas(output / "schemas")
     client = BudgetedClient(max_spend, max_requests=64)
     encoder = CloudEncoder(client)
@@ -75,7 +77,7 @@ def run(runs, output, max_spend, visual_data=None):
         "verifier": verifier.fingerprint,
         "encoder": encoder.fingerprint,
         "replay_policy": "owned-turn-automatic-memory-api-v3/shared-result",
-        "agent_model": AGENT_MODEL,
+        "agent_model": model,
         "budget_before": client.initial,
         "cases": [{**c, "status": "not_run", "rounds": []} for c in cases],
         "limitations": "Actual native model/SDK binding/dispatch plus real API save/retrieval from public/synthetic report stores. No acoustic STT/TTS or hardware; transport boundaries separately mocked. Final answer fidelity requires author audit, not keyword scoring.",
@@ -91,7 +93,7 @@ def run(runs, output, max_spend, visual_data=None):
         return client.request(
             "chat/completions",
             {
-                "model": AGENT_MODEL,
+                "model": model,
                 "temperature": 0,
                 "max_tokens": 1024,
                 "reasoning": {"effort": "low", "exclude": True},
