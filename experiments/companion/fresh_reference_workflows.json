@@ -1,0 +1,74 @@
+{
+  "limitations": "New reference-workflow conditions frozen before inference, sources disjoint from prior core/identity workflows but used in other visual evaluations. Edited public crops; no natural household/acoustic or unique-identity accuracy claim. Original capture dates unknown, replay clocks simulated.",
+  "cases": [
+    {
+      "id": "fresh-ref-clear-phone",
+      "split": "holdout",
+      "sources": [
+        537991
+      ],
+      "kind": "reported_placement",
+      "messages": [
+        "I put this in the hallway drawer."
+      ],
+      "query": "Where did I say I put this?",
+      "expected_report": 0
+    },
+    {
+      "id": "fresh-ref-clear-cup",
+      "split": "holdout",
+      "sources": [
+        157601
+      ],
+      "kind": "intention",
+      "messages": [
+        "I plan to put this on the bedroom shelf later."
+      ],
+      "query": "Where did I say I would keep this?",
+      "expected_report": 0
+    },
+    {
+      "id": "fresh-ref-ambiguous-held-devices",
+      "split": "holdout",
+      "sources": [
+        157046,
+        42528
+      ],
+      "kind": null,
+      "messages": [
+        "I put this on the kitchen shelf."
+      ],
+      "query": "Where did I say I put this?",
+      "expected_report": null
+    },
+    {
+      "id": "fresh-ref-ambiguous-tabletop-items",
+      "split": "holdout",
+      "sources": [
+        146489,
+        35682
+      ],
+      "kind": null,
+      "messages": [
+        "I put this on the kitchen shelf."
+      ],
+      "query": "Where did I say I put this?",
+      "expected_report": null
+    },
+    {
+      "id": "fresh-ref-ambiguous-unheld-devices",
+      "split": "holdout",
+      "sources": [
+        64084,
+        430286
+      ],
+      "kind": null,
+      "messages": [
+        "I put this on the kitchen shelf."
+      ],
+      "query": "Where did I say I put this?",
+      "expected_report": null
+    }
+  ],
+  "preflight": "Manual public-frame review before any inference: do not label a pair ambiguous when only one item has a holding cue. Final pairs have either two held items or multiple unheld displayed items, without distinguishing words."
+}
