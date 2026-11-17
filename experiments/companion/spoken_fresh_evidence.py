@@ -88,9 +88,10 @@ def run(output, max_spend):
                             "judgment": {"visibility": "visible", "location": case["location"]},
                         },
                     }
-                elif function["name"] == "search_statements":
+                elif function["name"] == "recall_memory":
                     evidence = {
-                        "status": "complete",
+                        "status": "uncertain",
+                        "kind": "memories",
                         "matches": [],
                         "answer": "No matching saved user reports.",
                     }

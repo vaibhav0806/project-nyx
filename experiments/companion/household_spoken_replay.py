@@ -180,6 +180,17 @@ def run(runs, output, max_spend, visual_data=None):
                 if preparation["status"] != "succeeded":
                     raise ValueError("Automatic spoken memory preparation failed")
                 memory_context = PersonalMemory.turn_context(speaker.conversations, turn_id)
+                with speaker.conversations.connect() as db:
+                    plan = json.loads(
+                        db.execute("SELECT plan FROM turns WHERE id=?", (turn_id,)).fetchone()[0]
+                    )
+                messages.append(
+                    {
+                        "role": "system",
+                        "content": "Available context: " + json.dumps(plan.get("available", {})),
+                    }
+                )
+
                 messages.append(
                     {"role": "system", "content": "Memory context: " + json.dumps(memory_context)}
                 )
