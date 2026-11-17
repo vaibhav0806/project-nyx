@@ -80,6 +80,7 @@ class Workspace:
         self.scheduled = set()
         self.capture = CaptureJournal(self.root, video_budget_bytes)
         self.conversations = None
+        self.memories = None
 
     def store(self):
         with self.store_lock:
@@ -91,12 +92,25 @@ class Workspace:
             identity = json.loads(row[0])
             return Store(self.root, identity["encoder"], identity["dimensions"])
 
-    def model_store(self):
+    def embedding_encoder(self):
         with self.model_lock:
             if self.encoder is None:
                 self.encoder = self.encoder_factory()
+        return self.encoder
+
+    def model_store(self):
+        self.embedding_encoder()
         with self.store_lock:
             return Store(self.root, self.encoder.fingerprint, self.encoder.dimensions)
+
+    def personal_memory(self):
+        from nyx.personal_memory import PersonalMemory
+
+        if self.memories is None:
+            self.memories = PersonalMemory(
+                self.conversations, self.embedding_encoder(), self.visual_verifier().memory_reply
+            )
+        return self.memories
 
     def visual_verifier(self):
         with self.model_lock:

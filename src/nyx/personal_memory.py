@@ -7,7 +7,7 @@ import numpy as np
 
 from nyx.memory import aware_time
 
-MEMORY_INSTRUCTIONS = """Organize useful information from user input into source-linked memories and select relevant stored memories.
+MEMORY_INSTRUCTIONS = """Organize useful new information from the current user input into source-linked memories and select relevant stored memories.
 Record facts, preferences, events and plans. A move adds an event; an explicit correction or retraction versions an earlier report. Preserve uncertainty and distinguish plans from reports.
 Use exact user quotes as sources. Questions and assistant guesses are not new user facts. Request visual evidence when needed to resolve a reference. Ask for clarification if important meaning or identity remains unclear."""
 
@@ -144,7 +144,8 @@ class PersonalMemory:
         snapshot.save(buffer, format="JPEG", quality=85)
         return buffer.getvalue()
 
-    def _quote_sources(self, db, quotes):
+    @staticmethod
+    def _quote_sources(db, quotes):
         if not isinstance(quotes, list) or not 1 <= len(quotes) <= 4:
             raise ValueError("Memory needs user sources")
         sources = set()
@@ -174,8 +175,12 @@ class PersonalMemory:
         return sorted(sources)
 
     def _rows(self, *, as_of=None):
+        return self._read_rows(self.conversations, as_of=as_of)
+
+    @staticmethod
+    def _read_rows(conversations, *, as_of=None):
         cutoff = aware_time(as_of) if as_of else None
-        with self.conversations.connect() as db:
+        with conversations.connect() as db:
             rows = db.execute(
                 "SELECT m.*,t.at,t.sources_available FROM memories m JOIN turns t ON t.id=m.turn_id"
             ).fetchall()
@@ -193,7 +198,7 @@ class PersonalMemory:
                     continue
                 try:
                     quotes = json.loads(row["quotes"])
-                    sources = self._quote_sources(db, quotes)
+                    sources = PersonalMemory._quote_sources(db, quotes)
                 except (ValueError, TypeError, KeyError):
                     unavailable += 1
                     continue
@@ -206,6 +211,32 @@ class PersonalMemory:
             and (not cutoff or not dates.get(identifier) or aware_time(dates[identifier]) <= cutoff)
         }
         return [row for row in available if row["id"] not in replaced], unavailable
+
+    @staticmethod
+    def turn_context(conversations, turn_id):
+        """Read current source validity, including after another turn or source deletion."""
+        with conversations.connect() as db:
+            cached = db.execute(
+                "SELECT result FROM memory_turns WHERE turn_id=?", (turn_id,)
+            ).fetchone()
+        if not cached:
+            return None
+        result = json.loads(cached["result"])
+        wanted = set(result["saved_ids"]) | {r["id"] for r in result["relevant"]}
+        rows, unavailable = PersonalMemory._read_rows(conversations)
+        records = [PersonalMemory._public(row) for row in rows if row["id"] in wanted]
+        missing = wanted - {row["id"] for row in records}
+        return {
+            "kind": "memory",
+            "status": "uncertain" if missing else result["status"],
+            "answer": "Some prepared memories are no longer available; recall again."
+            if missing
+            else result["answer"],
+            "records": records,
+            "visual": result.get("visual", {}),
+            "coverage": {"global_unavailable_count": unavailable},
+            "sources": sorted({s for row in records for s in row["sources"]}),
+        }
 
     @staticmethod
     def _public(row):
@@ -233,13 +264,19 @@ class PersonalMemory:
                 raise ValueError("Invalid query embedding")
             vector = vector / np.linalg.norm(vector)
             for row in rows:
-                saved = np.frombuffer(row["embedding"], dtype=np.float32)
+                try:
+                    saved = np.frombuffer(row["embedding"], dtype=np.float32)
+                    identity = json.loads(row["encoder"])
+                except (ValueError, TypeError):
+                    unavailable += 1
+                    continue
                 if (
-                    json.loads(row["encoder"]) != self.encoder.fingerprint
+                    identity != self.encoder.fingerprint
                     or saved.shape != vector.shape
                     or not np.isfinite(saved).all()
                     or not np.linalg.norm(saved)
                 ):
+                    unavailable += 1
                     continue
                 score = float((saved / np.linalg.norm(saved)) @ vector)
                 ranked.append((score, row["at"] or "", row))
@@ -329,7 +366,11 @@ class PersonalMemory:
             or any(not isinstance(x, str) or x not in by_id for x in selected)
         ):
             raise ValueError("Memory selected an unavailable record")
-        allowed = {turn_id, *[row["turn_id"] for row in recent]}
+        allowed = {
+            turn_id,
+            *[row["turn_id"] for row in recent],
+            *[quote["turn_id"] for row in candidates for quote in row["quotes"]],
+        }
         prepared = []
         with self.conversations.connect() as db:
             for index, op in enumerate(reply["operations"]):
@@ -343,6 +384,8 @@ class PersonalMemory:
                     raise ValueError("Invalid memory operation")
                 quotes = op.get("quotes")
                 sources = self._quote_sources(db, quotes)
+                if not any(q["turn_id"] == turn_id for q in quotes):
+                    raise ValueError("A new memory needs the current user input")
                 if any(q["turn_id"] not in allowed for q in quotes):
                     raise ValueError("Memory source was not supplied for this turn")
                 target = op.get("related_id")
@@ -368,6 +411,7 @@ class PersonalMemory:
             "answer": reply["clarification"]
             or ("Memory saved." if prepared else "No new memory recorded."),
             "saved_ids": [op["id"] for op in prepared],
+            "visual": {k: v for k, v in visual.items() if k != "image"},
             "relevant": [by_id[x] for x in selected],
             "sources": sorted(
                 {s for op in prepared for s in op["sources"]}
@@ -386,7 +430,7 @@ class PersonalMemory:
                 self._quote_sources(db, op["quotes"])
                 if op["related_id"]:
                     target = db.execute(
-                        "SELECT m.id,t.at,t.sources_available FROM memories m JOIN turns t ON t.id=m.turn_id WHERE m.id=?",
+                        "SELECT m.id,m.quotes,t.at,t.sources_available FROM memories m JOIN turns t ON t.id=m.turn_id WHERE m.id=?",
                         (op["related_id"],),
                     ).fetchone()
                     if (
@@ -398,6 +442,12 @@ class PersonalMemory:
                             and aware_time(target["at"]) > aware_time(turn["at"])
                         )
                     ):
+                        raise ValueError("Related memory changed")
+                    self._quote_sources(db, json.loads(target["quotes"]))
+                    if db.execute(
+                        "SELECT 1 FROM memory_relations WHERE previous_id=? AND relation IN ('correct','retract')",
+                        (op["related_id"],),
+                    ).fetchone():
                         raise ValueError("Related memory changed")
                 db.execute(
                     "INSERT INTO memories(id,turn_id,content,kind,quotes,embedding,encoder,visual,image) VALUES (?,?,?,?,?,?,?,?,?)",

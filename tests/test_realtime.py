@@ -211,7 +211,7 @@ def test_initial_livekit_listening_does_not_open_cloud_audio_gate(tmp_path, monk
     assert sessions[0].closed
 
 
-def replay_voice_tools(tmp_path, monkeypatch, scenario):
+def replay_voice_tools(tmp_path, monkeypatch, scenario, *, memory_reply=None):
     """Exercise our real socket/turn persistence with only speech/model IO replaced."""
     sessions = []
 
@@ -273,7 +273,18 @@ def replay_voice_tools(tmp_path, monkeypatch, scenario):
 
         async def send_json(self, event):
             if event.get("type") == "tool":
-                await self.tools.put(event)
+                if event["action"]["action"] == "process_memory":
+                    from test_personal_memory import Encoder, response
+
+                    from nyx.personal_memory import PersonalMemory
+
+                    memory = PersonalMemory(
+                        voice.conversations, Encoder(), memory_reply or (lambda *args: response())
+                    )
+                    result = memory.process(event["turn_id"])
+                    await self.reply(event, result["sources"])
+                else:
+                    await self.tools.put(event)
 
         async def receive(self):
             if self.scenario is None:
@@ -397,7 +408,7 @@ def test_spoken_context_restores_source_state_and_bounds_actual_model_continuati
                 ),
             ]
         )
-        session.agent.llm_node(context, [], {})
+        await consume_node(session.agent.llm_node(context, [], {}))
         assert len(calls[0].items) <= 48
         active = [
             item.call_id
@@ -443,7 +454,7 @@ def test_live_continuation_withholds_evidence_deleted_after_session_start(tmp_pa
         voice.conversations.invalidate("video-later-deleted")
         transcribe(session, "Where is that notebook?")
         context.add_message(role="user", content="Where is that notebook?")
-        session.agent.llm_node(context, [], {})
+        await consume_node(session.agent.llm_node(context, [], {}))
         sent = " ".join(
             getattr(item, "text_content", "") or getattr(item, "output", "")
             for item in calls[-1].items
@@ -462,7 +473,7 @@ def test_live_continuation_withholds_evidence_deleted_after_session_start(tmp_pa
         voice.conversations.invalidate("dynamic-video")
         transcribe(session, "Check again")
         context.add_message(role="user", content="Check again")
-        session.agent.llm_node(context.copy(), [], {})
+        await consume_node(session.agent.llm_node(context.copy(), [], {}))
         assert all(
             "orange vase" not in (getattr(item, "text_content", "") or getattr(item, "output", ""))
             for item in calls[-1].items
@@ -505,37 +516,20 @@ def test_spoken_restart_restores_previous_report_query_constraints(tmp_path, mon
     replay_voice_tools(tmp_path, monkeypatch, scenario)
 
 
-def test_spoken_tools_dispatch_report_correction_and_historical_time(tmp_path, monkeypatch):
+def test_spoken_recall_dispatches_historical_time_and_preserves_sources(tmp_path, monkeypatch):
     async def scenario(session, socket, voice):
-        transcribe(session, "Correct my earlier phone report.")
-        call = asyncio.create_task(session.agent.remember_statement(supersedes_turn_id="claim-1"))
-        tool = await asyncio.wait_for(socket.tools.get(), 2)
-        assert tool["action"] == {"action": "remember_statement", "supersedes_turn_id": "claim-1"}
-        await socket.reply(tool, ["transcript:claim-1"])
-        await call
+        transcribe(session, "What did I report that day?")
         call = asyncio.create_task(
-            session.agent.search_statements(query="phone", as_of="2026-11-06T18:00:00Z")
-        )
-        tool = await asyncio.wait_for(socket.tools.get(), 2)
-        assert tool["action"]["as_of"] == "2026-11-06T18:00:00Z"
-        await socket.reply(
-            tool,
-            ["transcript:claim-1"],
-            {"statement_refs": [{"turn_id": "claim-1", "object_description": "phone"}]},
-        )
-        summary = await call
-        assert '"statement_refs"' in summary
-        call = asyncio.create_task(
-            session.agent.search_statements(query="phone", selection="latest_report")
+            session.agent.recall_memory(query="phone", as_of="2026-11-06T18:00:00Z")
         )
         tool = await asyncio.wait_for(socket.tools.get(), 2)
         assert tool["action"] == {
-            "action": "search_statements",
+            "action": "recall_memory",
             "query": "phone",
-            "selection": "latest_report",
+            "as_of": "2026-11-06T18:00:00Z",
         }
         await socket.reply(tool, ["transcript:claim-1"])
-        await call
+        assert await call == "Checked."
         complete_reply(session)
 
     conversations = replay_voice_tools(tmp_path, monkeypatch, scenario)
@@ -614,3 +608,41 @@ def test_spoken_lookup_dispatches_ten_day_window_exclusions_and_time_bound(tmp_p
 
     conversations = replay_voice_tools(tmp_path, monkeypatch, scenario)
     assert conversations.recent()[-1]["sources"] == ["source-before-anchor"]
+
+
+async def consume_node(stream):
+    return [chunk async for chunk in stream]
+
+
+def test_final_spoken_input_prepares_memory_once_before_generation(tmp_path, monkeypatch):
+    from livekit.agents import llm
+    from test_personal_memory import operation, response
+
+    calls, interpreted = [], []
+
+    def memory_reply(payload, schema):
+        interpreted.append(payload)
+        turn = payload["current_turn"]
+        return response([operation(turn["turn_id"], turn["text"], "Prefers tea without sugar")])
+
+    async def generate(agent, ctx, tools, settings):
+        calls.append(ctx)
+        assert "Prefers tea without sugar" in " ".join(
+            getattr(item, "text_content", "") for item in ctx.items if item.type == "message"
+        )
+        yield "fixture reply"
+
+    monkeypatch.setattr(realtime.Agent.default, "llm_node", generate)
+
+    async def scenario(session, socket, voice):
+        transcribe(session, "I prefer tea without sugar")
+        context = llm.ChatContext()
+        context.add_message(role="user", content="I prefer tea without sugar")
+        assert await consume_node(session.agent.llm_node(context, [], {})) == ["fixture reply"]
+        await consume_node(session.agent.llm_node(context, [], {}))
+        complete_reply(session)
+
+    conversations = replay_voice_tools(tmp_path, monkeypatch, scenario, memory_reply=memory_reply)
+    assert len(interpreted) == 1 and len(calls) == 2
+    turn = conversations.recent()[-1]
+    assert turn["sources"] == ["transcript:" + turn["id"]]

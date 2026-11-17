@@ -255,3 +255,115 @@ def test_unavailable_correction_never_resurrects_a_superseded_memory(tmp_path):
     with conversations.connect() as db:
         db.execute("UPDATE turns SET sources_available=0 WHERE id=?", (new,))
     assert second.recall("keys")["matches"] == []
+
+
+def test_correction_can_cite_an_older_retrieved_memory_after_context_eviction(tmp_path):
+    conversations = Conversations(tmp_path)
+    old = conversations.begin("My spare keys are in the drawer", {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response(
+            [operation(old, "My spare keys are in the drawer", "Spare keys in drawer")]
+        ),
+    )
+    old_id = memory.process(old)["saved_ids"][0]
+    for i in range(25):
+        turn = conversations.begin(f"Unrelated turn {i}", {})
+        conversations.finish(turn, "Okay")
+    current = conversations.begin("I was mistaken; they are in the bag", {})
+    correction = operation(
+        current,
+        "I was mistaken; they are in the bag",
+        "Spare keys in bag",
+        operation="correct",
+        related_id=old_id,
+    )
+    correction["quotes"].append({"turn_id": old, "text": "My spare keys"})
+    saved = PersonalMemory(conversations, Encoder(), lambda *args: response([correction])).process(
+        current
+    )
+    assert saved["status"] == "saved"
+    assert saved["sources"] == sorted([f"transcript:{old}", f"transcript:{current}"])
+
+
+def test_prepared_context_revalidates_deleted_quotes_and_superseded_records(tmp_path):
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("My keys are in the drawer", {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response([operation(turn, "My keys are in the drawer", "Keys in drawer")]),
+    )
+    memory.process(turn)
+    assert PersonalMemory.turn_context(conversations, turn)["records"]
+    conversations.finish(turn, "Noted", ["deleted-clip"])
+    conversations.invalidate("deleted-clip")
+    context = PersonalMemory.turn_context(conversations, turn)
+    assert not context["records"] and not context["sources"]
+    assert context["status"] == "uncertain" and "Memory saved" not in context["answer"]
+
+
+def test_bad_stored_vector_withholds_candidate_and_reports_coverage(tmp_path):
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("My keys are in the drawer", {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response([operation(turn, "My keys are in the drawer", "Keys in drawer")]),
+    )
+    memory.process(turn)
+    with conversations.connect() as db:
+        db.execute("UPDATE memories SET embedding=?", (b"broken",))
+    result = memory.recall("keys")
+    assert not result["matches"] and result["coverage"]["global_unavailable_count"] == 1
+
+
+def test_source_change_during_interpretation_writes_nothing_and_can_retry(tmp_path):
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("I like tea", {})
+
+    def interpret(*args):
+        with conversations.connect() as db:
+            db.execute("UPDATE turns SET sources_available=0 WHERE id=?", (turn,))
+        return response([operation(turn, "I like tea", "Likes tea")])
+
+    memory = PersonalMemory(conversations, Encoder(), interpret)
+    with pytest.raises(ValueError, match="unavailable"):
+        memory.process(turn)
+    with conversations.connect() as db:
+        assert db.execute("SELECT count(*) FROM memories").fetchone()[0] == 0
+        assert db.execute("SELECT count(*) FROM memory_turns").fetchone()[0] == 0
+
+
+def test_correction_changed_by_an_intervening_request_is_not_overwritten(tmp_path):
+    conversations = Conversations(tmp_path)
+    first = conversations.begin("My keys are in the drawer", {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response([operation(first, "My keys are in the drawer", "Keys in drawer")]),
+    )
+    old_id = memory.process(first)["saved_ids"][0]
+    current = conversations.begin("Correction: my keys are in the bag", {})
+
+    def interpret(*args):
+        with conversations.connect() as db:
+            db.execute("INSERT INTO memory_relations VALUES (?,?,?)", (old_id, "other", "correct"))
+        return response(
+            [
+                operation(
+                    current,
+                    "my keys are in the bag",
+                    "Keys in bag",
+                    operation="correct",
+                    related_id=old_id,
+                )
+            ]
+        )
+
+    memory.interpret = interpret
+    with pytest.raises(ValueError, match="changed"):
+        memory.process(current)
+    with conversations.connect() as db:
+        assert db.execute("SELECT count(*) FROM memories").fetchone()[0] == 1

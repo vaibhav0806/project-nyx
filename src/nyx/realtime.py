@@ -317,6 +317,7 @@ async def serve(socket, voice):
         turn_id = None
         turn_started = 0
         sources = []
+        question_sent = None
         http = aiohttp.ClientSession()
         tts = sarvam.TTS(
             http_session=http,
@@ -332,6 +333,7 @@ async def serve(socket, voice):
             def __init__(self):
                 context = llm.ChatContext()
                 self._context_turns = {}
+                self._prepared_turns = set()
                 from nyx.conversation_context import recent_context
 
                 for row in recent_context(voice.conversations.recent()):
@@ -371,8 +373,21 @@ async def serve(socket, voice):
                             )
                 super().__init__(instructions=INSTRUCTIONS, chat_ctx=context)
 
-            def llm_node(self, chat_ctx, tools, model_settings):
+            async def llm_node(self, chat_ctx, tools, model_settings):
                 from nyx.conversation_context import bounded_live_context
+                from nyx.personal_memory import PersonalMemory
+
+                requested_turn = turn_id
+                if requested_turn and requested_turn not in self._prepared_turns:
+                    if question_sent:
+                        await question_sent
+                    await self.run_tool({"action": "process_memory"})
+                    if not voice.turn or voice.turn["id"] != requested_turn:
+                        raise ValueError("Voice question is no longer active")
+                    self._prepared_turns.add(requested_turn)
+                    self._prepared_turns.intersection_update(
+                        row["id"] for row in voice.conversations.recent()
+                    )
 
                 turn_ctx = chat_ctx.copy()
                 users = [
@@ -399,7 +414,13 @@ async def serve(socket, voice):
                     role="system",
                     content=f"User local time: {local_now(timezone).isoformat()}. Reply in {'Hindi' if language == 'hi' else 'English'}.",
                 )
-                return Agent.default.llm_node(
+                if requested_turn:
+                    memory = PersonalMemory.turn_context(voice.conversations, requested_turn)
+                    if memory:
+                        turn_ctx.add_message(
+                            role="system", content="Memory context: " + json.dumps(memory)
+                        )
+                stream = Agent.default.llm_node(
                     self,
                     bounded_live_context(
                         turn_ctx,
@@ -410,6 +431,9 @@ async def serve(socket, voice):
                     tools,
                     model_settings,
                 )
+                if stream is not None:
+                    async for chunk in stream:
+                        yield chunk
 
             async def acknowledge_lookup(self):
                 text = random.choice(ACKNOWLEDGEMENTS[language])
@@ -478,7 +502,7 @@ async def serve(socket, voice):
                     "min_duration": 0.5,
                     "resume_false_interruption": False,
                 },
-                "preemptive_generation": {"enabled": True},
+                "preemptive_generation": {"enabled": False},
             },
             user_away_timeout=None,
         )
@@ -491,7 +515,7 @@ async def serve(socket, voice):
 
         @session.on("user_input_transcribed")
         def transcribed(event):
-            nonlocal language, last_question, turn_id, sources, turn_started
+            nonlocal language, last_question, turn_id, sources, turn_started, question_sent
             if not event.is_final:
                 return
             detected = "hi" if (event.language or "").startswith("hi") else "en"
@@ -513,7 +537,7 @@ async def serve(socket, voice):
                 last_question, {"mode": "livekit", "language": language}
             )
             voice.turn = {"id": turn_id, "transcript": last_question}
-            asyncio.create_task(
+            question_sent = asyncio.create_task(
                 send(
                     {
                         "type": "question",

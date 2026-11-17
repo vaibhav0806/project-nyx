@@ -44,35 +44,17 @@ class AgentTools:
 
     @function_tool
     async def identify_shown_object(self) -> str:
-        """Resolve this/it from the current image before searching history or statements. Ask if ambiguous."""
+        """Resolve this/it from the current image before searching history or memory. Ask if ambiguous."""
         return await self.run_tool({"action": "identify_shown_object"})
 
     @function_tool
-    async def remember_statement(self, supersedes_turn_id: str | None = None) -> str:
-        """Save a new placement/intention report. Only for an explicit correction/retraction, supply an actual saved user-report ID from search_statements as supersedes_turn_id."""
+    async def recall_memory(self, query: str, as_of: str | None = None) -> str:
+        """Recall source-linked user facts, preferences, events or plans. Optional as_of is an aware ISO timestamp for historical state. Reports and plans do not establish a current visual location."""
         from nyx.agent import validate_action
 
-        action = {"action": "remember_statement"}
-        if supersedes_turn_id is not None:
-            action["supersedes_turn_id"] = supersedes_turn_id
-        validate_action(action)
-        return await self.run_tool(action)
-
-    @function_tool
-    async def search_statements(
-        self,
-        query: str,
-        as_of: str | None = None,
-        selection: Literal["all", "latest_report"] = "all",
-    ) -> str:
-        """Search attributed user reports. Use latest_report for the newest saved report, all for multiple reports. Optional as_of is an aware ISO timestamp for historical report state. Plans are not completed placements; report dates are not visual sightings."""
-        from nyx.agent import validate_action
-
-        action = {"action": "search_statements", "query": query}
+        action = {"action": "recall_memory", "query": query}
         if as_of is not None:
             action["as_of"] = as_of
-        if selection != "all":
-            action["selection"] = selection
         validate_action(action)
         return await self.run_tool(action)
 

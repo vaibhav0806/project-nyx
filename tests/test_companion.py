@@ -191,6 +191,10 @@ def test_livekit_selected_tool_skips_redundant_planner_calls(tmp_path):
 class Planner:
     fingerprint: ClassVar[dict] = {"model": "deterministic-fixture"}
 
+    def memory_reply(self, payload, schema):
+        from test_personal_memory import response
+        return response()
+
     def agent_reply(self, messages, tools):
         """Scripted provider fixture; API execution uses native calls, not a test planner."""
         from nyx.agent_tools import bind_tool_action
@@ -1408,3 +1412,32 @@ def test_typed_conversation_uses_the_shared_native_agent_policy(tmp_path):
         job = wait_for_job(client, response.json()["id"])
         assert job["status"] == "succeeded", job
         assert job["result"]["answer"] == "Hello from the shared agent."
+
+
+def test_user_information_is_remembered_before_the_agent_replies(tmp_path):
+    from test_personal_memory import Encoder, operation, response
+
+    class MemoryVerifier(Planner):
+        def memory_reply(self, payload, schema):
+            turn = payload["current_turn"]
+            return response([operation(turn["turn_id"], turn["text"], "Prefers tea without sugar")])
+
+        def agent_reply(self, messages, tools):
+            with __import__("sqlite3").connect(tmp_path / "conversations.sqlite3") as db:
+                assert (
+                    db.execute("SELECT content FROM memories").fetchone()[0]
+                    == "Prefers tea without sugar"
+                )
+            assert "Prefers tea without sugar" in json.dumps(messages)
+            return {"role": "assistant", "content": "I'll remember your tea preference."}
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=Encoder, verifier_factory=MemoryVerifier)
+    ) as client:
+        job = client.post(
+            "/api/agent",
+            json={"message": "I prefer tea without sugar.", "request_id": "auto-memory"},
+        ).json()
+        result = wait_for_job(client, job["id"])
+        assert result["status"] == "succeeded", result
+        assert result["result"]["sources"] == ["transcript:" + result["result"]["turn_id"]]

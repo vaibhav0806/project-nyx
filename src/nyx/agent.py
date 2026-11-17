@@ -3,7 +3,6 @@ from nyx.cloud import CloudError
 """A bounded observe/act loop. Visual claims come from tool results, never final prose."""
 
 import json
-import re
 import time
 from datetime import UTC, datetime
 from types import GeneratorType
@@ -25,6 +24,8 @@ def validate_action(value):
     fields = {
         "inspect_current": {"query"},
         "remember_statement": set(),
+        "process_memory": set(),
+        "recall_memory": {"query"},
         "identify_shown_object": set(),
         "search_statements": {"query"},
         "search_history": {"query", "hours"},
@@ -47,6 +48,8 @@ def validate_action(value):
         optional.add("supersedes_turn_id")
     if action == "search_statements":
         optional.update({"as_of", "selection"})
+    if action == "recall_memory":
+        optional.add("as_of")
     if "selection" in value and (
         not isinstance(value["selection"], str)
         or value["selection"] not in {"all", "latest_report"}
@@ -98,279 +101,6 @@ def validate_action(value):
     return value
 
 
-def agent_steps(
-    message,
-    context,
-    decide,
-    tool,
-    *,
-    cancelled=lambda: False,
-    max_steps=6,
-    available=None,
-    validate_tool=None,
-):
-    started = time.monotonic()
-    observations = []
-    trace = []
-    history_boundary = None
-    result = {
-        "kind": "agent",
-        "status": "uncertain",
-        "answer": "I couldn't finish that check. Please try a more specific request.",
-        "sources": [],
-        "steps": trace,
-        "decision_errors": [],
-        "policy_adjustments": [],
-    }
-    state = {
-        "message": message,
-        "conversation": recent_context(context),
-        "observations": observations,
-        "actions": trace,
-        "available": available or {},
-        "now": datetime.now(UTC).isoformat(),
-    }
-    for _ in range(max_steps):
-        if cancelled():
-            raise ValueError("Request cancelled")
-        if time.monotonic() - started > 90:
-            break
-        try:
-            action = validate_action(decide(state))
-            statement_index = action.get("statement_observation")
-            if statement_index is not None and (
-                statement_index >= len(observations)
-                or observations[statement_index].get("kind") != "statements"
-            ):
-                raise ValueError("Completion must cite a saved-statement observation")
-            if validate_tool is not None:
-                validate_tool(action)
-            if (
-                action["action"] in {"search_history", "search_matches", "inspect_current"}
-                and history_boundary is not None
-                and action.get("before_frame_id") != history_boundary
-            ):
-                raise ValueError(
-                    f"This request is constrained to moments before frame {history_boundary}; retain before_frame_id when continuing the search."
-                )
-            if action in trace and action["action"] == "search_history":
-                windows = HISTORY_WINDOWS
-                next_hours = next(
-                    (
-                        hours
-                        for hours in windows[windows.index(action["hours"]) + 1 :]
-                        if {**action, "hours": hours} not in trace
-                    ),
-                    None,
-                )
-                if next_hours is not None:
-                    advanced = {**action, "hours": next_hours}
-                    result["policy_adjustments"].append(
-                        {
-                            "reason": "advance_repeated_window",
-                            "from": action,
-                            "to": advanced,
-                        }
-                    )
-                    action = advanced
-            if action["action"] == "finish" and action["observation"] >= len(observations):
-                raise ValueError(
-                    "That observation does not exist in this request; use a tool first"
-                )
-            if action in trace:
-                raise ValueError(
-                    "That tool was already checked; choose an untried search or finish"
-                )
-        except CloudError:
-            raise
-        except (ValueError, TypeError, KeyError) as exc:
-            result["answer"] = (
-                "I couldn't interpret the next step reliably. Please clarify your request."
-            )
-            if len(result["decision_errors"]) < 2:
-                state["decision_error"] = (
-                    f"Invalid previous decision: {str(exc)[:240]}. Choose a valid next action."
-                )
-                result["decision_errors"].append(state["decision_error"])
-                continue
-            break
-        state.pop("decision_error", None)
-        if cancelled():
-            raise ValueError("Request cancelled")
-        requested = action
-        if (
-            not observations
-            and action["action"] == "inspect_current"
-            and (available or {}).get("current_view") is False
-            and (available or {}).get("history")
-        ):
-            action = (
-                {"action": "search_matches", "query": action["query"]}
-                if (available or {}).get("dated_history") is False
-                else {"action": "search_history", "query": action["query"], "hours": 2}
-            )
-        if (
-            not observations
-            and action["action"] in {"inspect_current", "search_matches"}
-            and re.search(
-                r"\b(last (?:see|seen)|where did|historical|history)\b", message, re.IGNORECASE
-            )
-        ):
-            # An explicit last-sighting request cannot be completed by a current view.
-            action = (
-                {"action": "search_matches", "query": action["query"]}
-                if (available or {}).get("dated_history") is False
-                and (available or {}).get("undated_history")
-                else {"action": "search_history", "query": action["query"], "hours": 2}
-            )
-        if (
-            not observations
-            and (available or {}).get("current_view")
-            and not action.get("excluded_frame_ids")
-            and "before_frame_id" not in action
-            and action["action"] in {"search_history", "search_matches"}
-            and re.search(
-                r"\b(where (?:is|are)|find|locate|still (?:there|here|visible)|(?:is it|are they) (?:there|here))\b",
-                message,
-                re.IGNORECASE,
-            )
-            and not re.search(
-                r"\b(last|seen|ago|earlier|history|past|yesterday|before|did|recording|recorded|footage|video|clip|imported)\b",
-                message,
-                re.IGNORECASE,
-            )
-        ):
-            # Product policy: present location starts with available fresh evidence.
-            action = {"action": "inspect_current", "query": action["query"]}
-        if (
-            action != requested
-            and action["action"] in {"search_history", "search_matches"}
-            and "excluded_frame_ids" in requested
-        ):
-            action = {**action, "excluded_frame_ids": requested["excluded_frame_ids"]}
-        if action != requested:
-            result["policy_adjustments"].append(
-                {
-                    "reason": "match_evidence_to_request",
-                    "from": requested,
-                    "to": action,
-                }
-            )
-        trace.append(action)
-        if action["action"] == "finish":
-            index = action["observation"]
-            if index < len(observations):
-                selected = observations[index]
-                statement_index = action.get("statement_observation")
-                if statement_index is not None:
-                    statement = observations[statement_index]
-                    if selected.get("kind") == "reference":
-                        if selected.get("status") == "complete":
-                            selected = statement
-                        result["policy_adjustments"].append(
-                            {"reason": "reference_is_not_location_evidence"}
-                        )
-                    else:
-                        selected = {
-                            **selected,
-                            "answer": selected["answer"] + " " + statement["answer"],
-                        }
-                result.update(
-                    answer=selected["answer"],
-                    status=selected.get("status", "complete"),
-                    visual=selected if selected.get("kind") in {"snapshot", "history"} else None,
-                )
-            break
-        if action["action"] in {"chat", "clarify"}:
-            # After tools, completion must cite a result rather than inventing a replacement.
-            if observations and action["action"] == "chat":
-                break
-            result.update(status=action["action"], answer=action["message"])
-            break
-        try:
-            observation = tool(action)
-            if isinstance(observation, GeneratorType):
-                steps = observation
-                try:
-                    while True:
-                        if cancelled():
-                            raise ValueError("Request cancelled")
-                        if time.monotonic() - started > 90:
-                            raise ValueError("Request time budget exceeded")
-                        try:
-                            progress = next(steps)
-                        except StopIteration as done:
-                            observation = done.value
-                            break
-                        yield progress
-                finally:
-                    steps.close()
-        except CloudError:
-            raise
-        except ValueError as exc:
-            if cancelled():
-                raise
-            observation = {"status": "uncertain", "answer": str(exc)}
-        observations.append(observation)
-        if observation.get("scope", {}).get("before_frame_id") is not None:
-            history_boundary = observation["scope"]["before_frame_id"]
-        # Only compact evidence summaries are sent back to the deciding model.
-        state["observations"] = [
-            {
-                "index": i,
-                "status": row.get("status"),
-                "answer": row["answer"][:700],
-                "kind": row.get("kind"),
-                **(
-                    {
-                        "statement_refs": [
-                            {
-                                key: match.get(key)
-                                for key in ["turn_id", "at", "object_description", "kind"]
-                            }
-                            for match in row.get("matches", [])[:3]
-                        ]
-                    }
-                    if row.get("kind") == "statements"
-                    else {}
-                ),
-            }
-            for i, row in enumerate(observations)
-        ]
-        yield {"step": len(trace), "action": action["action"], "status": observation.get("status")}
-    else:
-        if observations and observations[-1].get("status") in {
-            "seen",
-            "candidate",
-            "armed",
-            "cancelled",
-            "complete",
-            "clarify",
-        }:
-            selected = observations[-1]
-            result.update(
-                answer=selected["answer"],
-                status=selected["status"],
-                visual=selected if selected.get("kind") in {"snapshot", "history"} else None,
-            )
-    if cancelled():
-        raise ValueError("Request cancelled")
-    sources = {
-        row["video_id"] for observation in observations for row in observation.get("checked", [])
-    }
-    for observation in observations:
-        dependencies = observation.get("sources", [])
-        if not isinstance(dependencies, list) or any(not isinstance(s, str) for s in dependencies):
-            raise ValueError("Tool returned invalid source references")
-        sources.update(dependencies)
-    result["sources"] = sorted(sources)
-    result["checked"] = [
-        row for observation in observations for row in observation.get("checked", [])
-    ]
-    result["observations"] = observations
-    return result
-
-
 def _model_tool_result(value):
     """Send evidence metadata to the agent, without raw media or storage payloads."""
     if isinstance(value, dict):
@@ -396,6 +126,8 @@ def native_agent_steps(
     validate_tool=None,
     initial_action=None,
     now=None,
+    user_timezone=None,
+    memory_context=None,
 ):
     """Native tool calls and final replies; execution guards never choose the next task."""
     from livekit.agents import ToolError
@@ -404,7 +136,7 @@ def native_agent_steps(
     from nyx.agent_tools import bind_tool_action, tool_schemas
 
     started = time.monotonic()
-    observations, actions = [], []
+    observations, actions = ([memory_context] if memory_context else []), []
     result = {
         "kind": "agent",
         "status": "uncertain",
@@ -433,11 +165,22 @@ def native_agent_steps(
         {
             "role": "system",
             "content": json.dumps(
-                {"now": now or datetime.now(UTC).isoformat(), "available": available or {}}
+                {
+                    "now": now or datetime.now(UTC).isoformat(),
+                    "user_timezone": user_timezone,
+                    "available": available or {},
+                }
             ),
         }
     )
     messages.append({"role": "user", "content": message})
+    if memory_context:
+        messages.append(
+            {
+                "role": "system",
+                "content": "Memory context: " + json.dumps(_model_tool_result(memory_context)),
+            }
+        )
     schemas = tool_schemas()
     cached = {}
     history_boundary = None
@@ -514,8 +257,14 @@ def native_agent_steps(
                 if not isinstance(answer, str) or not answer.strip():
                     raise CloudError("Agent did not finish a usable answer")
                 result["answer"] = answer.strip()
-                if not observations:
-                    result["status"] = "answered"
+                result["status"] = next(
+                    (
+                        row["status"]
+                        for row in reversed(observations)
+                        if row.get("status") != "noop"
+                    ),
+                    "answered",
+                )
                 break
             for call in calls:
                 check_active()

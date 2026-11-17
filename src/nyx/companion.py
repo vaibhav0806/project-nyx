@@ -1,7 +1,6 @@
 """Companion API: local agent tools, live observation, and event-delivery lifecycle."""
 
 import base64
-import hashlib
 import json
 import time
 import traceback
@@ -17,7 +16,7 @@ from pydantic import AwareDatetime, BaseModel, Field
 from nyx.agent import native_agent_steps
 from nyx.answers import history_steps
 from nyx.memory import aware_time
-from nyx.voice import Conversations, clock_reply, local_now, spoken_answer
+from nyx.voice import Conversations, local_now, spoken_answer
 
 
 class ConfirmMatchRequest(BaseModel):
@@ -78,7 +77,6 @@ def install_companion(app, workspace, voice):
     workspace.conversations = conversations
     requests = {}
     references = {}
-    resolved_references = {}
     last_observation = {"state": "inactive", "note": "Proactive reminders are not enabled"}
 
     @app.get("/companion.js")
@@ -237,25 +235,6 @@ def install_companion(app, workspace, voice):
                     "video_id": frame["video_id"],
                 }
         identifier = body.voice_turn_id or conversations.begin(body.message, {"mode": "agent"})
-        reference_key = (
-            body.message,
-            body.context_at.isoformat() if body.context_at else None,
-            tuple(
-                (
-                    frame["captured_at"],
-                    frame["image"].size,
-                    frame["image"].mode,
-                    hashlib.sha256(frame["image"].tobytes()).digest(),
-                )
-                for frame in turn_frames
-            ),
-        )
-
-        with workspace.lock:
-            cached = resolved_references.get(identifier)
-            if cached and cached[0] != reference_key:
-                resolved_references.pop(identifier, None)
-                references.pop(identifier, None)
 
         def cancelled():
             if workspace.jobs[job_id].get("cancelled"):
@@ -265,71 +244,54 @@ def install_companion(app, workspace, voice):
                     return voice.turn is None or voice.turn["id"] != body.voice_turn_id
             return False
 
+        def observe_reference():
+            from nyx.reference import resolve_reference
+
+            if cancelled():
+                raise ValueError("Request cancelled")
+            if body.context_at:
+                fresh(body.context_at.isoformat(), limit=90)
+            reference = resolve_reference(workspace.visual_verifier(), body.message, turn_frames)
+            if cancelled():
+                raise ValueError("Request cancelled")
+            conversations.event("reference_resolved", turn_id=identifier, reference=reference)
+            if reference["status"] != "resolved":
+                return {"kind": "reference", **reference}
+            frame = turn_frames[reference["frame_index"]]
+            with workspace.lock:
+                references[identifier] = frame["image"]
+                while len(references) > 8:
+                    del references[next(iter(references))]
+            return {
+                "kind": "reference",
+                **reference,
+                "image": frame["image"],
+                "answer": "Shown object: "
+                + reference["object_description"]
+                + ". This identifies the demonstrated object, not its current location.",
+            }
+
+        def prepare_memory():
+            memory = workspace.personal_memory()
+            memory.process(
+                identifier,
+                active=lambda: not cancelled(),
+                observe=observe_reference if turn_frames else None,
+            )
+            return memory.turn_context(conversations, identifier)
+
         def tool(action):
             conversations.event("tool_started", turn_id=identifier, action=action)
             name = action["action"]
-            if name in {"remember_statement", "search_statements"}:
-                from nyx.statements import Statements
-
-                statements = Statements(conversations)
-                workspace.model_store()
-                if name == "remember_statement":
-                    with workspace.lock:
-                        cached = resolved_references.get(identifier)
-                        identity = cached[1] if cached and cached[0] == reference_key else None
-                    return statements.remember(
-                        identifier,
-                        workspace.visual_verifier(),
-                        workspace.encoder,
-                        image,
-                        body.captured_at.isoformat() if body.captured_at else None,
-                        frames=turn_frames,
-                        supersedes_turn_id=action.get("supersedes_turn_id"),
-                        identity=identity,
-                    )
-                return statements.recall(
-                    action["query"],
-                    workspace.encoder,
-                    workspace.visual_verifier(),
-                    identifier,
-                    reference_image=references.get(identifier),
-                    as_of=action.get("as_of"),
-                    selection=action.get("selection", "all"),
+            if name == "process_memory":
+                return prepare_memory()
+            if name == "recall_memory":
+                return workspace.personal_memory().recall(
+                    action["query"], as_of=action.get("as_of")
                 )
             if name in {"inspect_current", "identify_shown_object"}:
                 if name == "identify_shown_object":
-                    from nyx.reference import resolve_reference
-
-                    with workspace.lock:
-                        resolved_references.pop(identifier, None)
-                        references.pop(identifier, None)
-                    reference = resolve_reference(
-                        workspace.visual_verifier(), body.message, turn_frames
-                    )
-                    conversations.event(
-                        "reference_resolved",
-                        turn_id=identifier,
-                        frame_times=[f["captured_at"] for f in turn_frames],
-                        reference=reference,
-                    )
-                    if reference["status"] != "resolved":
-                        return {"kind": "reference", **reference}
-                    if reference["source"] == "visual":
-                        with workspace.lock:
-                            references[identifier] = turn_frames[reference["frame_index"]]["image"]
-                            resolved_references[identifier] = (reference_key, reference)
-                            while len(references) > 8:
-                                oldest = next(iter(references))
-                                del references[oldest]
-                                resolved_references.pop(oldest, None)
-                    return {
-                        "kind": "reference",
-                        "status": "complete",
-                        "reference": reference,
-                        "answer": "Shown object: "
-                        + reference["object_description"]
-                        + ". Use this description to search visual history and saved user statements. This is turn evidence, not a current location.",
-                    }
+                    return {k: v for k, v in observe_reference().items() if k != "image"}
                 if image is None:
                     return {
                         "kind": "unavailable",
@@ -421,29 +383,6 @@ def install_companion(app, workspace, voice):
                 result["scope"]["hours"] = action.get("hours")
                 result["scope"]["before_frame_id"] = action.get("before_frame_id")
                 result["answer"] = spoken_answer(result)
-                if result.get("evidence") and hasattr(workspace.visual_verifier(), "generate_json"):
-                    from nyx.capture import frame_image
-                    from nyx.cloud import CloudError
-                    from nyx.context import attach_statements
-
-                    try:
-                        context_started = time.perf_counter()
-                        attach_statements(
-                            result,
-                            conversations,
-                            workspace.visual_verifier(),
-                            lambda: frame_image(
-                                store.root / result["evidence"]["video_path"],
-                                result["evidence"]["offset_seconds"],
-                            ),
-                            identifier,
-                        )
-                        result["answer"] = spoken_answer(result)
-                        result["timings"]["spoken_context_ms"] = round(
-                            (time.perf_counter() - context_started) * 1000
-                        )
-                    except (CloudError, ValueError):
-                        result["answer"] += " Spoken context could not be checked right now."
                 conversations.event(
                     "history_timing",
                     turn_id=identifier,
@@ -457,21 +396,9 @@ def install_companion(app, workspace, voice):
         def run():
             try:
                 now = local_now(body.timezone)
-                clock = clock_reply(body.message, now)
-                if clock:
-                    result = {
-                        "kind": "agent",
-                        "status": "answered",
-                        "answer": clock,
-                        "steps": [],
-                        "sources": [],
-                        "checked": [],
-                        "turn_id": identifier,
-                        "voice_turn_id": body.voice_turn_id,
-                    }
-                    if not body.voice_turn_id:
-                        conversations.finish(identifier, clock)
-                    return result
+                memory_context = None
+                if body.initial_action is None:
+                    memory_context = prepare_memory()
 
                 def generate(messages, tools):
                     generation_started = time.perf_counter()
@@ -492,7 +419,9 @@ def install_companion(app, workspace, voice):
                     tool,
                     cancelled=cancelled,
                     initial_action=body.initial_action,
-                    now=local_now(body.timezone).isoformat(),
+                    now=now.isoformat(),
+                    user_timezone=body.timezone,
+                    memory_context=memory_context,
                     available={
                         "presented_candidate": presented_candidate,
                         "current_view": image is not None,
