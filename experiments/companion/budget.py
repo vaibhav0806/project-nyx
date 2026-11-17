@@ -10,6 +10,7 @@ class BudgetedClient(OpenRouter):
             raise ValueError("Evaluation request allowance must be 1–96")
         super().__init__()
         self.initial = budget_snapshot(self)
+        self.high_water_usage = self.initial["usage"]
         self.max_spend = max_spend
         self.requests = 0
         self.max_requests = max_requests
@@ -19,11 +20,15 @@ class BudgetedClient(OpenRouter):
         if self.requests >= self.max_requests:
             raise CloudError("Evaluation request limit reached")
         try:
+            snapshot = budget_snapshot(self)
+            reported = sum(row.get("cost") or 0 for row in self.usage)
+            check_budget(snapshot, self.initial["usage"], self.max_spend, reported_cost=reported)
+            self.high_water_usage = max(self.high_water_usage, snapshot["usage"])
             check_budget(
-                budget_snapshot(self),
+                {**snapshot, "usage": self.high_water_usage},
                 self.initial["usage"],
                 self.max_spend,
-                reported_cost=sum(row.get("cost") or 0 for row in self.usage),
+                reported_cost=reported,
             )
         except ValueError as error:
             raise CloudError(str(error)) from None

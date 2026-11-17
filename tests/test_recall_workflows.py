@@ -95,3 +95,17 @@ def test_negative_requires_abstention_or_an_empty_checked_statement_lookup(workf
         "observations": [{"kind": "memories", "matches": []}],
     }
     assert score_answer(negative, checked, {})["correct"]
+
+
+def test_paid_client_retains_highest_observed_usage_across_lagging_replicas(monkeypatch):
+    from experiments.companion import budget
+    from nyx.cloud import OpenRouter
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "fixture")
+    readings = iter([1.4, 1.50, 1.45])
+    monkeypatch.setattr(budget, "budget_snapshot", lambda _: {"usage": next(readings), "limit": 2})
+    monkeypatch.setattr(OpenRouter, "request", lambda *args, **kwargs: {})
+    client = budget.BudgetedClient(0.15)
+    client.request("chat/completions", {})
+    client.request("chat/completions", {})
+    assert client.high_water_usage == 1.50

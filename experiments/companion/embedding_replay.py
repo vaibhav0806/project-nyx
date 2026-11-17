@@ -52,7 +52,12 @@ def check_budget(snapshot, initial_usage, max_spend, *, reported_cost=0):
         if isinstance(limit, (int, float))
         else TEST_SPEND_CEILING_USD
     )
-    if not 0 < max_spend <= 0.25 or not math.isfinite(initial_usage) or usage < initial_usage:
+    if (
+        not 0 < max_spend <= 0.25
+        or not math.isfinite(initial_usage)
+        or initial_usage < 0
+        or usage < 0
+    ):
         raise ValueError("Invalid benchmark budget or usage baseline")
     if not math.isfinite(reported_cost) or reported_cost < 0:
         raise ValueError("Invalid reported provider cost")

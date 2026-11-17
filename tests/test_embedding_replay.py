@@ -55,3 +55,10 @@ def test_reference_fusion_keeps_a_bounded_nomination_budget():
     for limit in [0, 101]:
         with pytest.raises(ValueError):
             merge_candidates([{"id": 1}], [], limit)
+
+
+def test_lagging_usage_snapshot_cannot_reset_reported_spend():
+    check = experiment().check_budget
+    assert check({"usage": 4.80, "limit": 8}, 4.85, 0.15, reported_cost=0.03) > 0
+    with pytest.raises(ValueError, match="limit"):
+        check({"usage": 4.80, "limit": 8}, 4.85, 0.15, reported_cost=0.14)
