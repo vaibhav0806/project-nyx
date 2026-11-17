@@ -133,6 +133,18 @@ class SceneVerifier(CloudVerifier):
         }
 
 
+class SingleSceneVerifier(SceneVerifier):
+    """Test ordinary inspection alone, preserving the current appearance-comparison task."""
+
+    inspect_reference = CloudVerifier.inspect_reference
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fingerprint.pop("reference_comparison_experiment")
+        self.fingerprint.pop("reference_task_role")
+        self.fingerprint["reference_comparison"] = "unchanged-runtime-contract-v1"
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", type=Path, required=True)
