@@ -921,7 +921,8 @@ def test_history_recovers_from_unreadable_source_and_reuses_restored_original(
         def generate(self, *args, **kwargs):
             return json.dumps(
                 {
-                    "visibility": "visible",
+                    "scene_context": "A physical room containing a table",
+                    "presence": "physical",
                     "location": "on the test table",
                     "description": "Generated boundary fixture.",
                     "matching_count": 1,
