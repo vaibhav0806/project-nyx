@@ -271,6 +271,7 @@ def replay_voice_tools(
         def __init__(self):
             self.incoming = asyncio.Queue()
             self.tools = asyncio.Queue()
+            self.sent = []
             self.scenario = None
 
         async def accept(self):
@@ -280,6 +281,7 @@ def replay_voice_tools(
             return {"token": token, "timezone": "Asia/Kolkata"}
 
         async def send_json(self, event):
+            self.sent.append(event)
             if event.get("type") == "tool":
                 if event["action"]["action"] == "process_memory":
                     if before_memory:
@@ -735,6 +737,38 @@ async def consume_node(stream):
     return [chunk async for chunk in stream]
 
 
+def test_server_audio_gate_tracks_activity_without_reopening_cancelled_input(tmp_path, monkeypatch):
+    async def scenario(session, socket, voice):
+        source = session.input.audio.frames
+        for activated, user_state, agent_state, expected in [
+            (False, "speaking", "thinking", False),
+            (True, "listening", "listening", False),
+            (True, "speaking", "listening", True),
+            (True, "listening", "thinking", True),
+            (True, "listening", "speaking", True),
+        ]:
+            voice.awake_until = time.monotonic() - 1 if activated else 0
+            session.user_state, session.agent_state = user_state, agent_state
+            before = source.qsize()
+            await socket.incoming.put({"type": "websocket.receive", "bytes": bytes(640)})
+            await asyncio.sleep(0)
+            assert source.qsize() - before == int(expected)
+
+        await transcribe(session, "Are you there?")
+        assert voice.awake_until > time.monotonic()
+        voice.cancel(voice.token)
+        session.handlers["user_state_changed"](SimpleNamespace(new_state="listening"))
+        session.handlers["agent_state_changed"](SimpleNamespace(new_state="listening"))
+        assert voice.awake_until == 0
+        session.user_state, session.agent_state = "speaking", "thinking"
+        before = source.qsize()
+        await socket.incoming.put({"type": "websocket.receive", "bytes": bytes(640)})
+        await asyncio.sleep(0)
+        assert source.qsize() == before
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
 def test_stt_segments_do_not_replace_an_owned_turn_before_livekit_accepts_it(tmp_path, monkeypatch):
     from livekit.agents import llm
     from test_personal_memory import operation, response
@@ -860,6 +894,10 @@ def test_real_livekit_recovers_when_next_speech_arrives_during_memory_preparatio
                 for row in voice.conversations.recent()
             ):
                 await asyncio.sleep(0.01)
+        assert any(
+            event.get("type") == "user_state" and event.get("state") == "speaking"
+            for event in socket.sent
+        )
 
     monkeypatch.setenv("SARVAM_API_KEY", "fixture")
     monkeypatch.setattr(realtime, "connect", lambda *args, **kwargs: Provider())

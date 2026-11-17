@@ -1,7 +1,29 @@
 # R31 — Does Nyx preserve completed speech across interruptions?
 
 Owner: Codex inline. Date: 2026-11-17. Runtime: Python 3.12, LiveKit Agents 1.8.10.
-Status: turn-ownership repair verified synthetically; household and audio-gate acceptance open.
+Status: turn ownership and audio-gate repairs verified synthetically; live household acceptance open.
+
+## Authorized audio-transport repair
+
+The user explicitly approved the narrow `voice.js` transport exception. Browser and server gates
+now retain an already activated stream while the user is speaking or the agent is thinking or
+speaking. LiveKit's user-state event reaches the browser; completing speech renews the idle
+follow-up window. Accepted input renews the existing lease. Mic stop/session cancellation clears activation,
+and stale state events cannot start a fresh unactivated stream. No layout, styling, wording,
+provider/model, prompt or build-system migration.
+
+The actual browser script is executed in a Node VM with synthetic PCM:11 checks pass for initial
+privacy, activated streaming, thinking, playback/interruption input, user speech, follow-up/idle,
+old connection events, mute and connection reset. The corresponding server regression proves
+expired deadlines do not cut active speech/replies and cancellation is not undone by state events.
+Both client/server regressions failed on the original gates. The actual-SDK pending-memory race
+replay also asserts that native user speech state is sent through Nyx's socket contract.
+
+Full deterministic suite: **483 pass in28.77s**. Ruff lint/format114 Python files, JavaScript
+syntax and the standalone Node check pass. No private input upload, paid inference, real browser,
+camera/microphone or playback is used. The current8001 service remains on the earlier backend
+while capture is active. A coordinated restart and page reload are needed before user acceptance;
+do not call this a successful new household trial or a measured acoustic/latency improvement.
 
 ## Question and decision
 
@@ -55,10 +77,10 @@ server also checks a fixed awake deadline. Neither gate presently follows user s
 This can terminate audio delivery without a completed conversational turn; the exact contribution
 to this user's missing words is still inferred, not established from archived audio.
 
-The client repair requires a narrow audio-transport edit under `src/nyx/web/`, currently forbidden
-by the standing no-edit instruction. Prepare a concrete proposal and obtain that exception before
-applying it. Keep UI layout/styling/wording unchanged. Do not disguise a timer increase or a prompt
-change as reliable speech-boundary handling. No claim of full acoustic or household acceptance.
+The client repair originally required an exception to the standing `src/nyx/web/` restriction.
+The user granted it and the patch above is applied. Keep UI layout/styling/wording unchanged.
+The change follows framework activity rather than increasing a fixed timer. No claim of full
+acoustic or household acceptance.
 
 ## Primary references
 

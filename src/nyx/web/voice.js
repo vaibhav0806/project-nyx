@@ -10,6 +10,7 @@ const voice = {
   socket: null,
   working: false,
   playing: false,
+  userSpeaking: false,
   wakeUntil: 0,
   pre: [],
   preLength: 0,
@@ -129,7 +130,11 @@ const voice = {
       1,
       Math.sqrt(energy / samples.length) * 12,
     );
-    if (this.ready && performance.now() < this.wakeUntil) {
+    if (
+      this.ready &&
+      this.wakeUntil > 0 &&
+      (performance.now() < this.wakeUntil || this.working || this.playing || this.userSpeaking)
+    ) {
       if (this.socket.bufferedAmount < 96000) this.socket.send(pcm.buffer);
       else this.stop("Voice connection is too slow. Please reconnect.");
       return;
@@ -185,6 +190,11 @@ const voice = {
       this.answer += event.text;
       conversation.answer(this.answer, true);
       $("voice-answer").textContent = `Nyx: ${this.answer}`;
+    }
+    if (event.type === "user_state") {
+      this.userSpeaking = event.state === "speaking";
+      if (event.state === "listening" && this.lastTranscript)
+        this.wakeUntil = performance.now() + 10000;
     }
     if (event.type === "state") {
       this.working = event.state === "thinking";
@@ -302,6 +312,7 @@ const voice = {
     this.turnVisual = null;
     this.epoch++;
     this.ready = false;
+    this.userSpeaking = false;
     this.lastTranscript = null;
     this.segment = 0;
     this.answer = "";

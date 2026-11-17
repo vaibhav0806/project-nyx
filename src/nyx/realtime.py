@@ -399,6 +399,8 @@ async def serve(socket, voice):
                     last_question, {"mode": "livekit", "language": language}
                 )
                 voice.turn = {"id": turn_id, "transcript": last_question}
+                if voice.awake_until:
+                    voice.awake_until = time.monotonic() + 30
                 self._context_turns[new_message.id] = turn_id
                 while len(self._context_turns) > 96:
                     del self._context_turns[next(iter(self._context_turns))]
@@ -599,9 +601,15 @@ async def serve(socket, voice):
             ):
                 voice.conversations.finish(turn_id, event.item.text_content, sources)
 
+        @session.on("user_state_changed")
+        def user_state_changed(event):
+            if event.new_state == "listening" and voice.awake_until:
+                voice.awake_until = time.monotonic() + 10
+            asyncio.create_task(send({"type": "user_state", "state": event.new_state}))
+
         @session.on("agent_state_changed")
         def state_changed(event):
-            if event.new_state == "listening" and last_question:
+            if event.new_state == "listening" and last_question and voice.turn:
                 voice.awake_until = time.monotonic() + 10
             asyncio.create_task(send({"type": "state", "state": event.new_state}))
 
@@ -640,7 +648,11 @@ async def serve(socket, voice):
                 pcm = packet["bytes"]
                 if not 0 < len(pcm) <= 96000 or len(pcm) % 2:
                     raise ValueError("Invalid microphone frame")
-                if time.monotonic() < voice.awake_until:
+                if voice.awake_until and (
+                    time.monotonic() < voice.awake_until
+                    or session.user_state == "speaking"
+                    or session.agent_state in {"thinking", "speaking"}
+                ):
                     await source.frames.put(rtc.AudioFrame(pcm, 16000, 1, len(pcm) // 2))
             else:
                 event = json.loads(packet["text"])

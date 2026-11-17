@@ -1,5 +1,16 @@
 # Working on Nyx
 
+## Narrow audio-transport exception — 2026-11-17
+
+The user explicitly authorized applying the prepared audio-transport patch, including the narrow
+src/nyx/web/voice.js edit. This supersedes the web-file ban only for the audio activity/gate repair
+and its necessary verification. Keep layout, styling and wording unchanged; no TypeScript/build
+migration or other UI edits. Preserve current recordings and check capture state before restarting.
+The patch is now applied and verified:483 tests pass28.77s,11 actual-JavaScript synthetic transport
+checks pass, lint/format114 files and JS syntax pass. The live8001 process still uses earlier
+backend code while its capture is recording; do not claim the repair is live or the household
+trial passes. No new paid inference/hardware/private upload. SeeR31 for limits.
+
 ## Voice trial follow-up — 2026-11-17
 
 Real trial: one complete greeting, three interrupted turns, zero memories. At8f0a263, spoken
@@ -8,12 +19,10 @@ synthetic regression fails the old owner race and passes the repair. Full suite4
 See [R31](docs/research/R31-voice-turn-lifecycle.md). The live8001 process still uses the earlier
 code; preserve active capture before any restart. Do not claim a new household trial passed.
 
-Audio-gate expiry remains separate: fixed client/server deadlines can stop forwarding during
-active conversation. A concrete unapplied transport patch is at
-.superpowers/sdd/2026-11-17-simple-agent-memory/voice-flow/audio-gate-proposal.patch; six synthetic
-client gate checks pass the proposal, with two failing on current code. This is not integration/
-acoustic acceptance. The standing ban on src/nyx/web edits still applies until the user grants
-an audio-transport-only exception. No new model/prompt/UI/main changes or paid calls for this repair.
+Audio-gate expiry was subsequently repaired under the explicit exception above. The earlier
+proposal remains as provenance at .superpowers/sdd/2026-11-17-simple-agent-memory/voice-flow/
+audio-gate-proposal.patch. This is not acoustic acceptance. No model/prompt/main or visual UI
+change was made; only the approved browser audio-transport edit is permitted.
 
 ## Simple-agent execution authorization — 2026-11-17
 

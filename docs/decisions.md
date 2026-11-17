@@ -5,7 +5,9 @@
 Create owned spoken input and prepare memory in `on_user_turn_completed`, not on each final STT
 segment or inside interruptible reply generation. The actual-SDK regression reproduces the old
 ownership race and verifies preservation of a plan plus a follow-up reply. Audio-gate expiry is
-a separate open transport issue; no prompt or model change. See [R31](research/R31-voice-turn-lifecycle.md).
+a separate transport repair, applied after the user authorized the narrow `voice.js` exception.
+Use SDK user/agent activity to keep an activated stream open; retain idle timeout and cancellation
+boundaries. No prompt, model or TypeScript migration. See [R31](research/R31-voice-turn-lifecycle.md).
 
 ## Simplify shared agent and general memory — 2026-11-17
 

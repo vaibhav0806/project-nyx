@@ -5,7 +5,10 @@
 LiveKit's `on_user_turn_completed` owns canonical spoken input, question delivery and automatic
 memory preparation. Raw final STT events only retain language metadata; they do not replace the
 active durable turn. The LLM node supplies bounded context and streams generation. The real-SDK
-interruption replay and remaining audio-gate limit are in [R31](research/R31-voice-turn-lifecycle.md).
+interruption replay and remaining trial limits are in [R31](research/R31-voice-turn-lifecycle.md).
+The authorized browser transport now receives LiveKit user-state events. Both gates keep an
+already activated stream open during user speech or agent thinking/speech, then use the idle
+follow-up window. Session cancellation/mute still clears activation; initial idle cannot open cloud audio.
 
 ## Shared native agent and general memory — 2026-11-17
 
