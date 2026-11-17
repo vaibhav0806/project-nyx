@@ -369,3 +369,185 @@ def agent_steps(
     ]
     result["observations"] = observations
     return result
+
+
+def _model_tool_result(value):
+    """Send evidence metadata to the agent, without raw media or storage payloads."""
+    if isinstance(value, dict):
+        return {
+            key: _model_tool_result(item)
+            for key, item in value.items()
+            if key not in {"snapshot_url", "image", "embedding", "thumbnail", "path"}
+        }
+    if isinstance(value, list):
+        return [_model_tool_result(item) for item in value]
+    return value
+
+
+def native_agent_steps(
+    message,
+    context,
+    generate,
+    tool,
+    *,
+    cancelled=lambda: False,
+    max_steps=6,
+    available=None,
+    validate_tool=None,
+    initial_action=None,
+    now=None,
+):
+    """Native tool calls and final replies; execution guards never choose the next task."""
+    from livekit.agents import ToolError
+
+    from nyx.agent_policy import AGENT_INSTRUCTIONS
+    from nyx.agent_tools import bind_tool_action, tool_schemas
+
+    started = time.monotonic()
+    observations, actions = [], []
+    result = {
+        "kind": "agent",
+        "status": "uncertain",
+        "answer": "I couldn't finish that request.",
+        "sources": [],
+        "checked": [],
+        "steps": actions,
+        "decision_errors": [],
+        "policy_adjustments": [],
+        "visual": None,
+        "observations": observations,
+    }
+    messages = [{"role": "system", "content": AGENT_INSTRUCTIONS}]
+    for row in recent_context(context):
+        messages.append({"role": "user", "content": row["transcript"]})
+        if row.get("answer"):
+            messages.append({"role": "assistant", "content": row["answer"]})
+        metadata = {key: row.get(key) for key in ["at", "sources_available", "context_truncated"]}
+        metadata["previous_tools"] = row.get("plan", {}).get("steps", [])
+        metadata["candidate"] = row.get("plan", {}).get("candidate")
+        metadata["statement_refs"] = row.get("plan", {}).get("statement_refs", [])
+        messages.append(
+            {"role": "assistant", "content": "Saved context metadata: " + json.dumps(metadata)}
+        )
+    messages.append(
+        {
+            "role": "system",
+            "content": json.dumps(
+                {"now": now or datetime.now(UTC).isoformat(), "available": available or {}}
+            ),
+        }
+    )
+    messages.append({"role": "user", "content": message})
+    schemas = tool_schemas()
+    cached = {}
+    history_boundary = None
+
+    def check_active():
+        if cancelled():
+            raise ValueError("Request cancelled")
+        if time.monotonic() - started > 90:
+            raise ValueError("Request time budget exceeded")
+
+    def execute(action):
+        nonlocal history_boundary
+        check_active()
+        action = validate_action(action)
+        if validate_tool is not None:
+            validate_tool(action)
+        if (
+            action["action"] in {"search_history", "search_matches", "inspect_current"}
+            and history_boundary is not None
+            and action.get("before_frame_id") != history_boundary
+        ):
+            raise ValueError(f"Retain before_frame_id={history_boundary} for this search")
+        key = json.dumps(action, sort_keys=True)
+        if key in cached:
+            return cached[key]
+        actions.append(action)
+        observation = tool(action)
+        if isinstance(observation, GeneratorType):
+            try:
+                while True:
+                    check_active()
+                    try:
+                        yield next(observation)
+                    except StopIteration as done:
+                        observation = done.value
+                        break
+            finally:
+                if isinstance(observation, GeneratorType):
+                    observation.close()
+        check_active()
+        if not isinstance(observation, dict):
+            raise TypeError("Tool returned an invalid result")
+        observations.append(observation)
+        cached[key] = observation
+        if observation.get("scope", {}).get("before_frame_id") is not None:
+            history_boundary = observation["scope"]["before_frame_id"]
+        if observation.get("kind") in {"snapshot", "history"}:
+            result["visual"] = observation
+        result["status"] = observation.get("status", "uncertain")
+        result["answer"] = observation.get("answer", "I couldn't finish that request.")
+        yield {"step": len(actions), "action": action["action"], "status": result["status"]}
+        return observation
+
+    check_active()
+    if initial_action is not None:
+        initial_action = validate_action(initial_action)
+        if initial_action["action"] in {"chat", "clarify"}:
+            result.update(status=initial_action["action"], answer=initial_action["message"])
+        else:
+            yield from execute(initial_action)
+    else:
+        for _ in range(max_steps):
+            check_active()
+            reply = generate(messages, schemas)
+            check_active()
+            if not isinstance(reply, dict):
+                raise CloudError("Agent returned an invalid reply")
+            calls = reply.get("tool_calls") or []
+            if not isinstance(calls, list) or len(calls) > 6:
+                raise CloudError("Agent returned invalid tool calls")
+            messages.append(reply)
+            if not calls:
+                answer = reply.get("content")
+                if not isinstance(answer, str) or not answer.strip():
+                    raise CloudError("Agent did not finish a usable answer")
+                result["answer"] = answer.strip()
+                if not observations:
+                    result["status"] = "answered"
+                break
+            for call in calls:
+                check_active()
+                if not isinstance(call, dict) or not isinstance(call.get("id"), str):
+                    raise CloudError("Agent tool call is missing its identifier")
+                try:
+                    function = call["function"]
+                    action = bind_tool_action(function["name"], function["arguments"])
+                    observation = yield from execute(action)
+                except CloudError:
+                    raise
+                except (ValueError, TypeError, KeyError, ToolError) as exc:
+                    check_active()
+                    observation = {"status": "error", "answer": str(exc)[:240]}
+                    result["decision_errors"].append(str(exc)[:240])
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": call["id"],
+                        "content": json.dumps(_model_tool_result(observation)),
+                    }
+                )
+    check_active()
+    sources = set()
+    for observation in observations:
+        dependencies = observation.get("sources", [])
+        if not isinstance(dependencies, list) or any(
+            not isinstance(item, str) for item in dependencies
+        ):
+            raise ValueError("Tool returned invalid source references")
+        sources.update(dependencies)
+        result["checked"].extend(observation.get("checked", []))
+    sources.update(row["video_id"] for row in result["checked"] if row.get("video_id"))
+    result["sources"] = sorted(sources)
+    return result

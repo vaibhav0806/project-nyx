@@ -191,6 +191,82 @@ def test_livekit_selected_tool_skips_redundant_planner_calls(tmp_path):
 class Planner:
     fingerprint: ClassVar[dict] = {"model": "deterministic-fixture"}
 
+    def agent_reply(self, messages, tools):
+        """Scripted provider fixture; API execution uses native calls, not a test planner."""
+        from nyx.agent_tools import bind_tool_action
+
+        metadata = next(
+            json.loads(row["content"])
+            for row in reversed(messages)
+            if row["role"] == "system" and row["content"].startswith("{")
+        )
+        observations = [json.loads(row["content"]) for row in messages if row["role"] == "tool"]
+        for index, row in enumerate(observations):
+            row["index"] = index
+            row["statement_refs"] = row.get("matches", [])
+        actions = [
+            bind_tool_action(call["function"]["name"], call["function"]["arguments"])
+            for row in messages
+            for call in row.get("tool_calls", [])
+        ]
+        conversation = []
+        for row in messages[:-1]:
+            if row["role"] == "user":
+                conversation.append({"transcript": row["content"], "answer": ""})
+            elif row["role"] == "assistant" and row.get("content"):
+                if row["content"].startswith("Saved context metadata: ") and conversation:
+                    prior = json.loads(row["content"].split(": ", 1)[1])
+                    conversation[-1].update(prior)
+                    conversation[-1]["plan"] = {
+                        "steps": prior.get("previous_tools", []),
+                        "candidate": prior.get("candidate"),
+                        "statement_refs": prior.get("statement_refs", []),
+                    }
+                    conversation[-1]["previous_tool_query"] = next(
+                        (
+                            a["query"]
+                            for a in reversed(prior.get("previous_tools", []))
+                            if "query" in a
+                        ),
+                        None,
+                    )
+                elif conversation:
+                    conversation[-1]["answer"] = row["content"]
+        state = {
+            **metadata,
+            "message": next(row["content"] for row in reversed(messages) if row["role"] == "user"),
+            "observations": observations,
+            "actions": actions,
+            "conversation": conversation,
+            "reminders": [],
+        }
+        action = self.decide(state)
+        name = action["action"]
+        if name in {"chat", "clarify"}:
+            return {"role": "assistant", "content": action["message"]}
+        if name == "finish":
+            chosen = observations[action["observation"]]
+            answer = chosen["answer"]
+            if "statement_observation" in action:
+                answer += " " + observations[action["statement_observation"]]["answer"]
+            return {"role": "assistant", "content": answer}
+        arguments = {k: v for k, v in action.items() if k != "action"}
+        if name in {"inspect_current", "search_history", "search_matches"}:
+            arguments["history"] = name == "search_history"
+            arguments["undated"] = name == "search_matches"
+            name = "look_for_object"
+        return {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": f"fixture-{len(actions)}",
+                    "type": "function",
+                    "function": {"name": name, "arguments": json.dumps(arguments)},
+                }
+            ],
+        }
+
     def decide(self, state):
         if state["observations"]:
             return {"action": "finish", "observation": 0}
@@ -1310,3 +1386,25 @@ def test_visual_identity_handoff_reuses_only_the_same_owned_window(tmp_path, cha
         reference = json.loads(row[0])["reference"]
         assert reference["kind"] == "reported_placement" and reference["destination"] == "drawer"
         assert reference["visual_identity_check"]["unique_referent"] is True
+
+
+def test_typed_conversation_uses_the_shared_native_agent_policy(tmp_path):
+    from nyx.agent_policy import AGENT_INSTRUCTIONS
+    from nyx.agent_tools import tool_schemas
+
+    class NativeVerifier(Planner):
+        def agent_reply(self, messages, tools):
+            assert messages[0]["content"] == AGENT_INSTRUCTIONS
+            assert tools == tool_schemas()
+            assert messages[-1]["content"] == "Hello"
+            return {"role": "assistant", "content": "Hello from the shared agent."}
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=NativeVerifier)
+    ) as client:
+        response = client.post(
+            "/api/agent", json={"message": "Hello", "request_id": "native-typed"}
+        )
+        job = wait_for_job(client, response.json()["id"])
+        assert job["status"] == "succeeded", job
+        assert job["result"]["answer"] == "Hello from the shared agent."

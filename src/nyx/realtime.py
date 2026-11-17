@@ -11,12 +11,11 @@ import wave
 from collections import deque
 from contextlib import suppress
 from datetime import UTC, datetime
-from typing import Literal
 from urllib.parse import urlencode
 
 import aiohttp
 from livekit import rtc
-from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, Agent, AgentSession, function_tool, llm, stt
+from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, Agent, AgentSession, llm, stt
 from livekit.agents.voice import io
 from livekit.agents.voice.transcription import TranscriptSynchronizer
 from livekit.plugins import openai, sarvam
@@ -25,6 +24,7 @@ from websockets.asyncio.client import connect
 
 from nyx.agent_policy import AGENT_INSTRUCTIONS as INSTRUCTIONS
 from nyx.agent_policy import AGENT_MODEL
+from nyx.agent_tools import AgentTools
 from nyx.speech import ACKNOWLEDGEMENTS, acknowledgement_path
 from nyx.voice import local_now
 
@@ -328,7 +328,7 @@ async def serve(socket, voice):
             enable_preprocessing=True,
         )
 
-        class Companion(Agent):
+        class Companion(AgentTools, Agent):
             def __init__(self):
                 context = llm.ChatContext()
                 self._context_turns = {}
@@ -411,29 +411,7 @@ async def serve(socket, voice):
                     model_settings,
                 )
 
-            @function_tool
-            async def look_for_object(
-                self,
-                query: str,
-                history: bool = False,
-                hours: Literal[0, 2, 24, 168, 240] = 2,
-                excluded_frame_ids: list[int] | None = None,
-                before_frame_id: int | None = None,
-            ) -> str:
-                """Look for an object in current view, or history for last-seen questions. History hours: 2, 24, 168, 240 (ten days), or 0 for all dated history. Keep rejected frame IDs in excluded_frame_ids; before_frame_id searches strictly before that dated frame. Either constraint selects history. Resolve object details from context."""
-                from nyx.agent import validate_action
-
-                historical = history or bool(excluded_frame_ids) or before_frame_id is not None
-                action = (
-                    {"action": "search_history", "query": query, "hours": hours}
-                    if historical
-                    else {"action": "inspect_current", "query": query}
-                )
-                if excluded_frame_ids:
-                    action["excluded_frame_ids"] = excluded_frame_ids
-                if before_frame_id is not None:
-                    action["before_frame_id"] = before_frame_id
-                validate_action(action)
+            async def acknowledge_lookup(self):
                 text = random.choice(ACKNOWLEDGEMENTS[language])
                 path = acknowledgement_path(voice.root, "bulbul:v4-flash", text)
                 if path.exists():
@@ -447,46 +425,6 @@ async def serve(socket, voice):
                                 yield rtc.AudioFrame(pcm, 24000, 1, len(pcm) // 2)
 
                     self.session.say("", audio=cached_audio(), add_to_chat_ctx=False)
-                return await self.run_tool(action)
-
-            @function_tool
-            async def identify_shown_object(self) -> str:
-                """Resolve this/it from the current image before searching history or statements. Ask if ambiguous."""
-                return await self.run_tool({"action": "identify_shown_object"})
-
-            @function_tool
-            async def remember_statement(self, supersedes_turn_id: str | None = None) -> str:
-                """Save a new placement/intention report. Only for an explicit correction/retraction, supply an actual saved user-report ID from search_statements as supersedes_turn_id."""
-                from nyx.agent import validate_action
-
-                action = {"action": "remember_statement"}
-                if supersedes_turn_id is not None:
-                    action["supersedes_turn_id"] = supersedes_turn_id
-                validate_action(action)
-                return await self.run_tool(action)
-
-            @function_tool
-            async def search_statements(
-                self,
-                query: str,
-                as_of: str | None = None,
-                selection: Literal["all", "latest_report"] = "all",
-            ) -> str:
-                """Search attributed user reports. Use latest_report for the newest saved report, all for multiple reports. Optional as_of is an aware ISO timestamp for historical report state. Plans are not completed placements; report dates are not visual sightings."""
-                from nyx.agent import validate_action
-
-                action = {"action": "search_statements", "query": query}
-                if as_of is not None:
-                    action["as_of"] = as_of
-                if selection != "all":
-                    action["selection"] = selection
-                validate_action(action)
-                return await self.run_tool(action)
-
-            @function_tool
-            async def departure_reminder(self) -> str:
-                """Create, list or cancel a next-departure reminder when the user explicitly asks. Never promise clock-based reminders."""
-                return await self.run_tool(None)
 
             async def run_tool(self, action):
                 requested_turn, question = turn_id, last_question

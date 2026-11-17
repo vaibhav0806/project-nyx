@@ -3,7 +3,6 @@
 import base64
 import hashlib
 import json
-import re
 import time
 import traceback
 from datetime import UTC, datetime, timedelta
@@ -15,11 +14,9 @@ from fastapi import HTTPException, Request
 from PIL import Image, UnidentifiedImageError
 from pydantic import AwareDatetime, BaseModel, Field
 
-from nyx.agent import agent_steps
+from nyx.agent import native_agent_steps
 from nyx.answers import history_steps
-from nyx.intentions import Intentions
 from nyx.memory import aware_time
-from nyx.observation import Observer, departure_action
 from nyx.voice import Conversations, clock_reply, local_now, spoken_answer
 
 
@@ -77,15 +74,12 @@ def fresh(captured_at, limit=15):
 
 
 def install_companion(app, workspace, voice):
-    tasks = Intentions(workspace.root)
-    observer = Observer()
     conversations = workspace.conversations or Conversations(workspace.root)
     workspace.conversations = conversations
-    workspace.observer = observer
     requests = {}
     references = {}
     resolved_references = {}
-    last_observation = {"state": "idle", "note": "Camera off; no departure monitoring"}
+    last_observation = {"state": "inactive", "note": "Proactive reminders are not enabled"}
 
     @app.get("/companion.js")
     def companion_javascript():
@@ -107,17 +101,11 @@ def install_companion(app, workspace, voice):
 
     @app.get("/api/companion")
     def status():
-        with workspace.lock:
-            job = workspace.jobs.get(last_observation.get("job_id"), {})
-            if job.get("status") == "failed":
-                last_observation.update(state="interrupted", error=job.get("error"))
-            elif job.get("status") == "succeeded" and last_observation["state"] == "checking":
-                last_observation["state"] = job.get("result", {}).get("state", "watching")
         return {
             "conversations": conversations.recent(),
-            "reminders": tasks.recent(),
+            "reminders": [],
             "observation": last_observation,
-            "pending": tasks.pending(),
+            "pending": [],
         }
 
     @app.post("/api/matches/confirm")
@@ -277,71 +265,8 @@ def install_companion(app, workspace, voice):
                     return voice.turn is None or voice.turn["id"] != body.voice_turn_id
             return False
 
-        def authorize(action):
-            name = action["action"]
-            if name == "remind_on_departure":
-                # The model may not turn content in observed footage into an instruction.
-                if re.search(
-                    r"\b(?:do not|don't|dont|never|cancel|stop)\b.{0,35}\bremind(?:er)?\b",
-                    body.message,
-                    re.IGNORECASE,
-                ):
-                    raise ValueError(
-                        "I won't create a reminder from a negated or cancellation request"
-                    )
-                if not re.search(r"\bremind\b", body.message, re.IGNORECASE) or not re.search(
-                    r"\b(leave|leaving|out|outside|depart|departing|exit|exiting)\b",
-                    body.message,
-                    re.IGNORECASE,
-                ):
-                    raise ValueError("Please explicitly ask for a reminder when you leave")
-                if re.search(r"\b(every|whenever|always|daily)\b", body.message, re.IGNORECASE):
-                    raise ValueError(
-                        "This demo supports the next departure only; ask for a next-departure reminder"
-                    )
-            if name == "cancel_reminder":
-                text = body.message
-                if (
-                    not re.search(
-                        r"^\s*(?:(?:please|can you|could you|would you|will you|i want you to)\s+)*(?:cancel|forget|remove|stop)\b",
-                        text,
-                        re.IGNORECASE,
-                    )
-                    or re.search(
-                        r"\b(?:do not|don't|dont|never)\b.{0,35}\b(?:cancel|forget|remove|stop)\b",
-                        text,
-                        re.IGNORECASE,
-                    )
-                    or re.search(r"\bremind me\b", text, re.IGNORECASE)
-                ):
-                    raise ValueError(
-                        "Please explicitly ask to cancel a departure reminder; the current request does not authorize cancellation"
-                    )
-                active = tasks.active()
-                selected = next((row for row in active if row["id"] == action["id"]), None)
-                if selected is None:
-                    raise ValueError(
-                        "Choose an exact active reminder ID, or clarify which reminder"
-                    )
-                if not (
-                    re.search(r"\breminders?\b", text, re.IGNORECASE)
-                    or selected["message"].casefold() in text.casefold()
-                    or re.search(
-                        r"\b(?:cancel|forget|remove|stop)\s+(?:it|that|this)(?:\s+one)?[.!?]*$",
-                        text.strip(),
-                        re.IGNORECASE,
-                    )
-                ):
-                    raise ValueError("The cancellation must identify a departure reminder")
-                matches = [row for row in active if row["message"].casefold() in text.casefold()]
-                if len(active) > 1 and (len(matches) != 1 or matches[0]["id"] != selected["id"]):
-                    raise ValueError(
-                        "Multiple reminders are active; clarify the exact reminder message before cancelling"
-                    )
-
         def tool(action):
             conversations.event("tool_started", turn_id=identifier, action=action)
-            authorize(action)
             name = action["action"]
             if name in {"remember_statement", "search_statements"}:
                 from nyx.statements import Statements
@@ -527,35 +452,7 @@ def install_companion(app, workspace, voice):
                     checked=len(result.get("checked", [])),
                 )
                 return result
-            if name == "remind_on_departure":
-                item = tasks.create(body.request_id, action["message"])
-                return {
-                    "kind": "reminder",
-                    "status": item["state"],
-                    "reminder": item,
-                    "answer": f"For your next departure: {item['message']}. Keep the camera running with the main door visible; departure detection is experimental."
-                    if item["state"] == "armed"
-                    else f"That departure request already exists and is {item['state']}.",
-                }
-            if name == "list_reminders":
-                rows = tasks.recent()
-                return {
-                    "kind": "reminder",
-                    "status": "complete",
-                    "answer": "; ".join(f"{row['message']} ({row['state']})" for row in rows)
-                    or "You have no departure reminders.",
-                    "reminders": rows,
-                }
-            if name == "cancel_reminder":
-                if not re.search(r"\b(cancel|forget|remove|stop)\b", body.message, re.IGNORECASE):
-                    raise ValueError("Please explicitly ask to cancel a departure reminder")
-                tasks.cancel(action["id"])
-                return {
-                    "kind": "reminder",
-                    "status": "cancelled",
-                    "answer": "That departure reminder is cancelled.",
-                }
-            raise ValueError("Unsupported companion tool")
+            raise ValueError("Unsupported tool")
 
         def run():
             try:
@@ -576,68 +473,26 @@ def install_companion(app, workspace, voice):
                         conversations.finish(identifier, clock)
                     return result
 
-                if re.search(r"\bremind\b", body.message, re.IGNORECASE) and (
-                    re.search(
-                        r"\b(?:at|by)\s+(?:\d|one\b|two\b|three\b|four\b|five\b|six\b|seven\b|eight\b|nine\b|ten\b|eleven\b|twelve\b|noon\b|midnight\b)",
-                        body.message,
-                        re.IGNORECASE,
-                    )
-                    or re.search(
-                        r"\b(?:tomorrow|tonight|next week|on monday|on tuesday|on wednesday|on thursday|on friday|on saturday|on sunday|in \d+ (?:minutes?|hours?|days?))\b",
-                        body.message,
-                        re.IGNORECASE,
-                    )
-                ):
-                    result = {
-                        "kind": "agent",
-                        "status": "clarify",
-                        "answer": "Timed reminders aren't available in this demo yet. I can remind you on your next departure, without a clock-time condition.",
-                        "steps": [],
-                        "sources": [],
-                        "checked": [],
-                        "turn_id": identifier,
-                        "voice_turn_id": body.voice_turn_id,
-                    }
-                    if not body.voice_turn_id:
-                        conversations.finish(identifier, result["answer"])
-                    return result
-
-                def decide(state):
-                    decision_started = time.perf_counter()
+                def generate(messages, tools):
+                    generation_started = time.perf_counter()
                     verifier = workspace.visual_verifier()
-                    action = (
-                        (
-                            {"action": "finish", "observation": len(state["observations"]) - 1}
-                            if state["observations"]
-                            else body.initial_action
-                        )
-                        if body.initial_action
-                        else verifier.decide(
-                            {
-                                **state,
-                                "now": local_now(body.timezone).isoformat(),
-                                "user_timezone": body.timezone or str(now.tzinfo),
-                                "reminders": tasks.active(),
-                            }
-                        )
-                    )
+                    reply = verifier.agent_reply(messages, tools)
                     conversations.event(
-                        "agent_decision",
+                        "agent_generation",
                         turn_id=identifier,
-                        action=action,
-                        context_turns=len(context),
-                        elapsed_ms=round((time.perf_counter() - decision_started) * 1000),
+                        elapsed_ms=round((time.perf_counter() - generation_started) * 1000),
                         model=verifier.fingerprint,
                     )
-                    return action
+                    return reply
 
-                result = yield from agent_steps(
+                result = yield from native_agent_steps(
                     body.message,
                     context,
-                    decide,
+                    generate,
                     tool,
                     cancelled=cancelled,
-                    validate_tool=authorize,
+                    initial_action=body.initial_action,
+                    now=local_now(body.timezone).isoformat(),
                     available={
                         "presented_candidate": presented_candidate,
                         "current_view": image is not None,
@@ -751,173 +606,14 @@ def install_companion(app, workspace, voice):
         return {"cancelled": True}
 
     @app.delete("/api/reminders/{identifier}")
-    def cancel_reminder(identifier: str):
-        tasks.cancel(identifier)
-        return {"cancelled": True}
-
+    @app.post("/api/reminders/{identifier}/cancel")
     @app.post("/api/reminders/{identifier}/acknowledge")
-    def acknowledge(identifier: str):
-        tasks.acknowledge(identifier)
-        return tasks.get(identifier)
+    @app.post("/api/deliveries/{identifier}/claim")
+    @app.post("/api/deliveries/{identifier}/outcome")
+    def retired_reminder_action(identifier: str):
+        raise HTTPException(410, "Proactive reminders are not enabled")
 
     @app.post("/api/observe")
     def observe(body: ObservationRequest):
-        session = workspace.capture.snapshot()["session"]
-        if not session or session["id"] != body.session_id or session["state"] != "recording":
-            observer.reset()
-            raise HTTPException(409, "Live observation needs the active recording session")
-        image = decode_image(body.image, 640 * 360)
-        if not any(row["state"] == "armed" for row in tasks.active()):
-            observer.reset()
-            last_observation.update(
-                state="quiet", phase="quiet", note="Camera active; no armed departure reminder"
-            )
-            return {"state": "quiet"}
-        burst = observer.feed(body.session_id, image, body.captured_at.isoformat())
-        last_observation.update(
-            state="watching",
-            phase=observer.phase,
-            at=body.captured_at.isoformat(),
-            note="Checking local visual changes for an active departure request",
-        )
-        if burst is None:
-            return {"state": "watching", "phase": observer.phase}
-        with workspace.lock:
-            if any(
-                job["kind"] == "observe" and job["status"] not in {"succeeded", "failed"}
-                for job in workspace.jobs.values()
-            ):
-                return {"state": "busy"}
-        job_id = workspace.reserve("observe")
-        observer.accept(burst)
-        last_observation.pop("error", None)
-        last_observation["job_id"] = job_id
-        last_observation["state"] = "checking"
-
-        def check():
-            if not observer.valid(burst):
-                return {"state": "interrupted", "deliveries": []}
-            fresh(burst["times"][-1], 8)
-            model = workspace.visual_verifier()
-            fresh(burst["times"][-1], 8)
-            started = time.perf_counter()
-            judgment = model.inspect_departure(
-                burst["tracking_images"],
-                times=burst["tracking_times"],
-                view_id=(burst["session"], burst["epoch"]),
-            )
-            checked = burst
-            selected = judgment.get("frame_indices")
-            if selected:
-                if (
-                    len(selected) != 3
-                    or any(
-                        type(i) is not int or not 0 <= i < len(burst["tracking_times"])
-                        for i in selected
-                    )
-                    or selected != sorted(set(selected))
-                ):
-                    raise ValueError(
-                        "Semantic inspection needs three distinct ordered image indices"
-                    )
-                checked = {**burst, "times": [burst["tracking_times"][i] for i in selected]}
-            elif selected is not None and judgment.get("semantic_checked") is not False:
-                raise ValueError("Missing inspected image indices")
-            session = workspace.capture.snapshot()["session"]
-            if (
-                not observer.valid(burst)
-                or not session
-                or session["id"] != burst["session"]
-                or session["state"] != "recording"
-            ):
-                return {"state": "interrupted", "deliveries": []}
-            fresh(checked["times"][-1])
-            decision = departure_action(checked, judgment, tasks.active())
-            continuity = None
-            if decision["act"]:
-                continuity = observer.delivery_continuity(burst, checked["times"][-1])
-                if not continuity["supported"]:
-                    decision = {
-                        "act": False,
-                        "request_ids": [],
-                        "reason": "superseded_evidence",
-                    }
-            semantic_times = (
-                checked["times"] if judgment.get("semantic_checked") is not False else []
-            )
-            evidence = {
-                "judgment": judgment,
-                "model": model.fingerprint,
-                "frame_times": checked["times"],
-                "semantic_frame_times": semantic_times,
-                "inference_seconds": time.perf_counter() - started,
-                "kind": "model_inference" if semantic_times else "detector_observation",
-                "event_id": burst["event_id"],
-                "activity": burst["activity"],
-                "decision": decision,
-                "delivery_continuity": continuity,
-            }
-            deliveries = (
-                tasks.trigger(
-                    burst["event_id"],
-                    checked["times"][-1],
-                    evidence,
-                    request_ids=decision["request_ids"],
-                )
-                if decision["act"]
-                else []
-            )
-            last_observation.update(
-                state="triggered" if deliveries else "watching",
-                judgment=judgment,
-                decision=decision,
-                delivery_continuity=continuity,
-                seconds=evidence["inference_seconds"],
-            )
-            return {
-                "state": last_observation["state"],
-                "judgment": judgment,
-                "deliveries": deliveries,
-                "decision": decision,
-                "event_id": burst["event_id"],
-                "activity": burst["activity"],
-                "frame_times": checked["times"],
-                "semantic_frame_times": semantic_times,
-                "delivery_continuity": continuity,
-            }
-
-        workspace.submit(job_id, check)
-        from fastapi.responses import JSONResponse
-
-        return JSONResponse({"id": job_id}, status_code=202)
-
-    @app.post("/api/deliveries/{identifier}/claim")
-    def claim_delivery(identifier: str):
-        item = tasks.deliver(identifier)
-        if item is None:
-            raise HTTPException(409, "Reminder expired, cancelled, or already claimed")
-        session = workspace.capture.snapshot()["session"]
-        if not session or session["state"] != "recording":
-            tasks.finish(identifier, "interrupted")
-            raise HTTPException(409, "Camera stopped; this departure reminder was interrupted")
-        audio = None
-        warning = None
-        if voice:
-            try:
-                audio = voice.provider.speak(item["message"])
-            except ValueError as exc:
-                warning = str(exc)
-        try:
-            fresh(item["observed_at"])
-        except ValueError as exc:
-            tasks.finish(identifier, "interrupted")
-            raise HTTPException(409, "Departure evidence expired before speech was ready") from exc
-        # Cancellation during a provider request must prevent late speech.
-        if tasks.get(item["intention_id"])["state"] != "delivering":
-            raise HTTPException(409, "Reminder cancelled")
-        return {**item, "audio": audio, "warning": warning}
-
-    @app.post("/api/deliveries/{identifier}/outcome")
-    def delivery_outcome(identifier: str, body: dict):
-        tasks.finish(identifier, body.get("outcome"))
-        return {"recorded": True}
+        # The preserved UI may poll this endpoint; no inference or scheduling is performed.
+        return {"state": "inactive"}

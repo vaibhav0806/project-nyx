@@ -583,8 +583,6 @@ def create_app(
 
     @app.post("/api/capture/{session_id}/state")
     def capture_state(session_id: str, body: CaptureState):
-        if body.state != "recording":
-            workspace.observer.reset()
         return workspace.capture.transition(
             session_id, body.state, body.at.isoformat(), body.reason
         )
