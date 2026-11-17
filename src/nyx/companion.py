@@ -185,6 +185,8 @@ def install_companion(app, workspace, voice):
         image = decode_image(body.snapshot) if body.snapshot else None
         if image is not None and body.captured_at is None:
             raise ValueError("Current view needs a capture time")
+        if image is not None:
+            fresh(body.captured_at.isoformat(), limit=90)
         turn_frames = []
         if body.visual_frames:
             if body.context_at is None:

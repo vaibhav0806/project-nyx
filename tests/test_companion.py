@@ -794,3 +794,27 @@ def test_interrupted_pending_turn_keeps_registered_evidence_dependencies(tmp_pat
     assert conversations.recent()[-1]["sources"] == ["video-a"]
     conversations.invalidate("video-a")
     assert not conversations.recent()[-1]["sources_available"]
+
+
+def test_stale_single_snapshot_cannot_bypass_utterance_window_before_inference(tmp_path):
+    def forbidden():
+        pytest.fail("Stale visual input must fail before provider initialization")
+
+    with TestClient(
+        create_app(
+            tmp_path,
+            encoder_factory=ColorEncoder,
+            verifier_factory=forbidden,
+            voice_factory=lambda _: None,
+        )
+    ) as client:
+        response = client.post(
+            "/api/agent",
+            json={
+                "message": "I put this in the drawer",
+                "request_id": "stale-reference",
+                "snapshot": snapshot(),
+                "captured_at": (datetime.now(UTC) - timedelta(minutes=5)).isoformat(),
+            },
+        )
+        assert response.status_code == 400
