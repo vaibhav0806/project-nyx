@@ -1,5 +1,22 @@
 # Working on Nyx
 
+## Simple-agent execution authorization — 2026-11-17
+
+The user approved the simple shared-agent/general-memory design and asked to execute. Use
+openai/gpt-6-luna for the shared agent and memory interpretation; google/gemini-3.5-flash-lite
+for vision. Keep embeddings/Sarvam speech unchanged. Remove legacy planner/duplicate reference
+policies, separate ambiguity/correction judges and departure-specific active feature paths as
+replacement tests pass. Memory owns related-record matching and update history. Preserve data,
+UI contracts, recordings and main. Work inline on work/memory-reliability, regular commits and
+optional branch-only backup. No subagents or new PR/merge. See the approved
+[design](docs/superpowers/specs/2026-11-17-simple-agent-memory-design.md) and
+[plan](docs/superpowers/plans/2026-11-17-simple-agent-memory.md).
+
+The user increased the OpenRouter key limit; verified metadata on 2026-11-17 is $8 TOTAL,
+usage $4.73185091, remaining $3.26814909. This supersedes $5 for this work, not an additional $8.
+Use guarded paid runs, public/synthetic inputs only, preserve settlement headroom. Private
+recordings stay offline; no hardware capture or new paid account/provider.
+
 ## Household workflow authorization — 2026-11-16
 
 PR2 merged the reliability work at bdb7ad0. The user then authorized engineering the complete
