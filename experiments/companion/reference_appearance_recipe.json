@@ -1,0 +1,49 @@
+{
+  "manifest_sha256": "ea55b45babf1414ab2dd0c4c6fef755260113a96adaf9c5aefa886c036538562",
+  "sources": {
+    "beer": {
+      "file": "beer.jpg",
+      "sha256": "76cce04986d99c8013538e36e5c1d923b17bf051e109d81b9b49e70746654fa5",
+      "source_id": 146489,
+      "parent_manifest_sha256": "9b9ee2320a8d7f38a042a1ee43b02b4f91de36bbf49972cb74b8b092d6382ae8",
+      "captured_at": null
+    },
+    "dispenser": {
+      "file": "dispenser.jpg",
+      "sha256": "5aab08532d4356e3cbdb3a42789518297017be3e06f3224f15a97a3e49b670a1",
+      "source_id": 90108,
+      "parent_manifest_sha256": "9ebe954599f233ef6996e2f8a91ba506a4aec92952d4bfdd2ad0139df1e053bd",
+      "captured_at": null
+    }
+  },
+  "cases": [
+    {
+      "id": "beer-to-beer",
+      "reference": "beer",
+      "candidate": "beer",
+      "query": "a bottle",
+      "expected": "single"
+    },
+    {
+      "id": "dispenser-to-dispenser",
+      "reference": "dispenser",
+      "candidate": "dispenser",
+      "query": "a bottle",
+      "expected": "single"
+    },
+    {
+      "id": "beer-to-dispenser",
+      "reference": "beer",
+      "candidate": "dispenser",
+      "query": "a bottle",
+      "expected": "absent"
+    },
+    {
+      "id": "dispenser-to-beer",
+      "reference": "dispenser",
+      "candidate": "beer",
+      "query": "a bottle",
+      "expected": "absent"
+    }
+  ]
+}
