@@ -129,7 +129,9 @@ def run(cases_path, output, split, max_spend):
             report["cases"].append(row)
             root = output / case["id"]
             conversations = Conversations(root)
-            memory = PersonalMemory(conversations, encoder, verifier.memory_reply)
+            memory = PersonalMemory(
+                conversations, encoder, verifier.memory_reply, model_info=verifier.fingerprint
+            )
             identifiers = {}
             started = time.perf_counter()
             try:

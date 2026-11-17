@@ -25,7 +25,7 @@ def verifier(result, calls):
         assert set(kwargs["schema"]["required"]) == set(decision())
         return json.dumps(result)
 
-    return SimpleNamespace(generate_json=generate)
+    return SimpleNamespace(generate_json=generate, fingerprint={"model": "fixture"})
 
 
 def test_one_visual_call_selects_earlier_supporting_frame_without_classifying_memory():

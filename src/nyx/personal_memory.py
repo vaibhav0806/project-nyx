@@ -29,6 +29,11 @@ SCHEMA = {
                         "description": "Concise memory grounded in the quoted input",
                     },
                     "kind": {"type": "string", "enum": ["report", "plan"]},
+                    "grounding": {
+                        "type": "string",
+                        "enum": ["text", "visual", "memory"],
+                        "description": "Where this operation's resolved meaning comes from: explicit current text, the supplied visual observation, or an actual related memory. Visual evidence applies only to the fact it supports.",
+                    },
                     "related_id": {
                         "type": ["string", "null"],
                         "description": "Actual memory used to resolve context or update a report. Required for context-based references, correction and retraction.",
@@ -48,7 +53,7 @@ SCHEMA = {
                         },
                     },
                 },
-                "required": ["operation", "content", "kind", "related_id", "quotes"],
+                "required": ["operation", "content", "kind", "grounding", "related_id", "quotes"],
                 "additionalProperties": False,
             },
         },
@@ -70,8 +75,9 @@ SCHEMA = {
 
 
 class PersonalMemory:
-    def __init__(self, conversations, encoder, interpret):
+    def __init__(self, conversations, encoder, interpret, *, model_info=None):
         self.conversations, self.encoder, self.interpret = conversations, encoder, interpret
+        self.model_info = model_info
         with conversations.connect() as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS memories (
@@ -89,6 +95,10 @@ class PersonalMemory:
             if "dependencies" not in {row[1] for row in db.execute("PRAGMA table_info(memories)")}:
                 db.execute(
                     "ALTER TABLE memories ADD COLUMN dependencies TEXT NOT NULL DEFAULT '[]'"
+                )
+            if "grounding" not in {row[1] for row in db.execute("PRAGMA table_info(memories)")}:
+                db.execute(
+                    "ALTER TABLE memories ADD COLUMN grounding TEXT NOT NULL DEFAULT 'legacy'"
                 )
         self._import_statements()
 
@@ -282,7 +292,16 @@ class PersonalMemory:
         return {
             **{
                 key: row[key]
-                for key in ["id", "turn_id", "content", "kind", "at", "quotes", "sources"]
+                for key in [
+                    "id",
+                    "turn_id",
+                    "content",
+                    "kind",
+                    "grounding",
+                    "at",
+                    "quotes",
+                    "sources",
+                ]
             },
             "visual": json.loads(row["visual"]),
             "has_image": row["image"] is not None,
@@ -412,8 +431,13 @@ class PersonalMemory:
                     "clarification": visual.get("answer") or "Which item do you mean?",
                 }
             else:
+                candidates = self.recall(
+                    visual.get("object_description", "") + "\n" + turn["transcript"], limit=8
+                )["matches"]
+                check_active()
                 payload = {
                     **payload,
+                    "memories": candidates,
                     "visual_available": False,
                     "visual": {k: v for k, v in visual.items() if k != "image"},
                 }
@@ -452,6 +476,7 @@ class PersonalMemory:
                     not isinstance(op, dict)
                     or op.get("operation") not in {"append", "correct", "retract"}
                     or op.get("kind") not in {"report", "plan"}
+                    or op.get("grounding") not in {"text", "visual", "memory"}
                     or not isinstance(op.get("content"), str)
                     or not 1 <= len(op["content"].strip()) <= 1000
                 ):
@@ -467,6 +492,10 @@ class PersonalMemory:
                     raise ValueError("Related memory is unavailable")
                 if op["operation"] in {"correct", "retract"} and target is None:
                     raise ValueError("Correction needs an existing memory")
+                if op["grounding"] == "memory" and target is None:
+                    raise ValueError("Context grounding needs an existing memory")
+                if op["grounding"] == "visual" and not visual:
+                    raise ValueError("Visual grounding needs an observation")
                 if target:
                     sources = sorted(set(sources) | set(by_id[target]["sources"]))
                 identifier = hashlib.sha256(f"{turn_id}:{index}".encode()).hexdigest()[:32]
@@ -487,6 +516,7 @@ class PersonalMemory:
             "answer": reply["clarification"]
             or ("Memory saved." if prepared else "No new memory recorded."),
             "saved_ids": [op["id"] for op in prepared],
+            "model_info": self.model_info,
             "lookup": {"candidate_count": len(candidates), "relevant_count": len(selected)},
             "visual": {k: v for k, v in visual.items() if k != "image"},
             "relevant": [
@@ -536,9 +566,9 @@ class PersonalMemory:
                         (op["related_id"],),
                     ).fetchone():
                         raise ValueError("Related memory changed")
-                support = visual
-                photo = self._photo(visual.get("image"))
-                if not support and op["related_id"]:
+                support = visual if op["grounding"] == "visual" else {}
+                photo = self._photo(support.get("image"))
+                if op["grounding"] == "memory":
                     previous = by_id[op["related_id"]]
                     support = (
                         {**previous["visual"], "inherited_from": op["related_id"]}
@@ -550,7 +580,7 @@ class PersonalMemory:
                             "SELECT image FROM memories WHERE id=?", (op["related_id"],)
                         ).fetchone()[0]
                 db.execute(
-                    "INSERT INTO memories(id,turn_id,content,kind,quotes,embedding,encoder,visual,image,dependencies) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO memories(id,turn_id,content,kind,quotes,embedding,encoder,visual,image,dependencies,grounding) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         op["id"],
                         turn_id,
@@ -562,6 +592,7 @@ class PersonalMemory:
                         json.dumps({k: v for k, v in support.items() if k != "image"}),
                         photo,
                         json.dumps([op["related_id"]] if op["related_id"] else []),
+                        op["grounding"],
                     ),
                 )
                 if op["related_id"]:

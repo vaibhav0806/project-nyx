@@ -30,6 +30,7 @@ def operation(turn_id, quote, content, **changes):
         "operation": "append",
         "content": content,
         "kind": "report",
+        "grounding": "text",
         "related_id": None,
         "quotes": [{"turn_id": turn_id, "text": quote}],
         **changes,
@@ -538,7 +539,9 @@ def test_context_resolved_memory_inherits_original_visual_clock_photo_and_source
     first = conversations.begin("I put this on the table", {})
     replies = [
         response(needs_visual=True),
-        response([operation(first, "I put this on the table", "Blue phone on table")]),
+        response(
+            [operation(first, "I put this on the table", "Blue phone on table", grounding="visual")]
+        ),
     ]
     memory = PersonalMemory(conversations, Encoder(), lambda *args: replies.pop(0))
     old_id = memory.process(
@@ -555,7 +558,11 @@ def test_context_resolved_memory_inherits_original_visual_clock_photo_and_source
         response(
             [
                 operation(
-                    second, "I moved it into my bag", "Blue phone moved into bag", related_id=old_id
+                    second,
+                    "I moved it into my bag",
+                    "Blue phone moved into bag",
+                    related_id=old_id,
+                    grounding="memory",
                 )
             ]
         )
@@ -599,3 +606,125 @@ def test_successful_correction_does_not_mark_its_intentionally_replaced_context_
     context = memory.turn_context(conversations, second)
     assert context["status"] == "saved" and len(context["records"]) == 1
     assert context["records"][0]["content"] == "Likes coffee"
+
+
+def test_one_visual_observation_is_not_attached_to_unrelated_facts_in_same_utterance(tmp_path):
+    from PIL import Image
+
+    conversations = Conversations(tmp_path)
+    text = "I put this in my bag, and my glasses are on the table."
+    turn = conversations.begin(text, {})
+    replies = [
+        response(needs_visual=True),
+        response(
+            [
+                operation(turn, "I put this in my bag", "Phone in bag", grounding="visual"),
+                operation(
+                    turn, "my glasses are on the table", "Glasses on table", grounding="text"
+                ),
+            ]
+        ),
+    ]
+    memory = PersonalMemory(conversations, Encoder(), lambda *args: replies.pop(0))
+    memory.process(
+        turn,
+        observe=lambda: {
+            "status": "resolved",
+            "object_description": "phone",
+            "captured_at": "2026-11-17T00:00:00Z",
+            "image": Image.new("RGB", (10, 10), "blue"),
+        },
+    )
+    records = {r["content"]: r for r in memory.recall("belongings")["matches"]}
+    assert records["Phone in bag"]["has_image"]
+    assert (
+        not records["Glasses on table"]["has_image"] and records["Glasses on table"]["visual"] == {}
+    )
+
+
+def test_visual_resolution_refreshes_candidates_beyond_initial_pronoun_query(tmp_path):
+    from PIL import Image
+
+    class DistinctEncoder(Encoder):
+        def encode_text(self, text):
+            return np.array([0, 1] if "blue phone" in text.lower() else [1, 0], dtype=np.float32)
+
+    conversations = Conversations(tmp_path)
+    replies = []
+    memory = PersonalMemory(conversations, DistinctEncoder(), lambda *args: replies.pop(0))
+    old = conversations.begin("My blue phone is in the desk drawer", {})
+    replies.append(
+        response(
+            [operation(old, "My blue phone is in the desk drawer", "Blue phone in desk drawer")]
+        )
+    )
+    identifier = memory.process(old)["saved_ids"][0]
+    conversations.finish(old, "Noted")
+    for index in range(25):
+        text = f"Unrelated fact number {index}"
+        turn = conversations.begin(text, {})
+        replies.append(response([operation(turn, text, text)]))
+        memory.process(turn)
+        conversations.finish(turn, "Noted")
+    query = conversations.begin("Where did I put this?", {})
+    seen = []
+
+    def interpret(payload, schema):
+        seen.append(payload)
+        ids = {row["id"] for row in payload["memories"]}
+        if payload["visual"] is None:
+            assert identifier not in ids
+            return response(needs_visual=True)
+        assert identifier in ids
+        return response(relevant_ids=[identifier])
+
+    memory.interpret = interpret
+    memory.process(
+        query,
+        observe=lambda: {
+            "status": "resolved",
+            "object_description": "blue phone",
+            "captured_at": "2026-11-17T00:00:00Z",
+            "image": Image.new("RGB", (10, 10), "blue"),
+        },
+    )
+    assert len(seen) == 2
+    assert memory.turn_context(conversations, query)["records"][0]["turn_id"] == old
+
+
+@pytest.mark.parametrize("grounding", ["visual", "memory"])
+def test_fabricated_grounding_cannot_save_without_its_required_source(tmp_path, grounding):
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("I put this in my bag", {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response(
+            [operation(turn, "I put this in my bag", "Phone in bag", grounding=grounding)]
+        ),
+    )
+    with pytest.raises(ValueError, match="grounding"):
+        memory.process(turn)
+    with conversations.connect() as db:
+        assert db.execute("SELECT count(*) FROM memories").fetchone()[0] == 0
+
+
+def test_interpretation_model_is_recorded_before_an_assistant_can_fail(tmp_path):
+    import json
+
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("I prefer tea", {})
+    model_info = {"model": "fixture-interpreter", "memory_policy_version": 4}
+    PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response([operation(turn, "I prefer tea", "Prefers tea")]),
+        model_info=model_info,
+    ).process(turn)
+    conversations.finish(turn, status="interrupted")
+    with conversations.connect() as db:
+        result = json.loads(
+            db.execute("SELECT result FROM memory_turns WHERE turn_id=?", (turn,)).fetchone()[0]
+        )
+        assert result["model_info"] == model_info
+        assert db.execute("SELECT count(*) FROM memories").fetchone()[0] == 1

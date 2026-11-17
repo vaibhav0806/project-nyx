@@ -107,8 +107,12 @@ class Workspace:
         from nyx.personal_memory import PersonalMemory
 
         if self.memories is None:
+            verifier = self.visual_verifier()
             self.memories = PersonalMemory(
-                self.conversations, self.embedding_encoder(), self.visual_verifier().memory_reply
+                self.conversations,
+                self.embedding_encoder(),
+                verifier.memory_reply,
+                model_info=verifier.fingerprint,
             )
         return self.memories
 
