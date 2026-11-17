@@ -31,66 +31,67 @@ memory/context, honest uncertainty and brief clarification. Tool manuals stay in
 
 Files: create src/nyx/agent_tools.py; repurpose agent.py; update realtime.py, companion.py,
  verification.py and relevant test_agent/test_companion/test_realtime tests.
-- [ ] Add failing contract tests for equal voice/text tool names, descriptions and schemas;
+- [x] Add failing contract tests for equal voice/text tool names, descriptions and schemas;
   actual selected call binding, multi-step continuation, rejected arguments, cancellation and sources.
-- [ ] Extract the existing look_for_object/remember/recall/identify contracts into one module.
+- [x] Extract lookup/recall/identify contracts into one module; automatic preparation owns writes.
   Tools consume the actual utterance and server-owned evidence; source/turn IDs are server-bound.
-- [ ] Use native chat-completion tool calls for typed execution with the same policy and tools;
+- [x] Use native chat-completion tool calls for typed execution with the same policy and tools;
   adapt results into existing API observations/steps/sources/review_context fields. Retain voice IO.
-- [ ] Delete CloudVerifier.decide's long JSON-planner prompt/action-loop implementation when callers
+- [x] Delete CloudVerifier.decide's long JSON-planner prompt/action-loop implementation when callers
   use the shared native contract. Keep validation/execution, not two live planning implementations.
-- [ ] Run API, SDK binding, context/source and cancellation tests; commit after GREEN.
+- [x] Run API, SDK binding, context/source and cancellation tests; commit after GREEN.
 
 ## Task 3: Automatic general memory and lossless existing data
 
 Files: create src/nyx/personal_memory.py and tests/test_personal_memory.py; integrate voice.py,
  companion.py and shared agent tools; consolidate statements.py rather than retain a second writer.
-- [ ] Add failing persistence/restart tests for facts, preferences, reports, plans and no-op input.
-- [ ] Implement memory turn processing: retrieve related candidates, one compact Luna interpretation,
+- [x] Add failing persistence/restart tests for facts, preferences, reports, plans and no-op input.
+- [x] Implement memory turn processing: retrieve related candidates, one compact Luna interpretation,
   validate operations, persist atomically. Return relevant memories and any clarification needed.
   Sources are actual user-turn/evidence IDs. Successful processing is idempotent by input turn.
-- [ ] Add failing ordinary-move versus explicit-correction/retraction tests. Persist links/history;
+- [x] Add failing ordinary-move versus explicit-correction/retraction tests. Persist links/history;
   validate real prior IDs, source availability and chronology. Main agent never chooses database IDs.
-- [ ] Add provider/embedding/write-failure tests: preserve raw input; no partial links or false success.
-- [ ] Add existing-R29-store conversion/read tests, source deletion and context-eviction tests.
-- [ ] Wire automatic processing into typed and activated spoken turns with one owner per turn;
+- [x] Add provider/embedding/write-failure tests: preserve raw input; no partial links or false success.
+- [x] Add existing-R29-store conversion/read tests, source deletion and context-eviction tests.
+- [x] Wire automatic processing into typed and activated spoken turns with one owner per turn;
   memory results reach response generation. Do not add a separate autonomous agent loop.
-- [ ] Run targeted persistence, context, API and voice tests (GREEN); commit.
+- [x] Run targeted persistence, context, API and voice tests (GREEN); commit.
 
 ## Task 4: Single visual path and removal of redundant judges
 
 Files: reference.py, verification.py, personal_memory.py, agent_tools.py, statements.py and tests.
-- [ ] Add failing real-protocol tests for a short object observation, earlier supporting frame,
+- [x] Add failing real-protocol tests for a short object observation, earlier supporting frame,
   explicit text-only memory, missing/ambiguous object, depicted object and different source clocks.
-- [ ] Consolidate reference policies into a single task; carry observed source/uncertainty metadata.
+- [x] Consolidate reference policies into a single task; carry observed source/uncertainty metadata.
   Keep original source timestamps and evidence separation. Use Flash-Lite and schema field docs.
-- [ ] Delete the independent ambiguity call, separate correction-check call, duplicate reference
+- [x] Delete the independent ambiguity call, separate correction-check call, duplicate reference
   policy flag and optional duplicated visual-scene prompt variants; update experiment callers.
-- [ ] Assert protocol traces contain no removed judges. Retain clarification/failed-source behavior
+- [x] Assert protocol traces contain no removed judges. Retain clarification/failed-source behavior
   and actual source validators. Known unsafe R29 inputs remain acceptance regressions.
-- [ ] Run visual, memory, source-failure and API tests; commit after GREEN.
+- [x] Run visual, memory, source-failure and API tests; commit after GREEN.
 
 ## Task 5: Retire departure feature without harming recording or the UI contract
 
 Files: companion.py, realtime.py, observation.py, intentions.py, reminders.py, verification.py,
  app.py as actual imports require; relevant tests. Do not edit src/nyx/web.
-- [ ] Add failing API tests for no active departure tools/AI calls and compatible inactive observation/
+- [x] Add failing API tests for no active departure tools/AI calls and compatible inactive observation/
   delivery polling; recording/indexing remains functional and original reminder rows preserved.
-- [ ] Remove departure-specific runtime wiring, model prompts, detection/tracking and scheduling
+- [x] Remove departure-specific runtime wiring, model prompts, detection/tracking and scheduling
   implementations. Keep cached lookup acknowledgements. Preserve existing historical data.
-- [ ] Remove obsolete tests/experiment imports only with replacement coverage for retained contracts.
-- [ ] Run recording/import/source/voice API/browser boundaries and commit after GREEN.
+- [x] Remove obsolete tests/experiment imports only with replacement coverage for retained contracts.
+- [x] Run recording/import/source/voice API/browser boundaries and commit after GREEN.
 
 ## Task 6: Real model acceptance and iteration
 
-Files: experiments/companion/simple_agent_replay.py and simple_agent_cases.json;
+Files: experiments/companion/recall_workflows.py, household_workflows.py and frozen general/household cases;
  docs/research/R30-simple-agent-memory.md; tests for reproduced general defects.
 - [ ] Freeze development and source-separated heldout dialogues before paid calls, covering the
   spec's positive, ambiguous, temporal and failure workflows with exact expected source relations.
 - [ ] Run selected Luna/Lite defaults, unforced native actions and actual SQLite writes/reopen.
   Log every call, latency, usage, actual saved content, selected sources and final answer.
 - [ ] Trace failures by stage; reproduce general defects with a failing regression before repair.
-  No fixture-specific runtime rules; do not tune on opened heldout outputs or omit failed saves.
+  No fixture-specific runtime rules or omitted failed saves. Opened holdouts become development/regressions;
+  any proposed promotion requires fresh source-separated confirmation.
 - [ ] A bounded Flash comparison may diagnose model limitations; no automatic runtime fallback or
   silent model substitution. Report a failed selected-model gate rather than claim readiness.
 - [ ] Run final fresh dialogues, natural public-video diagnostic and offline local-data checks.
@@ -105,3 +106,14 @@ Files: experiments/companion/simple_agent_replay.py and simple_agent_cases.json;
   outcomes, model IDs, remaining failures and exact provider usage. No CI/merge-ready shortcut.
 - [ ] Review the whole diff inline, resolve material findings, commit; optional backup ONLY to
   work/memory-reliability. Verify remote main/UI/original recordings unchanged. No new PR yet.
+
+## Execution checkpoint — 2026-11-17
+
+Tasks1–5 implemented and committed; no UI/main changes. Task6 found general memory16/16 correct
+final answers, recall7/8 exact-source proxies with8 correct answers, but default identity/depiction
+and Hindi identity caveats fail. SeeR30 for every repeated/failed run and costs. Task7 checks passed
+at61da728:456tests27.05s, lint/format/JS/synthetic browser; private final2-row conversion unchanged.
+No new PR/merge or readiness claim. Current quality iteration: experiment-only shorter reference
+prompt passed core4/4; hard identity retest pending. Alternative agent wording did not fix Hindi;
+new8-case bilingual source fidelity conditions frozen before low/medium reasoning comparison.
+Default prompts/models stay until broader confirmation, not just the small development score.
