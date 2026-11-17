@@ -45,6 +45,7 @@ class SceneVerifier(CloudVerifier):
         self.fingerprint["reference_comparison_experiment"] = hashlib.sha256(
             REFERENCE_TASK.encode()
         ).hexdigest()
+        self.fingerprint["reference_task_role"] = "system"
 
     def inspect(self, image, object_query):
         return self._observe(
@@ -64,18 +65,22 @@ class SceneVerifier(CloudVerifier):
                 {"type": "image", "image": reference},
                 {
                     "type": "text",
-                    "text": REFERENCE_TASK,
+                    "text": "CANDIDATE: scene to inspect.",
                 },
                 {"type": "image", "image": image},
                 {"type": "text", "text": json.dumps({"object": object_query})},
-            ]
+            ],
+            reference_task=True,
         )
 
-    def _observe(self, content):
+    def _observe(self, content, *, reference_task=False):
         raw = json.loads(
             self.client.generate(
                 [
-                    {"role": "system", "content": PROMPT},
+                    {
+                        "role": "system",
+                        "content": (REFERENCE_TASK + "\n" if reference_task else "") + PROMPT,
+                    },
                     {"role": "user", "content": content},
                 ],
                 self.vision_model,
