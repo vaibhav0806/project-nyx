@@ -1,5 +1,20 @@
 # Working on Nyx
 
+## Voice trial follow-up — 2026-11-17
+
+Real trial: one complete greeting, three interrupted turns, zero memories. At8f0a263, spoken
+input ownership and memory preparation move to LiveKit's completed-user-turn hook; actual-SDK
+synthetic regression fails the old owner race and passes the repair. Full suite481 passed29.41s.
+See [R31](docs/research/R31-voice-turn-lifecycle.md). The live8001 process still uses the earlier
+code; preserve active capture before any restart. Do not claim a new household trial passed.
+
+Audio-gate expiry remains separate: fixed client/server deadlines can stop forwarding during
+active conversation. A concrete unapplied transport patch is at
+.superpowers/sdd/2026-11-17-simple-agent-memory/voice-flow/audio-gate-proposal.patch; six synthetic
+client gate checks pass the proposal, with two failing on current code. This is not integration/
+acoustic acceptance. The standing ban on src/nyx/web edits still applies until the user grants
+an audio-transport-only exception. No new model/prompt/UI/main changes or paid calls for this repair.
+
 ## Simple-agent execution authorization — 2026-11-17
 
 The user approved the simple shared-agent/general-memory design and asked to execute. Use
