@@ -1,0 +1,6 @@
+[
+  {"id":"dated-remote-en","message":"Where did you last see the TV remote?","days_ago":1,"expected_meaning":"A supported remote candidate or honest ambiguity, with source/time and no confirmed ownership/current-location claim."},
+  {"id":"nine-day-coffee-hi","message":"पिछले दस दिनों में मेरा कॉफी वाला कप आखिरी बार कहाँ दिखा था?","days_ago":9,"expected_meaning":"Hindi: a supported coffee-cup candidate in nine-day-old footage, or honest uncertainty; no current-location/identity proof."},
+  {"id":"absent-purple-cane","message":"Where did you last see my purple walking cane?","days_ago":1,"expected_meaning":"No supported sighting or location; a nearest neighbor is not proof the cane exists in these recordings."},
+  {"id":"undated-coffee-en","message":"Find the cup of coffee in my imported clip. I don't know when it was recorded.","days_ago":null,"expected_meaning":"Use undated similarity lookup; a supported cup candidate has unknown capture date and cannot establish latest sighting, ownership or current location."}
+]
