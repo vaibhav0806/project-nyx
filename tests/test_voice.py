@@ -114,8 +114,9 @@ def test_spoken_answer_is_brief_but_keeps_historical_uncertainty():
     }
     text = spoken_answer(result)
     assert "beside the laptop" in text
-    assert "I think I saw" in text
-    assert "not verified" not in text
+    assert "possible visual match" in text.lower()
+    assert "identity" in text and "unconfirmed" in text
+    assert "current location" in text
     assert "check the image" not in text
     assert "2026-10-19T" not in text
     assert len(text) < 240
@@ -273,7 +274,7 @@ def test_unknown_or_future_sightings_do_not_invent_elapsed_time():
 @pytest.mark.parametrize(
     "location, expected",
     [
-        ("held in the right hand near the center of the image", "in your right hand"),
+        ("held in the right hand near the center of the image", "in the right hand"),
         ("on the table, in the lower right corner of the frame", "on the table"),
         ("near the center of the image, beside the laptop", "beside the laptop"),
         ("on the right side of the table", "on the right side of the table"),
@@ -299,39 +300,25 @@ def test_spoken_locations_keep_landmarks_not_image_coordinates(location, expecte
     if expected:
         assert expected in answer
     else:
-        assert answer == "I can see a phone."
+        assert answer.startswith("I can see a phone.")
+    assert "identity is unconfirmed" in answer
 
 
 @pytest.mark.parametrize(
-    "query, location, expected",
+    "query, location",
     [
-        (
-            "the user using a phone",
-            "in front of the user",
-            "you using a phone about 50 minutes ago.",
-        ),
-        (
-            "the user's phone",
-            "in the user's hand",
-            "your phone about 50 minutes ago, in your hand.",
-        ),
-        ("your phone", "in the person's hand", "your phone about 50 minutes ago, in your hand."),
-        (
-            "the person’s phone",
-            "in the person’s right hand",
-            "your phone about 50 minutes ago, in your right hand.",
-        ),
-        (
-            "the person using a phone",
-            "in front of the person",
-            "you using a phone about 50 minutes ago.",
-        ),
-        ("a phone", "held in the right hand", "a phone about 50 minutes ago, in your right hand."),
-        ("a visitor", "beside the table", "a visitor about 50 minutes ago, beside the table."),
-        ("a phone", "in a visitor's hand", "a phone about 50 minutes ago, in a visitor's hand."),
+        ("the user using a phone", "in front of the user"),
+        ("the user's phone", "in the user's hand"),
+        ("my coffee cup", "on the table"),
+        ("a phone", "in the person's hand"),
+        ("the person’s phone", "in the person’s right hand"),
+        ("the person using a phone", "in front of the person"),
+        ("a phone", "held in the right hand"),
+        ("a visitor", "beside the table"),
+        ("a phone", "in a visitor's hand"),
     ],
 )
-def test_personal_demo_speaks_to_listener_without_changing_evidence(query, location, expected):
+def test_spoken_evidence_does_not_invent_user_ownership(query, location):
     from datetime import datetime
 
     from nyx.voice import spoken_answer
@@ -345,6 +332,11 @@ def test_personal_demo_speaks_to_listener_without_changing_evidence(query, locat
         },
     }
     answer = spoken_answer(result, now=datetime.fromisoformat("2026-10-31T12:50:00+00:00"))
-    assert answer == "I think I saw " + expected
+    assert "possible visual match" in answer.lower()
+    assert "about 50 minutes ago" in answer
+    assert "identity" in answer and "current location" in answer and "unconfirmed" in answer
+    assert "your" not in answer and "you using" not in answer
+    if "person" in location or "visitor" in location:
+        assert location in answer
     assert result["object_query"] == query
     assert result["evidence"]["judgment"]["location"] == location

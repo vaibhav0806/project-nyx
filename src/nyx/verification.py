@@ -88,6 +88,7 @@ class CloudVerifier:
             "prompt_version": 10,
             "reference_prompt_version": 9,
             "identity_evidence_contract": "appearance-unverified/user-confirmed-v1",
+            "spoken_evidence_contract": "neutral-identity-qualified-v2",
             "history_parallel_checks": self.history_concurrency,
             "history_source_failure_policy": "unavailable-not-negative-v1",
             "conversation_context_policy": "bounded-source-aware-v2/live-availability",

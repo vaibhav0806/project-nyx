@@ -69,18 +69,9 @@ def relative_time(value, now=None):
     return "about a day ago" if days == 1 else f"about {days} days ago"
 
 
-def personal_wording(text):
-    text = re.sub(r"\bthe (?:user|person)['’]s\b", "your", text, flags=re.IGNORECASE)
-    return re.sub(r"\bthe (?:user|person)\b", "you", text, flags=re.IGNORECASE)
-
-
 def spoken_location(location):
     if not location:
         return ""
-    location = personal_wording(location)
-    location = re.sub(
-        r"\bthe ((?:right |left )?hands?)\b", r"your \1", location, flags=re.IGNORECASE
-    )
     location = re.sub(
         r"\b(?:near|at|in|on|towards?)\s+(?:the\s+)?"
         r"(?:(?:upper|lower|top|bottom|left|right|middle|center|centre)\s*)+"
@@ -100,7 +91,7 @@ def spoken_location(location):
 
 def spoken_answer(result, *, now=None):
     kind = result.get("kind")
-    query = personal_wording(result.get("object_query", "that object"))
+    query = result.get("object_query", "that object")
     if result.get("status") == "confirmed":
         return result["answer"]
     if result.get("status") == "clarify":
@@ -108,30 +99,20 @@ def spoken_answer(result, *, now=None):
     if kind == "snapshot":
         if result.get("status") == "seen":
             location = spoken_location(result["judgment"].get("location"))
-            return f"I can see {query}{' ' + location if location else ''}."
+            return f"I can see {query}{' ' + location if location else ''}. Its identity is unconfirmed."
         return f"I can't clearly see {query} in this view."
     if kind == "history":
         evidence = result.get("evidence")
         if evidence:
             when = relative_time(evidence.get("observed_at"), now)
-            noun = (
-                query
-                if re.match(r"^(?:a|an|the|you|your|that|those|someone)\b", query, re.IGNORECASE)
-                else f"your {query}"
-            )
             location = spoken_location(evidence.get("judgment", {}).get("location"))
-            if query.lower().startswith("you ") and location.lower() == "in front of you":
-                location = ""
             place = f", {location.rstrip('.')}" if location else ""
             answer = (
-                f"I think I saw {noun} {when}{place}."
+                f"A possible visual match {when}{place}."
                 if when
-                else (f"I think I saw {noun}{place}, but I don't know when that was.")
+                else (f"A possible visual match{place}, but I don't know when that was.")
             )
-            statements = result.get("spoken_context") or []
-            if statements:
-                answer += " " + " ".join(f"You said, “{row['text']}”" for row in statements)
-            return answer
+            return answer + " Its identity and current location are unconfirmed."
         return f"I haven't found {query} yet. I can look further back."
     return result["answer"]
 
