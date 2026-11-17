@@ -1,5 +1,14 @@
 # Working on Nyx
 
+## Early memory context authorization — 2026-11-18
+
+User approved early optional candidates retrieved in parallel with image preparation, retaining
+further native recall, and the short answer-first prompt edit. They explicitly requested replaying
+their recent real phone-recall trial to verify the desired response. Use the existing memory
+system/Luna6, source-separated saved evidence, bounded paid replay and ignored private artifacts.
+No UI/main/source edits, hardware activation or interruption of active capture. Regular branch
+commits. See the early-memory-context plan; no new service or AI selection judge is needed.
+
 ## Latest user memory-test handoff — 2026-11-18
 
 Real next trial: playback2778ms after accepted transcript; background save4654ms, new location plan
