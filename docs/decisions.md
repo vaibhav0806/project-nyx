@@ -1,5 +1,15 @@
 # Decisions and open choices
 
+## Supply optional saved memories before spoken generation — 2026-11-18
+
+User approved up to five early candidates alongside image preparation, retaining native lookup.
+Use the existing memory store/encoder without an extra selection LLM, bounded independent reads
+and a250ms prefetch wait budget. Distinguish already-saved records from current-input saving.
+Keep source/correction/as-of validation and background write ordering. Main Luna6 medium effort
+improved the bounded replay's use of supplied memory; memory interpretation stays low. Shared
+policy93 words, attribution once and useful leads first. Further tools remain available; one
+confirmation outlier still chose visual search. No hard router or universal speed claim. SeeR35.
+
 ## Respond from owned images; process completed speech memory in background — 2026-11-18
 
 User approved retaining Luna6 and moving expensive preparation off the spoken reply path.

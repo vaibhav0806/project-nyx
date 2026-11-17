@@ -1,5 +1,15 @@
 # Milestones
 
+## Early memory context and short replies — 2026-11-18
+
+Optional saved records now reach the first spoken generation alongside image preparation, with
+a250ms prefetch wait budget and native further lookup retained. Photo BLOBs stay out of retrieval;
+source/correction/as-of validation remains. Shared policy93 words; main Luna6 medium effort,
+memory/vision roles unchanged.498 tests31.63s and18 browser checks pass. Real source-separated
+recall:5/6 medium runs direct; latest confirmation2/3 direct with one10.61s visual-check outlier.
+Further-lookup controls and image/greeting checks pass; no universal latency/household claim.
+See [R35](research/R35-early-memory-context.md) for rejected outputs, costs and manual handoff.
+
 ## Fast image-aware voice and background memory — 2026-11-18
 
 Luna6 sees owned final-STT image windows and can reply before memory interpretation/reference

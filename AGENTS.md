@@ -1,5 +1,19 @@
 # Working on Nyx
 
+## Early context verification — 2026-11-18
+
+Implemented optional <=5 saved records before first spoken generation, overlapping image
+preparation with250ms lookup wait budget. Native further recall/visual lookup remain. Source,
+correction/as-of validation and ordered background saving remain. SQL no longer reads photo BLOBs
+for retrieval. Shared policy93 words/version10; main Luna6 medium effort, memory low/vision Lite
+unchanged.498 tests31.63s and18 JS checks pass. R35 records actual replay:5/6 medium recall runs
+direct, latest2/3 with one10.61s visual-search outlier. Do not claim universal fast recall or
+complete visual/acoustic acceptance. No more developer inference at this checkpoint.
+Final key usage$6.72334125/$8; remaining$1.27665875. Observer-reported pass total$0.09137575 is a
+conservative duplicated upper figure, not exact invoice. Raw private replay/failed runs stay ignored.
+Fresh data/early-memory-check-2026-11-18 retains4 memories and32 markers; old dialogue/recall
+answers excluded from recent context. Do not confuse it with the original household directory.
+
 ## Early memory context authorization — 2026-11-18
 
 User approved early optional candidates retrieved in parallel with image preparation, retaining

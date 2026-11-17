@@ -1,5 +1,16 @@
 # Technical architecture
 
+## Early saved-memory context — 2026-11-18
+
+Before waiting for frozen images, the completed-turn hook starts `BackgroundMemory.prefetch`.
+A single independent read worker permits one in-flight request; up to five candidates use existing
+PersonalMemory retrieval without its selection LLM. Small compatible pools need no query embedding.
+Prefetch waiting overlaps images within250ms; incomplete lookup does not hold ordinary generation.
+Generation revalidates saved sources/corrections/as-of state and supplies compact optional records.
+Native further recall remains independent. Retrieval reads photo-presence metadata instead of
+photo bytes. Current-input saving keeps its ordered background worker. Local revalidation/large-
+corpus scaling remain separate from the wait bound. Main Luna6 medium effort; memory low. SeeR35.
+
 ## Image-aware quick speech with background memory — 2026-11-18
 
 This supersedes synchronous spoken memory preparation below. The completed-user-turn hook owns
