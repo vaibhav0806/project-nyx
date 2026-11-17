@@ -45,8 +45,8 @@ def score_recall(result, expected):
     matches = [
         m
         for o in (result or {}).get("observations", [])
-        if o.get("kind") == "statements"
-        for m in o.get("matches", [])
+        if o.get("kind") in {"memory", "memories"}
+        for m in o.get("records", o.get("matches", []))
     ]
     selected = {m["turn_id"] for m in matches}
     attributed = (
@@ -84,18 +84,16 @@ def score_setup(case, identifiers, linked, edges):
     records = {row["turn_id"]: row for row in linked}
     for identifier in identifiers:
         row = records.get(identifier)
-        if not row or row["kind"] != case["kind"]:
+        expected_kind = {"reported_placement": "report", "intention": "plan"}.get(
+            case["kind"], case["kind"]
+        )
+        if not row or row["kind"] != expected_kind:
             return False
-        resolver = row.get("resolver", {})
-        resolver = json.loads(resolver) if isinstance(resolver, str) else resolver
-        source = resolver.get("reference", {}).get("source")
-        if source != "visual" and not (
-            source == "prior_statement"
-            and any(
-                edge["replacement_turn_id"] == identifier
-                and edge["previous_turn_id"] in identifiers
-                for edge in edges
-            )
+        visual = row.get("visual", {})
+        visual = json.loads(visual) if isinstance(visual, str) else visual
+        if visual.get("status") != "resolved" and not any(
+            edge["replacement_turn_id"] == identifier and edge["previous_turn_id"] in identifiers
+            for edge in edges
         ):
             return False
     return not case.get("correction") or any(
@@ -269,10 +267,10 @@ def request_turn(
 
 
 def run(data, cases_path, output, split, max_spend, case_id=None):
-    from experiments.companion.correction_replay import BudgetedClient
+    from experiments.companion.budget import BudgetedClient
     from experiments.companion.embedding_replay import budget_snapshot
     from nyx.perception import CloudEncoder
-    from nyx.statements import Statements
+    from nyx.personal_memory import PersonalMemory
     from nyx.verification import CloudVerifier
     from nyx.voice import Conversations
 
@@ -311,7 +309,7 @@ def run(data, cases_path, output, split, max_spend, case_id=None):
     verifier = CloudVerifier(client)
     report = {
         "status": "running",
-        "scorer_version": 2,
+        "scorer_version": 3,
         "split": split,
         "case_filter": case_id,
         "cases_sha256": digest(cases_path),
@@ -349,18 +347,18 @@ def run(data, cases_path, output, split, max_spend, case_id=None):
                     raise ValueError("Save stage failed; inspect before further spending")
                 ids.append(job["result"]["turn_id"])
             conversations = Conversations(root)
-            Statements(conversations)
+            PersonalMemory(conversations, encoder, verifier.memory_reply)
             with conversations.connect() as db:
                 linked = [
-                    dict(x) for x in db.execute("SELECT turn_id,kind,resolver FROM statements")
+                    dict(x) for x in db.execute("SELECT id,turn_id,kind,visual FROM memories")
                 ]
                 edges = [
                     dict(x)
                     for x in db.execute(
-                        "SELECT previous_turn_id,replacement_turn_id FROM statement_corrections"
+                        "SELECT a.turn_id AS previous_turn_id,b.turn_id AS replacement_turn_id FROM memory_relations r JOIN memories a ON a.id=r.previous_id JOIN memories b ON b.id=r.replacement_id WHERE r.relation IN ('correct','retract')"
                     )
                 ]
-            row["linked"] = [{**x, "resolver": json.loads(x["resolver"] or "{}")} for x in linked]
+            row["linked"] = [{**x, "visual": json.loads(x["visual"] or "{}")} for x in linked]
             row["corrections"] = edges
             for n in range(32):
                 filler = conversations.begin(f"Unrelated conversation number {n}", {})

@@ -1,5 +1,16 @@
 # Product design
 
+## General memory first — 2026-11-17
+
+The approved [simplification](superpowers/specs/2026-11-17-simple-agent-memory-design.md)
+replaces the object-statement-only writer with automatic source-linked memory for ordinary
+facts, preferences, reports, plans and events. Voice/text share one short conversational policy
+and native tools; memory owns matching and updates. Visual understanding uses one prompt per
+task. Proactive departure behavior is retired. Contributor UI and recording controls stay as-is.
+The implementation passes deterministic checks; household, acoustic and real-model acceptance
+remain separate and are not established by passing unit tests. Older dated sections are history.
+
+
 ## Current memory behavior and preserved interface — 2026-11-15
 
 The contributor's conversation UI is preserved. Backend recall can now accept an explicit

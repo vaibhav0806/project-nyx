@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from experiments.companion.correction_replay import BudgetedClient
+from experiments.companion.budget import BudgetedClient
 from experiments.companion.embedding_replay import budget_snapshot
 from experiments.companion.visual_cases import build_cases, resume_cases, score
 from nyx.verification import CloudVerifier
@@ -46,8 +46,6 @@ def run(data, cases_path, output, split, model, max_spend, resume=None):
     output.mkdir(parents=True, exist_ok=False)
     client = BudgetedClient(max_spend, max_requests=96)
     verifier = CloudVerifier(client=client, model=MODELS[model])
-    if verifier.visual_confirmation:
-        raise ValueError("Disable extra confirmation for the single-pass comparison")
     digest = hashlib.sha256(cases_path.read_bytes()).hexdigest()
     previous = json.loads(resume.read_text()) if resume else None
     selected = (

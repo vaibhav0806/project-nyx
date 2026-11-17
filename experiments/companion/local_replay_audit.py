@@ -20,34 +20,28 @@ def digest(path):
 
 
 def source_context():
-    model = object.__new__(CloudVerifier)
+    from nyx.agent import native_agent_steps
+
     payloads = []
 
-    def capture(messages, *args):
-        payloads.append(json.loads(messages[-1]["content"]))
-        return '{"action":"clarify","message":"Which item?"}'
+    def capture(messages, tools):
+        payloads.append(messages)
+        return {"role": "assistant", "content": "Which item?"}
 
-    model.generate_decision = capture
-    state = {
-        "message": "Where is it?",
-        "conversation": [
-            {
-                "transcript": "Find my green phone",
-                "answer": "It was beside the deleted orange vase.",
-                "sources_available": False,
-                "plan": {
-                    "steps": [{"action": "search_history", "query": "green phone", "hours": 2}]
-                },
-            }
-        ],
-    }
-    model.decide(state)
+    context = [
+        {
+            "transcript": "Find my green phone",
+            "answer": "It was beside the deleted orange vase.",
+            "sources_available": False,
+            "plan": {"steps": [{"action": "search_history", "query": "green phone", "hours": 2}]},
+        }
+    ]
+    list(native_agent_steps("Where is it?", context, capture, lambda _: None))
     serialized = json.dumps(payloads)
     return {
         "invalidated_claim_withheld": "deleted orange vase" not in serialized,
         "query_constraint_preserved": "green phone" in serialized,
-        "saved_input_unchanged": state["conversation"][0]["answer"]
-        == "It was beside the deleted orange vase.",
+        "saved_input_unchanged": context[0]["answer"] == "It was beside the deleted orange vase.",
     }
 
 

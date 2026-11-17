@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 from test_app import wait_for_job
+from test_companion import Planner
 from test_nyx import ColorEncoder
 
 from nyx.app import create_app
@@ -13,7 +14,7 @@ from nyx.app import create_app
 pytest_plugins = ["test_nyx"]
 
 
-class CandidateVerifier:
+class CandidateVerifier(Planner):
     fingerprint: ClassVar[dict] = {"model": "deliberately-permissive-fixture"}
 
     def inspect(self, image, query):

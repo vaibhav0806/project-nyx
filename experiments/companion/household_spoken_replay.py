@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
 
-from experiments.companion.correction_replay import BudgetedClient
+from experiments.companion.budget import BudgetedClient
 from experiments.companion.embedding_replay import budget_snapshot
 from experiments.companion.household_workflows import digest, request_turn
 from experiments.companion.spoken_policy_replay import bind_call, dispatch, schemas

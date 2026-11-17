@@ -396,6 +396,29 @@ def install_companion(app, workspace, voice):
         def run():
             try:
                 now = local_now(body.timezone)
+                availability = conversations.source_availability(row["id"] for row in context)
+                current_context = [
+                    {**row, "sources_available": availability.get(row["id"], False)}
+                    for row in context
+                ]
+                context_sources = [
+                    "transcript:" + row["id"] for row in current_context if row["sources_available"]
+                ]
+
+                def validate_sources(sources):
+                    for source in set(context_sources + sources):
+                        if source.startswith("transcript:"):
+                            with conversations.connect() as db:
+                                row = db.execute(
+                                    "SELECT sources_available FROM turns WHERE id=?", (source[11:],)
+                                ).fetchone()
+                            if not row or not row[0]:
+                                raise ValueError("Conversation evidence changed; ask again")
+                        else:
+                            store = workspace.store()
+                            if not store or store.video(source)["status"] != "ready":
+                                raise ValueError("Recording evidence changed; ask again")
+
                 memory_context = None
                 if body.initial_action is None:
                     memory_context = prepare_memory()
@@ -414,7 +437,7 @@ def install_companion(app, workspace, voice):
 
                 result = yield from native_agent_steps(
                     body.message,
-                    context,
+                    current_context,
                     generate,
                     tool,
                     cancelled=cancelled,
@@ -422,6 +445,7 @@ def install_companion(app, workspace, voice):
                     now=now.isoformat(),
                     user_timezone=body.timezone,
                     memory_context=memory_context,
+                    validate_sources=validate_sources,
                     available={
                         "presented_candidate": presented_candidate,
                         "current_view": image is not None,

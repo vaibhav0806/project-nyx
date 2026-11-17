@@ -184,89 +184,12 @@ def test_index_rebuild_preserves_sources_and_rolls_back_failed_batch(tmp_path, f
     assert (tmp_path / "0.jpg").exists()
 
 
-@pytest.mark.parametrize("stage", ["decision", "tool"])
-def test_agent_does_not_retry_provider_failure(stage):
-    from nyx.agent import agent_steps
-
-    calls = []
-
-    def decide(state):
-        calls.append("decide")
-        if stage == "decision":
-            raise CloudError("credits exhausted")
-        return {"action": "search_history", "query": "glasses", "hours": 2}
-
-    def tool(action):
-        calls.append("tool")
-        raise CloudError("credits exhausted")
-
-    with pytest.raises(CloudError, match="credits"):
-        list(agent_steps("Find glasses in history", [], decide, tool))
-    assert calls == (["decide"] if stage == "decision" else ["decide", "tool"])
-
-
 def test_audio_error_body_is_not_playable_audio():
     provider = CloudVoice(
         OpenRouter("fake", lambda *a, **k: response({"error": "provider failed"}))
     )
     with pytest.raises(VoiceError):
         provider.speak("hello")
-
-
-def test_planner_and_visual_calls_use_their_selected_models(monkeypatch):
-    from nyx.verification import CloudVerifier
-
-    monkeypatch.setenv("NYX_REASONING_MODEL", "planner-model")
-    monkeypatch.setenv("NYX_VISION_MODEL", "vision-model")
-    calls = []
-
-    class Client:
-        def generate(self, messages, model, max_tokens):
-            calls.append(model)
-            if model == "planner-model":
-                return '{"action":"chat","message":"Hello"}'
-            return json.dumps(
-                {
-                    "visibility": "visible",
-                    "location": "center",
-                    "description": "red square",
-                    "matching_count": 1,
-                    "ambiguous": False,
-                }
-            )
-
-    verifier = CloudVerifier(Client())
-    assert (
-        verifier.decide(
-            {"message": "Hello", "conversation": [], "observations": [], "actions": []}
-        )["action"]
-        == "chat"
-    )
-    assert (
-        verifier.inspect(Image.new("RGB", (8, 8), "red"), "red square")["visibility"] == "visible"
-    )
-    assert calls == ["planner-model", "vision-model"]
-
-
-def test_object_model_override_does_not_change_general_vision_or_planner(monkeypatch):
-    from nyx.verification import CloudVerifier
-
-    monkeypatch.setenv("NYX_REASONING_MODEL", "planner-model")
-    monkeypatch.setenv("NYX_VISION_MODEL", "fast-vision")
-    monkeypatch.setenv("NYX_OBJECT_VISION_MODEL", "object-vision")
-    monkeypatch.setenv("NYX_VISUAL_CONFIRMATION", "0")
-    calls = []
-
-    class Client:
-        def generate(self, messages, model, max_tokens, **kwargs):
-            calls.append(model)
-            return '{"visibility":"not_visible","location":"","description":"No match.","matching_count":0,"ambiguous":false}'
-
-    verifier = CloudVerifier(Client())
-    verifier.inspect(Image.new("RGB", (10, 10)), "an object")
-    verifier.generate_json([])
-    verifier.generate_decision([])
-    assert calls == ["object-vision", "fast-vision", "planner-model"]
 
 
 def test_query_embedding_cache_is_bounded_and_returns_independent_vectors():
@@ -428,3 +351,40 @@ def test_frame_decode_timeout_does_not_call_provider(monkeypatch):
 
     result = CloudVerifier(Client()).inspect_frames([("fixture", 0)], "an object")[0]
     assert result["visibility"] == "uncertain" and result["source_unavailable"]
+
+
+def test_shared_conversation_memory_and_vision_use_selected_models(monkeypatch):
+    from nyx.personal_memory import SCHEMA
+    from nyx.verification import CloudVerifier
+
+    monkeypatch.setenv("NYX_AGENT_MODEL", "shared-luna")
+    monkeypatch.setenv("NYX_VISION_MODEL", "flash-lite")
+    calls = []
+
+    class Client:
+        def request(self, path, payload):
+            calls.append(("agent", payload["model"]))
+            return {
+                "choices": [
+                    {"finish_reason": "stop", "message": {"role": "assistant", "content": "Hello"}}
+                ]
+            }
+
+        def generate(self, messages, model, max_tokens, **kwargs):
+            calls.append(("memory" if kwargs.get("schema") == SCHEMA else "vision", model))
+            if kwargs.get("schema") == SCHEMA:
+                return '{"operations":[],"relevant_ids":[],"needs_visual":false,"clarification":""}'
+            return '{"visibility":"not_visible","location":"","description":"No match.","matching_count":0,"ambiguous":false}'
+
+    verifier = CloudVerifier(Client())
+    assert verifier.agent_reply([], [])["content"] == "Hello"
+    assert verifier.memory_reply({}, SCHEMA)["operations"] == []
+    verifier.inspect(Image.new("RGB", (10, 10)), "an object")
+    verifier.generate_json([])
+    assert calls == [
+        ("agent", "shared-luna"),
+        ("memory", "shared-luna"),
+        ("vision", "flash-lite"),
+        ("vision", "flash-lite"),
+    ]
+    assert not hasattr(verifier, "decide") and not hasattr(verifier, "generate_reference")

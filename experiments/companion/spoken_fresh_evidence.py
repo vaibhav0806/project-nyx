@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from experiments.companion.correction_replay import BudgetedClient
+from experiments.companion.budget import BudgetedClient
 from experiments.companion.embedding_replay import budget_snapshot
 from experiments.companion.spoken_policy_replay import bind_call, dispatch, schemas
 from nyx.realtime import INSTRUCTIONS, INSTRUCTIONS_VERSION

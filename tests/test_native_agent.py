@@ -94,3 +94,112 @@ def test_existing_direct_chat_payload_preserves_the_api_contract():
         )
     )
     assert result["answer"] == "Hello" and result["status"] == "chat"
+
+
+def call(name="look_for_object", **arguments):
+    return {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {
+                "id": "call",
+                "type": "function",
+                "function": {"name": name, "arguments": json.dumps(arguments)},
+            }
+        ],
+    }
+
+
+@pytest.mark.parametrize("stage", ["generation", "tool"])
+def test_provider_failure_is_not_retried_or_converted_into_success(stage):
+    from nyx.cloud import CloudError
+
+    calls = []
+
+    def generate(*args):
+        calls.append("generation")
+        if stage == "generation":
+            raise CloudError("Provider unavailable")
+        return call(query="glasses", history=True)
+
+    def tool(action):
+        calls.append("tool")
+        raise CloudError("Provider unavailable")
+
+    with pytest.raises(CloudError, match="unavailable"):
+        finish(native_agent_steps("Find glasses", [], generate, tool))
+    assert calls == (["generation"] if stage == "generation" else ["generation", "tool"])
+
+
+def test_identical_calls_are_cached_and_failure_to_finish_is_reported():
+    tools = []
+    result = finish(
+        native_agent_steps(
+            "Find glasses",
+            [],
+            lambda *args: call(query="glasses"),
+            lambda action: tools.append(action) or {"status": "seen", "answer": "A candidate"},
+            max_steps=3,
+        )
+    )
+    assert len(tools) == 1
+    assert result["status"] == "uncertain" and "limit" in result["answer"]
+
+
+def test_temporal_boundary_cannot_be_dropped_after_a_tool_returns_it():
+    requests = [
+        call(query="book", history=True, hours=0, before_frame_id=20),
+        call(query="book", history=True, hours=0),
+        {"role": "assistant", "content": "I could not complete the earlier search."},
+    ]
+    tools = []
+
+    def tool(action):
+        tools.append(action)
+        return {"status": "uncertain", "answer": "No match yet", "scope": {"before_frame_id": 20}}
+
+    result = finish(
+        native_agent_steps("Earlier than that", [], lambda *args: requests.pop(0), tool)
+    )
+    assert len(tools) == 1
+    assert "Retain before_frame_id=20" in result["decision_errors"][0]
+
+
+def test_cancellation_between_tool_progress_steps_closes_the_source_generator():
+    state = {"cancelled": False, "closed": False}
+
+    def tool(action):
+        try:
+            yield {"progress": "first"}
+            state["cancelled"] = True
+            yield {"progress": "second"}
+            pytest.fail("Cancelled source generator advanced")
+        finally:
+            state["closed"] = True
+
+    with pytest.raises(ValueError, match="cancel"):
+        finish(
+            native_agent_steps(
+                "Find book",
+                [],
+                lambda *args: call(query="book"),
+                tool,
+                cancelled=lambda: state["cancelled"],
+            )
+        )
+    assert state["closed"]
+
+
+def test_memory_sources_are_retained_without_an_explicit_recall_tool_call():
+    memory = {"kind": "memory", "status": "saved", "records": [], "sources": ["transcript:fact"]}
+
+    def generate(messages, tools):
+        assert "Memory context:" in messages[-1]["content"]
+        return {"role": "assistant", "content": "I remember your preference."}
+
+    result = finish(
+        native_agent_steps(
+            "I prefer tea", [], generate, lambda _: pytest.fail(), memory_context=memory
+        )
+    )
+    assert result["sources"] == ["transcript:fact"] and result["status"] == "saved"

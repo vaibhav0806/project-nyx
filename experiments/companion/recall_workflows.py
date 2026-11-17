@@ -49,15 +49,16 @@ def score_answer(case, result, identifiers):
     selected = {
         match["turn_id"]
         for row in observations
-        if row.get("kind") == "statements"
-        for match in row.get("matches", [])
+        if row.get("kind") in {"memory", "memories"}
+        for match in row.get("records", row.get("matches", []))
     }
     expected = {identifiers[key] for key in case["expected_reports"]}
     attributed = all(
         "transcript:" + identifier in result.get("sources", []) for identifier in selected
     )
     negative_checked = result.get("status") in {"clarify", "uncertain"} or any(
-        row.get("kind") == "statements" and not row.get("matches") for row in observations
+        row.get("kind") in {"memory", "memories"} and not row.get("records", row.get("matches", []))
+        for row in observations
     )
     visual_claim = bool((result.get("visual") or {}).get("evidence"))
     correct = (
@@ -77,11 +78,11 @@ def score_answer(case, result, identifiers):
 def run(cases_path, output, split, max_spend):
     from fastapi.testclient import TestClient
 
-    from experiments.companion.correction_replay import BudgetedClient
+    from experiments.companion.budget import BudgetedClient
     from experiments.companion.embedding_replay import budget_snapshot
     from nyx.app import create_app
     from nyx.perception import CloudEncoder
-    from nyx.statements import Statements
+    from nyx.personal_memory import PersonalMemory
     from nyx.verification import CloudVerifier
     from nyx.voice import Conversations
 
@@ -96,12 +97,13 @@ def run(cases_path, output, split, max_spend):
         "git_head": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
         "split": split,
         "clock": clock.isoformat(),
+        "scorer_version": 3,
         "cases": [],
         "manifest_sha256": hashlib.sha256(cases_path.read_bytes()).hexdigest(),
         "encoder": encoder.fingerprint,
         "verifier": verifier.fingerprint,
         "budget_before": client.initial,
-        "limitations": "Synthetic attributed reports and backdated fixture report clocks, no captured footage/audio. Real resolver/embedding/planner/citation tools. Exact report attribution score is not free-form semantic or speech accuracy.",
+        "limitations": "Synthetic attributed reports and backdated fixture report clocks, no captured footage/audio. Real general-memory interpretation, embedding, native agent and citations. Exact report attribution score is not free-form semantic or speech accuracy.",
     }
 
     def checkpoint():
@@ -116,7 +118,7 @@ def run(cases_path, output, split, max_spend):
             report["cases"].append(row)
             root = output / case["id"]
             conversations = Conversations(root)
-            statements = Statements(conversations)
+            memory = PersonalMemory(conversations, encoder, verifier.memory_reply)
             identifiers = {}
             started = time.perf_counter()
             try:
@@ -128,28 +130,32 @@ def run(cases_path, output, split, max_spend):
                             "UPDATE turns SET at=? WHERE id=?",
                             ((clock - timedelta(days=source["days_ago"])).isoformat(), identifier),
                         )
-                    saved = statements.remember(
-                        identifier,
-                        verifier,
-                        encoder,
-                        supersedes_turn_id=identifiers.get(source.get("corrects")),
-                    )
+                    saved = memory.process(identifier)
                     conversations.finish(identifier, saved["answer"], saved.get("sources", []))
                     row["setup"].append(
                         {
                             "id": source["id"],
                             "status": saved["status"],
-                            "correct": saved["status"] == source.get("expected_link", "complete"),
+                            "correct": saved["status"]
+                            in (
+                                {"noop", "clarify"}
+                                if source.get("expected_link") == "clarify"
+                                else {"saved"}
+                            ),
                         }
                     )
                     if source.get("expected_kind"):
                         with conversations.connect() as db:
                             linked = db.execute(
-                                "SELECT kind FROM statements WHERE turn_id=?", (identifier,)
+                                "SELECT kind FROM memories WHERE turn_id=?", (identifier,)
                             ).fetchone()
                         row["setup"][-1]["kind"] = linked[0] if linked else None
                         row["setup"][-1]["correct"] &= bool(
-                            linked and linked[0] == source["expected_kind"]
+                            linked
+                            and linked[0]
+                            == {"intention": "plan", "reported_placement": "report"}.get(
+                                source["expected_kind"], source["expected_kind"]
+                            )
                         )
                     if source.get("invalidate"):
                         conversations.finish(

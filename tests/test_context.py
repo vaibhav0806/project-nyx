@@ -1,75 +1,7 @@
-import json
 from datetime import UTC, datetime, timedelta
-from types import SimpleNamespace
 
-from nyx.context import attach_statements, playback_window, transcript_candidates
+from nyx.context import playback_window
 from nyx.recording import CaptureJournal
-from nyx.voice import Conversations, spoken_answer
-
-
-def test_attached_transcript_sources_are_retained_and_late_deletion_is_rejected(tmp_path):
-    import pytest
-
-    conversations = Conversations(tmp_path)
-    claim = conversations.begin("My phone is on the table", {})
-    conversations.finish(claim, sources=["spoken-video"])
-    model = SimpleNamespace(generate_json=lambda *a, **k: json.dumps({"statement_ids": [claim]}))
-
-    def observation():
-        return {
-            "object_query": "phone",
-            "evidence": {"id": 1, "video_id": "visual-video"},
-            "answer": "A sighting.",
-        }
-
-    result = attach_statements(observation(), conversations, model, object())
-    assert result["sources"] == ["spoken-video", f"transcript:{claim}"]
-
-    def deleted(*args, **kwargs):
-        conversations.invalidate("spoken-video")
-        return json.dumps({"statement_ids": [claim]})
-
-    with pytest.raises(ValueError, match="available|changed"):
-        attach_statements(
-            observation(), conversations, SimpleNamespace(generate_json=deleted), object()
-        )
-
-
-def test_transcripts_search_beyond_recent_turns_and_keep_sources(tmp_path):
-    c = Conversations(tmp_path)
-    first = c.begin("I will put my glasses on the centre table.", {"mode": "agent"})
-    c.finish(first, "Noted")
-    for _ in range(35):
-        c.begin("An unrelated question", {"mode": "chat"})
-    candidates = transcript_candidates(c, "glasses", None)
-    assert [r["id"] for r in candidates] == [first]
-    result = {
-        "kind": "history",
-        "object_query": "glasses",
-        "answer": "Possible visual match.",
-        "evidence": {"observed_at": None},
-    }
-    v = SimpleNamespace(generate_json=lambda *args: json.dumps({"statement_ids": [first]}))
-    attach_statements(result, c, v, object())
-    assert "You said" in spoken_answer(result)
-    assert "You said" in result["answer"] and "will put" in result["answer"]
-    assert "not visual confirmation" not in result["answer"]
-
-
-def test_nearby_pronouns_and_unknown_citations(tmp_path):
-    c = Conversations(tmp_path)
-    key = c.begin("I will put this on the table.", {"mode": "agent"})
-    now = datetime.now(UTC).isoformat()
-    assert key in [r["id"] for r in transcript_candidates(c, "spectacles", now)]
-    assert not transcript_candidates(c, "spectacles", None)
-    result = {
-        "object_query": "spectacles",
-        "answer": "Evidence only.",
-        "evidence": {"observed_at": now},
-    }
-    v = SimpleNamespace(generate_json=lambda *args: '{"statement_ids":["invented"]}')
-    attach_statements(result, c, v, object())
-    assert result["answer"] == "Evidence only." and result["spoken_context"] == []
 
 
 def test_playback_window_crosses_segments_and_excludes_other_sessions(tmp_path):
@@ -113,18 +45,3 @@ def test_playback_window_crosses_segments_and_excludes_other_sessions(tmp_path):
 def test_unknown_time_playback_stays_in_clip(tmp_path):
     result = playback_window(CaptureJournal(tmp_path), "imported", 2)
     assert result["parts"][0]["start"] == 0 and result["parts"][0]["end"] == 12
-
-
-def test_question_only_history_skips_context_model_and_frame_decode(tmp_path):
-    c = Conversations(tmp_path)
-    c.begin("Hey Nyx, where is my phone?", {"mode": "agent"})
-    c.begin("When did you see my phone?", {"mode": "agent"})
-    result = {"object_query": "phone", "evidence": {"observed_at": None}, "answer": "Found."}
-
-    def unexpected(*args):
-        raise AssertionError("No frame decode or model call for question-only context")
-
-    attach_statements(result, c, SimpleNamespace(generate_json=unexpected), unexpected)
-    assert result["answer"] == "Found."
-    mixed = c.begin("Where is my phone? I left it on the table.", {"mode": "agent"})
-    assert [r["id"] for r in transcript_candidates(c, "phone", None)] == [mixed]

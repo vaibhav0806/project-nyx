@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from datetime import UTC, datetime
 
 import numpy as np
 
@@ -179,7 +180,10 @@ class PersonalMemory:
 
     @staticmethod
     def _read_rows(conversations, *, as_of=None):
-        cutoff = aware_time(as_of) if as_of else None
+        now = datetime.now(UTC)
+        cutoff = aware_time(as_of) if as_of else now
+        if cutoff > now:
+            raise ValueError("Historical memory time cannot be in the future")
         with conversations.connect() as db:
             rows = db.execute(
                 "SELECT m.*,t.at,t.sources_available FROM memories m JOIN turns t ON t.id=m.turn_id"
@@ -191,9 +195,9 @@ class PersonalMemory:
             available = []
             unavailable = 0
             for row in rows:
-                if cutoff and row["at"] and aware_time(row["at"]) > cutoff:
+                if row["at"] and aware_time(row["at"]) > cutoff:
                     continue
-                if not row["sources_available"] or (cutoff and not row["at"]):
+                if not row["sources_available"] or (as_of and not row["at"]):
                     unavailable += 1
                     continue
                 try:
@@ -208,7 +212,7 @@ class PersonalMemory:
             relation["previous_id"]
             for identifier, relation in relations.items()
             if relation["relation"] in {"correct", "retract"}
-            and (not cutoff or not dates.get(identifier) or aware_time(dates[identifier]) <= cutoff)
+            and (not dates.get(identifier) or aware_time(dates[identifier]) <= cutoff)
         }
         return [row for row in available if row["id"] not in replaced], unavailable
 

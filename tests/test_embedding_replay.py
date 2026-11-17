@@ -30,11 +30,11 @@ def test_budget_guard_counts_response_cost_before_key_usage_settles():
         experiment().check_budget({"usage": 1.15, "limit": 2}, 1.15, 0.15, reported_cost=0.14)
 
 
-def test_authorized_five_dollar_total_cap_still_respects_lower_key_limits():
+def test_authorized_eight_dollar_cap_keeps_settlement_headroom_and_lower_limits():
     check = experiment().check_budget
     assert check({"usage": 2.51, "limit": 5}, 2.50, 0.15) > 0
     with pytest.raises(ValueError):
-        check({"usage": 4.99, "limit": 50}, 4.90, 0.25)
+        check({"usage": 7.91, "limit": 50}, 7.80, 0.25)
     with pytest.raises(ValueError):
         check({"usage": 1.99, "limit": 2}, 1.90, 0.25)
 

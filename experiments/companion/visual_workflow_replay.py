@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from experiments.companion.correction_replay import BudgetedClient
+from experiments.companion.budget import BudgetedClient
 from experiments.companion.embedding_replay import budget_snapshot
 from nyx.answers import history_steps
 from nyx.capture import frame_image

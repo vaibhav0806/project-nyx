@@ -5,20 +5,20 @@ import pytest
 
 
 def test_typed_provider_never_receives_invalidated_assistant_claims():
-    from nyx.verification import CloudVerifier
+    from test_native_agent import finish
 
-    model = object.__new__(CloudVerifier)
+    from nyx.agent import native_agent_steps
+
     payloads = []
 
-    def generate(messages, *args):
-        payloads.append(json.loads(messages[-1]["content"]))
-        return '{"action":"clarify","message":"Which phone do you mean?"}'
+    def generate(messages, tools):
+        payloads.append(messages)
+        return {"role": "assistant", "content": "Which phone do you mean?"}
 
-    model.generate_decision = generate
-    model.decide(
-        {
-            "message": "Where is it?",
-            "conversation": [
+    finish(
+        native_agent_steps(
+            "Where is it?",
+            [
                 {
                     "transcript": "Find my green phone",
                     "answer": "It was beside the deleted orange vase.",
@@ -28,10 +28,12 @@ def test_typed_provider_never_receives_invalidated_assistant_claims():
                     },
                 }
             ],
-        }
+            generate,
+            lambda _: pytest.fail(),
+        )
     )
     assert "deleted orange vase" not in json.dumps(payloads)
-    assert payloads[0]["conversation"][0]["previous_tool_query"] == "green phone"
+    assert "green phone" in json.dumps(payloads)
 
 
 def test_recent_context_is_bounded_without_mutating_saved_rows():

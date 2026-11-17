@@ -1,5 +1,31 @@
 # Technical architecture
 
+## Shared native agent and general memory — 2026-11-17
+
+This supersedes the historical household pipeline below. `agent_policy.py` contains the short
+shared personality/behavior policy; `agent_tools.py` defines native lookup, shown-object and
+memory-recall tools for voice and text. `agent.py` executes bounded native calls for the API;
+LiveKit executes the same tool bodies for speech. No typed JSON planner remains.
+
+`personal_memory.py` processes each owned user input before conversational generation. It
+retrieves related memories, asks Luna for source-linked operations/relevant records, validates
+quotes and relationships, then writes atomically to conversations.sqlite3. Facts/preferences,
+reports, events and plans use the same mechanism. Ordinary moves append; explicit corrections
+and retractions preserve historical versions. Visual acquisition is requested only when needed:
+one short Flash-Lite reference task, followed by completing the memory interpretation. No extra
+AI judges. Existing statement tables/photos/vectors are copied losslessly and remain untouched.
+
+Typed calls receive structured memory context directly. Voice awaits the committed question
+and existing authenticated tool transport before reading context from shared SQLite. Preemptive
+generation is disabled to avoid persisting partial speech. Source validity is rechecked for
+continuations; source/provider/write failures preserve the original input and cannot claim a save.
+Generic visual inspection remains separate from memory interpretation and recording/indexing.
+
+Proactive departure observation/scheduling is removed. Preserved UI polling returns inactive
+status and empty deliveries; retired mutations return410. Existing reminder databases are not
+modified. See the [approved design](superpowers/specs/2026-11-17-simple-agent-memory-design.md).
+
+
 ## Household reference and report pipeline — 2026-11-16
 
 The planner receives validated turn-window availability/count separately from current-view

@@ -29,7 +29,7 @@ def test_frozen_workflows_have_disjoint_sources_and_valid_report_labels():
 def test_workflow_recall_requires_exact_report_attribution_and_negative_evidence():
     result = {
         "answer": "You said the drawer.",
-        "observations": [{"kind": "statements", "matches": [{"turn_id": "old"}]}],
+        "observations": [{"kind": "memories", "matches": [{"turn_id": "old"}]}],
         "sources": ["transcript:old"],
     }
     assert module.score_recall(result, ["old"])["correct"]
@@ -46,8 +46,8 @@ def test_complete_workflow_cannot_pass_when_an_earlier_save_was_lost():
     linked = [
         {
             "turn_id": "second",
-            "kind": "reported_placement",
-            "resolver": {"reference": {"source": "visual"}},
+            "kind": "report",
+            "visual": {"status": "resolved"},
         }
     ]
     assert not module.score_setup(case, ["first", "second"], linked, [])
@@ -55,8 +55,8 @@ def test_complete_workflow_cannot_pass_when_an_earlier_save_was_lost():
         0,
         {
             "turn_id": "first",
-            "kind": "reported_placement",
-            "resolver": {"reference": {"source": "visual"}},
+            "kind": "report",
+            "visual": {"status": "resolved"},
         },
     )
     assert module.score_setup(case, ["first", "second"], linked, [])

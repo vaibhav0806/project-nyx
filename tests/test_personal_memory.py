@@ -367,3 +367,103 @@ def test_correction_changed_by_an_intervening_request_is_not_overwritten(tmp_pat
         memory.process(current)
     with conversations.connect() as db:
         assert db.execute("SELECT count(*) FROM memories").fetchone()[0] == 1
+
+
+def test_historical_state_uses_microseconds_timezones_and_excludes_future_reports(tmp_path):
+    conversations = Conversations(tmp_path)
+    replies = []
+    memory = PersonalMemory(conversations, Encoder(), lambda *args: replies.pop(0))
+    old = conversations.begin("My phone is in the kitchen", {})
+    with conversations.connect() as db:
+        db.execute("UPDATE turns SET at='2026-11-06T12:00:00Z' WHERE id=?", (old,))
+    replies.append(response([operation(old, "My phone is in the kitchen", "Phone in kitchen")]))
+    old_id = memory.process(old)["saved_ids"][0]
+    new = conversations.begin("Correction: my phone is in the bag", {})
+    with conversations.connect() as db:
+        db.execute("UPDATE turns SET at='2026-11-06T12:00:00.000100Z' WHERE id=?", (new,))
+    replies.append(
+        response(
+            [
+                operation(
+                    new,
+                    "my phone is in the bag",
+                    "Phone in bag",
+                    operation="correct",
+                    related_id=old_id,
+                )
+            ]
+        )
+    )
+    memory.process(new)
+    assert [
+        r["turn_id"] for r in memory.recall("phone", as_of="2026-11-06T17:30:00+05:30")["matches"]
+    ] == [old]
+    assert [r["turn_id"] for r in memory.recall("phone")["matches"]] == [new]
+    future = conversations.begin("The spare phone is on the desk", {})
+    replies.append(
+        response([operation(future, "The spare phone is on the desk", "Spare phone on desk")])
+    )
+    memory.process(future)
+    with conversations.connect() as db:
+        db.execute("UPDATE turns SET at='2099-01-01T00:00:00Z' WHERE id=?", (future,))
+    assert future not in [r["turn_id"] for r in memory.recall("phone")["matches"]]
+    with pytest.raises(ValueError, match="future"):
+        memory.recall("phone", as_of="2099-01-01T00:00:00Z")
+
+
+def test_retraction_preserves_old_history_without_inventing_a_new_location(tmp_path):
+    conversations = Conversations(tmp_path)
+    replies = []
+    memory = PersonalMemory(conversations, Encoder(), lambda *args: replies.pop(0))
+    old = conversations.begin("My phone is in the kitchen", {})
+    replies.append(response([operation(old, "My phone is in the kitchen", "Phone in kitchen")]))
+    old_id = memory.process(old)["saved_ids"][0]
+    new = conversations.begin("I withdraw that claim. I do not know where my phone is.", {})
+    replies.append(
+        response(
+            [
+                operation(
+                    new,
+                    "I withdraw that claim.",
+                    "Retracts phone location",
+                    operation="retract",
+                    related_id=old_id,
+                )
+            ]
+        )
+    )
+    memory.process(new)
+    matches = memory.recall("phone")["matches"]
+    assert len(matches) == 1 and matches[0]["kind"] == "retraction"
+    with conversations.connect() as db:
+        assert (
+            db.execute("SELECT content FROM memories WHERE id=?", (old_id,)).fetchone()[0]
+            == "Phone in kitchen"
+        )
+
+
+def test_database_write_failure_rolls_back_memory_and_turn_marker(tmp_path):
+    import sqlite3
+
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("I like black tea", {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response([operation(turn, "I like black tea", "Likes black tea")]),
+    )
+    with conversations.connect() as db:
+        db.execute(
+            "CREATE TRIGGER refuse_memory BEFORE INSERT ON memory_turns BEGIN SELECT RAISE(ABORT,'simulated disk failure'); END"
+        )
+    with pytest.raises(sqlite3.IntegrityError, match="disk failure"):
+        memory.process(turn)
+    with conversations.connect() as db:
+        assert db.execute("SELECT count(*) FROM memories").fetchone()[0] == 0
+        assert db.execute("SELECT count(*) FROM memory_turns").fetchone()[0] == 0
+        assert (
+            db.execute("SELECT transcript FROM turns WHERE id=?", (turn,)).fetchone()[0]
+            == "I like black tea"
+        )
+        db.execute("DROP TRIGGER refuse_memory")
+    assert memory.process(turn)["status"] == "saved"

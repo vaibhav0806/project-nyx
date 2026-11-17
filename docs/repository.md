@@ -1,5 +1,21 @@
 # Repository structure
 
+## Shared agent and memory ownership — 2026-11-17
+
+Current ownership supersedes the historical inventory below: `agent_policy.py` (short policy,
+model roles), `agent_tools.py` (shared SDK native tools), `agent.py` (bounded typed execution),
+`realtime.py` (speech adapter), `personal_memory.py` (general memory interpretation/retrieval,
+source validation and transactional persistence), `reference.py` (one visual reference task).
+`verification.py` contains Luna/Flash-Lite transports and visual inspection; `context.py` now
+only owns bounded playback. `statements.py`, `intentions.py` and `observation.py` are removed.
+`voice.py` still owns authoritative transcripts and source availability. Memory tables share the
+existing conversations database; original statement/reminder data remains intact. No new service.
+
+Current experiment entry points and retired-driver provenance are listed in
+[the experiment migration note](../experiments/companion/retired-2026-11-17.md). JSON datasets and
+research findings remain; old results are not current-path acceptance. Private outputs stay ignored.
+
+
 `conversation_context.py` owns bounded source-aware provider context copies and whole-exchange
 LiveKit context selection. It does not own persistence or generate memory summaries. `voice.py`
 retains authoritative transcripts/source flags; `statements.py` owns durable retrieval. The R19

@@ -1,3 +1,10 @@
+# Shared-agent/general-memory migration — 2026-11-17
+
+Current supported entry points and removed-driver provenance:
+[retirement note](retired-2026-11-17.md). Sections below are historical experiments; their prompts,
+models and removed commands are not the current runtime. Paid experiments use `budget.py` and
+public/synthetic sources only. Local private-library audit is offline.
+
 # Current cloud experiments
 
 `planner.py`, `mvp_objects.py` and `cloud_voice.py` now use the OpenRouter runtime and require

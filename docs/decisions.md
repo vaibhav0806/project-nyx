@@ -1,5 +1,21 @@
 # Decisions and open choices
 
+## Simplify shared agent and general memory — 2026-11-17
+
+The user's approved [design](superpowers/specs/2026-11-17-simple-agent-memory-design.md)
+supersedes the joint/separated household policy below. Voice/text now share a short policy,
+native tool definitions and Luna. Automatic source-linked general memory owns matching,
+append/correction/retraction operations and relevant context; Flash-Lite owns visual tasks.
+Removed the JSON planner, duplicate reference modes and extra ambiguity/correction/positive
+judges. Departure tools, observer and scheduling are retired; persisted reminder data is untouched.
+Existing statement data imports losslessly into additive memory tables without reembedding.
+
+This is an authorized architectural simplification, not a measured claim of improved household
+accuracy. Deterministic checks pass; real-model/public workflow gates are next. The verified
+provider ceiling is $8 cumulative, with sequential per-run caps ≤$0.25 and $0.10 settlement
+headroom. Main, UI, original recordings, embeddings and Sarvam remain unchanged.
+
+
 ## Separate household claims from visual identity — 2026-11-16
 
 Keep a placement statement distinct from visual proof of an action. The separated claim/identity

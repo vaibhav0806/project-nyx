@@ -38,8 +38,8 @@ REFERENCES = [
     ("camera_original", "camera"),
 ]
 
-# User-authorized cumulative ceiling, updated 2026-11-15: $5 TOTAL, not an extra $5.
-TEST_SPEND_CEILING_USD = 5.0
+# User-authorized cumulative ceiling, verified 2026-11-17: $8 TOTAL.
+TEST_SPEND_CEILING_USD = 8.0
 
 
 def check_budget(snapshot, initial_usage, max_spend, *, reported_cost=0):
@@ -57,7 +57,7 @@ def check_budget(snapshot, initial_usage, max_spend, *, reported_cost=0):
     if not math.isfinite(reported_cost) or reported_cost < 0:
         raise ValueError("Invalid reported provider cost")
     usage = max(usage, initial_usage + reported_cost)
-    remaining = min(ceiling - usage, max_spend - (usage - initial_usage)) - 0.02
+    remaining = min(ceiling - usage - 0.10, max_spend - (usage - initial_usage) - 0.02)
     if remaining <= 0:
         raise ValueError("Provider/benchmark spending limit reached")
     return remaining

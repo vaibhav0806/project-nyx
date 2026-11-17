@@ -1,5 +1,19 @@
 # Scope
 
+## Approved simplification pass — 2026-11-17
+
+Execute the [shared agent/general memory design](superpowers/specs/2026-11-17-simple-agent-memory-design.md)
+on work/memory-reliability, regular commits, optional work-branch backup only. No new PR/merge,
+main/UI changes or demo production. General source-linked personal memory is now authorized;
+retire departure-specific behavior, duplicate reference modes and separate AI judges.
+Models: Luna for conversation/memory; Flash-Lite for vision; embeddings and Sarvam unchanged.
+Verified cumulative OpenRouter ceiling is $8, superseding older $5/$2 wording for this pass.
+Per-run cap ≤$0.25, sequential tests, preserve $0.10 settlement headroom. Public/synthetic cloud
+evaluation and strictly offline private recording audits remain the developer-test boundary.
+No camera/microphone activation or private-media upload. All original sources stay untouched.
+Older dated sections below describe previous scope and experiments.
+
+
 ## Complete household workflow engineering — 2026-11-16
 
 The user authorized the shown-item → remember → later recall experience, including normal moves,

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageOps
 
-from experiments.companion.correction_replay import BudgetedClient
+from experiments.companion.budget import BudgetedClient
 from experiments.companion.embedding_replay import budget_snapshot
 from experiments.companion.visual_cases import QUERIES, score
 from nyx.verification import CloudVerifier
@@ -93,22 +93,12 @@ def prepare(data, output):
     return {"cases": len(rows)}
 
 
-class AuditVerifier(CloudVerifier):
-    last_primary = None
-
-    def confirm_positive(self, image, object_query, judgment):
-        self.last_primary = judgment
-        return super().confirm_positive(image, object_query, judgment)
-
-
 def run(data, output, split, max_spend):
     manifest = json.loads((data / "manifest.json").read_text())
     cases = [row for row in manifest["cases"] if row["split"] == split]
     output.mkdir(parents=True, exist_ok=False)
     client = BudgetedClient(max_spend, max_requests=48)
-    verifier = AuditVerifier(client=client, model="google/gemini-3.5-flash")
-    if not verifier.visual_confirmation:
-        raise ValueError("Set NYX_VISUAL_CONFIRMATION=1 for this selected-route diagnostic")
+    verifier = CloudVerifier(client=client)
     report = {
         "status": "running",
         "model": verifier.fingerprint,
@@ -131,14 +121,12 @@ def run(data, output, split, max_spend):
                 or hashlib.sha256(path.read_bytes()).hexdigest() != row["sha256"]
             ):
                 raise ValueError("Fixture identity changed")
-            verifier.last_primary = None
             began = time.perf_counter()
             with Image.open(path) as image:
                 judgment = verifier.inspect(image, row["query"])
             row.update(
                 status="complete",
                 judgment=judgment,
-                primary_judgment=verifier.last_primary or judgment,
                 elapsed_ms=round((time.perf_counter() - began) * 1000),
                 **score(row["expected"], judgment),
             )

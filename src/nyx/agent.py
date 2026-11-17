@@ -23,17 +23,11 @@ def validate_action(value):
     action = value.get("action")
     fields = {
         "inspect_current": {"query"},
-        "remember_statement": set(),
         "process_memory": set(),
         "recall_memory": {"query"},
         "identify_shown_object": set(),
-        "search_statements": {"query"},
         "search_history": {"query", "hours"},
         "search_matches": {"query"},
-        "remind_on_departure": {"message"},
-        "list_reminders": set(),
-        "cancel_reminder": {"id"},
-        "finish": {"observation"},
         "clarify": {"message"},
         "chat": {"message"},
     }
@@ -42,34 +36,13 @@ def validate_action(value):
     optional = {"excluded_frame_ids"} if action in {"search_history", "search_matches"} else set()
     if action == "search_history":
         optional.add("before_frame_id")
-    if action == "finish":
-        optional.add("statement_observation")
-    if action == "remember_statement":
-        optional.add("supersedes_turn_id")
-    if action == "search_statements":
-        optional.update({"as_of", "selection"})
     if action == "recall_memory":
         optional.add("as_of")
-    if "selection" in value and (
-        not isinstance(value["selection"], str)
-        or value["selection"] not in {"all", "latest_report"}
-    ):
-        raise ValueError("Choose all reports or latest_report")
-    if "supersedes_turn_id" in value and (
-        not isinstance(value["supersedes_turn_id"], str)
-        or not 1 <= len(value["supersedes_turn_id"]) <= 128
-        or value["supersedes_turn_id"].strip() != value["supersedes_turn_id"]
-    ):
-        raise ValueError("Correction must identify an existing saved report")
     if "as_of" in value:
         if not isinstance(value["as_of"], str) or not 1 <= len(value["as_of"]) <= 64:
             raise ValueError("Historical report lookup needs an aware ISO timestamp")
         if datetime.fromisoformat(value["as_of"]).tzinfo is None:
             raise ValueError("Historical report lookup needs a timezone")
-    if "statement_observation" in value and (
-        type(value["statement_observation"]) is not int or value["statement_observation"] < 0
-    ):
-        raise ValueError("Statement completion must identify a tool observation")
     allowed = fields[action] | {"action"}
     if set(value) - optional != allowed:
         raise ValueError(
@@ -89,15 +62,13 @@ def validate_action(value):
         type(value["before_frame_id"]) is not int or value["before_frame_id"] < 0
     ):
         raise ValueError("before_frame_id must be a nonnegative saved frame ID")
-    for key in fields[action] - {"hours", "observation"}:
+    for key in fields[action] - {"hours"}:
         if not isinstance(value[key], str) or not 1 <= len(value[key].strip()) <= 240:
             raise ValueError("Tool text must be 1–240 characters")
     if action == "search_history" and (
         type(value["hours"]) is not int or value["hours"] not in HISTORY_WINDOWS
     ):
         raise ValueError("Choose recent 2/24/168/240 hours, or 0 for all dated history")
-    if action == "finish" and (type(value["observation"]) is not int or value["observation"] < 0):
-        raise ValueError("Completion must identify a tool observation")
     return value
 
 
@@ -128,6 +99,7 @@ def native_agent_steps(
     now=None,
     user_timezone=None,
     memory_context=None,
+    validate_sources=None,
 ):
     """Native tool calls and final replies; execution guards never choose the next task."""
     from livekit.agents import ToolError
@@ -190,6 +162,8 @@ def native_agent_steps(
             raise ValueError("Request cancelled")
         if time.monotonic() - started > 90:
             raise ValueError("Request time budget exceeded")
+        if validate_sources is not None:
+            validate_sources([source for row in observations for source in row.get("sources", [])])
 
     def execute(action):
         nonlocal history_boundary
@@ -206,6 +180,8 @@ def native_agent_steps(
         key = json.dumps(action, sort_keys=True)
         if key in cached:
             return cached[key]
+        if len(actions) >= max_steps:
+            raise ValueError("Request tool budget exceeded")
         actions.append(action)
         observation = tool(action)
         if isinstance(observation, GeneratorType):
@@ -246,7 +222,7 @@ def native_agent_steps(
             check_active()
             reply = generate(messages, schemas)
             check_active()
-            if not isinstance(reply, dict):
+            if not isinstance(reply, dict) or reply.get("role") != "assistant":
                 raise CloudError("Agent returned an invalid reply")
             calls = reply.get("tool_calls") or []
             if not isinstance(calls, list) or len(calls) > 6:
@@ -278,7 +254,12 @@ def native_agent_steps(
                     raise
                 except (ValueError, TypeError, KeyError, ToolError) as exc:
                     check_active()
-                    observation = {"status": "error", "answer": str(exc)[:240]}
+                    observation = {
+                        "kind": "tool_error",
+                        "status": "uncertain",
+                        "answer": str(exc)[:240],
+                    }
+                    observations.append(observation)
                     result["decision_errors"].append(str(exc)[:240])
                 messages.append(
                     {
@@ -287,6 +268,10 @@ def native_agent_steps(
                         "content": json.dumps(_model_tool_result(observation)),
                     }
                 )
+        else:
+            result.update(
+                status="uncertain", answer="I couldn't finish that request within the tool limit."
+            )
     check_active()
     sources = set()
     for observation in observations:

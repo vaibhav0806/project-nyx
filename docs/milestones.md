@@ -1,5 +1,21 @@
 # Milestones
 
+## Shared-agent/general-memory migration — 2026-11-17 (in progress)
+
+Short shared policy/native tools, automatic typed/spoken memory preparation and general
+source-linked persistence are implemented. Removed the JSON planner, old statement writer,
+extra ambiguity/correction/positive judges, duplicate reference modes and active departure
+runtime. Inactive API compatibility preserves contributor UI and stored reminder records.
+Old data converts additively without inference or media changes. Memory retains quotes, clocks,
+plans, corrections/retractions and historical state; source/cancellation/write failures preserve
+raw input. Native API/voice protocol tests retain source attribution and candidate review.
+
+**434 deterministic tests passed in30.02s** after replacing retired-feature assertions. Real-model
+workflow/visual evaluation and offline local replay are next; acceptance is not complete. No UI
+or main changes, no PR/merge. Verified usage remains $4.73185091/$8 before new paid inference.
+See [plan](superpowers/plans/2026-11-17-simple-agent-memory.md) for remaining work.
+
+
 ## Household workflow engineering; acceptance remains open — 2026-11-16
 
 Continued on work/memory-reliability from merged PR2/bdb7ad0. Valid utterance-window availability
