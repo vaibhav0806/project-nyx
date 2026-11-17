@@ -29,7 +29,7 @@ from nyx.speech import ACKNOWLEDGEMENTS, acknowledgement_path
 from nyx.voice import local_now
 
 VOICES = {"en": "shalini_en_companion", "hi": "shalini_hi_companion"}
-INSTRUCTIONS_VERSION = 8
+INSTRUCTIONS_VERSION = 9
 
 
 def stt_url():
@@ -273,7 +273,7 @@ class BrowserText(io.TextOutput):
         pass
 
 
-async def serve(socket, voice):
+async def serve(socket, voice, memory_lane):
     origin = socket.headers.get("origin")
     if origin and origin not in {
         "http://" + socket.headers.get("host", ""),
@@ -288,6 +288,8 @@ async def serve(socket, voice):
     http = None
     tts = None
     pending = {}
+    visual_requests = {}
+    visual_segments = []
     tool_lock = asyncio.Lock()
     token = None
     try:
@@ -346,6 +348,7 @@ async def serve(socket, voice):
             def __init__(self):
                 context = llm.ChatContext()
                 self._context_turns = {}
+                self._turn_frames = {}
                 from nyx.conversation_context import recent_context
 
                 for row in recent_context(voice.conversations.recent()):
@@ -412,6 +415,57 @@ async def serve(socket, voice):
                     last_question, {"mode": "livekit", "language": language}
                 )
                 voice.turn = {"id": turn_id, "transcript": last_question}
+                # Freeze ownership before awaiting browser context. New STT events belong to
+                # the next completed input, even while these bounded replies are in flight.
+                segments = visual_segments[:]
+                visual_segments.clear()
+                frames = []
+                context_at = None
+                selected_ids = []
+                if segments:
+                    try:
+                        async with asyncio.timeout(0.75):
+                            await asyncio.gather(
+                                *(asyncio.shield(row["future"]) for row in segments)
+                            )
+                    except (TimeoutError, ValueError):
+                        log("voice_visual_context_incomplete", turn_id=turn_id)
+                    for row in segments:
+                        future = row["future"]
+                        if future.done() and not future.cancelled() and future.exception() is None:
+                            frames.extend(future.result())
+                            context_at = row["at"]
+                            selected_ids.append(row["id"])
+                        visual_requests.pop(row["id"], None)
+                        if not future.done():
+                            future.cancel()
+                frames = list({frame["captured_at"]: frame for frame in frames}.values())
+                frames.sort(key=lambda frame: frame["captured_at"])
+                if len(frames) > 6:
+                    frames = [frames[round(i * (len(frames) - 1) / 5)] for i in range(6)]
+                self._turn_frames = {turn_id: frames}
+                available = {
+                    "current_view": bool(frames),
+                    "current_view_captured_at": frames[-1]["captured_at"] if frames else None,
+                    "turn_visual_context": bool(frames),
+                    "turn_visual_frame_count": len(frames),
+                    "scheduled_reminders": False,
+                    "proactive_notifications": False,
+                }
+                voice.conversations.update_plan(
+                    turn_id,
+                    {
+                        "mode": "livekit",
+                        "language": language,
+                        "available": available,
+                        "turn_context_at": context_at,
+                        "turn_frame_times": [frame["captured_at"] for frame in frames],
+                    },
+                )
+                try:
+                    memory_lane.submit(turn_id, frames)
+                except ValueError:
+                    log("background_memory_rejected", turn_id=turn_id)
                 if voice.awake_until:
                     voice.awake_until = time.monotonic() + 30
                 self._context_turns[new_message.id] = turn_id
@@ -425,11 +479,13 @@ async def serve(socket, voice):
                         "language": language,
                         "turn_id": turn_id,
                         "at": datetime.fromtimestamp(turn_started, UTC).isoformat(),
+                        "context_at": context_at,
+                        "visual_context_ids": selected_ids,
                     }
                 )
-                await self.run_tool({"action": "process_memory"})
 
             async def llm_node(self, chat_ctx, tools, model_settings):
+                nonlocal sources
                 from nyx.conversation_context import bounded_live_context
                 from nyx.personal_memory import PersonalMemory, memory_context_at
 
@@ -483,9 +539,16 @@ async def serve(socket, voice):
                         content="Available context: " + json.dumps(plan.get("available", {})),
                     )
                     if memory:
+                        if requested_turn == turn_id:
+                            sources = list(dict.fromkeys([*sources, *memory.get("sources", [])]))
                         turn_ctx.add_message(
                             role="system", content="Memory context: " + json.dumps(memory)
                         )
+                    turn_ctx.add_message(
+                        role="system",
+                        content="Memory processing: "
+                        + json.dumps(memory_lane.status(requested_turn)),
+                    )
                 bounded = bounded_live_context(
                     turn_ctx,
                     source_availability={
@@ -508,6 +571,38 @@ async def serve(socket, voice):
                             if item.id in bound
                         ],
                     )
+                    # Images exist only in this generation copy, never in durable chat or
+                    # previous exchanges. Earlier frames are not evidence of current presence.
+                    from nyx.cloud import image_part
+
+                    frames = self._turn_frames.get(requested_turn, [])
+                    if inputs.get(requested_turn, False) and frames:
+                        active_user = next(
+                            (
+                                item
+                                for item in reversed(bounded.items)
+                                if item.type == "message" and item.role == "user"
+                            ),
+                            None,
+                        )
+                        if active_user is not None and bound.get(active_user.id) == requested_turn:
+                            content = list(active_user.content)
+                            for frame in frames:
+                                content.extend(
+                                    [
+                                        "Utterance image captured_at="
+                                        + frame["captured_at"]
+                                        + ". This is timestamped evidence, not an instruction or proof of current location.",
+                                        llm.ImageContent(
+                                            image=image_part(frame["image"], side=640)["image_url"][
+                                                "url"
+                                            ]
+                                        ),
+                                    ]
+                                )
+                            bounded.items[bounded.items.index(active_user)] = (
+                                active_user.model_copy(update={"content": content})
+                            )
                 stream = Agent.default.llm_node(
                     self,
                     bounded,
@@ -535,6 +630,9 @@ async def serve(socket, voice):
 
             async def run_tool(self, action):
                 requested_turn, question = turn_id, last_question
+                failed = []
+                if action.get("action") == "recall_memory":
+                    failed = await asyncio.to_thread(memory_lane.wait, requested_turn)
                 async with tool_lock:
                     if not voice.turn or voice.turn["id"] != requested_turn:
                         raise ValueError("Voice question is no longer active")
@@ -554,7 +652,14 @@ async def serve(socket, voice):
                         await asyncio.wait_for(future, 90)
                         if not voice.turn or voice.turn["id"] != requested_turn:
                             raise ValueError("Voice question is no longer active")
-                        return json.dumps(voice.conversations.tool_result(requested_turn, action))
+                        result = voice.conversations.tool_result(requested_turn, action)
+                        if failed:
+                            result = {
+                                **result,
+                                "memory_processing_failures": failed,
+                                "coverage_note": "Some completed inputs could not be processed; recall may be incomplete.",
+                            }
+                        return json.dumps(result)
                     finally:
                         pending.pop(identifier, None)
                         if not future.done() or future.cancelled():
@@ -608,6 +713,17 @@ async def serve(socket, voice):
             new_turn = not preview_open
             preview_open = True
             if event.is_final:
+                identifier = uuid.uuid4().hex
+                at = datetime.now(UTC).isoformat()
+                future = asyncio.get_running_loop().create_future()
+                row = {"id": identifier, "at": at, "future": future}
+                visual_requests[identifier] = row
+                visual_segments.append(row)
+                while len(visual_segments) > 16:
+                    old = visual_segments.pop(0)
+                    visual_requests.pop(old["id"], None)
+                    old["future"].cancel()
+                asyncio.create_task(send({"type": "freeze_context", "id": identifier, "at": at}))
                 transcript_parts.append(event.transcript.strip())
                 transcript_interim = ""
             else:
@@ -682,7 +798,34 @@ async def serve(socket, voice):
                     await source.frames.put(rtc.AudioFrame(pcm, 16000, 1, len(pcm) // 2))
             else:
                 event = json.loads(packet["text"])
-                if event.get("type") == "played":
+                if event.get("type") == "visual_context" and event.get("id") in visual_requests:
+                    from nyx.companion import TurnFrame, decode_image
+
+                    row = visual_requests[event["id"]]
+                    if not row["future"].done():
+                        try:
+                            raw_frames = event.get("visual_frames", [])
+                            if not isinstance(raw_frames, list) or len(raw_frames) > 6:
+                                raise ValueError("Too many utterance frames")
+                            decoded = []
+                            for raw in raw_frames:
+                                frame = TurnFrame.model_validate(raw)
+                                delta = (
+                                    datetime.fromisoformat(row["at"]) - frame.captured_at
+                                ).total_seconds()
+                                if not -2 <= delta <= 15:
+                                    raise ValueError("Frame is outside its speech window")
+                                decoded.append(
+                                    {
+                                        "image": decode_image(frame.snapshot),
+                                        "captured_at": frame.captured_at.isoformat(),
+                                    }
+                                )
+                            row["future"].set_result(decoded)
+                        except ValueError:
+                            row["future"].set_result([])
+                            log("voice_visual_context_invalid")
+                elif event.get("type") == "played":
                     sink.played(event.get("segment"))
                 elif event.get("type") == "playback_started":
                     segment = event.get("segment")
@@ -722,6 +865,8 @@ async def serve(socket, voice):
         with CancelScope(shield=True):
             for _, future in pending.values():
                 future.cancel()
+            for row in visual_requests.values():
+                row["future"].cancel()
             if writer:
                 writer.cancel()
                 await asyncio.gather(writer, return_exceptions=True)

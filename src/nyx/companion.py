@@ -198,9 +198,10 @@ def install_companion(app, workspace, voice):
             fresh(body.context_at.isoformat(), limit=90)
             if body.voice_turn_id:
                 with conversations.connect() as db:
-                    at = db.execute(
-                        "SELECT at FROM turns WHERE id=?", (body.voice_turn_id,)
-                    ).fetchone()[0]
+                    owned = db.execute(
+                        "SELECT at,plan FROM turns WHERE id=?", (body.voice_turn_id,)
+                    ).fetchone()
+                    at = json.loads(owned["plan"]).get("turn_context_at") or owned["at"]
                 if abs((body.context_at - aware_time(at)).total_seconds()) > 3:
                     raise ValueError("Visual window belongs to a different turn")
             for frame in body.visual_frames:

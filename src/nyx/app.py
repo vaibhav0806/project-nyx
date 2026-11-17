@@ -81,6 +81,9 @@ class Workspace:
         self.capture = CaptureJournal(self.root, video_budget_bytes)
         self.conversations = None
         self.memories = None
+        from nyx.background_memory import BackgroundMemory
+
+        self.background_memory = BackgroundMemory(self)
 
     def store(self):
         with self.store_lock:
@@ -238,6 +241,7 @@ class Workspace:
             self.upload_lock.release()
 
     def close(self):
+        self.background_memory.close()
         self.queue.put((99, next(self.order), None, None))
         self.ingest_queue.put((99, next(self.order), None, None))
         self.thread.join()
@@ -498,7 +502,7 @@ def create_app(
         if voice is None:
             await socket.close(code=1008)
             return
-        await serve_live_voice(socket, voice)
+        await serve_live_voice(socket, voice, workspace.background_memory)
 
     @app.get("/api/voice/diagnostics")
     def voice_diagnostics(request: Request):

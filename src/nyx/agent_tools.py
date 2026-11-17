@@ -44,7 +44,7 @@ class AgentTools:
 
     @function_tool
     async def identify_shown_object(self) -> str:
-        """Resolve this/it from the current image before searching history or memory. Ask if ambiguous."""
+        """Request a separate visual reference check when supplied images/context cannot resolve this/it. Ordinary category acknowledgements can use the supplied images directly. Ask if ambiguous."""
         return await self.run_tool({"action": "identify_shown_object"})
 
     @function_tool

@@ -22,6 +22,7 @@ const voice = {
   pcmEnd: 0,
   answer: "",
   ready: false,
+  visualContexts: new Map(),
   state(text) {
     $("voice-state").textContent = text;
     window.dispatchEvent(new CustomEvent("nyx-voice-state", { detail: text }));
@@ -178,8 +179,21 @@ const voice = {
       this.ready = true;
       this.state("Listening");
     }
+    if (event.type === "freeze_context") {
+      const context = companion.freezeContext(event.at);
+      this.visualContexts.set(event.id, context);
+      while (this.visualContexts.size > 16) this.visualContexts.delete(this.visualContexts.keys().next().value);
+      this.send({ type: "visual_context", id: event.id, visual_frames: context.visual_frames });
+    }
     if (event.type === "question") {
-      this.turnVisual = { id: event.turn_id, context: companion.freezeContext(event.at) };
+      const frames = new Map();
+      for (const id of event.visual_context_ids || []) {
+        for (const frame of this.visualContexts.get(id)?.visual_frames || []) frames.set(frame.captured_at, frame);
+        this.visualContexts.delete(id);
+      }
+      const ordered = [...frames.values()].sort((a, b) => Date.parse(a.captured_at) - Date.parse(b.captured_at));
+      const selected = ordered.length <= 6 ? ordered : Array.from({ length: 6 }, (_, i) => ordered[Math.round(i * (ordered.length - 1) / 5)]);
+      this.turnVisual = { id: event.turn_id, context: { context_at: event.context_at || event.at, visual_frames: selected } };
       this.answer = "";
       conversation.begin(event.display_text || event.text);
       $("voice-question").textContent = `You: ${event.display_text || event.text}`;
@@ -323,6 +337,7 @@ const voice = {
     this.ready = false;
     this.userSpeaking = false;
     this.lastTranscript = null;
+    this.visualContexts.clear();
     this.segment = 0;
     this.answer = "";
     this.startedSegments.clear();

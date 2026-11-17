@@ -86,6 +86,18 @@ async function run() {
   await voice.receive({ type: "question", text: "I plan to keep it in the kitchen.", display_text: "Look at this. I plan to keep it in the kitchen.", turn_id: "two" }, voice.epoch);
   assert.equal(elements.get("conversation-question").textContent, "Look at this. I plan to keep it in the kitchen.", "accepting the continuation must not replace its first part");
   assert.equal(voice.turnVisual.id, "two", "display grouping must preserve actual tool ownership");
-  console.log("14 browser audio/transcript checks passed");
+  const frozen = { context_at: "2026-11-18T00:00:00Z", visual_frames: [{ captured_at: "2026-11-17T23:59:59Z", snapshot: "shown-image" }] };
+  context.companion.freezeContext = () => frozen;
+  const sent = [];
+  voice.send = (event) => sent.push(event);
+  await voice.receive({ type: "freeze_context", id: "speech-final", at: frozen.context_at }, voice.epoch);
+  assert.equal(sent[0].type, "visual_context", "speech-final must immediately return frames without a tool or memory request");
+  context.companion.freezeContext = () => { throw new Error("delayed question must not capture a new scene"); };
+  await voice.receive({ type: "question", turn_id: "three", text: "this", at: "2026-11-18T00:00:20Z", context_at: frozen.context_at, visual_context_ids: ["speech-final"] }, voice.epoch);
+  assert.equal(voice.turnVisual.context.visual_frames[0].snapshot, "shown-image", "a delayed canonical turn must retain its original shown frame");
+  assert.equal(voice.turnVisual.context.context_at, frozen.context_at, "the original evidence clock must survive delayed processing");
+  await voice.stop();
+  assert.equal(voice.visualContexts.size, 0, "stopping clears retained context");
+  console.log("18 browser audio/transcript/context checks passed");
 }
 run().catch((error) => { console.error(error); process.exitCode = 1; });

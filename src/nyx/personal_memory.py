@@ -283,6 +283,8 @@ class PersonalMemory:
     def turn_context(conversations, turn_id):
         """Read current source validity, including after another turn or source deletion."""
         with conversations.connect() as db:
+            if not db.execute("SELECT 1 FROM sqlite_master WHERE name='memory_turns'").fetchone():
+                return None
             cached = db.execute(
                 "SELECT result FROM memory_turns WHERE turn_id=?", (turn_id,)
             ).fetchone()
@@ -430,7 +432,7 @@ class PersonalMemory:
             for row in self.conversations.recent()
             if row["input_available"]
             and row["id"] != turn_id
-            and (not row["at"] or aware_time(row["at"]) <= datetime.now(UTC))
+            and (not row["at"] or aware_time(row["at"]) <= aware_time(turn["at"]))
         ][-6:]
         payload = {
             "mode": "ingest",

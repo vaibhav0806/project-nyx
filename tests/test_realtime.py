@@ -205,13 +205,20 @@ def test_initial_livekit_listening_does_not_open_cloud_audio_gate(tmp_path, monk
                 return {"type": "websocket.disconnect"}
             return {"type": "websocket.receive", "bytes": bytes(640)}
 
-    asyncio.run(realtime.serve(Socket(), voice))
+    asyncio.run(realtime.serve(Socket(), voice, None))
     assert sessions[0].input.audio.frames.qsize() == 1
     assert sessions[0].closed
 
 
 def replay_voice_tools(
-    tmp_path, monkeypatch, scenario, *, memory_reply=None, session_factory=None, before_memory=None
+    tmp_path,
+    monkeypatch,
+    scenario,
+    *,
+    memory_reply=None,
+    session_factory=None,
+    before_memory=None,
+    visual_frames=None,
 ):
     """Exercise our real socket/turn persistence with only speech/model IO replaced."""
     sessions = []
@@ -281,24 +288,25 @@ def replay_voice_tools(
 
         async def send_json(self, event):
             self.sent.append(event)
+            if event.get("type") == "freeze_context":
+                await self.incoming.put(
+                    {
+                        "type": "websocket.receive",
+                        "text": json.dumps(
+                            {
+                                "type": "visual_context",
+                                "id": event["id"],
+                                "visual_frames": visual_frames(event) if visual_frames else [],
+                            }
+                        ),
+                    }
+                )
             if event.get("type") == "tool":
-                if event["action"]["action"] == "process_memory":
-                    if before_memory:
-                        await before_memory(event)
-                    from test_personal_memory import Encoder, response
-
-                    from nyx.personal_memory import PersonalMemory
-
-                    memory = PersonalMemory(
-                        voice.conversations, Encoder(), memory_reply or (lambda *args: response())
-                    )
-                    result = memory.process(event["turn_id"])
-                    await self.reply(event, result["sources"])
-                else:
-                    await self.tools.put(event)
+                await self.tools.put(event)
 
         async def receive(self):
             if self.scenario is None:
+                sessions[0].memory_lane = self.memory_lane
                 self.scenario = asyncio.create_task(scenario(sessions[0], self, voice))
             return await self.incoming.get()
 
@@ -336,9 +344,32 @@ def replay_voice_tools(
             )
 
     async def run():
+        from test_personal_memory import Encoder, response
+
+        from nyx.background_memory import BackgroundMemory
+        from nyx.personal_memory import PersonalMemory
+
+        loop = asyncio.get_running_loop()
+        component = PersonalMemory(
+            voice.conversations, Encoder(), memory_reply or (lambda *args: response())
+        )
+        process = component.process
+
+        def prepare(turn_id, **kwargs):
+            if before_memory:
+                asyncio.run_coroutine_threadsafe(before_memory({"turn_id": turn_id}), loop).result(
+                    timeout=4
+                )
+            return process(turn_id, **kwargs)
+
+        component.process = prepare
+        lane = BackgroundMemory(
+            SimpleNamespace(conversations=voice.conversations, personal_memory=lambda: component)
+        )
         socket = Socket()
+        socket.memory_lane = lane
         async with asyncio.timeout(5):
-            serving = asyncio.create_task(realtime.serve(socket, voice))
+            serving = asyncio.create_task(realtime.serve(socket, voice, lane))
             while socket.scenario is None:
                 await asyncio.sleep(0)
             try:
@@ -346,6 +377,7 @@ def replay_voice_tools(
             finally:
                 await socket.incoming.put({"type": "websocket.disconnect"})
                 await serving
+                await asyncio.to_thread(lane.close)
 
     asyncio.run(run())
     return voice.conversations
@@ -567,6 +599,7 @@ def test_live_historical_recall_scopes_automatic_memory_on_continuation(tmp_path
 
     async def scenario(session, socket, voice):
         await transcribe(session, "What did I report as of November 11?")
+        await asyncio.to_thread(session.memory_lane.wait, voice.turn["id"])
         context = session.agent.chat_ctx.copy()
         context.add_message(role="user", content="What did I report as of November 11?")
         await consume_node(session.agent.llm_node(context, [], {}))
@@ -774,10 +807,6 @@ def test_stt_segments_do_not_replace_an_owned_turn_before_livekit_accepts_it(tmp
 
     def memory_reply(payload, schema):
         turn = payload["current_turn"]
-        # A later STT segment can arrive while a completed input is being processed.
-        session.handlers["user_input_transcribed"](
-            SimpleNamespace(is_final=True, language="en", transcript="Are you there?")
-        )
         assert voice.turn["id"] == turn["turn_id"]
         return response(
             [
@@ -802,6 +831,10 @@ def test_stt_segments_do_not_replace_an_owned_turn_before_livekit_accepts_it(tmp
         message = llm.ChatMessage(role="user", content=["I'll keep the blue bottle in the kitchen"])
         await session.agent.on_user_turn_completed(llm.ChatContext(), message)
         assert voice.turn["transcript"] == "I'll keep the blue bottle in the kitchen"
+        session.handlers["user_input_transcribed"](
+            SimpleNamespace(is_final=True, language="en", transcript="Are you there?")
+        )
+        await asyncio.to_thread(session.memory_lane.wait, voice.turn["id"])
         with voice.conversations.connect() as db:
             row = db.execute("SELECT kind,content FROM memories").fetchone()
         assert row["kind"] == "plan"
@@ -907,7 +940,7 @@ def test_short_pause_continuation_is_one_completed_livekit_turn(tmp_path, monkey
     assert rows[0]["transcript"] == "Please remember. I will keep the blue bag by the door."
 
 
-def test_real_livekit_recovers_when_next_speech_arrives_during_memory_preparation(
+def test_real_livekit_replies_and_accepts_next_speech_while_memory_is_pending(
     tmp_path, monkeypatch
 ):
     from test_personal_memory import operation, response
@@ -951,19 +984,22 @@ def test_real_livekit_recovers_when_next_speech_arrives_during_memory_preparatio
         await utterance("I will keep the bottle in the kitchen.")
         await memory_started.wait()
         original = voice.turn["id"]
-        await utterance("Are you there?")
-        # Let the real SDK consume the second final while the first RPC is pending.
+        # A complete short reply must be generated before the slow memory path is released.
         async with asyncio.timeout(2):
-            while session.sdk.user_state != "listening" or not packets.empty():
+            while not any(
+                row["id"] == original and row["answer"] == "I am here."
+                for row in voice.conversations.recent()
+            ):
                 await asyncio.sleep(0.01)
-        assert voice.turn["id"] == original
-        release_memory.set()
+        await utterance("Are you there?")
         async with asyncio.timeout(2):
             while not any(
                 row["transcript"] == "Are you there?" and row["answer"] == "I am here."
                 for row in voice.conversations.recent()
             ):
                 await asyncio.sleep(0.01)
+        assert voice.turn["id"] != original
+        release_memory.set()
         assert any(
             event.get("type") == "user_state" and event.get("state") == "speaking"
             for event in socket.sent
@@ -989,7 +1025,7 @@ def test_real_livekit_recovers_when_next_speech_arrives_during_memory_preparatio
     )
 
 
-def test_final_spoken_input_prepares_memory_once_before_generation(tmp_path, monkeypatch):
+def test_final_spoken_input_prepares_memory_once_without_blocking_generation(tmp_path, monkeypatch):
     from livekit.agents import llm
     from test_personal_memory import operation, response
 
@@ -1002,9 +1038,6 @@ def test_final_spoken_input_prepares_memory_once_before_generation(tmp_path, mon
 
     async def generate(agent, ctx, tools, settings):
         calls.append(ctx)
-        assert "Prefers tea without sugar" in " ".join(
-            getattr(item, "text_content", "") for item in ctx.items if item.type == "message"
-        )
         yield "fixture reply"
 
     monkeypatch.setattr(realtime.Agent.default, "llm_node", generate)
@@ -1014,7 +1047,11 @@ def test_final_spoken_input_prepares_memory_once_before_generation(tmp_path, mon
         context = llm.ChatContext()
         context.add_message(role="user", content="I prefer tea without sugar")
         assert await consume_node(session.agent.llm_node(context, [], {})) == ["fixture reply"]
+        await asyncio.to_thread(session.memory_lane.wait, voice.turn["id"])
         await consume_node(session.agent.llm_node(context, [], {}))
+        assert "Prefers tea without sugar" in " ".join(
+            item.text_content for item in calls[-1].items if item.type == "message"
+        )
         complete_reply(session)
 
     conversations = replay_voice_tools(tmp_path, monkeypatch, scenario, memory_reply=memory_reply)
@@ -1049,3 +1086,95 @@ def test_spoken_generation_receives_same_owned_available_context_as_text(tmp_pat
         assert '"frame_id": 42' in sent and '"scheduled_reminders": false' in sent
 
     replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
+def test_conversation_uses_raw_final_images_without_retaining_them_in_chat(tmp_path, monkeypatch):
+    import base64
+    from datetime import datetime, timedelta
+    from io import BytesIO
+
+    from livekit.agents import llm
+    from PIL import Image
+
+    picture = BytesIO()
+    Image.new("RGB", (16, 16), "green").save(picture, format="PNG")
+    snapshot = base64.b64encode(picture.getvalue()).decode()
+    calls = []
+    monkeypatch.setattr(
+        realtime.Agent.default, "llm_node", lambda agent, ctx, tools, settings: calls.append(ctx)
+    )
+
+    def frames(event):
+        at = datetime.fromisoformat(event["at"])
+        return [
+            {"snapshot": snapshot, "captured_at": (at - timedelta(seconds=2)).isoformat()},
+            {"snapshot": snapshot, "captured_at": at.isoformat()},
+        ]
+
+    async def scenario(session, socket, voice):
+        await transcribe(session, "Look at this; I will keep it in the kitchen.")
+        context = llm.ChatContext()
+        original = context.add_message(
+            role="user", content="Look at this; I will keep it in the kitchen."
+        )
+        await consume_node(session.agent.llm_node(context, [], {}))
+        current = next(
+            item for item in calls[-1].items if item.type == "message" and item.role == "user"
+        )
+        assert len([part for part in current.content if isinstance(part, llm.ImageContent)]) == 2
+        assert original.content == ["Look at this; I will keep it in the kitchen."]
+        await asyncio.sleep(0)
+        question = next(event for event in socket.sent if event["type"] == "question")
+        freeze = next(event for event in socket.sent if event["type"] == "freeze_context")
+        assert question["visual_context_ids"] == [freeze["id"]]
+        assert question["context_at"] == freeze["at"]
+        await transcribe(session, "What time is it?")
+        context.add_message(role="user", content="What time is it?")
+        await consume_node(session.agent.llm_node(context, [], {}))
+        users = [item for item in calls[-1].items if item.type == "message" and item.role == "user"]
+        assert all(isinstance(part, str) for part in users[0].content)
+        assert len([part for part in users[-1].content if isinstance(part, llm.ImageContent)]) == 2
+        assert not any(
+            event.get("action", {}).get("action") == "process_memory" for event in socket.sent
+        )
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario, visual_frames=frames)
+
+
+def test_spoken_recall_waits_for_pending_earlier_memory(tmp_path, monkeypatch):
+    from test_personal_memory import operation, response
+
+    started, release = asyncio.Event(), asyncio.Event()
+
+    async def before_memory(event):
+        if not started.is_set():
+            started.set()
+            await release.wait()
+
+    def interpret(payload, schema):
+        current = payload["current_turn"]
+        return response([operation(current["turn_id"], current["text"], current["text"])])
+
+    async def scenario(session, socket, voice):
+        await transcribe(session, "My bottle is in the kitchen.")
+        first = voice.turn["id"]
+        await started.wait()
+        await transcribe(session, "Where did I say the bottle is?")
+        recall = asyncio.create_task(session.agent.recall_memory(query="bottle"))
+        try:
+            await asyncio.sleep(0.03)
+            assert socket.tools.empty(), "Recall must not race the unfinished save"
+            release.set()
+            tool = await asyncio.wait_for(socket.tools.get(), 2)
+            with voice.conversations.connect() as db:
+                assert db.execute("SELECT 1 FROM memories WHERE turn_id=?", (first,)).fetchone()
+            await socket.reply(tool, ["transcript:" + first])
+            assert json.loads(await recall)["answer"] == "Checked."
+        finally:
+            release.set()
+            recall.cancel()
+            await asyncio.gather(recall, return_exceptions=True)
+
+    replay_voice_tools(
+        tmp_path, monkeypatch, scenario, before_memory=before_memory, memory_reply=interpret
+    )
