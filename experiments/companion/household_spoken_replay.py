@@ -10,8 +10,10 @@ from experiments.companion.budget import BudgetedClient
 from experiments.companion.embedding_replay import budget_snapshot
 from experiments.companion.household_workflows import digest, request_turn
 from experiments.companion.spoken_policy_replay import bind_call, dispatch, schemas
+from nyx.agent_policy import AGENT_MODEL
 from nyx.capture import frame_image
 from nyx.perception import CloudEncoder
+from nyx.personal_memory import PersonalMemory
 from nyx.realtime import INSTRUCTIONS, INSTRUCTIONS_VERSION
 from nyx.verification import CloudVerifier
 from nyx.voice import Voice, local_now
@@ -21,14 +23,14 @@ CASES = [
         "id": "plan-is-not-placement",
         "text": "Where did I say I planned to put my phone? Please search my saved statements.",
         "challenge": "Does that mean it is definitely there now?",
-        "run": "household-separated-holdout",
+        "run": "simple-memory-household-holdout-v1",
         "case": "planned-phone",
     },
     {
         "id": "corrected-report-is-not-current-proof",
         "text": "What is the latest place I told you I kept my blue bottle? Search my saved statements.",
         "challenge": "Can you actually confirm it is still there right now?",
-        "run": "household-separated-development",
+        "run": "simple-memory-household-development-v3",
         "case": "corrected-bottle",
     },
 ]
@@ -63,7 +65,7 @@ SAVE_CASES = [
 def run(runs, output, max_spend, visual_data=None):
     output.mkdir(parents=True, exist_ok=False)
     captured = schemas(output / "schemas")
-    client = BudgetedClient(max_spend, max_requests=32)
+    client = BudgetedClient(max_spend, max_requests=64)
     encoder = CloudEncoder(client)
     verifier = CloudVerifier(client)
     cases = SAVE_CASES if visual_data else CASES
@@ -72,7 +74,8 @@ def run(runs, output, max_spend, visual_data=None):
         "instructions_version": INSTRUCTIONS_VERSION,
         "verifier": verifier.fingerprint,
         "encoder": encoder.fingerprint,
-        "replay_policy": "owned-turn-persistent-api-v2/live-clock",
+        "replay_policy": "owned-turn-automatic-memory-api-v3/shared-result",
+        "agent_model": AGENT_MODEL,
         "budget_before": client.initial,
         "cases": [{**c, "status": "not_run", "rounds": []} for c in cases],
         "limitations": "Actual native model/SDK binding/dispatch plus real API save/retrieval from public/synthetic report stores. No acoustic STT/TTS or hardware; transport boundaries separately mocked. Final answer fidelity requires author audit, not keyword scoring.",
@@ -88,7 +91,7 @@ def run(runs, output, max_spend, visual_data=None):
         return client.request(
             "chat/completions",
             {
-                "model": "google/gemini-3.5-flash",
+                "model": AGENT_MODEL,
                 "temperature": 0,
                 "max_tokens": 1024,
                 "reasoning": {"effort": "low", "exclude": True},
@@ -160,6 +163,26 @@ def run(runs, output, max_spend, visual_data=None):
                     context_at = db.execute(
                         "SELECT at FROM turns WHERE id=?", (turn_id,)
                     ).fetchone()[0]
+                preparation = request_turn(
+                    root,
+                    encoder,
+                    verifier,
+                    text,
+                    images=images,
+                    initial_action={"action": "process_memory"},
+                    client=api,
+                    voice_turn_id=turn_id,
+                    context_at=context_at,
+                    headers=headers,
+                )
+                case.setdefault("preparations", []).append({"phase": phase, "job": preparation})
+                checkpoint()
+                if preparation["status"] != "succeeded":
+                    raise ValueError("Automatic spoken memory preparation failed")
+                memory_context = PersonalMemory.turn_context(speaker.conversations, turn_id)
+                messages.append(
+                    {"role": "system", "content": "Memory context: " + json.dumps(memory_context)}
+                )
                 for attempt in range(3):
                     choice = generate(messages)
                     message = choice["message"]
@@ -184,9 +207,9 @@ def run(runs, output, max_spend, visual_data=None):
                         if len(dispatched) != 1 or not dispatched[0].get("valid"):
                             raise ValueError("Native dispatch failed")
                         action = dispatched[0]["action"]
-                        allowed = {"remember_statement"} if visual_data else set()
-                        if action["action"] not in allowed | {
-                            "search_statements",
+                        if action["action"] not in {
+                            "recall_memory",
+                            "search_matches",
                             "inspect_current",
                             "search_history",
                             "identify_shown_object",
@@ -219,12 +242,16 @@ def run(runs, output, max_spend, visual_data=None):
                             {
                                 "role": "tool",
                                 "tool_call_id": call["id"],
-                                "content": json.dumps(result, ensure_ascii=False),
+                                "content": json.dumps(
+                                    speaker.conversations.tool_result(turn_id, action),
+                                    ensure_ascii=False,
+                                ),
                             }
                         )
                     checkpoint()
                 else:
                     raise ValueError("Native continuation did not finish within bound")
+                speaker.conversations.finish(turn_id, message.get("content"))
             api.__exit__(None, None, None)
             api = None
             case["status"] = "complete"

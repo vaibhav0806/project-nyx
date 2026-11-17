@@ -311,14 +311,38 @@ class Conversations:
 
     def finish(self, identifier, answer=None, sources=(), status="complete"):
         with self.connect() as db:
+            row = db.execute("SELECT sources FROM turns WHERE id=?", (identifier,)).fetchone()
+            if not row:
+                raise ValueError("Conversation turn is unavailable")
+            dependencies = list(dict.fromkeys([*json.loads(row[0]), *sources]))
             db.execute(
                 "UPDATE turns SET answer=?, sources=?, status=? WHERE id=?",
-                (answer, json.dumps(list(sources)), status, identifier),
+                (answer, json.dumps(dependencies), status, identifier),
             )
 
-    def update_plan(self, identifier, plan):
+    def update_plan(self, identifier, plan, *, sources=()):
         with self.connect() as db:
-            db.execute("UPDATE turns SET plan=? WHERE id=?", (json.dumps(plan), identifier))
+            row = db.execute("SELECT sources FROM turns WHERE id=?", (identifier,)).fetchone()
+            if not row:
+                raise ValueError("Conversation turn is unavailable")
+            dependencies = sorted(set(json.loads(row[0])) | set(sources))
+            db.execute(
+                "UPDATE turns SET plan=?,sources=? WHERE id=?",
+                (json.dumps(plan), json.dumps(dependencies), identifier),
+            )
+
+    def tool_result(self, identifier, action):
+        """Read the server-owned action result after the existing browser transport completes."""
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT plan,sources_available,status FROM turns WHERE id=?", (identifier,)
+            ).fetchone()
+        if not row or not row["sources_available"] or row["status"] not in {"pending", "complete"}:
+            raise ValueError("Tool evidence is no longer available")
+        saved = json.loads(row["plan"]).get("last_tool", {})
+        if saved.get("action") != action or not isinstance(saved.get("result"), dict):
+            raise ValueError("Tool result does not match the owned request")
+        return saved["result"]
 
     def recent(self):
         with self.connect() as db:

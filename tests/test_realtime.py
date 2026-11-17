@@ -292,6 +292,23 @@ def replay_voice_tools(tmp_path, monkeypatch, scenario, *, memory_reply=None):
             return await self.incoming.get()
 
         async def reply(self, tool, sources, review=None):
+            if voice.turn and voice.turn["id"] == tool["turn_id"]:
+                with voice.conversations.connect() as db:
+                    saved_plan = json.loads(
+                        db.execute(
+                            "SELECT plan FROM turns WHERE id=?", (tool["turn_id"],)
+                        ).fetchone()[0]
+                    )
+                saved_plan["last_tool"] = {
+                    "action": tool["action"],
+                    "result": {
+                        "answer": "Checked.",
+                        "sources": sources,
+                        **({"review_context": review} if review else {}),
+                    },
+                }
+                voice.conversations.update_plan(tool["turn_id"], saved_plan, sources=sources)
+
             await self.incoming.put(
                 {
                     "type": "websocket.receive",
@@ -529,7 +546,7 @@ def test_spoken_recall_dispatches_historical_time_and_preserves_sources(tmp_path
             "as_of": "2026-11-06T18:00:00Z",
         }
         await socket.reply(tool, ["transcript:claim-1"])
-        assert await call == "Checked."
+        assert json.loads(await call)["answer"] == "Checked."
         complete_reply(session)
 
     conversations = replay_voice_tools(tmp_path, monkeypatch, scenario)
@@ -603,7 +620,7 @@ def test_spoken_lookup_dispatches_ten_day_window_exclusions_and_time_bound(tmp_p
         )
         summary = await call
         assert '"frame_id": 6' in summary
-        assert "not proof of identity" in summary
+        assert "review_context" in summary
         complete_reply(session)
 
     conversations = replay_voice_tools(tmp_path, monkeypatch, scenario)

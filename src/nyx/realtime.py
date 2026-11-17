@@ -468,8 +468,10 @@ async def serve(socket, voice):
                         }
                     )
                     try:
-                        result = await asyncio.wait_for(future, 90)
-                        return result
+                        await asyncio.wait_for(future, 90)
+                        if not voice.turn or voice.turn["id"] != requested_turn:
+                            raise ValueError("Voice question is no longer active")
+                        return json.dumps(voice.conversations.tool_result(requested_turn, action))
                     finally:
                         pending.pop(identifier, None)
                         if not future.done() or future.cancelled():
@@ -630,16 +632,7 @@ async def serve(socket, voice):
                             future.set_exception(ValueError("Invalid tool source references"))
                             continue
                         sources = list(dict.fromkeys([*sources, *tool_sources[:32]]))
-                        answer = str(event.get("answer", "No result."))[:4000]
-                        review = event.get("review_context")
-                        if isinstance(review, dict):
-                            encoded = json.dumps(review)
-                            if len(encoded) <= 2000:
-                                answer += (
-                                    "\nCandidate metadata for follow-up tools, not proof of identity: "
-                                    + encoded
-                                )
-                        future.set_result(answer)
+                        future.set_result(None)
     except (TimeoutError, WebSocketDisconnect):
         pass
     except Exception:

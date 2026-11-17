@@ -48,9 +48,7 @@ def test_workflow_request_allowance_is_bounded_without_becoming_a_tool_validatio
     from nyx.cloud import CloudError, OpenRouter
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "fixture")
-    monkeypatch.setattr(
-        budget, "budget_snapshot", lambda client: {"usage": 1.4, "limit": 2}
-    )
+    monkeypatch.setattr(budget, "budget_snapshot", lambda client: {"usage": 1.4, "limit": 2})
     monkeypatch.setattr(OpenRouter, "request", lambda *args, **kwargs: {"usage": {"cost": 0}})
     client = budget.BudgetedClient(0.20, max_requests=96)
     for _ in range(96):

@@ -727,3 +727,70 @@ def test_source_deletion_during_response_generation_withholds_stale_answer(tmp_p
         assert wait_for_job(client, job["id"])["status"] == "failed"
         turn = client.get("/api/companion").json()["conversations"][-1]
         assert not turn["answer"]
+
+
+def test_spoken_tool_handoff_retains_actual_memory_records_and_pending_dependencies(tmp_path):
+    from test_personal_memory import Encoder, operation, response
+
+    from nyx.personal_memory import PersonalMemory
+    from nyx.voice import Voice
+
+    speaker = Voice(tmp_path, None)
+    old_text = "I prefer tea without sugar"
+    old = speaker.conversations.begin(old_text, {})
+
+    def memory_reply(payload, schema):
+        if payload.get("mode") == "recall":
+            return response(relevant_ids=[payload["memories"][0]["id"]])
+        return response([operation(old, old_text, "Prefers tea without sugar")])
+
+    memory = PersonalMemory(speaker.conversations, Encoder(), memory_reply)
+    memory.process(old)
+    speaker.conversations.finish(old, "Noted")
+    model = Planner()
+    model.memory_reply = memory_reply
+    action = {"action": "recall_memory", "query": "tea preference"}
+    with TestClient(
+        create_app(
+            tmp_path,
+            encoder_factory=Encoder,
+            verifier_factory=lambda: model,
+            voice_factory=lambda _: speaker,
+        )
+    ) as client:
+        token = client.post("/api/voice/session").json()["token"]
+        current = speaker.conversations.begin("What is my tea preference?", {"mode": "livekit"})
+        speaker.turn = {"id": current, "transcript": "What is my tea preference?"}
+        job = client.post(
+            "/api/agent",
+            headers={"x-nyx-voice": token},
+            json={
+                "message": speaker.turn["transcript"],
+                "voice_turn_id": current,
+                "request_id": "voice-memory-detail",
+                "initial_action": action,
+            },
+        ).json()
+        assert wait_for_job(client, job["id"])["status"] == "succeeded"
+        actual = speaker.conversations.tool_result(current, action)
+        assert actual["matches"][0]["content"] == "Prefers tea without sugar"
+        assert "transcript:" + old in speaker.conversations.recent()[-1]["sources"]
+        with pytest.raises(ValueError, match="match"):
+            speaker.conversations.tool_result(
+                current, {"action": "recall_memory", "query": "coffee"}
+            )
+        speaker.conversations.invalidate("transcript:" + old)
+        with pytest.raises(ValueError, match="no longer"):
+            speaker.conversations.tool_result(current, action)
+
+
+def test_interrupted_pending_turn_keeps_registered_evidence_dependencies(tmp_path):
+    from nyx.voice import Conversations
+
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("Find my bottle", {})
+    conversations.update_plan(turn, {}, sources=["video-a"])
+    conversations.finish(turn, status="interrupted")
+    assert conversations.recent()[-1]["sources"] == ["video-a"]
+    conversations.invalidate("video-a")
+    assert not conversations.recent()[-1]["sources_available"]

@@ -13,7 +13,7 @@ from fastapi import HTTPException, Request
 from PIL import Image, UnidentifiedImageError
 from pydantic import AwareDatetime, BaseModel, Field
 
-from nyx.agent import native_agent_steps
+from nyx.agent import _model_tool_result, native_agent_steps
 from nyx.answers import history_steps
 from nyx.memory import aware_time
 from nyx.voice import Conversations, local_now, spoken_answer
@@ -499,6 +499,11 @@ def install_companion(app, workspace, voice):
                     if body.captured_at
                     else None,
                 }
+                if result["steps"]:
+                    plan["last_tool"] = {
+                        "action": result["steps"][-1],
+                        "result": _model_tool_result(result["observations"][-1]),
+                    }
                 statement_observations = [
                     r for r in result.get("observations", []) if r.get("kind") == "statements"
                 ]
@@ -517,7 +522,9 @@ def install_companion(app, workspace, voice):
                 conversations.update_plan(
                     identifier,
                     plan,
+                    sources=result["sources"],
                 )
+                validate_sources(result["sources"])
                 review = dict(plan["candidate"] or {})
                 if plan["statement_refs"]:
                     review["statement_refs"] = plan["statement_refs"]
