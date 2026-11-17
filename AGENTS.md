@@ -11,6 +11,10 @@ Final cumulative key usage$6.601774225/$8; stop developer inference here.
 User-authorized cleanup removed only20 unrelated latest clips,16,830,988 bytes. All556 retained
 original hashes, selected trial evidence and saved conversation/memory rows are unchanged.
 Normal shutdown drains memory work; abrupt-crash inference replay remains unimplemented.
+Both idle services restarted on the verified build:8001 PID64051/session77031 uses the original
+household directory;8002 PID64052/session48486 uses the isolated old-memory copy. HTTP200 and
+exact served voice.js bytes verified for both. Capture remains interrupted/inactive; no hardware
+was opened. Post-restart hashes still match; original household DB retains7 turns and2 memories.
 
 ## Fast visual conversation implementation — 2026-11-18
 
