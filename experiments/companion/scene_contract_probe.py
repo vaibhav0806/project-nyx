@@ -43,17 +43,36 @@ class SceneVerifier(CloudVerifier):
         ).hexdigest()
 
     def inspect(self, image, object_query):
+        return self._observe(
+            [
+                {"type": "image", "image": image},
+                {"type": "text", "text": json.dumps({"object": object_query})},
+            ]
+        )
+
+    def inspect_reference(self, image, reference, object_query):
+        return self._observe(
+            [
+                {
+                    "type": "text",
+                    "text": "REFERENCE: appearance cue only, not the scene to inspect.",
+                },
+                {"type": "image", "image": reference},
+                {
+                    "type": "text",
+                    "text": "CANDIDATE: classify physical presence and count matches only in this scene. Never copy location from the reference.",
+                },
+                {"type": "image", "image": image},
+                {"type": "text", "text": json.dumps({"object": object_query})},
+            ]
+        )
+
+    def _observe(self, content):
         raw = json.loads(
             self.client.generate(
                 [
                     {"role": "system", "content": PROMPT},
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "image", "image": image},
-                            {"type": "text", "text": json.dumps({"object": object_query})},
-                        ],
-                    },
+                    {"role": "user", "content": content},
                 ],
                 self.vision_model,
                 350,
