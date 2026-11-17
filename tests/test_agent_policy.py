@@ -16,3 +16,12 @@ def test_shared_policy_is_short_and_keeps_personality_and_evidence_distinctions(
     assert "reports, plans and observations" in AGENT_INSTRUCTIONS
     assert "supersedes_turn_id" not in AGENT_INSTRUCTIONS
     assert "departure" not in AGENT_INSTRUCTIONS
+
+
+def test_runtime_model_defaults_use_the_shared_role_configuration(monkeypatch):
+    from nyx.verification import CloudVerifier
+
+    monkeypatch.delenv("NYX_AGENT_MODEL", raising=False)
+    monkeypatch.delenv("NYX_VISION_MODEL", raising=False)
+    verifier = CloudVerifier(client=object())
+    assert verifier.model == AGENT_MODEL and verifier.vision_model == VISION_MODEL
