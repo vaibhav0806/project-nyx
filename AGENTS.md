@@ -1,5 +1,17 @@
 # Working on Nyx
 
+## Fast voice handoff — 2026-11-18
+
+Implemented Luna6 image-grounded replies plus app-owned ordered background memory. Raw-final
+frames precede canonical processing; recall waits for pending saves, interruption does not cancel
+completed input. Shared policy97 words/version9.493 tests31.97s and18 browser checks pass;
+R34 records real-provider first PCM4.07s/3.09s, rejected wording and remaining household/acoustic
+gates. Typed preparation stays synchronous. Do not claim complete household/p95 acceptance.
+Final cumulative key usage$6.601774225/$8; stop developer inference here.
+User-authorized cleanup removed only20 unrelated latest clips,16,830,988 bytes. All556 retained
+original hashes, selected trial evidence and saved conversation/memory rows are unchanged.
+Normal shutdown drains memory work; abrupt-crash inference replay remains unimplemented.
+
 ## Fast visual conversation implementation — 2026-11-18
 
 User explicitly approved keeping Luna6 and implementing image-aware quick voice replies with

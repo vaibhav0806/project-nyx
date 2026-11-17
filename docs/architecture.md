@@ -1,5 +1,21 @@
 # Technical architecture
 
+## Image-aware quick speech with background memory — 2026-11-18
+
+This supersedes synchronous spoken memory preparation below. The completed-user-turn hook owns
+durable input, consumes frames frozen at raw final STT events and submits an ordered background
+task. `background_memory.py` owns a bounded single-worker lane for the application lifetime;
+normal shutdown drains it. Reply interruption/new speech does not cancel completed-input saves.
+Recall alone synchronizes with pending memory, with cached progress audio and explicit failure
+coverage. Source validators and atomic writes remain in PersonalMemory. Earlier input preparation
+cannot consume later raw user turns. Abrupt-crash inference replay remains unimplemented.
+
+The conversational Luna6 call receives at most six timestamped owned images in its generation
+copy; past chat keeps text, not raw image payloads. Browser frame responses have a750ms deadline,
+with text-only fallback. Existing12s per-final frame windows stay bounded; exact server-owned
+frame clocks permit reuse across coalesced segments. Memory uses those same images independently
+when its existing reference task is needed. Typed API preparation remains synchronous. SeeR34.
+
 ## Pause and input availability follow-up — 2026-11-18
 
 Raw partial/final transcripts now provide an immediate, appended display preview; canonical

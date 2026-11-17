@@ -1,5 +1,16 @@
 # Milestones
 
+## Fast image-aware voice and background memory — 2026-11-18
+
+Luna6 sees owned final-STT image windows and can reply before memory interpretation/reference
+work finishes. One bounded app-owned worker preserves completed-input saves across reply
+interruptions/new turns; recall synchronizes with pending saves. Normal shutdown drains work;
+abrupt-crash inference replay is not implemented. Shared policy97 words.493 tests31.97s and18
+actual-JavaScript checks pass. Final two real-provider acknowledgement probes begin PCM at4.07s
+and3.09s, recognize/clarify correctly and avoid scheduling language; not end-to-end/p95 or acoustic
+acceptance. Typed preparation remains synchronous. Authorized small idle-tail deletion preserves
+all556 retained source hashes and trial memories. See [R34](research/R34-fast-visual-voice.md).
+
 ## Multimodal acknowledgement comparison — 2026-11-18
 
 Twenty explicitly authorized real-trial image/text requests completed across four models with

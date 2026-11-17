@@ -1,5 +1,9 @@
 # Repository structure
 
+`background_memory.py` owns the bounded app-lifetime voice memory worker and recall barrier.
+`realtime.py` owns canonical spoken input, raw-final frame requests and generation-only images;
+the narrow `voice.js` transport retains those selected windows. SeeR34 for the2026-11-18 update.
+
 ## Shared agent and memory ownership — 2026-11-17
 
 Current ownership supersedes the historical inventory below: `agent_policy.py` (short policy,

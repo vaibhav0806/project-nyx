@@ -1,5 +1,16 @@
 # Decisions and open choices
 
+## Respond from owned images; process completed speech memory in background — 2026-11-18
+
+User approved retaining Luna6 and moving expensive preparation off the spoken reply path.
+Completed-turn ownership stays in LiveKit's hook; raw final STT requests selected frames before
+delayed processing. An app-owned ordered worker handles memory independently of reply cancellation,
+and memory recall waits for pending writes. Foreground generation sees timestamped images and
+pending/saved status, without claiming unfinished persistence. Normal shutdown drains tasks.
+No new service, model migration, UI layout or main change. The97-word shared policy distinguishes
+untimed later recall from scheduled delivery. Typed preparation remains synchronous.
+See [R34](research/R34-fast-visual-voice.md) for evidence, rejected replies and remaining trial gates.
+
 ## Let LiveKit own completed spoken turns — 2026-11-17
 
 Create owned spoken input and prepare memory in `on_user_turn_completed`, not on each final STT
