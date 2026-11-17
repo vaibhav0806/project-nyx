@@ -728,3 +728,25 @@ def test_interpretation_model_is_recorded_before_an_assistant_can_fail(tmp_path)
         )
         assert result["model_info"] == model_info
         assert db.execute("SELECT count(*) FROM memories").fetchone()[0] == 1
+
+
+def test_unresolved_interpretation_discards_proposed_writes_and_returns_clarification(tmp_path):
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("I put it there", {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response(
+            [operation(turn, "I put it there", "Unspecified object in unspecified place")],
+            clarification="Which item and location do you mean?",
+        ),
+    )
+    result = memory.process(turn)
+    assert result["status"] == "clarify" and result["saved_ids"] == []
+    assert result["answer"] == "Which item and location do you mean?"
+    with conversations.connect() as db:
+        assert db.execute("SELECT count(*) FROM memories").fetchone()[0] == 0
+        assert (
+            db.execute("SELECT transcript FROM turns WHERE id=?", (turn,)).fetchone()[0]
+            == "I put it there"
+        )

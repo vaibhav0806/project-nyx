@@ -29,7 +29,7 @@ from nyx.speech import ACKNOWLEDGEMENTS, acknowledgement_path
 from nyx.voice import local_now
 
 VOICES = {"en": "shalini_en_companion", "hi": "shalini_hi_companion"}
-INSTRUCTIONS_VERSION = 4
+INSTRUCTIONS_VERSION = 5
 
 
 def stt_url():

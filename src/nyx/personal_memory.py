@@ -455,7 +455,7 @@ class PersonalMemory:
         if reply["needs_visual"] and not reply["clarification"]:
             reply = {**reply, "clarification": "Which item do you mean?"}
         if reply["clarification"] and reply["operations"]:
-            raise ValueError("Unresolved memory cannot be partly saved")
+            reply = {**reply, "operations": []}
         by_id = {row["id"]: row for row in candidates}
         selected = reply.get("relevant_ids")
         if (
