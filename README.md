@@ -112,6 +112,9 @@ cd project-nyx
 uv sync --python 3.12 --managed-python --extra web --extra voice --extra vision
 ```
 
+The `web` extra includes the shared native-tool SDK. Speech plugins and local wake recognition
+remain in `voice`; the typed agent also works with a web-only installation.
+
 Cache the pinned local wake-recognition model once:
 
 ```bash
