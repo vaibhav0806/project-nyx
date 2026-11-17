@@ -414,7 +414,7 @@ class Conversations:
                 and row["input_available"]
                 and valid_clock
                 and (not row["answer"] or row["sources_available"])
-                and row["status"] in {"complete", "pending"}
+                and (not row["answer"] or row["status"] in {"complete", "pending"})
             )
         return available
 

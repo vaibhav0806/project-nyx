@@ -400,3 +400,22 @@ def test_spoken_evidence_does_not_invent_user_ownership(query, location):
         assert location in answer
     assert result["object_query"] == query
     assert result["evidence"]["judgment"]["location"] == location
+
+
+def test_interrupted_reply_does_not_withdraw_its_completed_user_input(tmp_path):
+    from nyx.voice import Conversations
+
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("I plan to keep my blue bag by the door.", {})
+    conversations.finish(turn, status="interrupted")
+    assert conversations.source_availability([turn], input_only=True) == {turn: True}
+    assert conversations.source_availability([turn]) == {turn: False}
+    followup = conversations.begin("What did I say?", {})
+    conversations.attach_context(
+        followup, [{"id": turn, "sources_available": False, "input_available": True}]
+    )
+    conversations.finish(followup, "You described a plan for your bag.")
+    assert conversations.source_availability([followup]) == {followup: True}
+    conversations.invalidate("transcript:" + turn)
+    assert conversations.source_availability([turn], input_only=True) == {turn: False}
+    assert conversations.source_availability([followup]) == {followup: False}

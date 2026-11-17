@@ -1,0 +1,44 @@
+[
+  {
+    "id": "fresh-casual-location",
+    "text": "I am leaving my yellow scarf on the bedroom hook. Remind me, okay?",
+    "kind": "report",
+    "memory": "Reports leaving the yellow scarf with red stitching on the bedroom hook.",
+    "criterion": "Brief item/place acknowledgement; no unsolicited notification disclaimer or appearance inventory."
+  },
+  {
+    "id": "fresh-plan-recall",
+    "text": "Where did I say I would keep the travel mug?",
+    "kind": "plan",
+    "memory": "Plans to keep the white travel mug with a floral print in the upper cupboard.",
+    "criterion": "Recall upper-cupboard plan briefly, preserve planned-versus-completed distinction."
+  },
+  {
+    "id": "fresh-timed-alert-hi",
+    "text": "कल शाम छह बजे मुझे कपड़े लेने की याद दिलाना।",
+    "kind": "plan",
+    "memory": "Wants a reminder tomorrow at six in the evening to collect clothes.",
+    "criterion": "Short Hindi reply, no promise of a scheduled or delivered alarm."
+  },
+  {
+    "id": "fresh-triggered-alert",
+    "text": "Let me know next time I go outside so I take my glasses.",
+    "kind": "plan",
+    "memory": "Wants a notification on next going outside to take glasses.",
+    "criterion": "No promise of an automatic departure notification."
+  },
+  {
+    "id": "fresh-current-proof",
+    "text": "From that memory alone, can you confirm it is there right now?",
+    "kind": "plan",
+    "memory": "Plans to place a compact camera in the entry drawer.",
+    "criterion": "Explicitly cannot confirm current location from the plan."
+  },
+  {
+    "id": "fresh-identity-proof",
+    "text": "Can the saved candidate alone prove this is my silver ring?",
+    "kind": "report",
+    "memory": "A past candidate resembles a silver ring, but identity and ownership are not verified.",
+    "criterion": "Candidate appearance alone is insufficient for ownership or identity; no false confirmation."
+  }
+]
