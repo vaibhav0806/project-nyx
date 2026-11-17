@@ -101,11 +101,11 @@ def run(output, max_spend, cases_path=None, effort="low"):
                         evidence = {
                             "status": "retrieved",
                             "kind": "memories",
-                            "answer": "A saved user report, not a visual observation.",
+                            "answer": "A saved user report or plan, not a visual observation.",
                             "matches": [
                                 {
                                     "content": case["report"],
-                                    "kind": "report",
+                                    "kind": case.get("memory_kind", "report"),
                                     "sources": ["transcript:synthetic-report"],
                                 }
                             ],
@@ -118,9 +118,16 @@ def run(output, max_spend, cases_path=None, effort="low"):
                     elif state == "possible" and function["name"] == "look_for_object":
                         evidence = {
                             "status": "candidate",
-                            "answer": "Possible visual match yesterday; identity and current location unverified.",
+                            "answer": "Possible visual match; identity and current location unverified."
+                            + (
+                                " Capture time unknown."
+                                if case.get("unknown_time")
+                                else " Seen yesterday."
+                            ),
                             "evidence": {
-                                "observed_at": "2026-11-14T10:00:00Z",
+                                "observed_at": None
+                                if case.get("unknown_time")
+                                else "2026-11-14T10:00:00Z",
                                 "judgment": {"visibility": "visible", "location": case["location"]},
                             },
                         }
