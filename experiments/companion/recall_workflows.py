@@ -68,6 +68,7 @@ def score_answer(case, result, identifiers):
         correct = correct and negative_checked
     return {
         "correct": correct,
+        "scope": "Source attribution proxy only; final-answer semantic review is required.",
         "selected_ids": sorted(selected),
         "expected_ids": sorted(expected),
         "attributed": attributed,

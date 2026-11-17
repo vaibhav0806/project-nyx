@@ -347,20 +347,24 @@ class Conversations:
             return {}
         with self.connect() as db:
             rows = db.execute(
-                "SELECT id,sources_available,status FROM turns WHERE id IN ("
+                "SELECT id,at,sources_available,status FROM turns WHERE id IN ("
                 + ",".join("?" for _ in identifiers)
                 + ")",
                 identifiers,
             ).fetchall()
         available = {identifier: False for identifier in identifiers}
-        available.update(
-            {
-                row["id"]: bool(
-                    row["sources_available"] and row["status"] in {"complete", "pending"}
-                )
-                for row in rows
-            }
-        )
+        from nyx.memory import aware_time
+
+        for row in rows:
+            try:
+                valid_clock = not row["at"] or aware_time(row["at"]) <= datetime.now(UTC)
+            except (ValueError, TypeError):
+                valid_clock = False
+            available[row["id"]] = bool(
+                valid_clock
+                and row["sources_available"]
+                and row["status"] in {"complete", "pending"}
+            )
         return available
 
 

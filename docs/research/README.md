@@ -36,6 +36,8 @@ Research should answer a bounded question that changes a decision. Keep product 
 | R28 | Do imports survive indexing outage and interrupted work? | API embedding faults, explicit retry guards and real subprocess hard exit | [Import recovery](R28-import-restart-recovery.md) | Decoded source preservation and metadata-only restart recovery implemented; pre-copy initialization remains separate |
 | R29 | Does show → save → later recall work across household moves, corrections and ambiguity? | Real API source-separated public/synthetic workflows, natural-video diagnostic, native tool continuations and offline local replay | [Household experience](R29-household-experience.md) | General backend fixes measured; false clarification and household/acoustic acceptance remain open |
 
+| R30 | Can short shared native agents support general memory and reliable household recall? | Source-linked persistence/fault tests, real public/synthetic API workflows and offline private conversion/replay | [Simplified memory findings](R30-simple-agent-memory.md) | In progress; final-answer/household failures retained and being repaired |
+
 R1/R2 can run alongside early technical feasibility work once separately authorized. R5 does not block the initial R3 retrieval baseline. Do not assign a person or deadline without their agreement.
 
 ## Ready-to-share product brief

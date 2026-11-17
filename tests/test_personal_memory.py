@@ -529,3 +529,73 @@ def test_recall_selection_cannot_return_fabricated_or_newly_deleted_sources(tmp_
     memory.interpret = deleting
     with pytest.raises(ValueError, match="source changed"):
         memory.recall("tea", select=True)
+
+
+def test_context_resolved_memory_inherits_original_visual_clock_photo_and_sources(tmp_path):
+    from PIL import Image
+
+    conversations = Conversations(tmp_path)
+    first = conversations.begin("I put this on the table", {})
+    replies = [
+        response(needs_visual=True),
+        response([operation(first, "I put this on the table", "Blue phone on table")]),
+    ]
+    memory = PersonalMemory(conversations, Encoder(), lambda *args: replies.pop(0))
+    old_id = memory.process(
+        first,
+        observe=lambda: {
+            "status": "resolved",
+            "object_description": "blue phone",
+            "captured_at": "2026-11-06T12:00:00Z",
+            "image": Image.new("RGB", (10, 10), "blue"),
+        },
+    )["saved_ids"][0]
+    second = conversations.begin("I moved it into my bag", {})
+    replies.append(
+        response(
+            [
+                operation(
+                    second, "I moved it into my bag", "Blue phone moved into bag", related_id=old_id
+                )
+            ]
+        )
+    )
+    saved = memory.process(second)
+    assert set(saved["sources"]) == {"transcript:" + first, "transcript:" + second}
+    current = next(row for row in memory.recall("phone")["matches"] if row["turn_id"] == second)
+    assert current["visual"]["captured_at"] == "2026-11-06T12:00:00Z" and current["has_image"]
+    assert set(current["sources"]) == set(saved["sources"])
+    with conversations.connect() as db:
+        photos = [row[0] for row in db.execute("SELECT image FROM memories")]
+        assert photos[0] == photos[1]
+        db.execute("UPDATE turns SET sources_available=0 WHERE id=?", (first,))
+    assert memory.recall("phone")["matches"] == []
+
+
+def test_successful_correction_does_not_mark_its_intentionally_replaced_context_unavailable(
+    tmp_path,
+):
+    conversations = Conversations(tmp_path)
+    first = conversations.begin("I like tea", {})
+    replies = [response([operation(first, "I like tea", "Likes tea")])]
+    memory = PersonalMemory(conversations, Encoder(), lambda *args: replies.pop(0))
+    old_id = memory.process(first)["saved_ids"][0]
+    second = conversations.begin("Correction: I meant coffee", {})
+    replies.append(
+        response(
+            [
+                operation(
+                    second,
+                    "Correction: I meant coffee",
+                    "Likes coffee",
+                    operation="correct",
+                    related_id=old_id,
+                )
+            ],
+            relevant_ids=[old_id],
+        )
+    )
+    memory.process(second)
+    context = memory.turn_context(conversations, second)
+    assert context["status"] == "saved" and len(context["records"]) == 1
+    assert context["records"][0]["content"] == "Likes coffee"

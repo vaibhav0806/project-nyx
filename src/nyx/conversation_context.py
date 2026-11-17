@@ -1,8 +1,10 @@
 """Bound provider context without rewriting durable transcripts or summarizing evidence."""
 
 import json
+from datetime import UTC, datetime
 
 from nyx.cloud import CloudError
+from nyx.memory import aware_time
 
 
 def _reference(value):
@@ -43,6 +45,17 @@ def recent_context(turns, *, max_turns=12, max_chars=12000):
             continue
         available = source.get("sources_available", True)
         text = source.get("transcript") or ""
+        invalid_clock = False
+        if source.get("at"):
+            try:
+                invalid_clock = aware_time(source["at"]) > datetime.now(UTC)
+            except (ValueError, TypeError):
+                invalid_clock = True
+        if invalid_clock:
+            text = "[User input withheld: its report timestamp is invalid or in the future.]"
+            available = False
+        elif not available:
+            text = "[Earlier input withheld because its linked sources are unavailable.]"
         answer = (source.get("answer") or "") if available else ""
         row = {
             "status": "complete",
@@ -66,7 +79,7 @@ def recent_context(turns, *, max_turns=12, max_chars=12000):
             ),
             None,
         )
-        row["plan"]["steps"] = [_reference(query)] if query else []
+        row["plan"]["steps"] = [_reference(query)] if query and not invalid_clock else []
         if available:
             for key in ["candidate", "presented_candidate"]:
                 if plan.get(key):
@@ -114,9 +127,15 @@ def bounded_live_context(chat_ctx, *, max_chars=24000, max_items=48, source_avai
     kept = []
     for group in reversed(groups):
         if (source_availability or {}).get(group[0].id) is False:
-            # Retain the user query but withhold stale answers, tool results and candidate metadata.
+            # Raw statements may contain facts too; unavailable input cannot bypass memory guards.
             group = [
-                group[0],
+                group[0].model_copy(
+                    update={
+                        "content": [
+                            "[Earlier input withheld because its sources or report time are unavailable.]"
+                        ]
+                    }
+                ),
                 llm.ChatMessage(
                     role="assistant",
                     content=[

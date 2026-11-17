@@ -171,3 +171,34 @@ def test_oversized_active_tool_exchange_fails_before_provider_inference():
     )
     with pytest.raises(CloudError):
         bounded_live_context(chat, max_chars=12000)
+
+
+def test_future_dated_facts_cannot_bypass_memory_eligibility_through_chat_history():
+    from test_native_agent import finish
+
+    from nyx.agent import native_agent_steps
+
+    payloads = []
+
+    def generate(messages, tools):
+        payloads.append(messages)
+        return {"role": "assistant", "content": "No eligible report found."}
+
+    context = [
+        {
+            "at": "2099-01-01T00:00:00Z",
+            "transcript": "My watch is in the bathroom cabinet.",
+            "answer": "Saved in bathroom cabinet",
+            "sources_available": True,
+            "plan": {"steps": [{"action": "recall_memory", "query": "bathroom cabinet"}]},
+        }
+    ]
+    finish(
+        native_agent_steps(
+            "What have I said about my watch up to now?", context, generate, lambda _: pytest.fail()
+        )
+    )
+    serialized = json.dumps(payloads)
+    assert "bathroom cabinet" not in serialized
+    assert "timestamp is invalid or in the future" in serialized
+    assert context[0]["transcript"] == "My watch is in the bathroom cabinet."
