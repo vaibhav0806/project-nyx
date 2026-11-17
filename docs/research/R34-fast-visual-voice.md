@@ -1,5 +1,22 @@
 # R34 — Image-grounded voice replies without synchronous memory preparation
 
+## Subsequent user trial and isolated recall handoff
+
+The next real spoken trial began playback2778ms after the accepted transcript, while its memory
+task completed in4654ms. The task persisted a new source-linked location plan: three saved memories
+now exist. This is a measured real quick-response/background-save result, not proof of later recall.
+The actual reply still added an unwanted notification caveat; the bounded acknowledgement probe
+did not establish that wording across restored conversation history. Keep that limitation open.
+
+For the user's requested memory check, prepared a fresh ignored copy at
+`data/memory-only-check-2026-11-18-latest`, retaining all three memories and original source turns,
+then appending32 neutral synthetic context markers. Original source IDs are absent from the recent20,
+bounded model12 and memory-component recent6 inputs. All three memories remain source-available;
+memory rows match the snapshot exactly. No cloud query was run. Updated idle8002 to this copy
+(PID64933/session98307), verifiedHTTP200, inactive capture and synthetic-only recent context.
+Original8001 capture/service/data were not changed. A normal restart alone reloads recent chat;
+the isolated copy is the stronger test for genuine later retrieval. User recall result is pending.
+
 Date:2026-11-18. Owner:Codex inline. Status: implemented and verified; user trial pending.
 Decision affected: voice latency, utterance image ownership, memory task lifetime.
 

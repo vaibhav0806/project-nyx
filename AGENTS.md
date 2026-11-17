@@ -1,5 +1,17 @@
 # Working on Nyx
 
+## Latest user memory-test handoff — 2026-11-18
+
+Real next trial: playback2778ms after accepted transcript; background save4654ms, new location plan
+persisted. Total3 memories. Unwanted notification caveat still appeared in the restored-context
+reply; do not claim wording fully fixed. R34 records this limitation and measured improvement.
+For genuine recall,8002 now uses data/memory-only-check-2026-11-18-latest, PID64933/session98307.
+This fresh copy retains3 memories/source rows plus32 synthetic markers; originals absent from
+recent20/model12/memory6 context. No private cloud query or hardware activation by developer.
+8001 remains untouched and capture was recording at inspection. User should close its tab before
+the isolated trial, turn8002 camera off and ask where they said they planned to keep the item.
+Expected answer refers to the latest reported shelf plan, not a verified current location.
+
 ## Fast voice handoff — 2026-11-18
 
 Implemented Luna6 image-grounded replies plus app-owned ordered background memory. Raw-final
