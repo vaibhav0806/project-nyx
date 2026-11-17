@@ -1,5 +1,12 @@
 # Technical architecture
 
+## Completed speech lifecycle — 2026-11-17
+
+LiveKit's `on_user_turn_completed` owns canonical spoken input, question delivery and automatic
+memory preparation. Raw final STT events only retain language metadata; they do not replace the
+active durable turn. The LLM node supplies bounded context and streams generation. The real-SDK
+interruption replay and remaining audio-gate limit are in [R31](research/R31-voice-turn-lifecycle.md).
+
 ## Shared native agent and general memory — 2026-11-17
 
 Conversation rows distinguish `input_sources`/`input_available` from the assistant's `sources`.

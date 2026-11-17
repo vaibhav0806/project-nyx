@@ -313,11 +313,11 @@ async def serve(socket, voice):
         source = BrowserInput()
         sink = BrowserAudio(send, outgoing.put_nowait)
         language = "en"
+        input_language = "en"
         last_question = ""
         turn_id = None
         turn_started = 0
         sources = []
-        question_sent = None
         http = aiohttp.ClientSession()
         tts = sarvam.TTS(
             http_session=http,
@@ -333,7 +333,6 @@ async def serve(socket, voice):
             def __init__(self):
                 context = llm.ChatContext()
                 self._context_turns = {}
-                self._prepared_turns = set()
                 from nyx.conversation_context import recent_context
 
                 for row in recent_context(voice.conversations.recent()):
@@ -378,21 +377,47 @@ async def serve(socket, voice):
                             )
                 super().__init__(instructions=INSTRUCTIONS, chat_ctx=context)
 
+            async def on_user_turn_completed(self, turn_ctx, new_message):
+                nonlocal language, last_question, turn_id, sources, turn_started
+                if not new_message.text_content.strip():
+                    raise llm.StopResponse()
+                if input_language != language:
+                    language = input_language
+                    tts.update_options(
+                        target_language_code="hi-IN" if language == "hi" else "en-IN",
+                        speaker=VOICES[language],
+                    )
+                last_question = new_message.text_content
+                sources = []
+                if voice.turn and not any(
+                    row["id"] == voice.turn["id"] and row["status"] == "complete"
+                    for row in voice.conversations.recent()
+                ):
+                    voice.conversations.finish(voice.turn["id"], status="interrupted")
+                turn_started = time.time()
+                turn_id = voice.conversations.begin(
+                    last_question, {"mode": "livekit", "language": language}
+                )
+                voice.turn = {"id": turn_id, "transcript": last_question}
+                self._context_turns[new_message.id] = turn_id
+                while len(self._context_turns) > 96:
+                    del self._context_turns[next(iter(self._context_turns))]
+                await send(
+                    {
+                        "type": "question",
+                        "text": last_question,
+                        "language": language,
+                        "turn_id": turn_id,
+                        "at": datetime.fromtimestamp(turn_started, UTC).isoformat(),
+                    }
+                )
+                await self.run_tool({"action": "process_memory"})
+
             async def llm_node(self, chat_ctx, tools, model_settings):
                 from nyx.conversation_context import bounded_live_context
                 from nyx.personal_memory import PersonalMemory, memory_context_at
 
                 requested_turn = turn_id
-                if requested_turn and requested_turn not in self._prepared_turns:
-                    if question_sent:
-                        await question_sent
-                    await self.run_tool({"action": "process_memory"})
-                    if not voice.turn or voice.turn["id"] != requested_turn:
-                        raise ValueError("Voice question is no longer active")
-                    self._prepared_turns.add(requested_turn)
-                    self._prepared_turns.intersection_update(
-                        row["id"] for row in voice.conversations.recent()
-                    )
 
                 turn_ctx = chat_ctx.copy()
                 users = [
@@ -559,39 +584,9 @@ async def serve(socket, voice):
 
         @session.on("user_input_transcribed")
         def transcribed(event):
-            nonlocal language, last_question, turn_id, sources, turn_started, question_sent
-            if not event.is_final:
-                return
-            detected = "hi" if (event.language or "").startswith("hi") else "en"
-            if detected != language:
-                language = detected
-                tts.update_options(
-                    target_language_code="hi-IN" if language == "hi" else "en-IN",
-                    speaker=VOICES[language],
-                )
-            last_question = event.transcript
-            sources = []
-            if voice.turn and not any(
-                row["id"] == voice.turn["id"] and row["status"] == "complete"
-                for row in voice.conversations.recent()
-            ):
-                voice.conversations.finish(voice.turn["id"], status="interrupted")
-            turn_started = time.time()
-            turn_id = voice.conversations.begin(
-                last_question, {"mode": "livekit", "language": language}
-            )
-            voice.turn = {"id": turn_id, "transcript": last_question}
-            question_sent = asyncio.create_task(
-                send(
-                    {
-                        "type": "question",
-                        "text": last_question,
-                        "language": language,
-                        "turn_id": turn_id,
-                        "at": datetime.fromtimestamp(turn_started, UTC).isoformat(),
-                    }
-                )
-            )
+            nonlocal input_language
+            if event.is_final:
+                input_language = "hi" if (event.language or "").startswith("hi") else "en"
 
         @session.on("conversation_item_added")
         def item_added(event):

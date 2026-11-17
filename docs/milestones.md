@@ -1,5 +1,13 @@
 # Milestones
 
+## Real-trial voice failure repair — 2026-11-17
+
+The user's first trial failed: one completed greeting, three interrupted turns, zero memories.
+The completed-turn lifecycle repair reproduces the old race in the actual installed LiveKit
+session, preserves a synthetic kitchen plan and answers its follow-up. Full suite: 481 pass in
+29.41 seconds. This is not household acceptance; client/server audio-gate expiry remains open.
+No UI, main or original-media changes. See [R31](research/R31-voice-turn-lifecycle.md).
+
 ## Shared-agent/general-memory migration — 2026-11-17 (in progress)
 
 Short shared policy/native tools, automatic typed/spoken memory preparation and general

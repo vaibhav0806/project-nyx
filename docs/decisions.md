@@ -1,5 +1,12 @@
 # Decisions and open choices
 
+## Let LiveKit own completed spoken turns — 2026-11-17
+
+Create owned spoken input and prepare memory in `on_user_turn_completed`, not on each final STT
+segment or inside interruptible reply generation. The actual-SDK regression reproduces the old
+ownership race and verifies preservation of a plan plus a follow-up reply. Audio-gate expiry is
+a separate open transport issue; no prompt or model change. See [R31](research/R31-voice-turn-lifecycle.md).
+
 ## Simplify shared agent and general memory — 2026-11-17
 
 Keep user input separate from assistant evidence in storage. A lookup deletion must invalidate

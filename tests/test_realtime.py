@@ -211,29 +211,37 @@ def test_initial_livekit_listening_does_not_open_cloud_audio_gate(tmp_path, monk
     assert sessions[0].closed
 
 
-def replay_voice_tools(tmp_path, monkeypatch, scenario, *, memory_reply=None):
+def replay_voice_tools(
+    tmp_path, monkeypatch, scenario, *, memory_reply=None, session_factory=None, before_memory=None
+):
     """Exercise our real socket/turn persistence with only speech/model IO replaced."""
     sessions = []
 
     class Session:
         def __init__(self, **options):
-            self.input = SimpleNamespace()
-            self.output = SimpleNamespace()
+            self.sdk = session_factory(**options) if session_factory else None
+            self.input = self.sdk.input if self.sdk else SimpleNamespace()
+            self.output = self.sdk.output if self.sdk else SimpleNamespace()
             self.handlers = {}
             sessions.append(self)
 
         def on(self, name):
             def register(callback):
                 self.handlers[name] = callback
+                if self.sdk:
+                    self.sdk.on(name, callback)
                 return callback
 
             return register
 
         async def start(self, *, agent, **options):
             self.agent = agent
+            if self.sdk:
+                await self.sdk.start(agent=agent, **options)
 
         async def aclose(self):
-            pass
+            if self.sdk:
+                await self.sdk.aclose()
 
     class TTS:
         def __init__(self, **options):
@@ -274,6 +282,8 @@ def replay_voice_tools(tmp_path, monkeypatch, scenario, *, memory_reply=None):
         async def send_json(self, event):
             if event.get("type") == "tool":
                 if event["action"]["action"] == "process_memory":
+                    if before_memory:
+                        await before_memory(event)
                     from test_personal_memory import Encoder, response
 
                     from nyx.personal_memory import PersonalMemory
@@ -340,10 +350,14 @@ def replay_voice_tools(tmp_path, monkeypatch, scenario, *, memory_reply=None):
     return voice.conversations
 
 
-def transcribe(session, text):
+async def transcribe(session, text):
+    from livekit.agents import llm
+
     session.handlers["user_input_transcribed"](
         SimpleNamespace(is_final=True, language="en", transcript=text)
     )
+    message = llm.ChatMessage(role="user", content=[text])
+    await session.agent.on_user_turn_completed(llm.ChatContext(), message)
 
 
 def complete_reply(session):
@@ -361,7 +375,7 @@ def complete_reply(session):
 
 def test_spoken_turn_preserves_all_tool_sources_for_deletion(tmp_path, monkeypatch):
     async def scenario(session, socket, voice):
-        transcribe(session, "Where are my glasses?")
+        await transcribe(session, "Where are my glasses?")
         for action, sources in [
             ({"action": "search_history", "query": "glasses", "hours": 2}, ["video-a"]),
             ({"action": "search_history", "query": "glasses", "hours": 24}, ["video-a", "video-b"]),
@@ -469,7 +483,7 @@ def test_live_continuation_withholds_evidence_deleted_after_session_start(tmp_pa
             ]
         )
         voice.conversations.invalidate("video-later-deleted")
-        transcribe(session, "Where is that notebook?")
+        await transcribe(session, "Where is that notebook?")
         context.add_message(role="user", content="Where is that notebook?")
         await consume_node(session.agent.llm_node(context, [], {}))
         sent = " ".join(
@@ -488,7 +502,7 @@ def test_live_continuation_withholds_evidence_deleted_after_session_start(tmp_pa
         )
         context.add_message(role="assistant", content="Second dynamic answer: red cabinet")
         voice.conversations.invalidate("dynamic-video")
-        transcribe(session, "Check again")
+        await transcribe(session, "Check again")
         context.add_message(role="user", content="Check again")
         await consume_node(session.agent.llm_node(context.copy(), [], {}))
         assert all(
@@ -512,7 +526,7 @@ def test_live_followup_retains_prior_answer_dependency(tmp_path, monkeypatch):
     monkeypatch.setattr(realtime.Agent.default, "llm_node", lambda *args: None)
 
     async def scenario(session, socket, voice):
-        transcribe(session, "Repeat that location")
+        await transcribe(session, "Repeat that location")
         context = session.agent.chat_ctx.copy()
         context.add_message(role="user", content="Repeat that location")
         await consume_node(session.agent.llm_node(context, [], {}))
@@ -551,7 +565,7 @@ def test_live_historical_recall_scopes_automatic_memory_on_continuation(tmp_path
     )
 
     async def scenario(session, socket, voice):
-        transcribe(session, "What did I report as of November 11?")
+        await transcribe(session, "What did I report as of November 11?")
         context = session.agent.chat_ctx.copy()
         context.add_message(role="user", content="What did I report as of November 11?")
         await consume_node(session.agent.llm_node(context, [], {}))
@@ -622,7 +636,7 @@ def test_spoken_restart_restores_previous_report_query_constraints(tmp_path, mon
 
 def test_spoken_recall_dispatches_historical_time_and_preserves_sources(tmp_path, monkeypatch):
     async def scenario(session, socket, voice):
-        transcribe(session, "What did I report that day?")
+        await transcribe(session, "What did I report that day?")
         call = asyncio.create_task(
             session.agent.recall_memory(query="phone", as_of="2026-11-06T18:00:00Z")
         )
@@ -642,12 +656,15 @@ def test_spoken_recall_dispatches_historical_time_and_preserves_sources(tmp_path
 
 def test_late_tool_result_does_not_attach_to_a_new_spoken_turn(tmp_path, monkeypatch):
     async def scenario(session, socket, voice):
-        transcribe(session, "Where are my glasses?")
+        await transcribe(session, "Where are my glasses?")
         call = asyncio.create_task(
             session.agent.run_tool({"action": "search_statements", "query": "glasses"})
         )
         old_tool = await socket.tools.get()
-        transcribe(session, "Actually, tell me the time.")
+        # LiveKit interrupts the old generation before invoking the next completed-turn hook.
+        call.cancel()
+        await asyncio.gather(call, return_exceptions=True)
+        await transcribe(session, "Actually, tell me the time.")
         await socket.reply(old_tool, ["obsolete-video"])
         await asyncio.gather(call, return_exceptions=True)
         complete_reply(session)
@@ -678,7 +695,7 @@ def test_spoken_history_schema_advertises_only_executable_windows(tmp_path, monk
 
 def test_spoken_lookup_dispatches_ten_day_window_exclusions_and_time_bound(tmp_path, monkeypatch):
     async def scenario(session, socket, voice):
-        transcribe(session, "Look earlier than that moment for the other green item.")
+        await transcribe(session, "Look earlier than that moment for the other green item.")
         call = asyncio.create_task(
             session.agent.look_for_object(
                 query="green item",
@@ -718,6 +735,154 @@ async def consume_node(stream):
     return [chunk async for chunk in stream]
 
 
+def test_stt_segments_do_not_replace_an_owned_turn_before_livekit_accepts_it(tmp_path, monkeypatch):
+    from livekit.agents import llm
+    from test_personal_memory import operation, response
+
+    def memory_reply(payload, schema):
+        turn = payload["current_turn"]
+        # A later STT segment can arrive while a completed input is being processed.
+        session.handlers["user_input_transcribed"](
+            SimpleNamespace(is_final=True, language="en", transcript="Are you there?")
+        )
+        assert voice.turn["id"] == turn["turn_id"]
+        return response(
+            [
+                operation(
+                    turn["turn_id"],
+                    turn["text"],
+                    "Plans to keep the bottle in the kitchen",
+                    kind="plan",
+                )
+            ]
+        )
+
+    session = voice = None
+
+    async def scenario(current_session, socket, current_voice):
+        nonlocal session, voice
+        session, voice = current_session, current_voice
+        session.handlers["user_input_transcribed"](
+            SimpleNamespace(is_final=True, language="en", transcript="I'll put this")
+        )
+        assert voice.conversations.recent() == []
+        message = llm.ChatMessage(role="user", content=["I'll keep the blue bottle in the kitchen"])
+        await session.agent.on_user_turn_completed(llm.ChatContext(), message)
+        assert voice.turn["transcript"] == "I'll keep the blue bottle in the kitchen"
+        with voice.conversations.connect() as db:
+            row = db.execute("SELECT kind,content FROM memories").fetchone()
+        assert row["kind"] == "plan"
+        assert row["content"] == "Plans to keep the bottle in the kitchen"
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario, memory_reply=memory_reply)
+
+
+def test_real_livekit_recovers_when_next_speech_arrives_during_memory_preparation(
+    tmp_path, monkeypatch
+):
+    from livekit.agents import AgentSession, llm
+    from test_personal_memory import operation, response
+
+    packets, memory_started, release_memory = asyncio.Queue(), asyncio.Event(), asyncio.Event()
+
+    class Provider:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def send(self, data):
+            pass
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            return json.dumps(await packets.get())
+
+    class Model(llm.LLM):
+        def chat(self, **kwargs):
+            raise AssertionError("No provider calls in this SDK lifecycle regression")
+
+    def make_session(**options):
+        options.update(llm=Model(), tts=None, vad=None)
+        session = AgentSession(**options)
+        session.output.set_audio_enabled(False)
+        return session
+
+    async def before_memory(event):
+        if not memory_started.is_set():
+            memory_started.set()
+            await release_memory.wait()
+
+    async def generate(agent, ctx, tools, settings):
+        yield "I am here."
+
+    def memory_reply(payload, schema):
+        turn = payload["current_turn"]
+        if "bottle" in turn["text"]:
+            return response(
+                [
+                    operation(
+                        turn["turn_id"],
+                        turn["text"],
+                        "Plans to keep the bottle in the kitchen",
+                        kind="plan",
+                    )
+                ]
+            )
+        return response()
+
+    async def utterance(text):
+        for event in [
+            {"event": "vad.speech_start"},
+            {"event": "transcript.partial", "text": text, "language": "en-IN"},
+            {"event": "vad.speech_end"},
+            {"event": "transcript.final", "text": text, "language": "en-IN"},
+        ]:
+            await packets.put(event)
+
+    async def scenario(session, socket, voice):
+        await utterance("I will keep the bottle in the kitchen.")
+        await memory_started.wait()
+        original = voice.turn["id"]
+        await utterance("Are you there?")
+        # Let the real SDK consume the second final while the first RPC is pending.
+        async with asyncio.timeout(2):
+            while session.sdk.user_state != "listening" or not packets.empty():
+                await asyncio.sleep(0.01)
+        assert voice.turn["id"] == original
+        release_memory.set()
+        async with asyncio.timeout(2):
+            while not any(
+                row["transcript"] == "Are you there?" and row["answer"] == "I am here."
+                for row in voice.conversations.recent()
+            ):
+                await asyncio.sleep(0.01)
+
+    monkeypatch.setenv("SARVAM_API_KEY", "fixture")
+    monkeypatch.setattr(realtime, "connect", lambda *args, **kwargs: Provider())
+    monkeypatch.setattr(realtime.Agent.default, "llm_node", generate)
+    conversations = replay_voice_tools(
+        tmp_path,
+        monkeypatch,
+        scenario,
+        memory_reply=memory_reply,
+        session_factory=make_session,
+        before_memory=before_memory,
+    )
+    with conversations.connect() as db:
+        assert (
+            db.execute("SELECT content FROM memories").fetchone()[0]
+            == "Plans to keep the bottle in the kitchen"
+        )
+    assert any(
+        row["transcript"] == "Are you there?" and row["answer"] == "I am here."
+        for row in conversations.recent()
+    )
+
+
 def test_final_spoken_input_prepares_memory_once_before_generation(tmp_path, monkeypatch):
     from livekit.agents import llm
     from test_personal_memory import operation, response
@@ -739,7 +904,7 @@ def test_final_spoken_input_prepares_memory_once_before_generation(tmp_path, mon
     monkeypatch.setattr(realtime.Agent.default, "llm_node", generate)
 
     async def scenario(session, socket, voice):
-        transcribe(session, "I prefer tea without sugar")
+        await transcribe(session, "I prefer tea without sugar")
         context = llm.ChatContext()
         context.add_message(role="user", content="I prefer tea without sugar")
         assert await consume_node(session.agent.llm_node(context, [], {})) == ["fixture reply"]
@@ -764,7 +929,7 @@ def test_spoken_generation_receives_same_owned_available_context_as_text(tmp_pat
     monkeypatch.setattr(realtime.Agent.default, "llm_node", generate)
 
     async def scenario(session, socket, voice):
-        transcribe(session, "That isn't the item")
+        await transcribe(session, "That isn't the item")
         with voice.conversations.connect() as db:
             plan = json.loads(
                 db.execute("SELECT plan FROM turns WHERE id=?", (voice.turn["id"],)).fetchone()[0]

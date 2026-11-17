@@ -37,7 +37,7 @@ def dispatch(root, text, calls):
     results = []
 
     async def scenario(session, socket, voice):
-        helpers.transcribe(session, text)
+        await helpers.transcribe(session, text)
         tools = llm.ToolContext(session.agent.tools).function_tools
         for call in calls:
             try:
