@@ -8,6 +8,42 @@ from PIL import Image
 from nyx.verification import PROMPT, CloudVerifier
 
 
+@pytest.mark.parametrize(
+    "presence,count,ambiguous,expected",
+    [
+        ("physical", 1, False, "visible"),
+        ("depicted", 1, False, "not_visible"),
+        ("absent", 0, False, "not_visible"),
+        ("physical", 2, False, "uncertain"),
+        ("physical", 1, True, "uncertain"),
+    ],
+)
+def test_ordinary_inspection_distinguishes_scene_presence_from_depicted_visibility(
+    presence, count, ambiguous, expected
+):
+    calls = []
+
+    class Client:
+        def generate(self, *args, **kwargs):
+            calls.append(args)
+            return json.dumps(
+                {
+                    "scene_context": "An observed scene",
+                    "presence": presence,
+                    "description": "Object evidence",
+                    "matching_count": count,
+                    "ambiguous": ambiguous,
+                    "location": "by the table",
+                }
+            )
+
+    result = CloudVerifier(Client()).inspect(Image.new("RGB", (10, 10)), "an object")
+    assert len(calls) == 1
+    assert result["visibility"] == expected
+    if expected != "visible":
+        assert result["location"] is None
+
+
 @pytest.mark.parametrize("with_reference", [False, True])
 @pytest.mark.parametrize("wrapped", [False, True])
 def test_inspection_wire_requires_one_object_and_never_unwraps_a_model_array(
@@ -24,6 +60,9 @@ def test_inspection_wire_requires_one_object_and_never_unwraps_a_model_array(
         "matching_count": 1,
         "ambiguous": False,
     }
+    if not with_reference:
+        observed.pop("visibility")
+        observed.update(scene_context="A physical room with a table", presence="physical")
     calls = []
 
     def transport(request, timeout):
@@ -71,10 +110,15 @@ def test_one_inspection_returns_only_supported_protocol_output(
     class Client:
         def generate(self, messages, model, max_tokens, **kwargs):
             calls.append((messages, model))
-            assert PROMPT in messages[0]["content"][-1]["text"]
+            assert messages[0] == {"role": "system", "content": PROMPT}
             return json.dumps(
                 {
-                    "visibility": visibility,
+                    "scene_context": "An observed room",
+                    "presence": {
+                        "visible": "physical",
+                        "not_visible": "absent",
+                        "uncertain": "uncertain",
+                    }[visibility],
                     "matching_count": count,
                     "ambiguous": ambiguous,
                     "description": "Observed candidate",
