@@ -17,7 +17,7 @@ def run(output, candidate_policy, max_spend, cases_path):
     cases = json.loads(cases_path.read_text())
     captured = schemas(output / "schema-session")
     tools = captured["schemas"]
-    client = BudgetedClient(max_spend, max_requests=24)
+    client = BudgetedClient(max_spend, max_requests=40)
     verifier = CloudVerifier(client)
     report = {
         "status": "running",

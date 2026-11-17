@@ -1,5 +1,14 @@
 # Milestones
 
+## Pause and memory isolation follow-up — 2026-11-18
+
+The next trial saved a shown-item report and a location plan. Live transcript continuation,
+short-pause endpointing and input availability after interrupted replies are repaired; ingest
+avoids a redundant small-pool embedding call.487 tests and14 browser transport checks pass.
+An isolated copy retains saved memories while excluding original recent chat. The14s measured
+visual request remains a latency bottleneck; no end-to-end speed/household claim. Reply-style
+candidates were rejected and runtime policy is unchanged. See [R32](research/R32-pause-latency-memory-trial.md).
+
 ## Real-trial voice failure repair — 2026-11-17
 
 The user's first trial failed: one completed greeting, three interrupted turns, zero memories.

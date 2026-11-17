@@ -1,5 +1,13 @@
 # Technical architecture
 
+## Pause and input availability follow-up — 2026-11-18
+
+Raw partial/final transcripts now provide an immediate, appended display preview; canonical
+turns still come from the completed-turn hook. Dynamic endpointing coalesces short pauses.
+Completed input remains available after an interrupted assistant reply; the reply itself remains
+unavailable. Small ingest pools need no similarity query when every compatible record fits;
+ordinary recall retains ranking. See [R32](research/R32-pause-latency-memory-trial.md) for timing and limits.
+
 ## Completed speech lifecycle — 2026-11-17
 
 LiveKit's `on_user_turn_completed` owns canonical spoken input, question delivery and automatic

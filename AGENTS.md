@@ -1,5 +1,23 @@
 # Working on Nyx
 
+## Current handoff — 2026-11-18
+
+Paused-speech preview/append, native short-pause coalescing, small-ingest embedding avoidance
+and completed-input availability after interrupted replies are verified:487 tests35.85s and14
+browser checks. See [R32](docs/research/R32-pause-latency-memory-trial.md). The14s visual request
+remains a measured bottleneck, not eliminated. Three reply-style prompt candidates were rejected;
+runtime policy8 stays unchanged. Stop prompt sweeps here; the user redirected priority to UI/
+latency explanation and a concrete handoff. Four bounded synthetic runs cost$0.005189 reported;
+last key metadata$6.02137985/$8 includes the user's runtime activity. No more developer inference.
+
+Updated isolated memory-test service runs at http://127.0.0.1:8002, PID56599/session89824,
+using data/memory-only-check-2026-11-17. It retains two saved memories and original sources, plus32
+synthetic context markers; original source turns are absent from all recent-chat context paths.
+It has not run a private cloud query automatically; user testing is pending. Original8001 service
+PID44647 remains on the preceding backend while its capture is recording; do not interrupt it.
+Stop the old recording/tab before using the isolated trial. No hardware activation or private
+upload by developer tools. No new PR/main changes; preserve the remaining visual/acoustic gates.
+
 ## Pause/latency/memory-trial follow-up — 2026-11-17
 
 The user requested live transcript continuation/appending across pauses, latency investigation,
