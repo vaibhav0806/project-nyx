@@ -2,6 +2,25 @@
 
 Owner: Codex inline. Date: 2026-11-17. **Engineering/evaluation in progress; household acceptance fails.**
 
+## Existing laptop media check before the user trial
+
+The user asked whether the existing object-demo recordings and corresponding audio had actually
+been replayed, then offered to perform the household trial if suitable paired sources were not
+available. Earlier private-library results were integrity/vector checks, not spoken recognition.
+A fresh read-only stream inventory confirms all 92 saved app clips have video and **zero have
+an audio track**. No separate raw Nyx speech files were found in the bounded locations searched.
+
+A separate 75.157-second existing Nyx demonstration has synchronized video/audio. Full strict
+FFmpeg decoding of both tracks passes; cached local faster-whisper-tiny.en produces 26 timestamped
+segments and the source SHA-256 is unchanged. Transcription output is private and not manually
+scored. This is an offline diagnostic, **not production Sarvam/vision/memory acceptance**. The
+direct Whisper file-input attempt failed because installed PyAV rejects metadata_errors;
+FFmpeg-decoded PCM works, as used by the existing production wake path. No product change.
+The README attachment URL returned 404 anonymously, so publication could not be established;
+no private recording, transcript or vector was sent to providers. Results/transcript remain
+ignored under data/runs/local-paired-recordings-20261117-v1. No paid calls or hardware activation.
+Further source hunting is stopped at the user's direction; the household trial remains open.
+
 ## Latest confirmation: keep the agreed models; live acceptance remains open
 
 A new reference confirmation was frozen ata2ed566 before model calls:5 workflows over8 public
