@@ -13,6 +13,11 @@ Final key usage$6.72334125/$8; remaining$1.27665875. Observer-reported pass tota
 conservative duplicated upper figure, not exact invoice. Raw private replay/failed runs stay ignored.
 Fresh data/early-memory-check-2026-11-18 retains4 memories and32 markers; old dialogue/recall
 answers excluded from recent context. Do not confuse it with the original household directory.
+Services refreshed after confirming no active recording:8001 PID73619/session6699 uses the
+original household directory (capture interrupted);8002 PID73620/session86359 uses the fresh
+early-memory copy (capture inactive). HTTP200 and exact served transport verified. All574 old
+source-file hashes and saved memory rows still match; older isolated source directory preserved.
+User must reload before testing; no developer hardware activation. Main remains unchanged.
 
 ## Early memory context authorization — 2026-11-18
 

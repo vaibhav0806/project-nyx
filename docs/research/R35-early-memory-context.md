@@ -99,3 +99,6 @@ A fresh manual-memory copy, `data/early-memory-check-2026-11-18`, preserves all 
 memories/source rows and adds32 neutral markers so every earlier dialogue/recall answer is outside
 recent context. No original media copied/deleted, no private model query run automatically there.
 This is the next isolated manual check, separate from the original8001 household directory.
+Both idle services were refreshed:8001 PID73619 and8002 PID73620. HTTP200, served transport,
+synthetic-only recent context, all574 protected original-file hashes and memory-row preservation
+verified after restart. Capture remains interrupted/inactive; no hardware was opened.
