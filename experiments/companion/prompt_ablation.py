@@ -30,7 +30,9 @@ def run(args):
                 )
         else:
             with patch.object(spoken_fresh_evidence, "INSTRUCTIONS", prompt):
-                result = spoken_fresh_evidence.run(args.output, args.max_spend)
+                result = spoken_fresh_evidence.run(
+                    args.output, args.max_spend, args.cases, args.effort
+                )
         return result
     finally:
         if args.output.exists():
@@ -46,4 +48,5 @@ if __name__ == "__main__":
     parser.add_argument("--split", choices=["development", "holdout"], default="development")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--max-spend", type=float, default=0.10)
+    parser.add_argument("--effort", choices=["low", "medium"], default="low")
     print(json.dumps(run(parser.parse_args())))

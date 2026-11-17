@@ -1,0 +1,10 @@
+[
+  {"id":"possible-scarf-en","text":"Where did you last spot my scarf?","source_state":"possible","location":"on a low wooden bench","expected_meaning":"A possible scarf match was seen yesterday on the bench; identity and current location are unconfirmed."},
+  {"id":"possible-torch-hi","text":"मेरी टॉर्च आखिरी बार कहाँ दिखाई दी थी?","source_state":"possible","location":"on a low wooden bench","expected_meaning":"Reply in Hindi: only a possible torch match yesterday on the bench, not confirmed as the user's torch; no current-location proof."},
+  {"id":"absent-pouch-en","text":"Can you find my red pouch in the recordings?","source_state":"absent","expected_meaning":"No supported sighting; do not invent an object, location, time or absence from the real world."},
+  {"id":"absent-keys-hi","text":"मेरी चाबियाँ रिकॉर्डिंग में कहाँ हैं?","source_state":"absent","expected_meaning":"Reply in Hindi: no supported sighting or location; do not claim the keys were seen or are absent from the home."},
+  {"id":"report-glasses-en","text":"What did I tell you about where I left my reading glasses?","source_state":"report","report":"The user said they left their reading glasses in the bedside basket.","expected_meaning":"Attribute bedside basket to the user's saved report, not a camera sighting or proof the glasses remain there."},
+  {"id":"report-watch-hi","text":"मैंने अपनी घड़ी कहाँ रखने की बात कही थी? अपनी यादों में देखो।","source_state":"report","report":"The user said they kept their wristwatch in the green desk box.","expected_meaning":"Reply in Hindi: the user said the watch was in the green desk box; no visual or current-location confirmation."},
+  {"id":"ambiguous-this-en","text":"Which of these is the one I showed you earlier?","source_state":"ambiguous","expected_meaning":"Ask for distinguishing information; do not select a target or invent a location."},
+  {"id":"ambiguous-this-hi","text":"इनमें से कौन सा वही सामान है जो मैंने पहले दिखाया था?","source_state":"ambiguous","expected_meaning":"Reply in Hindi with clarification; do not pick one of the plausible targets or invent a location."}
+]
