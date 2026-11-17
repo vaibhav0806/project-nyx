@@ -231,7 +231,9 @@ class PersonalMemory:
             raise ValueError("Historical memory time cannot be in the future")
         with conversations.connect() as db:
             rows = db.execute(
-                "SELECT m.*,t.at,t.input_available FROM memories m JOIN turns t ON t.id=m.turn_id"
+                "SELECT m.id,m.turn_id,m.content,m.kind,m.quotes,m.embedding,m.encoder,m.visual,"
+                "m.image IS NOT NULL AS has_image,m.dependencies,m.grounding,t.at,t.input_available "
+                "FROM memories m JOIN turns t ON t.id=m.turn_id"
             ).fetchall()
             relations = {
                 row["replacement_id"]: dict(row)
@@ -325,7 +327,7 @@ class PersonalMemory:
                 ]
             },
             "visual": json.loads(row["visual"]),
-            "has_image": row["image"] is not None,
+            "has_image": bool(row["has_image"]),
         }
 
     def recall(

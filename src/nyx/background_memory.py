@@ -9,8 +9,66 @@ class BackgroundMemory:
     def __init__(self, workspace):
         self.workspace = workspace
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="nyx-memory")
+        self.reader = ThreadPoolExecutor(max_workers=1, thread_name_prefix="nyx-memory-read")
         self.lock = Lock()
         self.pending = {}
+        self.early = {}
+        self.reading = None
+
+    def prefetch(self, turn_id, query):
+        """Read candidates independently of writes; never queue up slow semantic requests."""
+        with self.lock:
+            if turn_id in self.early:
+                return self.early[turn_id]
+            task = None
+            if self.reading is None or self.reading.done():
+                task = self.reader.submit(self._candidates, query)
+                self.reading = task
+            self.early[turn_id] = task
+            while len(self.early) > 8:
+                del self.early[next(iter(self.early))]
+            return task
+
+    def _candidates(self, query):
+        return self.workspace.personal_memory().recall(query, limit=5, select=False, rank_all=False)
+
+    def early_context(self, turn_id, *, as_of=None):
+        """Only completed reads; recheck validity and corrections on each generation."""
+        from nyx.personal_memory import PersonalMemory
+
+        context = {
+            "kind": "memory_candidates",
+            "status": "unavailable",
+            "records": [],
+            "sources": [],
+        }
+        with self.lock:
+            task = self.early.get(turn_id)
+        if task is None or task.cancelled():
+            return context
+        if not task.done():
+            return {**context, "status": "pending"}
+        if task.exception() is not None:
+            return {**context, "status": "failed"}
+        wanted = {row["id"] for row in task.result()["matches"]}
+        if not wanted:
+            return {**context, "status": "candidates"}
+        rows, _ = PersonalMemory._read_rows(self.workspace.conversations, as_of=as_of)
+        by_id = {row["id"]: row for row in rows}
+        records = [
+            {
+                key: by_id[row["id"]][key]
+                for key in ("id", "turn_id", "at", "kind", "content", "sources")
+            }
+            for row in task.result()["matches"]
+            if row["id"] in by_id
+        ]
+        return {
+            **context,
+            "status": "candidates",
+            "records": records,
+            "sources": sorted({source for row in records for source in row["sources"]}),
+        }
 
     def submit(self, turn_id, frames):
         with self.lock:
@@ -102,4 +160,5 @@ class BackgroundMemory:
         return failed
 
     def close(self):
+        self.reader.shutdown(wait=True, cancel_futures=True)
         self.executor.shutdown(wait=True)

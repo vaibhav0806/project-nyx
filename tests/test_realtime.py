@@ -1178,3 +1178,127 @@ def test_spoken_recall_waits_for_pending_earlier_memory(tmp_path, monkeypatch):
     replay_voice_tools(
         tmp_path, monkeypatch, scenario, before_memory=before_memory, memory_reply=interpret
     )
+
+
+def test_first_reply_receives_optional_saved_memory_while_writer_is_blocked(tmp_path, monkeypatch):
+    from livekit.agents import llm
+    from test_personal_memory import Encoder, operation, response
+
+    from nyx.personal_memory import PersonalMemory
+    from nyx.voice import Conversations
+
+    conversations = Conversations(tmp_path)
+    old = conversations.begin("I plan to leave my umbrella by the door.", {})
+    component = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response(
+            [
+                operation(
+                    old,
+                    "I plan to leave my umbrella by the door.",
+                    "Plans to leave umbrella by the door",
+                    kind="plan",
+                )
+            ]
+        ),
+    )
+    component.process(old)
+    conversations.finish(old, "A reply that must stay outside recent context.")
+    for i in range(24):
+        marker = conversations.begin(f"Neutral marker {i}.", {})
+        conversations.finish(marker, "Received.")
+    started, release = asyncio.Event(), asyncio.Event()
+    calls = []
+
+    async def before_memory(event):
+        started.set()
+        await release.wait()
+
+    async def generate(agent, context, tools, settings):
+        calls.append(context)
+        yield "Concise fixture reply."
+
+    monkeypatch.setattr(realtime.Agent.default, "llm_node", generate)
+
+    async def scenario(session, socket, voice):
+        try:
+            restored = " ".join(
+                item.text_content for item in session.agent.chat_ctx.items if item.type == "message"
+            )
+            assert "umbrella" not in restored
+            await transcribe(session, "Where did I say I would leave my umbrella?")
+            await started.wait()
+            context = llm.ChatContext()
+            context.add_message(role="user", content="Where did I say I would leave my umbrella?")
+            assert await consume_node(session.agent.llm_node(context, [], {})) == [
+                "Concise fixture reply."
+            ]
+            early = next(
+                item.text_content
+                for item in calls[-1].items
+                if item.type == "message"
+                and item.text_content.startswith("Optional early memory candidates")
+            )
+            assert "Plans to leave umbrella by the door" in early
+            assert session.memory_lane.status(voice.turn["id"])["status"] == "pending"
+            complete_reply(session)
+            current = voice.turn["id"]
+            voice.conversations.invalidate("transcript:" + old)
+            assert not voice.conversations.source_availability([current])[current]
+            await consume_node(session.agent.llm_node(context, [], {}))
+            assert all(
+                "Plans to leave umbrella" not in item.text_content
+                for item in calls[-1].items
+                if item.type == "message"
+            )
+        finally:
+            release.set()
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario, before_memory=before_memory)
+
+
+def test_slow_early_lookup_has_a_deadline_and_does_not_disable_further_recall(
+    tmp_path, monkeypatch
+):
+    import threading
+
+    from livekit.agents import llm
+
+    from nyx.background_memory import BackgroundMemory
+
+    started, release = threading.Event(), threading.Event()
+
+    def slow(self, query):
+        started.set()
+        assert release.wait(3)
+        return {"matches": []}
+
+    monkeypatch.setattr(BackgroundMemory, "_candidates", slow)
+    calls = []
+    monkeypatch.setattr(
+        realtime.Agent.default, "llm_node", lambda agent, ctx, tools, settings: calls.append(ctx)
+    )
+
+    async def scenario(session, socket, voice):
+        try:
+            await asyncio.wait_for(transcribe(session, "Can you help me remember?"), timeout=0.65)
+            assert started.is_set() and not release.is_set()
+            context = llm.ChatContext()
+            context.add_message(role="user", content="Can you help me remember?")
+            await consume_node(session.agent.llm_node(context, [], {}))
+            assert any(
+                '"status": "pending"' in item.text_content
+                for item in calls[-1].items
+                if item.type == "message"
+                and item.text_content.startswith("Optional early memory candidates")
+            )
+            lookup = asyncio.create_task(session.agent.recall_memory(query="umbrella"))
+            tool = await asyncio.wait_for(socket.tools.get(), 1)
+            assert tool["action"]["action"] == "recall_memory"
+            await socket.reply(tool, [])
+            assert json.loads(await lookup)["answer"] == "Checked."
+        finally:
+            release.set()
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)

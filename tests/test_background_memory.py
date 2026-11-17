@@ -109,3 +109,120 @@ def test_withdrawn_input_cannot_commit_a_late_background_save(tmp_path):
     finally:
         release.set()
         lane.close()
+
+
+def test_early_candidates_do_not_wait_for_writer_and_revalidate_sources(tmp_path):
+    from nyx.background_memory import BackgroundMemory
+
+    conversations = Conversations(tmp_path)
+    old = conversations.begin("I plan to keep my phone on the shelf.", {})
+    component = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response(
+            [
+                operation(
+                    old,
+                    "I plan to keep my phone on the shelf.",
+                    "Plans to keep phone on shelf",
+                    kind="plan",
+                )
+            ]
+        ),
+    )
+    component.process(old)
+    component.interpret = lambda *args: response()
+    started, release = threading.Event(), threading.Event()
+    process = component.process
+
+    def blocked(*args, **kwargs):
+        started.set()
+        assert release.wait(3)
+        return process(*args, **kwargs)
+
+    component.process = blocked
+    lane = BackgroundMemory(
+        SimpleNamespace(conversations=conversations, personal_memory=lambda: component)
+    )
+    new = conversations.begin("Where did I say I would keep it?", {})
+    try:
+        lane.submit(new, [])
+        assert started.wait(1)
+        task = lane.prefetch(new, "phone")
+        assert task.result(timeout=1)["matches"][0]["turn_id"] == old
+        context = lane.early_context(new)
+        assert context["records"][0]["content"] == "Plans to keep phone on shelf"
+        assert "embedding" not in str(context) and "visual" not in str(context)
+        conversations.invalidate("transcript:" + old)
+        assert lane.early_context(new)["records"] == []
+    finally:
+        release.set()
+        lane.close()
+
+
+def test_early_candidates_recheck_corrections_and_historical_state(tmp_path):
+    from datetime import UTC, datetime, timedelta
+
+    from nyx.background_memory import BackgroundMemory
+
+    conversations = Conversations(tmp_path)
+    old = conversations.begin("My camera is in the bag.", {})
+    component = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response([operation(old, "My camera is in the bag.", "Camera in bag")]),
+    )
+    old_id = component.process(old)["saved_ids"][0]
+    cutoff = datetime.now(UTC) - timedelta(hours=1)
+    with conversations.connect() as db:
+        db.execute(
+            "UPDATE turns SET at=? WHERE id=?", ((cutoff - timedelta(hours=1)).isoformat(), old)
+        )
+    lane = BackgroundMemory(
+        SimpleNamespace(conversations=conversations, personal_memory=lambda: component)
+    )
+    try:
+        lane.prefetch("query", "camera").result(timeout=1)
+        correction = conversations.begin("Correction: the camera is in the cupboard.", {})
+        component.interpret = lambda *args: response(
+            [
+                operation(
+                    correction,
+                    "the camera is in the cupboard",
+                    "Camera in cupboard",
+                    operation="correct",
+                    related_id=old_id,
+                )
+            ]
+        )
+        component.process(correction)
+        assert lane.early_context("query")["records"] == []
+        assert lane.early_context("query", as_of=cutoff.isoformat())["records"][0]["id"] == old_id
+    finally:
+        lane.close()
+
+
+def test_early_lookup_bounds_inflight_reads_and_exposes_failure_without_empty_success(tmp_path):
+    from nyx.background_memory import BackgroundMemory
+
+    started, release = threading.Event(), threading.Event()
+    lane = BackgroundMemory(SimpleNamespace(conversations=Conversations(tmp_path)))
+
+    def unavailable(query):
+        started.set()
+        assert release.wait(2)
+        raise RuntimeError("Synthetic lookup outage")
+
+    lane._candidates = unavailable
+    try:
+        first = lane.prefetch("first", "one")
+        assert started.wait(1)
+        assert lane.prefetch("second", "two") is None
+        assert lane.early_context("second")["status"] == "unavailable"
+        release.set()
+        with pytest.raises(RuntimeError):
+            first.result(timeout=1)
+        assert lane.early_context("first")["status"] == "failed"
+    finally:
+        release.set()
+        lane.close()

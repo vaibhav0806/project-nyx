@@ -29,7 +29,7 @@ from nyx.speech import ACKNOWLEDGEMENTS, acknowledgement_path
 from nyx.voice import local_now
 
 VOICES = {"en": "shalini_en_companion", "hi": "shalini_hi_companion"}
-INSTRUCTIONS_VERSION = 9
+INSTRUCTIONS_VERSION = 10
 
 
 def stt_url():
@@ -415,6 +415,8 @@ async def serve(socket, voice, memory_lane):
                     last_question, {"mode": "livekit", "language": language}
                 )
                 voice.turn = {"id": turn_id, "transcript": last_question}
+                lookup_started = time.perf_counter()
+                early = memory_lane.prefetch(turn_id, last_question)
                 # Freeze ownership before awaiting browser context. New STT events belong to
                 # the next completed input, even while these bounded replies are in flight.
                 segments = visual_segments[:]
@@ -443,6 +445,29 @@ async def serve(socket, voice, memory_lane):
                 frames.sort(key=lambda frame: frame["captured_at"])
                 if len(frames) > 6:
                     frames = [frames[round(i * (len(frames) - 1) / 5)] for i in range(6)]
+                if early is not None and not early.done():
+                    remaining = 0.25 - (time.perf_counter() - lookup_started)
+                    if remaining > 0:
+                        reading = asyncio.wrap_future(early)
+                        reading.add_done_callback(
+                            lambda result: None if result.cancelled() else result.exception()
+                        )
+                        await asyncio.wait([reading], timeout=remaining)
+                lookup_status = "unavailable"
+                if early is not None:
+                    lookup_status = (
+                        "pending"
+                        if not early.done()
+                        else "failed"
+                        if early.exception()
+                        else "ready"
+                    )
+                log(
+                    "early_memory_lookup",
+                    turn_id=turn_id,
+                    status=lookup_status,
+                    preparation_ms=round((time.perf_counter() - lookup_started) * 1000),
+                )
                 self._turn_frames = {turn_id: frames}
                 available = {
                     "current_view": bool(frames),
@@ -533,6 +558,22 @@ async def serve(socket, voice, memory_lane):
                         {},
                     )
                     memory = memory_context_at(memory, recalled.get("as_of"))
+                    early_context = memory_lane.early_context(
+                        requested_turn, as_of=recalled.get("as_of")
+                    )
+                    log(
+                        "early_memory_context",
+                        turn_id=requested_turn,
+                        status=early_context["status"],
+                        memory_ids=[row["id"] for row in early_context["records"]],
+                    )
+                    if requested_turn == turn_id:
+                        sources = list(dict.fromkeys([*sources, *early_context["sources"]]))
+                    turn_ctx.add_message(
+                        role="system",
+                        content="Optional early memory candidates (not exhaustive; use further lookup when needed): "
+                        + json.dumps(early_context),
+                    )
                     turn_ctx.add_message(
                         role="system",
                         content="Available context: " + json.dumps(plan.get("available", {})),
