@@ -162,6 +162,7 @@ def install_companion(app, workspace, voice):
                     "result": result,
                 },
                 identifier=identifier,
+                input_sources=[evidence["video_id"]],
             )
             conversations.finish(identifier, result["answer"], [evidence["video_id"]])
             return result
@@ -271,7 +272,8 @@ def install_companion(app, workspace, voice):
                     fresh(body.context_at.isoformat(), limit=90)
                 with conversations.connect() as db:
                     owner = db.execute(
-                        "SELECT sources_available FROM turns WHERE id=?", (identifier,)
+                        "SELECT sources_available AND input_available FROM turns WHERE id=?",
+                        (identifier,),
                     ).fetchone()
                 if not owner or not owner[0]:
                     raise ValueError("Visual input is no longer available")
@@ -448,12 +450,23 @@ def install_companion(app, workspace, voice):
             try:
                 now = local_now(body.timezone)
                 availability = conversations.source_availability(row["id"] for row in context)
+                input_availability = conversations.source_availability(
+                    (row["id"] for row in context), input_only=True
+                )
                 current_context = [
-                    {**row, "sources_available": availability.get(row["id"], False)}
+                    {
+                        **row,
+                        "sources_available": availability.get(row["id"], False),
+                        "input_available": input_availability.get(row["id"], False),
+                    }
                     for row in context
                 ]
+                from nyx.conversation_context import recent_context
+
+                current_context = recent_context(current_context)
+                conversations.attach_context(identifier, current_context)
                 context_sources = ["transcript:" + identifier] + [
-                    "transcript:" + row["id"] for row in current_context if row["sources_available"]
+                    "transcript:" + row["id"] for row in current_context if row["input_available"]
                 ]
 
                 def validate_sources(sources):
@@ -461,7 +474,7 @@ def install_companion(app, workspace, voice):
                         if source.startswith("transcript:"):
                             with conversations.connect() as db:
                                 row = db.execute(
-                                    "SELECT sources_available FROM turns WHERE id=?", (source[11:],)
+                                    "SELECT input_available FROM turns WHERE id=?", (source[11:],)
                                 ).fetchone()
                             if not row or not row[0]:
                                 raise ValueError("Conversation evidence changed; ask again")
@@ -469,6 +482,9 @@ def install_companion(app, workspace, voice):
                             store = workspace.store()
                             if not store or store.video(source)["status"] != "ready":
                                 raise ValueError("Recording evidence changed; ask again")
+                    required = [row["id"] for row in current_context if row["sources_available"]]
+                    if not all(conversations.source_availability(required).values()):
+                        raise ValueError("Conversation evidence changed; ask again")
 
                 memory_context = None
                 if body.initial_action is None:

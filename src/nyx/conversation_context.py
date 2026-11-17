@@ -44,6 +44,7 @@ def recent_context(turns, *, max_turns=12, max_chars=12000):
         if source.get("status", "complete") != "complete":
             continue
         available = source.get("sources_available", True)
+        input_available = source.get("input_available", available)
         text = source.get("transcript") or ""
         invalid_clock = False
         if source.get("at"):
@@ -54,14 +55,17 @@ def recent_context(turns, *, max_turns=12, max_chars=12000):
         if invalid_clock:
             text = "[User input withheld: its report timestamp is invalid or in the future.]"
             available = False
-        elif not available:
+            input_available = False
+        elif not input_available:
             text = "[Earlier input withheld because its linked sources are unavailable.]"
+        available = available and input_available
         answer = (source.get("answer") or "") if available else ""
         row = {
             "status": "complete",
             "transcript": text[:1500],
             "answer": answer[:1200],
             "sources_available": bool(available),
+            "input_available": bool(input_available),
             "plan": {},
         }
         for key in ["id", "at"]:
@@ -79,7 +83,7 @@ def recent_context(turns, *, max_turns=12, max_chars=12000):
             ),
             None,
         )
-        row["plan"]["steps"] = [_reference(query)] if query and not invalid_clock else []
+        row["plan"]["steps"] = [_reference(query)] if query and available else []
         if available:
             for key in ["candidate", "presented_candidate"]:
                 if plan.get(key):
@@ -99,7 +103,9 @@ def recent_context(turns, *, max_turns=12, max_chars=12000):
     return selected
 
 
-def bounded_live_context(chat_ctx, *, max_chars=24000, max_items=48, source_availability=None):
+def bounded_live_context(
+    chat_ctx, *, max_chars=24000, max_items=48, source_availability=None, input_availability=None
+):
     """Keep whole user/tool exchanges. Budget counts text, not media or model tokens."""
     from livekit.agents import llm
 
@@ -127,26 +133,24 @@ def bounded_live_context(chat_ctx, *, max_chars=24000, max_items=48, source_avai
     kept = []
     for group in reversed(groups):
         if (source_availability or {}).get(group[0].id) is False:
-            # Raw statements may contain facts too; unavailable input cannot bypass memory guards.
-            group = [
-                group[0].model_copy(
+            # A deleted assistant lookup must not erase an independent user statement.
+            user = group[0]
+            if (input_availability or {}).get(user.id) is not True:
+                user = user.model_copy(
                     update={
                         "content": [
                             "[Earlier input withheld because its sources or report time are unavailable.]"
                         ]
                     }
-                ),
+                )
+            group = [
+                user,
                 llm.ChatMessage(
                     role="assistant",
                     content=[
                         'Earlier turn source state: {"sources_available": false}. Its assistant/tool evidence is withheld; retrieve available records or clarify.'
                     ],
                 ),
-                *[
-                    item
-                    for item in group[1:]
-                    if item.type == "message" and item.role in {"system", "developer"}
-                ],
             ]
         trial = [*instructions, *group, *kept]
         if len(trial) > max_items or size(trial) > max_chars:

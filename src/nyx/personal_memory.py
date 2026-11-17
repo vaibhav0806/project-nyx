@@ -181,18 +181,18 @@ class PersonalMemory:
                 raise TypeError("Invalid memory source")
             text = quote.get("text")
             row = db.execute(
-                "SELECT transcript,sources,sources_available FROM turns WHERE id=?",
+                "SELECT transcript,input_sources,input_available FROM turns WHERE id=?",
                 (quote["turn_id"],),
             ).fetchone()
             if (
                 not row
-                or not row["sources_available"]
+                or not row["input_available"]
                 or not isinstance(text, str)
                 or not text.strip()
                 or text not in row["transcript"]
             ):
                 raise ValueError("Memory source is unavailable or quote is not verbatim")
-            dependencies = json.loads(row["sources"] or "[]")
+            dependencies = json.loads(row["input_sources"] or "[]")
             if not isinstance(dependencies, list) or any(
                 not isinstance(x, str) for x in dependencies
             ):
@@ -212,7 +212,7 @@ class PersonalMemory:
             raise ValueError("Historical memory time cannot be in the future")
         with conversations.connect() as db:
             rows = db.execute(
-                "SELECT m.*,t.at,t.sources_available FROM memories m JOIN turns t ON t.id=m.turn_id"
+                "SELECT m.*,t.at,t.input_available FROM memories m JOIN turns t ON t.id=m.turn_id"
             ).fetchall()
             relations = {
                 row["replacement_id"]: dict(row)
@@ -224,7 +224,7 @@ class PersonalMemory:
             for row in rows:
                 if row["at"] and aware_time(row["at"]) > cutoff:
                     continue
-                if not row["sources_available"] or (as_of and not row["at"]):
+                if not row["input_available"] or (as_of and not row["at"]):
                     unavailable += 1
                     continue
                 try:
@@ -391,7 +391,7 @@ class PersonalMemory:
         check_active()
         with self.conversations.connect() as db:
             turn = db.execute("SELECT * FROM turns WHERE id=?", (turn_id,)).fetchone()
-            if not turn or not turn["sources_available"]:
+            if not turn or not turn["input_available"]:
                 raise ValueError("User input is unavailable")
             cached = db.execute(
                 "SELECT result FROM memory_turns WHERE turn_id=?", (turn_id,)
@@ -402,7 +402,7 @@ class PersonalMemory:
         recent = [
             {"turn_id": row["id"], "text": row["transcript"], "at": row["at"]}
             for row in self.conversations.recent()
-            if row["sources_available"]
+            if row["input_available"]
             and row["id"] != turn_id
             and (not row["at"] or aware_time(row["at"]) <= datetime.now(UTC))
         ][-6:]
@@ -547,12 +547,12 @@ class PersonalMemory:
                     if op["related_id"] not in valid_related:
                         raise ValueError("Related memory changed")
                     target = db.execute(
-                        "SELECT m.id,m.quotes,t.at,t.sources_available FROM memories m JOIN turns t ON t.id=m.turn_id WHERE m.id=?",
+                        "SELECT m.id,m.quotes,t.at,t.input_available FROM memories m JOIN turns t ON t.id=m.turn_id WHERE m.id=?",
                         (op["related_id"],),
                     ).fetchone()
                     if (
                         not target
-                        or not target["sources_available"]
+                        or not target["input_available"]
                         or (
                             target["at"]
                             and turn["at"]

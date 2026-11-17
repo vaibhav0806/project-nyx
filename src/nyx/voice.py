@@ -230,6 +230,17 @@ class Conversations:
             db.execute("""CREATE TABLE IF NOT EXISTS turns
                 (id TEXT PRIMARY KEY, at TEXT, transcript TEXT, plan TEXT, answer TEXT,
                 sources TEXT, sources_available INTEGER DEFAULT 1, status TEXT)""")
+            columns = {row[1] for row in db.execute("PRAGMA table_info(turns)")}
+            if "input_sources" not in columns:
+                db.execute("ALTER TABLE turns ADD COLUMN input_sources TEXT DEFAULT '[]'")
+                db.execute("ALTER TABLE turns ADD COLUMN input_available INTEGER DEFAULT 1")
+                # Old rows did not distinguish user input from assistant evidence. Preserve
+                # their existing, conservative source dependencies during the migration.
+                db.execute(
+                    "UPDATE turns SET input_sources=sources,input_available=sources_available"
+                )
+            if "context_turns" not in columns:
+                db.execute("ALTER TABLE turns ADD COLUMN context_turns TEXT DEFAULT '[]'")
             if recover_pending:
                 db.execute("UPDATE turns SET status='interrupted' WHERE status='pending'")
             db.execute("""CREATE TABLE IF NOT EXISTS diagnostics
@@ -260,11 +271,11 @@ class Conversations:
             ).fetchall()
         return [{**dict(row), "details": json.loads(row["details"])} for row in reversed(rows)]
 
-    def begin(self, transcript, plan, identifier=None):
+    def begin(self, transcript, plan, identifier=None, *, input_sources=()):
         identifier = identifier or uuid.uuid4().hex
         with self.connect() as db:
             db.execute(
-                "INSERT INTO turns VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT INTO turns(id,at,transcript,plan,answer,sources,sources_available,status,input_sources,input_available,context_turns) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     identifier,
                     datetime.now(UTC).isoformat(),
@@ -274,6 +285,9 @@ class Conversations:
                     "[]",
                     1,
                     "pending",
+                    json.dumps(list(input_sources)),
+                    1,
+                    "[]",
                 ),
             )
         return identifier
@@ -306,7 +320,7 @@ class Conversations:
             row = db.execute(
                 "SELECT plan,sources_available,status FROM turns WHERE id=?", (identifier,)
             ).fetchone()
-        if not row or not row["sources_available"] or row["status"] not in {"pending", "complete"}:
+        if not row or not self.source_availability([identifier]).get(identifier):
             raise ValueError("Tool evidence is no longer available")
         saved = json.loads(row["plan"]).get("last_tool", {})
         if saved.get("action") != action or not isinstance(saved.get("result"), dict):
@@ -316,12 +330,16 @@ class Conversations:
     def recent(self):
         with self.connect() as db:
             rows = db.execute("SELECT * FROM turns ORDER BY rowid DESC LIMIT 20").fetchall()
+        available = self.source_availability(row["id"] for row in rows)
         return [
             {
                 **dict(row),
                 "plan": json.loads(row["plan"]),
                 "sources": json.loads(row["sources"]),
-                "sources_available": bool(row["sources_available"]),
+                "sources_available": available[row["id"]],
+                "input_available": bool(row["input_available"]),
+                "input_sources": json.loads(row["input_sources"]),
+                "context_turns": json.loads(row["context_turns"]),
             }
             for row in reversed(rows)
         ]
@@ -333,19 +351,57 @@ class Conversations:
                 (SELECT turns.id FROM turns, json_each(turns.sources) WHERE json_each.value=?)""",
                 (source,),
             )
+            db.execute(
+                """UPDATE turns SET input_available=0 WHERE id IN
+                (SELECT turns.id FROM turns, json_each(turns.input_sources) WHERE json_each.value=?)
+                OR ?='transcript:' || id""",
+                (source, source),
+            )
 
-    def source_availability(self, identifiers):
+    def attach_context(self, identifier, context):
+        """Record the bounded context actually supplied, without copying its whole ancestry."""
+        with self.connect() as db:
+            row = db.execute("SELECT context_turns FROM turns WHERE id=?", (identifier,)).fetchone()
+            if not row:
+                raise ValueError("Conversation turn is unavailable")
+            dependencies = {edge["id"]: edge["answer"] for edge in json.loads(row[0])}
+            for turn in context:
+                if turn.get("id") != identifier and turn.get(
+                    "input_available", turn.get("sources_available", True)
+                ):
+                    dependencies[turn["id"]] = bool(
+                        dependencies.get(turn["id"]) or turn.get("sources_available", True)
+                    )
+            db.execute(
+                "UPDATE turns SET context_turns=? WHERE id=?",
+                (
+                    json.dumps(
+                        [{"id": key, "answer": value} for key, value in dependencies.items()]
+                    ),
+                    identifier,
+                ),
+            )
+
+    def source_availability(self, identifiers, *, input_only=False):
         identifiers = list(dict.fromkeys(identifiers))[-48:]
         if not identifiers:
             return {}
         with self.connect() as db:
             rows = db.execute(
-                "SELECT id,at,sources_available,status FROM turns WHERE id IN ("
-                + ",".join("?" for _ in identifiers)
-                + ")",
-                identifiers,
+                """WITH RECURSIVE dependencies(root,id,answer) AS (
+                    SELECT value,value,? FROM json_each(?)
+                    UNION
+                    SELECT dependencies.root,json_extract(edge.value,'$.id'),
+                           json_extract(edge.value,'$.answer')
+                    FROM dependencies JOIN turns ON turns.id=dependencies.id,
+                         json_each(turns.context_turns) AS edge
+                    WHERE dependencies.answer=1
+                ) SELECT dependencies.root,dependencies.answer,turns.id,turns.at,
+                         turns.input_available,turns.sources_available,turns.status
+                  FROM dependencies LEFT JOIN turns ON turns.id=dependencies.id""",
+                (int(not input_only), json.dumps(identifiers)),
             ).fetchall()
-        available = {identifier: False for identifier in identifiers}
+        available = {identifier: True for identifier in identifiers}
         from nyx.memory import aware_time
 
         for row in rows:
@@ -353,9 +409,11 @@ class Conversations:
                 valid_clock = not row["at"] or aware_time(row["at"]) <= datetime.now(UTC)
             except (ValueError, TypeError):
                 valid_clock = False
-            available[row["id"]] = bool(
-                valid_clock
-                and row["sources_available"]
+            available[row["root"]] &= bool(
+                row["id"]
+                and row["input_available"]
+                and valid_clock
+                and (not row["answer"] or row["sources_available"])
                 and row["status"] in {"complete", "pending"}
             )
         return available

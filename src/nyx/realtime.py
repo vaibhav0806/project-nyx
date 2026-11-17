@@ -347,7 +347,12 @@ async def serve(socket, voice):
                         + json.dumps(
                             {
                                 key: row.get(key)
-                                for key in ["at", "sources_available", "context_truncated"]
+                                for key in [
+                                    "at",
+                                    "input_available",
+                                    "sources_available",
+                                    "context_truncated",
+                                ]
                             }
                         ),
                     )
@@ -410,6 +415,7 @@ async def serve(socket, voice):
                     if item.id in self._context_turns
                 }
                 available = voice.conversations.source_availability(bound.values())
+                inputs = voice.conversations.source_availability(bound.values(), input_only=True)
                 turn_ctx.add_message(
                     role="system",
                     content=f"User local time: {local_now(timezone).isoformat()}. Reply in {'Hindi' if language == 'hi' else 'English'}.",
@@ -430,14 +436,31 @@ async def serve(socket, voice):
                         turn_ctx.add_message(
                             role="system", content="Memory context: " + json.dumps(memory)
                         )
+                bounded = bounded_live_context(
+                    turn_ctx,
+                    source_availability={
+                        key: available.get(value, False) for key, value in bound.items()
+                    },
+                    input_availability={
+                        key: inputs.get(value, False) for key, value in bound.items()
+                    },
+                )
+                if requested_turn:
+                    voice.conversations.attach_context(
+                        requested_turn,
+                        [
+                            {
+                                "id": bound[item.id],
+                                "sources_available": available.get(bound[item.id], False),
+                                "input_available": inputs.get(bound[item.id], False),
+                            }
+                            for item in bounded.items
+                            if item.id in bound
+                        ],
+                    )
                 stream = Agent.default.llm_node(
                     self,
-                    bounded_live_context(
-                        turn_ctx,
-                        source_availability={
-                            key: available.get(value, False) for key, value in bound.items()
-                        },
-                    ),
+                    bounded,
                     tools,
                     model_settings,
                 )

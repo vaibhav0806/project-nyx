@@ -60,6 +60,23 @@ def test_general_fact_survives_restart_and_is_processed_only_once(tmp_path):
     assert len(calls) == 1
 
 
+def test_independent_user_fact_survives_deletion_of_assistant_lookup_evidence(tmp_path):
+    conversations = Conversations(tmp_path)
+    text = "I prefer tea without sugar. Where are my keys?"
+    turn = conversations.begin(text, {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response(
+            [operation(turn, "I prefer tea without sugar", "Prefers tea without sugar")]
+        ),
+    )
+    memory.process(turn)
+    conversations.finish(turn, "Possible keys beside the amber jar", ["deleted-video"])
+    conversations.invalidate("deleted-video")
+    assert memory.recall("tea preference")["matches"][0]["content"] == "Prefers tea without sugar"
+
+
 def test_moves_preserve_history_and_explicit_corrections_version_reports(tmp_path):
     conversations = Conversations(tmp_path)
     replies = []
@@ -254,7 +271,7 @@ def test_unavailable_correction_never_resurrects_a_superseded_memory(tmp_path):
     )
     second.process(new)
     with conversations.connect() as db:
-        db.execute("UPDATE turns SET sources_available=0 WHERE id=?", (new,))
+        db.execute("UPDATE turns SET input_available=0 WHERE id=?", (new,))
     assert second.recall("keys")["matches"] == []
 
 
@@ -300,6 +317,8 @@ def test_prepared_context_revalidates_deleted_quotes_and_superseded_records(tmp_
     assert PersonalMemory.turn_context(conversations, turn)["records"]
     conversations.finish(turn, "Noted", ["deleted-clip"])
     conversations.invalidate("deleted-clip")
+    assert PersonalMemory.turn_context(conversations, turn)["records"]
+    conversations.invalidate("transcript:" + turn)
     context = PersonalMemory.turn_context(conversations, turn)
     assert not context["records"] and not context["sources"]
     assert context["status"] == "uncertain" and "Memory saved" not in context["answer"]
@@ -326,7 +345,7 @@ def test_source_change_during_interpretation_writes_nothing_and_can_retry(tmp_pa
 
     def interpret(*args):
         with conversations.connect() as db:
-            db.execute("UPDATE turns SET sources_available=0 WHERE id=?", (turn,))
+            db.execute("UPDATE turns SET input_available=0 WHERE id=?", (turn,))
         return response([operation(turn, "I like tea", "Likes tea")])
 
     memory = PersonalMemory(conversations, Encoder(), interpret)
@@ -524,7 +543,7 @@ def test_recall_selection_cannot_return_fabricated_or_newly_deleted_sources(tmp_
 
     def deleting(*args):
         with conversations.connect() as db:
-            db.execute("UPDATE turns SET sources_available=0 WHERE id=?", (turn,))
+            db.execute("UPDATE turns SET input_available=0 WHERE id=?", (turn,))
         return response(relevant_ids=[identifier])
 
     memory.interpret = deleting
@@ -575,7 +594,7 @@ def test_context_resolved_memory_inherits_original_visual_clock_photo_and_source
     with conversations.connect() as db:
         photos = [row[0] for row in db.execute("SELECT image FROM memories")]
         assert photos[0] == photos[1]
-        db.execute("UPDATE turns SET sources_available=0 WHERE id=?", (first,))
+        db.execute("UPDATE turns SET input_available=0 WHERE id=?", (first,))
     assert memory.recall("phone")["matches"] == []
 
 

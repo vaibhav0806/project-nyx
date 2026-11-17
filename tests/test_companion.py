@@ -17,6 +17,46 @@ from nyx.app import create_app
 pytest_plugins = ["test_nyx"]
 
 
+def test_followup_answer_keeps_original_evidence_dependency(tmp_path, video):
+    from nyx.voice import Conversations
+
+    payloads = []
+
+    class Repeating(Planner):
+        def agent_reply(self, messages, tools):
+            payloads.append(json.dumps(messages))
+            return {
+                "role": "assistant",
+                "content": "The earlier sighting was beside the amber jar.",
+            }
+
+    conversations = Conversations(tmp_path)
+    with TestClient(
+        create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Repeating)
+    ) as client:
+        imported = client.post(
+            "/api/import", params={"name": "scene.mp4"}, content=video.read_bytes()
+        )
+        source = wait_for_job(client, imported.json()["id"])["result"]["video_id"]
+        original = conversations.begin("Where were the keys?", {})
+        conversations.finish(original, "A possible sighting beside the amber jar.", [source])
+        job = client.post(
+            "/api/agent", json={"message": "Repeat that location", "request_id": "repeat"}
+        )
+        assert wait_for_job(client, job.json()["id"])["status"] == "succeeded"
+        assert "amber jar" in payloads[-1]
+        assert client.delete("/api/videos/" + source).status_code == 200
+        job = client.post(
+            "/api/agent",
+            json={
+                "message": "Can you still establish that location?",
+                "request_id": "after-delete",
+            },
+        )
+        assert wait_for_job(client, job.json()["id"])["status"] == "succeeded"
+        assert "amber jar" not in payloads[-1]
+
+
 def test_ten_day_search_includes_day_nine_and_preserves_older_recordings(tmp_path, video):
     with TestClient(
         create_app(tmp_path, encoder_factory=ColorEncoder, verifier_factory=Planner)

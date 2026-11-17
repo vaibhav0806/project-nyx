@@ -23,6 +23,7 @@ def test_typed_provider_never_receives_invalidated_assistant_claims():
                     "transcript": "Find my green phone",
                     "answer": "It was beside the deleted orange vase.",
                     "sources_available": False,
+                    "input_available": True,
                     "plan": {
                         "steps": [{"action": "search_history", "query": "green phone", "hours": 2}]
                     },
@@ -90,6 +91,39 @@ def test_unavailable_context_removes_answers_and_source_reference_metadata():
     assert not context[0].get("answer")
     assert not context[0]["plan"].get("candidate")
     assert not context[0]["plan"].get("statement_refs")
+
+
+def test_deleted_assistant_evidence_preserves_independent_input_in_both_adapters():
+    from livekit.agents import llm
+
+    from nyx.conversation_context import bounded_live_context, recent_context
+
+    context = recent_context(
+        [
+            {
+                "transcript": "I prefer tea. Where are the keys?",
+                "answer": "Beside the deleted amber jar",
+                "sources_available": False,
+                "input_available": True,
+                "plan": {
+                    "steps": [
+                        {"action": "search_history", "query": "keys beside amber jar", "hours": 24}
+                    ]
+                },
+            }
+        ]
+    )
+    assert "I prefer tea" in json.dumps(context)
+    assert "amber jar" not in json.dumps(context)
+    chat = llm.ChatContext()
+    user = chat.add_message(role="user", content="I prefer tea. Where are the keys?")
+    chat.add_message(role="assistant", content="Beside the deleted amber jar")
+    chat.add_message(role="system", content="Old prepared memory: amber jar")
+    bounded = bounded_live_context(
+        chat, source_availability={user.id: False}, input_availability={user.id: True}
+    )
+    sent = " ".join(item.text_content for item in bounded.items)
+    assert "I prefer tea" in sent and "amber jar" not in sent
 
 
 def test_report_selection_and_historical_cutoff_survive_context_projection():

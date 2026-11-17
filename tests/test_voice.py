@@ -62,6 +62,66 @@ def test_conversations_reopen_interrupt_and_invalidate_sources(tmp_path):
     assert reopened.recent()[0]["sources_available"] is False
 
 
+def test_context_dependencies_survive_many_followups_without_copying_ancestry(tmp_path):
+    db = Conversations(tmp_path)
+    first = db.begin("Find the keys", {})
+    db.finish(first, "Possible sighting beside an amber jar", ["video"])
+    previous = first
+    for _ in range(60):
+        parent = previous
+        turn = db.begin("Repeat the location", {})
+        db.attach_context(turn, [{"id": previous, "sources_available": True}])
+        db.finish(turn, "Beside an amber jar")
+        previous = turn
+    with db.connect() as connection:
+        row = connection.execute(
+            "SELECT sources,context_turns FROM turns WHERE id=?", (previous,)
+        ).fetchone()
+    assert json.loads(row["sources"]) == []
+    assert json.loads(row["context_turns"]) == [{"id": parent, "answer": True}]
+    assert db.source_availability([previous])[previous]
+    db.invalidate("video")
+    assert not db.source_availability([previous])[previous]
+    assert db.source_availability([previous], input_only=True)[previous]
+    # A new response using only the surviving user input does not inherit the deleted answer.
+    fresh = db.begin("What did I ask?", {})
+    db.attach_context(
+        fresh, [{"id": previous, "sources_available": False, "input_available": True}]
+    )
+    db.finish(fresh, "You asked to repeat a location")
+    assert db.source_availability([fresh])[fresh]
+    db.invalidate("transcript:" + previous)
+    assert not db.source_availability([fresh])[fresh]
+
+
+def test_confirmation_input_is_unavailable_when_its_recording_is_deleted(tmp_path):
+    db = Conversations(tmp_path)
+    turn = db.begin("I confirm the item in this frame", {}, input_sources=["video"])
+    db.finish(turn, "You confirmed this item", ["video"])
+    db.invalidate("video")
+    assert not db.source_availability([turn], input_only=True)[turn]
+    assert not db.recent()[0]["input_available"]
+
+
+def test_legacy_conversation_migration_preserves_original_source_boundaries(tmp_path):
+    import sqlite3
+
+    with sqlite3.connect(tmp_path / "conversations.sqlite3") as db:
+        db.execute(
+            "CREATE TABLE turns(id TEXT PRIMARY KEY,at TEXT,transcript TEXT,plan TEXT,answer TEXT,sources TEXT,sources_available INTEGER,status TEXT)"
+        )
+        db.execute(
+            "INSERT INTO turns VALUES (?,?,?,?,?,?,?,?)",
+            ("old", None, "Original report", "{}", "Original answer", '["video"]', 1, "complete"),
+        )
+    conversations = Conversations(tmp_path)
+    assert conversations.recent()[0]["transcript"] == "Original report"
+    assert conversations.recent()[0]["answer"] == "Original answer"
+    conversations.invalidate("video")
+    assert not conversations.source_availability(["old"], input_only=True)["old"]
+    assert not Conversations(tmp_path).recent()[0]["sources_available"]
+
+
 def test_deletion_marks_conversation_sources_even_when_voice_not_configured(tmp_path, monkeypatch):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient

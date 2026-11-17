@@ -126,7 +126,10 @@ def native_agent_steps(
         messages.append({"role": "user", "content": row["transcript"]})
         if row.get("answer"):
             messages.append({"role": "assistant", "content": row["answer"]})
-        metadata = {key: row.get(key) for key in ["at", "sources_available", "context_truncated"]}
+        metadata = {
+            key: row.get(key)
+            for key in ["at", "input_available", "sources_available", "context_truncated"]
+        }
         metadata["previous_tools"] = row.get("plan", {}).get("steps", [])
         metadata["candidate"] = row.get("plan", {}).get("candidate")
         metadata["statement_refs"] = row.get("plan", {}).get("statement_refs", [])

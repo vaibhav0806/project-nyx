@@ -503,6 +503,29 @@ def test_live_continuation_withholds_evidence_deleted_after_session_start(tmp_pa
     replay_voice_tools(tmp_path, monkeypatch, scenario)
 
 
+def test_live_followup_retains_prior_answer_dependency(tmp_path, monkeypatch):
+    from nyx.voice import Conversations
+
+    conversations = Conversations(tmp_path)
+    old = conversations.begin("Where were my keys?", {})
+    conversations.finish(old, "Possible keys beside the amber jar", ["video"])
+    monkeypatch.setattr(realtime.Agent.default, "llm_node", lambda *args: None)
+
+    async def scenario(session, socket, voice):
+        transcribe(session, "Repeat that location")
+        context = session.agent.chat_ctx.copy()
+        context.add_message(role="user", content="Repeat that location")
+        await consume_node(session.agent.llm_node(context, [], {}))
+        turn = voice.turn["id"]
+        voice.conversations.finish(turn, "Beside the amber jar")
+        assert voice.conversations.source_availability([turn])[turn]
+        voice.conversations.invalidate("video")
+        assert not voice.conversations.source_availability([turn])[turn]
+        assert voice.conversations.source_availability([turn], input_only=True)[turn]
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
 def test_spoken_restart_restores_previous_report_query_constraints(tmp_path, monkeypatch):
     from nyx.voice import Conversations
 
