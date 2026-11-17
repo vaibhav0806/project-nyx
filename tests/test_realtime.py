@@ -663,3 +663,31 @@ def test_final_spoken_input_prepares_memory_once_before_generation(tmp_path, mon
     assert len(interpreted) == 1 and len(calls) == 2
     turn = conversations.recent()[-1]
     assert turn["sources"] == ["transcript:" + turn["id"]]
+
+
+def test_spoken_generation_receives_same_owned_available_context_as_text(tmp_path, monkeypatch):
+    from livekit.agents import llm
+
+    calls = []
+
+    async def generate(agent, ctx, tools, settings):
+        calls.append(ctx)
+        yield "fixture"
+
+    monkeypatch.setattr(realtime.Agent.default, "llm_node", generate)
+
+    async def scenario(session, socket, voice):
+        transcribe(session, "That isn't the item")
+        with voice.conversations.connect() as db:
+            plan = json.loads(
+                db.execute("SELECT plan FROM turns WHERE id=?", (voice.turn["id"],)).fetchone()[0]
+            )
+        plan["available"] = {"presented_candidate": {"frame_id": 42}, "scheduled_reminders": False}
+        voice.conversations.update_plan(voice.turn["id"], plan)
+        ctx = llm.ChatContext()
+        ctx.add_message(role="user", content="That isn't the item")
+        await consume_node(session.agent.llm_node(ctx, [], {}))
+        sent = " ".join(item.text_content for item in calls[-1].items if item.type == "message")
+        assert '"frame_id": 42' in sent and '"scheduled_reminders": false' in sent
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)

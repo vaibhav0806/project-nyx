@@ -416,6 +416,16 @@ async def serve(socket, voice):
                 )
                 if requested_turn:
                     memory = PersonalMemory.turn_context(voice.conversations, requested_turn)
+                    with voice.conversations.connect() as db:
+                        plan = json.loads(
+                            db.execute(
+                                "SELECT plan FROM turns WHERE id=?", (requested_turn,)
+                            ).fetchone()[0]
+                        )
+                    turn_ctx.add_message(
+                        role="system",
+                        content="Available context: " + json.dumps(plan.get("available", {})),
+                    )
                     if memory:
                         turn_ctx.add_message(
                             role="system", content="Memory context: " + json.dumps(memory)

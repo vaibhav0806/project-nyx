@@ -237,6 +237,18 @@ def install_companion(app, workspace, voice):
                     "video_id": frame["video_id"],
                 }
         identifier = body.voice_turn_id or conversations.begin(body.message, {"mode": "agent"})
+        available_context = {
+            "presented_candidate": presented_candidate,
+            "current_view": image is not None,
+            "current_view_captured_at": body.captured_at.isoformat() if image is not None else None,
+            "turn_visual_context": bool(turn_frames),
+            "turn_visual_frame_count": len(turn_frames),
+            "history": bool(library),
+            "dated_history": any(row["recorded_at"] for row in library),
+            "undated_history": any(not row["recorded_at"] for row in library),
+            "scheduled_reminders": False,
+            "proactive_notifications": False,
+        }
 
         def cancelled():
             if workspace.jobs[job_id].get("cancelled"):
@@ -451,15 +463,7 @@ def install_companion(app, workspace, voice):
                     user_timezone=body.timezone,
                     memory_context=memory_context,
                     validate_sources=validate_sources,
-                    available={
-                        "presented_candidate": presented_candidate,
-                        "current_view": image is not None,
-                        "turn_visual_context": bool(turn_frames),
-                        "turn_visual_frame_count": len(turn_frames),
-                        "history": bool(library),
-                        "dated_history": any(row["recorded_at"] for row in library),
-                        "undated_history": any(not row["recorded_at"] for row in library),
-                    },
+                    available=available_context,
                 )
                 result["turn_id"] = identifier
                 result["voice_turn_id"] = body.voice_turn_id
@@ -476,6 +480,7 @@ def install_companion(app, workspace, voice):
                 plan = {
                     **previous,
                     "mode": "agent",
+                    "available": available_context,
                     "steps": previous.get("steps", []) + result["steps"],
                     "presented_candidate": presented_candidate,
                     "candidate": {
@@ -541,6 +546,8 @@ def install_companion(app, workspace, voice):
                 )
                 if not body.voice_turn_id:
                     conversations.finish(identifier, result["answer"], result["sources"])
+                if (body.initial_action or {}).get("action") == "process_memory":
+                    result["steps"] = []
                 return result
             except Exception as exc:
                 conversations.event(
