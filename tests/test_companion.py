@@ -995,3 +995,50 @@ def test_voice_reference_reuse_requires_same_turn_pixels_and_clocks(tmp_path):
         ).json()
         assert wait_for_job(client, job["id"])["status"] == "failed"
         assert model.calls == 3
+
+
+def test_voice_tool_reuses_owned_frames_across_coalesced_speech(tmp_path):
+    from nyx.voice import Voice
+
+    speaker = Voice(tmp_path, None)
+    token = speaker.start()["token"]
+    now = datetime.now(UTC)
+    old = (now - timedelta(seconds=20)).isoformat()
+    message = "Look at this. I will keep it in the kitchen."
+    turn = speaker.conversations.begin(
+        message,
+        {
+            "mode": "livekit",
+            "voice_visual_context": "raw-final-v1",
+            "turn_context_at": now.isoformat(),
+            "turn_frame_times": [old],
+        },
+    )
+    speaker.turn = {"id": turn, "transcript": message}
+    image = BytesIO()
+    Image.new("RGB", (16, 16), "green").save(image, format="PNG")
+    snapshot = base64.b64encode(image.getvalue()).decode()
+    with TestClient(
+        create_app(
+            tmp_path,
+            encoder_factory=ColorEncoder,
+            verifier_factory=Planner,
+            voice_factory=lambda root: speaker,
+        )
+    ) as client:
+        body = {
+            "message": message,
+            "request_id": "coalesced-context",
+            "voice_turn_id": turn,
+            "context_at": now.isoformat(),
+            "visual_frames": [{"captured_at": old, "snapshot": snapshot}],
+            "initial_action": {"action": "chat", "message": "Noted."},
+        }
+        response = client.post("/api/agent", headers={"x-nyx-voice": token}, json=body)
+        assert response.status_code == 202, response.text
+        assert wait_for_job(client, response.json()["id"])["status"] == "succeeded"
+        body["request_id"] = "foreign-context"
+        body["visual_frames"][0]["captured_at"] = (now - timedelta(seconds=19)).isoformat()
+        assert (
+            client.post("/api/agent", headers={"x-nyx-voice": token}, json=body).status_code == 400
+        )

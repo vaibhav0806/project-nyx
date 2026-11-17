@@ -56,6 +56,7 @@ class AgentTools:
         if as_of is not None:
             action["as_of"] = as_of
         validate_action(action)
+        await self.acknowledge_lookup()
         return await self.run_tool(action)
 
 

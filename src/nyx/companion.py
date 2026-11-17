@@ -192,6 +192,7 @@ def install_companion(app, workspace, voice):
         if image is not None:
             fresh(body.captured_at.isoformat(), limit=90)
         turn_frames = []
+        owned_times = None
         if body.visual_frames:
             if body.context_at is None:
                 raise ValueError("Visual window requires a turn timestamp")
@@ -201,12 +202,19 @@ def install_companion(app, workspace, voice):
                     owned = db.execute(
                         "SELECT at,plan FROM turns WHERE id=?", (body.voice_turn_id,)
                     ).fetchone()
-                    at = json.loads(owned["plan"]).get("turn_context_at") or owned["at"]
+                    owned_plan = json.loads(owned["plan"])
+                    at = owned_plan.get("turn_context_at") or owned["at"]
+                    if owned_plan.get("voice_visual_context") == "raw-final-v1":
+                        owned_times = set(owned_plan.get("turn_frame_times", []))
                 if abs((body.context_at - aware_time(at)).total_seconds()) > 3:
                     raise ValueError("Visual window belongs to a different turn")
             for frame in body.visual_frames:
                 delta = (body.context_at - frame.captured_at).total_seconds()
-                if not -2 <= delta <= 15:
+                if (
+                    frame.captured_at.isoformat() not in owned_times
+                    if owned_times is not None
+                    else not -2 <= delta <= 15
+                ):
                     raise ValueError("Frame is outside the utterance window")
                 turn_frames.append(
                     {

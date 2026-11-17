@@ -449,14 +449,13 @@ async def serve(socket, voice, memory_lane):
                     "current_view_captured_at": frames[-1]["captured_at"] if frames else None,
                     "turn_visual_context": bool(frames),
                     "turn_visual_frame_count": len(frames),
-                    "scheduled_reminders": False,
-                    "proactive_notifications": False,
                 }
                 voice.conversations.update_plan(
                     turn_id,
                     {
                         "mode": "livekit",
                         "language": language,
+                        "voice_visual_context": "raw-final-v1",
                         "available": available,
                         "turn_context_at": context_at,
                         "turn_frame_times": [frame["captured_at"] for frame in frames],

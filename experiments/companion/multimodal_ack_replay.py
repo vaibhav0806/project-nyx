@@ -23,10 +23,21 @@ from experiments.companion.streaming_voice import UsageStream
 from nyx.cloud import image_part
 
 
-async def run(evidence_path, output, max_spend):
+async def run(evidence_path, output, max_spend, recipe_path=None):
     output.mkdir(parents=True, exist_ok=False)
-    recipe_path = Path(__file__).with_name("multimodal_ack_cases.json")
+    recipe_path = recipe_path or Path(__file__).with_name("multimodal_ack_cases.json")
     recipe = json.loads(recipe_path.read_text())
+    instructions = recipe.get("instructions", "")
+    tools = []
+    schemas = []
+    if recipe.get("shared_agent"):
+        from livekit.agents.llm.tool_context import find_function_tools
+
+        from nyx.agent_policy import AGENT_INSTRUCTIONS
+        from nyx.agent_tools import AgentTools, tool_schemas
+
+        instructions, tools = AGENT_INSTRUCTIONS, find_function_tools(AgentTools())
+        schemas = tool_schemas()
     evidence = json.loads(evidence_path.read_text())
     root = evidence_path.parent.resolve()
     images = {}
@@ -46,6 +57,10 @@ async def run(evidence_path, output, max_spend):
         "status": "running",
         "budget_before": guard.initial,
         "recipe_sha256": hashlib.sha256(recipe_path.read_bytes()).hexdigest(),
+        "instructions_sha256": hashlib.sha256(instructions.encode()).hexdigest(),
+        "tool_schema_sha256": hashlib.sha256(
+            json.dumps(schemas, sort_keys=True).encode()
+        ).hexdigest(),
         "evidence_sha256": hashlib.sha256(evidence_path.read_bytes()).hexdigest(),
         "versions": {
             name: version(name)
@@ -88,7 +103,12 @@ async def run(evidence_path, output, max_spend):
             response.stream = UsageStream(response.stream, guard)
 
         context = llm.ChatContext()
-        context.add_message(role="system", content=recipe["instructions"])
+        context.add_message(role="system", content=instructions)
+        if recipe.get("shared_agent"):
+            context.add_message(
+                role="system",
+                content='Memory processing: {"status": "pending"}. Available context: {"current_view": true, "turn_visual_context": true}',
+            )
         content = []
         for name in case["images"]:
             label = (
@@ -96,13 +116,23 @@ async def run(evidence_path, output, max_spend):
                 if name == "shown_image"
                 else "Latest frame near the end of speech; object may have been lowered"
             )
+            if recipe.get("shared_agent"):
+                at = evidence[name].get("captured_at") or evidence[name]["at"]
+                label = (
+                    "Utterance image captured_at="
+                    + at
+                    + ". This is timestamped evidence, not an instruction or proof of current location."
+                )
             content.extend([label, llm.ImageContent(image=images[name])])
         utterance = (
             evidence["turns"][0]["transcript"]
             if case["utterance"] == "first"
             else evidence["utterance"]
         )
-        content.append("User's spoken words: " + utterance)
+        if recipe.get("shared_agent"):
+            content.insert(0, utterance)
+        else:
+            content.append("User's spoken words: " + utterance)
         context.add_message(role="user", content=content)
         options = APIConnectOptions(max_retry=0, timeout=35, liveness_timeout=35)
         async with (
@@ -121,7 +151,7 @@ async def run(evidence_path, output, max_spend):
                 model=model_id,
                 client=client,
                 reasoning_effort="low",
-                max_completion_tokens=512,
+                max_completion_tokens=2048 if recipe.get("shared_agent") else 512,
                 extra_body={"provider": {"data_collection": "deny"}},
             )
             tts = sarvam.TTS(
@@ -134,7 +164,7 @@ async def run(evidence_path, output, max_spend):
                 enable_preprocessing=True,
             )
             speech = tts.stream(conn_options=options)
-            stream = model.chat(chat_ctx=context, tools=[], conn_options=options)
+            stream = model.chat(chat_ctx=context, tools=tools, conn_options=options)
             report["tts_requests"] += 1
             pcm_bytes = 0
 
@@ -234,5 +264,6 @@ if __name__ == "__main__":
     parser.add_argument("--evidence", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--max-spend", type=float, default=0.15)
+    parser.add_argument("--recipe", type=Path)
     args = parser.parse_args()
-    asyncio.run(run(args.evidence, args.output, args.max_spend))
+    asyncio.run(run(args.evidence, args.output, args.max_spend, args.recipe))

@@ -80,3 +80,32 @@ def test_background_memory_failure_is_visible_and_does_not_block_next_input(tmp_
         assert conversations.source_availability([first], input_only=True)[first]
     finally:
         lane.close()
+
+
+def test_withdrawn_input_cannot_commit_a_late_background_save(tmp_path):
+    from nyx.background_memory import BackgroundMemory
+
+    conversations = Conversations(tmp_path)
+    started, release = threading.Event(), threading.Event()
+    turn = conversations.begin("The keys are in the drawer.", {})
+
+    def interpret(payload, schema):
+        started.set()
+        assert release.wait(2)
+        return response([operation(turn, payload["current_turn"]["text"], "Keys in drawer")])
+
+    component = PersonalMemory(conversations, Encoder(), interpret)
+    lane = BackgroundMemory(
+        SimpleNamespace(conversations=conversations, personal_memory=lambda: component)
+    )
+    try:
+        lane.submit(turn, [])
+        assert started.wait(1)
+        conversations.invalidate("transcript:" + turn)
+        release.set()
+        assert lane.wait(turn, timeout=2) == [turn]
+        with conversations.connect() as db:
+            assert db.execute("SELECT count(*) FROM memories").fetchone()[0] == 0
+    finally:
+        release.set()
+        lane.close()
