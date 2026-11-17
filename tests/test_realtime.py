@@ -207,7 +207,6 @@ def test_initial_livekit_listening_does_not_open_cloud_audio_gate(tmp_path, monk
 
     asyncio.run(realtime.serve(Socket(), voice))
     assert sessions[0].input.audio.frames.qsize() == 1
-    assert sessions[0].options["turn_handling"]["endpointing"]["min_delay"] == 0
     assert sessions[0].closed
 
 
@@ -811,13 +810,36 @@ def test_stt_segments_do_not_replace_an_owned_turn_before_livekit_accepts_it(tmp
     replay_voice_tools(tmp_path, monkeypatch, scenario, memory_reply=memory_reply)
 
 
-def test_real_livekit_recovers_when_next_speech_arrives_during_memory_preparation(
-    tmp_path, monkeypatch
-):
-    from livekit.agents import AgentSession, llm
-    from test_personal_memory import operation, response
+def test_transcript_preview_appends_segments_without_changing_durable_turns(tmp_path, monkeypatch):
+    async def scenario(session, socket, voice):
+        for final, text in [
+            (True, "Look at this."),
+            (False, "I plan"),
+            (True, "I plan to keep it in the kitchen."),
+        ]:
+            session.handlers["user_input_transcribed"](
+                SimpleNamespace(is_final=final, language="en", transcript=text)
+            )
+            await asyncio.sleep(0)
+        async with asyncio.timeout(1):
+            while len([event for event in socket.sent if event.get("type") == "transcript"]) < 3:
+                await asyncio.sleep(0)
+        previews = [event for event in socket.sent if event.get("type") == "transcript"]
+        assert [event["text"] for event in previews] == [
+            "Look at this.",
+            "Look at this. I plan",
+            "Look at this. I plan to keep it in the kitchen.",
+        ]
+        assert previews[0]["new_turn"] is True and previews[-1]["new_turn"] is False
+        assert voice.turn is None and voice.conversations.recent() == []
 
-    packets, memory_started, release_memory = asyncio.Queue(), asyncio.Event(), asyncio.Event()
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
+def scripted_livekit_session(monkeypatch):
+    from livekit.agents import AgentSession, llm
+
+    packets = asyncio.Queue()
 
     class Provider:
         async def __aenter__(self):
@@ -844,6 +866,54 @@ def test_real_livekit_recovers_when_next_speech_arrives_during_memory_preparatio
         session = AgentSession(**options)
         session.output.set_audio_enabled(False)
         return session
+
+    monkeypatch.setenv("SARVAM_API_KEY", "fixture")
+    monkeypatch.setattr(realtime, "connect", lambda *args, **kwargs: Provider())
+    return packets, make_session
+
+
+def test_short_pause_continuation_is_one_completed_livekit_turn(tmp_path, monkeypatch):
+    packets, make_session = scripted_livekit_session(monkeypatch)
+
+    async def generate(agent, ctx, tools, settings):
+        yield "Understood."
+
+    async def utterance(text):
+        for event in [
+            {"event": "vad.speech_start"},
+            {"event": "transcript.partial", "text": text, "language": "en-IN"},
+            {"event": "vad.speech_end"},
+            {"event": "transcript.final", "text": text, "language": "en-IN"},
+        ]:
+            await packets.put(event)
+
+    async def scenario(session, socket, voice):
+        await utterance("Please remember.")
+        await asyncio.sleep(0.2)
+        await utterance("I will keep the blue bag by the door.")
+        async with asyncio.timeout(3):
+            while not any(
+                "blue bag" in row["transcript"] and row["answer"]
+                for row in voice.conversations.recent()
+            ):
+                await asyncio.sleep(0.01)
+
+    monkeypatch.setattr(realtime.Agent.default, "llm_node", generate)
+    conversations = replay_voice_tools(
+        tmp_path, monkeypatch, scenario, session_factory=make_session
+    )
+    rows = conversations.recent()
+    assert len(rows) == 1
+    assert rows[0]["transcript"] == "Please remember. I will keep the blue bag by the door."
+
+
+def test_real_livekit_recovers_when_next_speech_arrives_during_memory_preparation(
+    tmp_path, monkeypatch
+):
+    from test_personal_memory import operation, response
+
+    packets, make_session = scripted_livekit_session(monkeypatch)
+    memory_started, release_memory = asyncio.Event(), asyncio.Event()
 
     async def before_memory(event):
         if not memory_started.is_set():
@@ -899,8 +969,6 @@ def test_real_livekit_recovers_when_next_speech_arrives_during_memory_preparatio
             for event in socket.sent
         )
 
-    monkeypatch.setenv("SARVAM_API_KEY", "fixture")
-    monkeypatch.setattr(realtime, "connect", lambda *args, **kwargs: Provider())
     monkeypatch.setattr(realtime.Agent.default, "llm_node", generate)
     conversations = replay_voice_tools(
         tmp_path,

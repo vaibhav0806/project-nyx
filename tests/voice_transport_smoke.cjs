@@ -14,7 +14,11 @@ const context = {
   Set,
   CustomEvent: class {},
   clearInterval() {},
-  conversation: { stopReveal() {} },
+  conversation: {
+    stopReveal() {}, render() {}, answer() {},
+    begin(text) { context.$("conversation-question").textContent = text; },
+  },
+  companion: { freezeContext() { return { visual_frames: [] }; } },
   window: { addEventListener() {}, dispatchEvent() {} },
   api: async () => ({ configured: false }),
   $: (id) => {
@@ -75,6 +79,13 @@ async function run() {
   voice.ready = true;
   voice.token = "new-synthetic-session";
   sample(0, "a new connection must require a fresh activation");
-  console.log("11 browser audio-transport checks passed");
+  await voice.receive({ type: "transcript", text: "Look at this.", new_turn: true }, voice.epoch);
+  await voice.receive({ type: "question", text: "Look at this.", display_text: "Look at this.", turn_id: "one" }, voice.epoch);
+  await voice.receive({ type: "transcript", text: "Look at this. I plan to keep it in the kitchen.", new_turn: false }, voice.epoch);
+  assert.equal(elements.get("conversation-question").textContent, "Look at this. I plan to keep it in the kitchen.", "continued speech must be visible before slow memory finishes");
+  await voice.receive({ type: "question", text: "I plan to keep it in the kitchen.", display_text: "Look at this. I plan to keep it in the kitchen.", turn_id: "two" }, voice.epoch);
+  assert.equal(elements.get("conversation-question").textContent, "Look at this. I plan to keep it in the kitchen.", "accepting the continuation must not replace its first part");
+  assert.equal(voice.turnVisual.id, "two", "display grouping must preserve actual tool ownership");
+  console.log("14 browser audio/transcript checks passed");
 }
 run().catch((error) => { console.error(error); process.exitCode = 1; });

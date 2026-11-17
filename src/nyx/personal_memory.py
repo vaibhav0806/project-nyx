@@ -326,12 +326,32 @@ class PersonalMemory:
             "has_image": row["image"] is not None,
         }
 
-    def recall(self, query, *, limit=5, as_of=None, select=False, active=lambda: True):
+    def recall(
+        self, query, *, limit=5, as_of=None, select=False, active=lambda: True, rank_all=True
+    ):
         if not isinstance(query, str) or not query.strip() or not 1 <= limit <= 8:
             raise ValueError("Invalid memory query")
         rows, unavailable = self._rows(as_of=as_of)
-        ranked = []
-        if rows:
+        compatible = []
+        for row in rows:
+            try:
+                saved = np.frombuffer(row["embedding"], dtype=np.float32)
+                identity = json.loads(row["encoder"])
+            except (ValueError, TypeError):
+                unavailable += 1
+                continue
+            if (
+                identity != self.encoder.fingerprint
+                or saved.shape != (self.encoder.dimensions,)
+                or not np.isfinite(saved).all()
+                or not np.linalg.norm(saved)
+            ):
+                unavailable += 1
+                continue
+            compatible.append((row, saved / np.linalg.norm(saved)))
+        vector = None
+        # Ingest needs every candidate when they all fit; their similarity order adds no evidence.
+        if compatible and (rank_all or len(compatible) > limit):
             vector = np.asarray(self.encoder.encode_text(query), dtype=np.float32)
             if (
                 vector.shape != (self.encoder.dimensions,)
@@ -340,23 +360,10 @@ class PersonalMemory:
             ):
                 raise ValueError("Invalid query embedding")
             vector = vector / np.linalg.norm(vector)
-            for row in rows:
-                try:
-                    saved = np.frombuffer(row["embedding"], dtype=np.float32)
-                    identity = json.loads(row["encoder"])
-                except (ValueError, TypeError):
-                    unavailable += 1
-                    continue
-                if (
-                    identity != self.encoder.fingerprint
-                    or saved.shape != vector.shape
-                    or not np.isfinite(saved).all()
-                    or not np.linalg.norm(saved)
-                ):
-                    unavailable += 1
-                    continue
-                score = float((saved / np.linalg.norm(saved)) @ vector)
-                ranked.append((score, row["at"] or "", row))
+        ranked = [
+            (float(saved @ vector) if vector is not None else 0, row["at"] or "", row)
+            for row, saved in compatible
+        ]
         ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
         matches = [self._public(row) for _, _, row in ranked[:limit]]
         if select and matches:
@@ -417,7 +424,7 @@ class PersonalMemory:
             ).fetchone()
         if cached:
             return json.loads(cached["result"])
-        candidates = self.recall(turn["transcript"], limit=8)["matches"]
+        candidates = self.recall(turn["transcript"], limit=8, rank_all=False)["matches"]
         recent = [
             {"turn_id": row["id"], "text": row["transcript"], "at": row["at"]}
             for row in self.conversations.recent()
@@ -451,7 +458,9 @@ class PersonalMemory:
                 }
             else:
                 candidates = self.recall(
-                    visual.get("object_description", "") + "\n" + turn["transcript"], limit=8
+                    visual.get("object_description", "") + "\n" + turn["transcript"],
+                    limit=8,
+                    rank_all=False,
                 )["matches"]
                 check_active()
                 payload = {

@@ -181,10 +181,19 @@ const voice = {
     if (event.type === "question") {
       this.turnVisual = { id: event.turn_id, context: companion.freezeContext(event.at) };
       this.answer = "";
-      conversation.begin(event.text);
-      $("voice-question").textContent = `You: ${event.text}`;
+      conversation.begin(event.display_text || event.text);
+      $("voice-question").textContent = `You: ${event.display_text || event.text}`;
       this.lastTranscript = performance.now();
       this.wakeUntil = performance.now() + 30000;
+    }
+    if (event.type === "transcript") {
+      if (event.new_turn) {
+        this.answer = "";
+        conversation.begin(event.text);
+      } else {
+        $("conversation-question").textContent = event.text;
+      }
+      $("voice-question").textContent = `You: ${event.text}`;
     }
     if (event.type === "text") {
       this.answer += event.text;

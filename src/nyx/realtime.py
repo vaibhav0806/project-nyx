@@ -297,8 +297,21 @@ async def serve(socket, voice):
         timezone = auth.get("timezone")
         local_now(timezone)
         outgoing = asyncio.Queue(128)
+        transcript_parts = []
+        transcript_interim = ""
+        preview_open = False
+        answer_started_for = None
+
+        def transcript_preview():
+            return " ".join([*transcript_parts, transcript_interim]).strip()
 
         async def send(event):
+            nonlocal transcript_interim, preview_open, answer_started_for
+            if event.get("type") == "text" and event.get("text") and turn_id != answer_started_for:
+                answer_started_for = turn_id
+                transcript_parts.clear()
+                transcript_interim = ""
+                preview_open = False
             await outgoing.put(event)
 
         async def write():
@@ -408,6 +421,7 @@ async def serve(socket, voice):
                     {
                         "type": "question",
                         "text": last_question,
+                        "display_text": transcript_preview() or last_question,
                         "language": language,
                         "turn_id": turn_id,
                         "at": datetime.fromtimestamp(turn_started, UTC).isoformat(),
@@ -567,7 +581,7 @@ async def serve(socket, voice):
             ),
             turn_handling={
                 "turn_detection": "stt",
-                "endpointing": {"min_delay": 0, "max_delay": 1.5},
+                "endpointing": {"mode": "dynamic", "min_delay": 0.5, "max_delay": 3.0},
                 "interruption": {
                     "mode": "vad",
                     "min_duration": 0.5,
@@ -586,9 +600,21 @@ async def serve(socket, voice):
 
         @session.on("user_input_transcribed")
         def transcribed(event):
-            nonlocal input_language
+            nonlocal input_language, transcript_interim, preview_open
             if event.is_final:
                 input_language = "hi" if (event.language or "").startswith("hi") else "en"
+            if not event.transcript.strip():
+                return
+            new_turn = not preview_open
+            preview_open = True
+            if event.is_final:
+                transcript_parts.append(event.transcript.strip())
+                transcript_interim = ""
+            else:
+                transcript_interim = event.transcript.strip()
+            asyncio.create_task(
+                send({"type": "transcript", "text": transcript_preview(), "new_turn": new_turn})
+            )
 
         @session.on("conversation_item_added")
         def item_added(event):

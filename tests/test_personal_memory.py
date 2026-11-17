@@ -37,6 +37,40 @@ def operation(turn_id, quote, content, **changes):
     }
 
 
+def test_ingest_skips_query_embedding_when_every_available_memory_fits(tmp_path):
+    queries = []
+
+    class CountingEncoder(Encoder):
+        def encode_text(self, text):
+            queries.append(text)
+            return super().encode_text(text)
+
+    conversations = Conversations(tmp_path)
+    encoder = CountingEncoder()
+    memory = PersonalMemory(
+        conversations,
+        encoder,
+        lambda payload, schema: response(
+            [
+                operation(
+                    payload["current_turn"]["turn_id"],
+                    payload["current_turn"]["text"],
+                    "Prefers unsweetened tea",
+                )
+            ]
+        ),
+    )
+    first = conversations.begin("I prefer tea without sugar.", {})
+    memory.process(first)
+    second = conversations.begin("Hello again.", {})
+    memory.interpret = lambda payload, schema: response()
+    queries.clear()
+    memory.process(second)
+    assert queries == []
+    assert len(memory.recall("What tea do I prefer?")["matches"]) == 1
+    assert queries == ["What tea do I prefer?"]
+
+
 def test_general_fact_survives_restart_and_is_processed_only_once(tmp_path):
     conversations = Conversations(tmp_path)
     text = "I prefer tea without sugar."

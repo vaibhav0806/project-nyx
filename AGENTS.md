@@ -1,5 +1,18 @@
 # Working on Nyx
 
+## Pause/latency/memory-trial follow-up — 2026-11-17
+
+The user requested live transcript continuation/appending across pauses, latency investigation,
+short natural location-memory acknowledgements and a test outside recent chat. This authorizes
+the narrow voice.js transcript-display/transport changes required for that behavior; preserve
+layout/styling/other UI work. Keep private developer evaluation offline. The observed trial did
+save two source-linked records: shown smartphone report and kitchen plan. Its visual call took14s,
+first preparation20.1s, next preparation4.45s, reply generation1.84s; indexing was separate/queue0.
+Do not conflate a plan with a completed placement, or restart with a fresh chat: recent turns
+reload from SQLite. An isolated copy with32 synthetic filler turns is prepared under
+data/memory-only-check-2026-11-17; original source rows/memories are retained, recent context
+excludes them. No automatic private cloud test is authorized by preparing that copy.
+
 ## Narrow audio-transport exception — 2026-11-17
 
 The user explicitly authorized applying the prepared audio-transport patch, including the narrow
