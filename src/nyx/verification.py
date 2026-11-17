@@ -83,7 +83,7 @@ class CloudVerifier:
             "model": self.model,
             "vision_model": self.vision_model,
             "runtime": "openrouter",
-            "agent_policy_version": 7,
+            "agent_policy_version": 8,
             "memory_policy_version": 5,
             "prompt_version": 10,
             "reference_prompt_version": 9,
