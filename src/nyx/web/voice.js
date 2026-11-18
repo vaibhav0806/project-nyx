@@ -23,7 +23,13 @@ const voice = {
   answer: "",
   ready: false,
   visualContexts: new Map(),
+  queuedSends: [],
+  queuedBytes: 0,
+  draftHypothesis: "",
+  stableDraft: "",
+  transcriptionNotice: "",
   state(text) {
+    if (text === "Listening" && this.transcriptionNotice) text = this.transcriptionNotice;
     $("voice-state").textContent = text;
     window.dispatchEvent(new CustomEvent("nyx-voice-state", { detail: text }));
   },
@@ -31,8 +37,41 @@ const voice = {
     return { "x-nyx-voice": this.token };
   },
   send(event) {
-    if (this.socket?.readyState === WebSocket.OPEN)
-      this.socket.send(JSON.stringify(event));
+    this.write(JSON.stringify(event));
+  },
+  bufferedAudioBytes() {
+    let drained = Math.max(0, this.queuedBytes - (this.socket?.bufferedAmount || 0));
+    while (drained && this.queuedSends.length) {
+      const head = this.queuedSends[0];
+      const consumed = Math.min(drained, head.bytes);
+      head.bytes -= consumed;
+      this.queuedBytes -= consumed;
+      drained -= consumed;
+      if (!head.bytes) this.queuedSends.shift();
+    }
+    return this.queuedSends.reduce((total, item) => total + (item.audio ? item.bytes : 0), 0);
+  },
+  write(data, audio = false) {
+    if (this.socket?.readyState !== WebSocket.OPEN) return;
+    this.bufferedAudioBytes();
+    const bytes = typeof data === "string" ? new TextEncoder().encode(data).byteLength : data.byteLength;
+    this.socket.send(data);
+    this.queuedSends.push({ bytes, audio });
+    this.queuedBytes += bytes;
+  },
+  transcriptText(event) {
+    if (event.new_turn || event.is_final !== false) {
+      this.draftHypothesis = this.stableDraft = "";
+      if (event.is_final !== false) return event.text;
+    }
+    const draft = event.interim_text || "";
+    let common = 0;
+    while (common < draft.length && common < this.draftHypothesis.length && draft[common] === this.draftHypothesis[common]) common++;
+    const agreed = draft.slice(0, common).replace(/\S*$/u, "").trimEnd();
+    // Local agreement is a display heuristic, never a substitute for the provider final.
+    if (agreed.startsWith(this.stableDraft)) this.stableDraft = agreed;
+    this.draftHypothesis = draft;
+    return [event.committed_text, this.stableDraft].filter(Boolean).join(" ");
   },
   async start() {
     if (this.mic || this.starting) return;
@@ -115,7 +154,8 @@ const voice = {
       headers: this.headers(),
     });
     this.wakeUntil = performance.now() + 30000;
-    for (const part of this.pre) this.socket.send(part.buffer);
+    this.transcriptionNotice = "";
+    for (const part of this.pre) this.write(part.buffer, true);
     this.pre = [];
     this.preLength = 0;
     this.state("Listening");
@@ -136,8 +176,12 @@ const voice = {
       this.wakeUntil > 0 &&
       (performance.now() < this.wakeUntil || this.working || this.playing || this.userSpeaking)
     ) {
-      if (this.socket.bufferedAmount < 96000) this.socket.send(pcm.buffer);
-      else this.stop("Voice connection is too slow. Please reconnect.");
+      const audioBytes = this.bufferedAudioBytes();
+      if (audioBytes < 96000) this.write(pcm.buffer, true);
+      else {
+        this.send({ type: "audio_backpressure", audio_bytes: audioBytes, total_bytes: this.socket.bufferedAmount });
+        this.stop("Voice connection is too slow. Please reconnect.");
+      }
       return;
     }
     this.pre.push(pcm);
@@ -201,13 +245,22 @@ const voice = {
       this.wakeUntil = performance.now() + 30000;
     }
     if (event.type === "transcript") {
+      this.transcriptionNotice = "";
+      const text = this.transcriptText(event);
       if (event.new_turn) {
         this.answer = "";
-        conversation.begin(event.text);
+        conversation.begin(text);
       } else {
-        updateStreamingText($("conversation-question"), event.text);
+        updateStreamingText($("conversation-question"), text);
       }
-      updateStreamingText($("voice-question"), `You: ${event.text}`);
+      updateStreamingText($("voice-question"), text ? `You: ${text}` : "");
+    }
+    if (event.type === "transcription_rejected") {
+      this.draftHypothesis = this.stableDraft = "";
+      updateStreamingText($("conversation-question"), event.committed_text || "");
+      updateStreamingText($("voice-question"), event.committed_text ? `You: ${event.committed_text}` : "");
+      this.transcriptionNotice = "I couldn't transcribe that in English or Hindi. Please repeat.";
+      this.state(this.transcriptionNotice);
     }
     if (event.type === "text") {
       this.answer += event.text;
@@ -338,6 +391,10 @@ const voice = {
     this.userSpeaking = false;
     this.lastTranscript = null;
     this.visualContexts.clear();
+    this.queuedSends = [];
+    this.queuedBytes = 0;
+    this.draftHypothesis = this.stableDraft = "";
+    this.transcriptionNotice = "";
     this.segment = 0;
     this.answer = "";
     this.startedSegments.clear();

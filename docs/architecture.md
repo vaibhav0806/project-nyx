@@ -1,5 +1,15 @@
 # Technical architecture
 
+## Spoken transcript admission and preview — 2026-11-18
+
+The Sarvam adapter admits en/hi labels and Latin/Devanagari letters before forwarding transcripts.
+Unsupported finals close their speech boundary without nonempty agent text and notify the user
+to repeat. Decoder auto-detection itself is not an English/Hindi allowlist. Browser messages carry
+committed text, interim text and finality separately. Whole-word agreement across successive
+hypotheses stabilizes display only; provider final text remains authoritative downstream.
+All browser socket writes track FIFO audio/control bytes so frame uploads do not trip an audio-only
+backlog limit. Actual stalled PCM remains bounded. SeeR38; idle timing and speech models unchanged.
+
 ## Personal-memory vec0 and immediate reads — 2026-11-18
 
 `memory_vectors.py` owns additive fingerprint-specific vec0 tables alongside authoritative

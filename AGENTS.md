@@ -1,5 +1,19 @@
 # Working on Nyx
 
+## Voice boundary repair awaiting safe activation — 2026-11-18
+
+User reported slow-connection disconnect, unsupported-script transcript and continued volatile
+speech preview. Reproduced camera-image traffic triggering the96k audio-only guard; new FIFO
+accounting distinguishes audio/control backlog. Preview now separates committed segments from
+consecutive-hypothesis whole-word agreement; provider final owns durable input and may correct
+the preview once. STT remains Sarvam auto (no documented bilingual allowlist); application accepts
+en/hi labels and Latin/Devanagari letters, rejects unsupported finals with repeat notice rather
+than inventing/stripping text. Guard is not measured acoustic recognition improvement.
+512 tests34.23s,26 Chrome checks and lint/format/syntax pass. R38 records references/proof/limits.
+Capture was still recording at inspection; do not restart PID27002/session36071 until user
+pauses/stops capture or closes the tab. Browser hard refresh alone cannot activate new backend
+metadata/gating. No provider inference/hardware/private upload, main/layout/timeouts change.
+
 ## Streaming text exception and manual trial — 2026-11-18
 
 User authorized narrow live-text display repair in companion.js/voice.js, superseding the web

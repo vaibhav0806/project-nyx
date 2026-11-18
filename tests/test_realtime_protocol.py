@@ -7,6 +7,55 @@ from livekit import rtc
 from nyx import realtime
 
 
+@pytest.mark.parametrize(
+    "text,language",
+    [
+        ("My चश्मा kitchen में है।", "en-IN"),
+        ("मेरा phone कहाँ है?", "hi-IN"),
+    ],
+)
+def test_english_hindi_code_switching_remains_supported(monkeypatch, text, language):
+    events = replay(
+        monkeypatch,
+        [
+            {"event": "vad.speech_start"},
+            {"event": "vad.speech_end"},
+            {"event": "transcript.final", "text": text, "language": language},
+            {"event": "session.end"},
+        ],
+    )
+    finals = [event for event in events if event.type.value == "final_transcript"]
+    assert finals[0].alternatives[0].text == text
+
+
+@pytest.mark.parametrize(
+    "text,language",
+    [
+        ("I want நல்ல food", "en-IN"),
+        ("എന്റെ ഫോൺ", "ml-IN"),
+        ("hello", "kn-IN"),
+    ],
+)
+def test_unsupported_transcription_never_reaches_agent(monkeypatch, text, language):
+    events = replay(
+        monkeypatch,
+        [
+            {"event": "vad.speech_start"},
+            {"event": "transcript.partial", "text": text, "language": language},
+            {"event": "vad.speech_end"},
+            {"event": "transcript.final", "text": text, "language": language},
+            {"event": "session.end"},
+        ],
+    )
+    assert not [
+        event
+        for event in events
+        if event.type.value in {"interim_transcript", "final_transcript"}
+        and event.alternatives
+        and event.alternatives[0].text
+    ]
+
+
 def replay(monkeypatch, packets):
     class Socket:
         async def __aenter__(self):

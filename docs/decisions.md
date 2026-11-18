@@ -1,5 +1,14 @@
 # Decisions and open choices
 
+## Stabilize provisional captions and separate audio backlog — 2026-11-18
+
+Keep finalized transcript segments separate from a locally stabilized interim preview. Consecutive
+hypothesis agreement controls display only; provider finals own input/agent/memory. Track audio and
+control WebSocket bytes separately, preserving the audio budget without treating camera images as
+stalled microphone data. Recognition remains Sarvam auto with explicit en/hi label/script admission
+and repeat notice on unsupported finals; its prompt is not a bilingual decoder lock. No provider,
+layout or timeout change. See [R38](research/R38-voice-transcript-boundaries.md).
+
 ## SQLite-native personal memory and independent reads — 2026-11-18
 
 User approved additive linked vec0 storage using existing vectors; Python no longer ranks the

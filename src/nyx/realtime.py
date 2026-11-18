@@ -6,6 +6,7 @@ import json
 import os
 import random
 import time
+import unicodedata
 import uuid
 import wave
 from collections import deque
@@ -30,6 +31,18 @@ from nyx.voice import local_now
 
 VOICES = {"en": "shalini_en_companion", "hi": "shalini_hi_companion"}
 INSTRUCTIONS_VERSION = 10
+
+
+def supported_transcription(text, language):
+    """Admit English/Hindi labels and scripts; never silently strip misrecognized words."""
+    if language and language.split("-")[0].lower() not in {"en", "hi"}:
+        return False
+    return all(
+        not unicodedata.category(char).startswith("L")
+        or "LATIN" in unicodedata.name(char, "")
+        or "DEVANAGARI" in unicodedata.name(char, "")
+        for char in text
+    )
 
 
 def stt_url():
@@ -116,13 +129,17 @@ class SarvamStream(stt.SpeechStream):
                     return
                 owner, ended_at = ended_utterances.popleft()
                 final_language = pending_final.get("language") or "en-IN"
+                text = pending_final["text"].strip()
+                if not supported_transcription(text, final_language):
+                    self._stt.log("realtime_stt_rejected", language=final_language, final=True)
+                    text = ""
                 self._event_ch.send_nowait(
                     stt.SpeechEvent(
                         type=stt.SpeechEventType.FINAL_TRANSCRIPT,
                         alternatives=[
                             stt.SpeechData(
                                 language=final_language,
-                                text=pending_final["text"].strip(),
+                                text=text,
                             )
                         ],
                     )
@@ -187,6 +204,8 @@ class SarvamStream(stt.SpeechStream):
                         if pending_final is not None:
                             continue
                         language = event.get("language") or "en-IN"
+                        if not supported_transcription(text, language):
+                            continue
                         self._event_ch.send_nowait(
                             stt.SpeechEvent(
                                 type=stt.SpeechEventType.INTERIM_TRANSCRIPT,
@@ -324,6 +343,15 @@ async def serve(socket, voice, memory_lane):
 
         def log(event, **details):
             voice.conversations.event(event, **details)
+            if event == "realtime_stt_rejected":
+                asyncio.create_task(
+                    send(
+                        {
+                            "type": "transcription_rejected",
+                            "committed_text": " ".join(transcript_parts),
+                        }
+                    )
+                )
 
         source = BrowserInput()
         sink = BrowserAudio(send, outgoing.put_nowait)
@@ -760,7 +788,16 @@ async def serve(socket, voice, memory_lane):
             else:
                 transcript_interim = event.transcript.strip()
             asyncio.create_task(
-                send({"type": "transcript", "text": transcript_preview(), "new_turn": new_turn})
+                send(
+                    {
+                        "type": "transcript",
+                        "text": transcript_preview(),
+                        "new_turn": new_turn,
+                        "is_final": event.is_final,
+                        "committed_text": " ".join(transcript_parts),
+                        "interim_text": transcript_interim,
+                    }
+                )
             )
 
         @session.on("conversation_item_added")
@@ -829,7 +866,16 @@ async def serve(socket, voice, memory_lane):
                     await source.frames.put(rtc.AudioFrame(pcm, 16000, 1, len(pcm) // 2))
             else:
                 event = json.loads(packet["text"])
-                if event.get("type") == "visual_context" and event.get("id") in visual_requests:
+                if event.get("type") == "audio_backpressure":
+                    log(
+                        "browser_audio_backpressure",
+                        **{
+                            key: event[key]
+                            for key in ("audio_bytes", "total_bytes")
+                            if type(event.get(key)) is int and event[key] >= 0
+                        },
+                    )
+                elif event.get("type") == "visual_context" and event.get("id") in visual_requests:
                     from nyx.companion import TurnFrame, decode_image
 
                     row = visual_requests[event["id"]]

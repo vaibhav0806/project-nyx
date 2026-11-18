@@ -11,6 +11,8 @@ const context = {
   performance: { now: () => now },
   Float32Array,
   Int16Array,
+  TextEncoder,
+  WebSocket: { OPEN: 1 },
   Set,
   CustomEvent: class {},
   clearInterval() {},
@@ -21,6 +23,7 @@ const context = {
   companion: { freezeContext() { return { visual_frames: [] }; } },
   window: { addEventListener() {}, dispatchEvent() {} },
   api: async () => ({ configured: false }),
+  updateStreamingText(element, text) { element.textContent = text; },
   $: (id) => {
     if (!elements.has(id)) elements.set(id, {});
     return elements.get(id);
@@ -34,7 +37,7 @@ Object.assign(voice, {
   token: "synthetic",
   ready: true,
   epoch: 1,
-  socket: { bufferedAmount: 0, send() { forwarded++; }, close() {} },
+  socket: { readyState: 1, bufferedAmount: 0, send() { forwarded++; }, close() {} },
 });
 const pcm = new Float32Array(320).fill(0.05);
 

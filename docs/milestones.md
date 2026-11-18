@@ -1,5 +1,16 @@
 # Milestones
 
+## Voice traffic, provisional text and language boundaries — 2026-11-18
+
+User's new trial exposed a false slow-audio guard on shared image traffic, interim ASR rewrites
+and recognition configured for auto languages. Reproduced/fixed with audio/control FIFO byte
+accounting, finalized-segment plus local-agreement preview, and en/hi label/script admission
+with repeat notice on rejected finals. No model, layout or idle-timeout change.512 tests pass
+34.23s;26 actual-Chrome checks, JS syntax and Ruff/format pass. See [R38](research/R38-voice-transcript-boundaries.md).
+Original client byte composition is unavailable; the reproduced guard defect is consistent with
+the reported disconnect, not proof of every failure's cause. New acoustic/user acceptance remains.
+Capture still recording at inspection; backend restart intentionally waits for capture to stop.
+
 ## Manual trial and stable streamed text — 2026-11-18
 
 User reports the household conversation works well. Diagnostics verify kitchen-plan recall

@@ -865,7 +865,22 @@ def test_transcript_preview_appends_segments_without_changing_durable_turns(tmp_
             "Look at this. I plan to keep it in the kitchen.",
         ]
         assert previews[0]["new_turn"] is True and previews[-1]["new_turn"] is False
+        assert [event["is_final"] for event in previews] == [True, False, True]
+        assert previews[1]["committed_text"] == "Look at this."
+        assert previews[1]["interim_text"] == "I plan"
         assert voice.turn is None and voice.conversations.recent() == []
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
+def test_rejected_transcription_notifies_user_without_creating_a_turn(tmp_path, monkeypatch):
+    async def scenario(session, socket, voice):
+        session.options["stt"].log("realtime_stt_rejected", language="ml-IN", final=True)
+        async with asyncio.timeout(1):
+            while not any(event["type"] == "transcription_rejected" for event in socket.sent):
+                await asyncio.sleep(0)
+        assert voice.turn is None
+        assert voice.conversations.recent() == []
 
     replay_voice_tools(tmp_path, monkeypatch, scenario)
 
