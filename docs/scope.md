@@ -1,5 +1,12 @@
 # Scope
 
+## Approved hybrid conversation layout — 2026-11-18
+
+The user approved implementing the Paper hybrid and centered positioning, superseding
+earlier UI restrictions for this bounded presentation change. Rolling two-line requests,
+bounded scrollable replies and visible voice controls change display only. Preserve
+complete transcripts, existing speech behavior and recordings. No publication requested.
+
 ## Approved simplification pass — 2026-11-17
 
 Execute the [shared agent/general memory design](superpowers/specs/2026-11-17-simple-agent-memory-design.md)

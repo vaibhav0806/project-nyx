@@ -23,6 +23,7 @@ const context = {
   companion: { freezeContext() { return { visual_frames: [] }; } },
   window: { addEventListener() {}, dispatchEvent() {} },
   api: async () => ({ configured: false }),
+  renderQuestion(text) { context.$("conversation-question").textContent = text; },
   updateStreamingText(element, text) { element.textContent = text; },
   $: (id) => {
     if (!elements.has(id)) elements.set(id, {});

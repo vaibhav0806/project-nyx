@@ -251,13 +251,13 @@ const voice = {
         this.answer = "";
         conversation.begin(text);
       } else {
-        updateStreamingText($("conversation-question"), text);
+        renderQuestion(text);
       }
       updateStreamingText($("voice-question"), text ? `You: ${text}` : "");
     }
     if (event.type === "transcription_rejected") {
       this.draftHypothesis = this.stableDraft = "";
-      updateStreamingText($("conversation-question"), event.committed_text || "");
+      renderQuestion(event.committed_text || "");
       updateStreamingText($("voice-question"), event.committed_text ? `You: ${event.committed_text}` : "");
       this.transcriptionNotice = "I couldn't transcribe that in English or Hindi. Please repeat.";
       this.state(this.transcriptionNotice);

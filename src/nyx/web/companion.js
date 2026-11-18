@@ -43,10 +43,44 @@ function updateRenderedChildren(parent, desired) {
   }
 }
 
+function renderQuestion(text) {
+  const question = $("conversation-question");
+  question.hidden = !text;
+  updateStreamingText(question, text);
+  question.scrollTop = question.scrollHeight;
+}
+
+function updateReplyScroll() {
+  const answer = $("conversation-answer");
+  const overflow = answer.classList.contains("has-reply") && answer.scrollHeight > answer.clientHeight + 2;
+  const atEnd = answer.scrollHeight - answer.clientHeight - answer.scrollTop < 8;
+  $("reply-scroll").hidden = !overflow;
+  $("reply-scroll").textContent = atEnd ? "Back to start ↑" : "Scroll to read the rest ↓";
+}
+
+$("conversation-answer").addEventListener("scroll", updateReplyScroll);
+$("reply-scroll").addEventListener("click", () => {
+  const answer = $("conversation-answer");
+  const atEnd = answer.scrollHeight - answer.clientHeight - answer.scrollTop < 8;
+  answer.scrollTop = atEnd ? 0 : answer.scrollHeight;
+  updateReplyScroll();
+});
+new ResizeObserver(() => {
+  const question = $("conversation-question");
+  question.scrollTop = question.scrollHeight;
+  updateReplyScroll();
+}).observe(document.querySelector(".conversation-content"));
+
 function renderAnswer(answer, text) {
+  const follow = answer.scrollHeight - answer.clientHeight - answer.scrollTop < 8;
+  const position = answer.scrollTop;
+  answer.classList.add("has-reply");
   const desired = document.createElement("template");
   desired.innerHTML = answerMarkdown.render(text);
   updateRenderedChildren(answer, desired.content);
+  updateReplyScroll();
+  answer.scrollTop = follow ? answer.scrollHeight : position;
+  updateReplyScroll();
 }
 
 const conversation = {
@@ -82,7 +116,9 @@ const conversation = {
     this.stopReveal();
     this.answerTarget = this.shownAnswer = "";
     const answer = $("conversation-answer");
-    answer.classList.remove("answer-arriving");
+    answer.classList.remove("answer-arriving", "has-reply");
+    answer.scrollTop = 0;
+    $("reply-scroll").hidden = true;
     document.querySelector(".conversation-stage").classList.add("has-answer");
     answer.setAttribute("aria-busy", "true");
     answer.setAttribute("aria-label", "Preparing reply");
@@ -91,8 +127,7 @@ const conversation = {
     dots.setAttribute("aria-hidden", "true");
     for (let i = 0; i < 3; i++) dots.append(document.createElement("i"));
     answer.replaceChildren(dots);
-    updateStreamingText($("conversation-question"), text);
-    $("conversation-question").hidden = false;
+    renderQuestion(text);
     $("conversation-hint").hidden = true;
     $("answer-panel").hidden = true;
     $("replay-panel").hidden = true;

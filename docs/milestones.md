@@ -1,5 +1,24 @@
 # Milestones
 
+## Centered hybrid conversation layout — 2026-11-18
+
+Implemented the approved rolling two-line user caption and naturally sized reply panel,
+bounded to350px and the available stage height. The group stays centered above the voice
+dock; long replies scroll, follow arriving text and preserve a reader's scrollback position.
+Full transcripts, Markdown, source review and speech timing remain intact. New turns reset
+the panel. Short landscape layouts compact spacing and controls.
+
+Verification: conversation browser and transport regressions pass (2 tests), including
+1440x900,390x844 and844x390 layouts, full text retention, scroll-follow/scrollback, new-turn
+reset, typed input, Markdown safety and existing source/control behavior. JS syntax,
+Ruff and whitespace checks pass. Synthetic API/audio only, no real hardware/provider calls.
+Port8000 serves the exact changed assets; hard refresh is needed for the manual trial.
+No backend restart, commit, push or merge in this change.
+
+Follow-up visual refinement removes the card background/border, softens and reduces reply
+text, centers prose and increases caption/reply and paragraph spacing. Existing browser
+regression passes again across desktop, mobile and landscape; scroll behavior is unchanged.
+
 ## Voice traffic, provisional text and language boundaries — 2026-11-18
 
 User's new trial exposed a false slow-audio guard on shared image traffic, interim ASR rewrites

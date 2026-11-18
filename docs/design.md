@@ -1,5 +1,16 @@
 # Product design
 
+## Centered bounded conversation — 2026-11-18
+
+The approved hybrid keeps the latest two rendered lines of the user's request visible,
+without a full-request button. Center the request and reply together between the header
+and voice controls. Replies grow naturally to a 350px maximum (less on small viewports),
+then scroll inside their panel. Follow incoming text until the reader scrolls back.
+Full text remains in the DOM and existing history; this is not a character limit.
+The follow-up visual refinement removes the reply card background and border, uses softer
+26px reply text, and separates caption and reply by48px (32px mobile,20px short screens).
+Prose is centered; lists remain left-aligned. Paragraphs have a full line of separation.
+
 ## General memory first — 2026-11-17
 
 The approved [simplification](superpowers/specs/2026-11-17-simple-agent-memory-design.md)

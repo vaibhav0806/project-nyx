@@ -1,5 +1,14 @@
 # Technical architecture
 
+## Bounded conversation presentation — 2026-11-18
+
+The browser uses a viewport-sized flex layout with a centered, height-constrained content
+group and a separate voice dock. The request viewport scrolls to its last two lines on
+text updates and resize. Markdown replies retain their full content in an accessible
+scroll container; updates follow the end only when the reader was already there.
+New turns reset reply scroll and remove the reply panel while waiting. This supersedes
+the old top-anchored answer layout below, preserving speech timing and stable DOM updates.
+
 ## Spoken transcript admission and preview — 2026-11-18
 
 The Sarvam adapter admits en/hi labels and Latin/Devanagari letters before forwarding transcripts.

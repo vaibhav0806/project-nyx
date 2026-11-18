@@ -1,5 +1,13 @@
 # Decisions and open choices
 
+## Bound visible conversation text by layout — 2026-11-18
+
+User approved the Paper hybrid: retain complete text while showing the latest two user
+lines and a naturally sized, scrollable Nyx reply capped at350px/available height. Center
+the group between header and controls. Use rendered height rather than character limits
+so English/Hindi wrapping and narrow screens share the same rule. Preserve manual
+scrollback during streaming and reset on new turns. This supersedes top-anchored replies.
+
 ## Stabilize provisional captions and separate audio backlog — 2026-11-18
 
 Keep finalized transcript segments separate from a locally stabilized interim preview. Consecutive
