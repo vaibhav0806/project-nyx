@@ -59,3 +59,7 @@ subjective smoothness need user testing; constant/zero-delay captions are not pr
 Backend restart is deferred while capture is recording, under the repository's preservation
 boundary. A browser refresh alone does not enable the new backend transcript fields/language
 guard. Pause capture/close the user tab before restarting; retain the same household data root.
+
+Subsequent handoff: user paused/closed the tab; capture was interrupted. Service8001 restarted
+normally on5e1a943 (PID55945). HTTP200/exact scripts verified,8 saved memory rows byte-identical
+to pre-restart and696 ready clips retained. No developer hardware/inference; manual trial pending.

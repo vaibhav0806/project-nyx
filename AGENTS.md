@@ -1,5 +1,14 @@
 # Working on Nyx
 
+## Voice boundary repair activated — 2026-11-18
+
+User paused/closed the page; capture confirmed interrupted before normal shutdown. Service8001
+restarted on5e1a943, PID55945/session74103, original household root. HTTP200 and exact served
+voice.js/companion.js verified. All8 memory rows match the pre-restart digest;696 ready clips
+remain. No hardware activation or developer inference. Reload before the next manual trial;
+new acoustic recognition/preview acceptance remains pending. Logs append to
+data/runs/manual-smoke-2026-11-18/server.log. This supersedes the pending-activation note below.
+
 ## Voice boundary repair awaiting safe activation — 2026-11-18
 
 User reported slow-connection disconnect, unsupported-script transcript and continued volatile
