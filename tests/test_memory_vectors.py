@@ -137,3 +137,33 @@ def test_encoder_change_uses_separate_index_and_retains_original_vectors(tmp_pat
     assert changed.recall("phone")["matches"] == []
     restored = PersonalMemory(conversations, Encoder(), lambda *args: response())
     assert restored.recall("phone")["matches"][0]["id"] == saved
+
+
+def test_equal_similarity_preserves_latest_first_across_knn_batches(tmp_path):
+    from datetime import UTC, datetime, timedelta
+
+    conversations = Conversations(tmp_path)
+    PersonalMemory(conversations, Encoder(), lambda *args: response())
+    start = datetime.now(UTC) - timedelta(hours=1)
+    for i in range(50):
+        turn = conversations.begin("The phone is on the shelf.", {})
+        with conversations.connect() as db:
+            db.execute(
+                "UPDATE turns SET at=? WHERE id=?",
+                ((start + timedelta(seconds=49 - i)).isoformat(), turn),
+            )
+            db.execute(
+                "INSERT INTO memories(id,turn_id,content,kind,quotes,embedding,encoder,visual) VALUES (?,?,?,?,?,?,?,?)",
+                (
+                    str(i),
+                    turn,
+                    "Phone on shelf",
+                    "report",
+                    json.dumps([{"turn_id": turn, "text": "The phone"}]),
+                    Encoder().encode_text("").tobytes(),
+                    json.dumps(Encoder.fingerprint),
+                    "{}",
+                ),
+            )
+    memory = PersonalMemory(conversations, Encoder(), lambda *args: response())
+    assert [r["id"] for r in memory.recall("phone")["matches"]] == [str(i) for i in range(5)]

@@ -1,5 +1,18 @@
 # Working on Nyx
 
+## Personal vector retrieval verification — 2026-11-18
+
+User approved linked sqlite-vec storage, ordered best-effort quiet background saving and recall
+without a writer barrier. One continuous chat supplies recent context; immediate read-after-write
+consistency is not a requirement. Implemented additive fingerprint-specific vec0 backfill/write-through,
+candidate/dependency validation off-loop and native SQL recency resolution for equidistant KNN
+boundaries. Existing vectors/records/media retained.506 tests34.07s, Ruff/format pass. R36 documents
+offline original phone-trial parity (three prior memories, kitchen-shelf plan),3.06ms preparation,
+10k/768D retrieval180.45ms baseline versus106.90ms, selected revalidation0.30ms. No1k speed gain,
+new model/speech evaluation, paid inference, hardware, private upload or source/main/UI edit.
+Live services were not restarted and may still serve the preceding build. Raw private results stay
+ignored. Final review is inline self-review, not independent PR review; no PR or push in this pass.
+
 ## Early context verification — 2026-11-18
 
 Implemented optional <=5 saved records before first spoken generation, overlapping image

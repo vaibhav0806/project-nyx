@@ -1,5 +1,8 @@
 # Repository structure
 
+`memory_vectors.py` owns SQLite-native personal-memory KNN, additive backfill and write-through
+index entries; `personal_memory.py` retains interpretation and candidate/dependency validation.
+
 `background_memory.py` owns the bounded app-lifetime voice memory worker and recall barrier.
 `realtime.py` owns canonical spoken input, raw-final frame requests and generation-only images;
 the narrow `voice.js` transport retains those selected windows. SeeR34 for the2026-11-18 update.

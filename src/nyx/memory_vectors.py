@@ -96,11 +96,22 @@ class MemoryVectors:
                 rows = db.execute(
                     f"WITH nearest AS (SELECT memory_id,distance FROM {self.table} "
                     f"WHERE embedding MATCH ? AND k=? AND memory_id IN ({eligible})) "
-                    "SELECT n.memory_id AS id FROM nearest n JOIN memories m ON m.id=n.memory_id "
+                    "SELECT n.memory_id AS id,n.distance FROM nearest n JOIN memories m ON m.id=n.memory_id "
                     "JOIN turns t ON t.id=m.turn_id ORDER BY n.distance,t.at DESC,m.id",
-                    [vector.tobytes(), limit, *params],
-                )
-            return [row["id"] for row in rows]
+                    [vector.tobytes(), limit + 1, *params],
+                ).fetchall()
+                if len(rows) > limit and rows[limit - 1]["distance"] == rows[limit]["distance"]:
+                    # vec0 does not promise which equidistant rows cross the K boundary.
+                    # Resolve that boundary with native SQL distance + recency, preserving
+                    # latest-first semantics without transferring vectors into Python.
+                    rows = db.execute(
+                        f"SELECT m.id,vec_distance_cosine(v.embedding,?) AS distance "
+                        f"FROM memories m JOIN {self.table} v ON v.memory_id=m.id "
+                        f"JOIN turns t ON t.id=m.turn_id WHERE m.id IN ({eligible}) "
+                        "ORDER BY distance,t.at DESC,m.id LIMIT ?",
+                        [vector.tobytes(), *params, limit],
+                    )
+            return [row["id"] for row in rows][:limit]
 
     def unchanged(self, identifiers):
         """Compare source vectors only for nominated records, never the entire archive."""

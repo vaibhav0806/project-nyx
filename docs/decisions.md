@@ -1,5 +1,15 @@
 # Decisions and open choices
 
+## SQLite-native personal memory and independent reads — 2026-11-18
+
+User approved additive linked vec0 storage using existing vectors; Python no longer ranks the
+personal-memory corpus. Preserve source/correction/as-of eligibility and optional relevance
+selection. Validate retrieved records/dependencies off the voice event loop, not the entire archive.
+Recall reads committed state without waiting for the background writer; writes remain ordered.
+One continuous conversation provides recent context. Unresolved background saves stay internal,
+preserving raw input without guessing or delayed clarification questions. No new model/service,
+UI, paid inference or immediate read-after-write guarantee. See [R36](research/R36-personal-vector-retrieval.md).
+
 ## Supply optional saved memories before spoken generation — 2026-11-18
 
 User approved up to five early candidates alongside image preparation, retaining native lookup.

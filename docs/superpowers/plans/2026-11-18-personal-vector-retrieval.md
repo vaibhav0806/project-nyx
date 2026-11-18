@@ -16,14 +16,19 @@ and failed/unresolved saves. Do not trade recall correctness for a fixed oversam
 
 ## Tasks
 
-- [ ] Add failing regressions for vec0 migration/ranking and candidate-bounded validation.
-- [ ] Implement `memory_vectors.py` connection/backfill/KNN and transactional indexing in
+- [x] Add failing regressions for vec0 migration/ranking and candidate-bounded validation.
+- [x] Implement `memory_vectors.py` connection/backfill/KNN and transactional indexing in
   `personal_memory.py`; narrow `_read_rows(..., identifiers=...)` to records and dependencies.
-- [ ] Run memory tests, review migration/filter semantics and commit vector retrieval.
-- [ ] Remove spoken recall barrier; move early/current context validation to background
+- [x] Run memory tests, review migration/filter semantics and commit vector retrieval.
+- [x] Remove spoken recall barrier; move early/current context validation to background
   threads, suppress background clarification questions without discarding raw input.
-- [ ] Test blocked-writer recall and quiet unresolved saves; run focused/full checks and commit.
-- [ ] Replay a copied local manual-test database offline, compare SQLite/Python ranking,
+- [x] Test blocked-writer recall and quiet unresolved saves; run focused/full checks and commit.
+- [x] Replay a copied local manual-test database offline, compare SQLite/Python ranking,
   benchmark realistic vector sizes, document evidence/limitations and commit findings.
 
 Execution and final self-review stay inline under the repository's no-subagent instruction.
+
+Verification: 506 tests/34.07s; Ruff/format pass. Commits47f64f1 and912d83d cover
+vector retrieval and independent reads. Final self-review found a tied-KNN recency omission;
+new regression failed then passed after SQL tie resolution. R36 records final offline
+manual replay and scale evidence. No source/main/UI change, inference or service restart.

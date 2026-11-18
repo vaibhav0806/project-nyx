@@ -1,5 +1,18 @@
 # Milestones
 
+## SQLite-native personal memory and independent recall — 2026-11-18
+
+User-approved correction pass completed: linked vec0 storage reuses original vectors,
+transactional write-through, candidate/dependency-only validation off the voice event loop,
+ordered background saving with no read barrier and quiet unresolved outcomes. Existing
+source/correction/retraction/historical semantics remain.506 tests pass34.07s; Ruff/format pass.
+Offline original phone-trial replay retains the same three candidates, including the kitchen-shelf
+plan, in3.06ms; source DB/hash and copied memory rows unchanged. No new model/speech inference.
+Five-repeat synthetic10k/768D recall median180.45ms baseline versus106.90ms vec0; top-five parity,
+selected context0.30ms.1k has no speed gain. Equal-distance newest-first regression repaired in SQL.
+See [R36](research/R36-personal-vector-retrieval.md). Live services not restarted; acoustic acceptance
+and PR CI/review gates remain separate. No UI/main/recording or provider/model change.
+
 ## Early memory context and short replies — 2026-11-18
 
 Optional saved records now reach the first spoken generation alongside image preparation, with
