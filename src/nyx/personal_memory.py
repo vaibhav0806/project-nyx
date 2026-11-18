@@ -120,6 +120,9 @@ class PersonalMemory:
                     "ALTER TABLE memories ADD COLUMN grounding TEXT NOT NULL DEFAULT 'legacy'"
                 )
         self._import_statements()
+        from nyx.memory_vectors import MemoryVectors
+
+        self.vectors = MemoryVectors(conversations, encoder)
 
     def _import_statements(self):
         """Copy attributed old rows losslessly; no inference, source edits or vector rebuild."""
@@ -220,29 +223,51 @@ class PersonalMemory:
             sources.add("transcript:" + quote["turn_id"])
         return sorted(sources)
 
-    def _rows(self, *, as_of=None):
-        return self._read_rows(self.conversations, as_of=as_of)
+    def _rows(self, *, as_of=None, identifiers=None):
+        return self._read_rows(self.conversations, as_of=as_of, identifiers=identifiers)
 
     @staticmethod
-    def _read_rows(conversations, *, as_of=None):
+    def _read_rows(conversations, *, as_of=None, identifiers=None):
         now = datetime.now(UTC)
         cutoff = aware_time(as_of) if as_of else now
         if cutoff > now:
             raise ValueError("Historical memory time cannot be in the future")
         with conversations.connect() as db:
+            # Read only nominated records and their transitive memory dependencies.
+            scope = ""
+            params = []
+            if identifiers is not None:
+                identifiers = list(identifiers)
+                scope = """WITH RECURSIVE wanted(id) AS (
+                    SELECT value FROM json_each(?) UNION
+                    SELECT value FROM memories m JOIN wanted ON wanted.id=m.id,
+                        json_each(m.dependencies)) """
+                params = [json.dumps(identifiers)]
             rows = db.execute(
-                "SELECT m.id,m.turn_id,m.content,m.kind,m.quotes,m.embedding,m.encoder,m.visual,"
+                scope + "SELECT m.id,m.turn_id,m.content,m.kind,m.quotes,m.visual,"
                 "m.image IS NOT NULL AS has_image,m.dependencies,m.grounding,t.at,t.input_available "
                 "FROM memories m JOIN turns t ON t.id=m.turn_id"
+                + (" WHERE m.id IN (SELECT id FROM wanted)" if identifiers is not None else ""),
+                params,
             ).fetchall()
-            relations = {
-                row["replacement_id"]: dict(row)
-                for row in db.execute("SELECT * FROM memory_relations")
+            replaced = {
+                row["previous_id"]
+                for row in db.execute(
+                    "SELECT r.previous_id,t.at FROM memory_relations r "
+                    "LEFT JOIN memories m ON m.id=r.replacement_id "
+                    "LEFT JOIN turns t ON t.id=m.turn_id "
+                    "WHERE r.relation IN ('correct','retract') "
+                    "AND r.previous_id IN (SELECT value FROM json_each(?))",
+                    (json.dumps([row["id"] for row in rows]),),
+                )
+                if not row["at"] or aware_time(row["at"]) <= cutoff
             }
             available = []
             unavailable = 0
             by_id = {row["id"]: row for row in rows}
             for row in rows:
+                if identifiers is not None and row["id"] not in identifiers:
+                    continue
                 if row["at"] and aware_time(row["at"]) > cutoff:
                     continue
                 if not row["input_available"] or (as_of and not row["at"]):
@@ -272,13 +297,6 @@ class PersonalMemory:
                     unavailable += 1
                     continue
                 available.append({**dict(row), "quotes": quotes, "sources": sorted(sources)})
-        dates = {row["id"]: row["at"] for row in rows}
-        replaced = {
-            relation["previous_id"]
-            for identifier, relation in relations.items()
-            if relation["relation"] in {"correct", "retract"}
-            and (not dates.get(identifier) or aware_time(dates[identifier]) <= cutoff)
-        }
         return [row for row in available if row["id"] not in replaced], unavailable
 
     @staticmethod
@@ -294,7 +312,7 @@ class PersonalMemory:
             return None
         result = json.loads(cached["result"])
         wanted = set(result["saved_ids"]) | {r["id"] for r in result["relevant"]}
-        rows, unavailable = PersonalMemory._read_rows(conversations)
+        rows, unavailable = PersonalMemory._read_rows(conversations, identifiers=wanted)
         records = [PersonalMemory._public(row) for row in rows if row["id"] in wanted]
         missing = wanted - {row["id"] for row in records}
         return {
@@ -306,7 +324,7 @@ class PersonalMemory:
             "records": records,
             "visual": result.get("visual", {}),
             "lookup": result.get("lookup", {}),
-            "coverage": {"global_unavailable_count": unavailable},
+            "coverage": {"candidate_unavailable_count": unavailable},
             "sources": sorted({s for row in records for s in row["sources"]}),
         }
 
@@ -335,27 +353,13 @@ class PersonalMemory:
     ):
         if not isinstance(query, str) or not query.strip() or not 1 <= limit <= 8:
             raise ValueError("Invalid memory query")
-        rows, unavailable = self._rows(as_of=as_of)
-        compatible = []
-        for row in rows:
-            try:
-                saved = np.frombuffer(row["embedding"], dtype=np.float32)
-                identity = json.loads(row["encoder"])
-            except (ValueError, TypeError):
-                unavailable += 1
-                continue
-            if (
-                identity != self.encoder.fingerprint
-                or saved.shape != (self.encoder.dimensions,)
-                or not np.isfinite(saved).all()
-                or not np.linalg.norm(saved)
-            ):
-                unavailable += 1
-                continue
-            compatible.append((row, saved / np.linalg.norm(saved)))
+        cutoff = aware_time(as_of) if as_of else datetime.now(UTC)
+        if cutoff > datetime.now(UTC):
+            raise ValueError("Historical memory time cannot be in the future")
+        candidate_args = {"cutoff": cutoff.isoformat(), "historical": bool(as_of)}
+        first = self.vectors.candidates(None, limit=limit + 1, **candidate_args)
         vector = None
-        # Ingest needs every candidate when they all fit; their similarity order adds no evidence.
-        if compatible and (rank_all or len(compatible) > limit):
+        if first and (rank_all or len(first) > limit):
             vector = np.asarray(self.encoder.encode_text(query), dtype=np.float32)
             if (
                 vector.shape != (self.encoder.dimensions,)
@@ -363,13 +367,22 @@ class PersonalMemory:
                 or not np.linalg.norm(vector)
             ):
                 raise ValueError("Invalid query embedding")
-            vector = vector / np.linalg.norm(vector)
-        ranked = [
-            (float(saved @ vector) if vector is not None else 0, row["at"] or "", row)
-            for row, saved in compatible
-        ]
-        ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
-        matches = [self._public(row) for _, _, row in ranked[:limit]]
+        matches, excluded, unavailable = [], [], 0
+        while True:
+            if not active():
+                raise ValueError("Request cancelled")
+            ids = self.vectors.candidates(vector, limit=32, excluded=excluded, **candidate_args)
+            if not ids:
+                break
+            unchanged = self.vectors.unchanged(ids)
+            rows, missing = self._rows(as_of=as_of, identifiers=unchanged)
+            by_id = {row["id"]: row for row in rows}
+            unavailable += missing + len(ids) - len(unchanged)
+            matches.extend(self._public(by_id[x]) for x in ids if x in by_id)
+            if len(matches) >= limit or len(ids) < 32:
+                break
+            excluded.extend(ids)
+        matches = matches[:limit]
         if select and matches:
             if not active():
                 raise ValueError("Request cancelled")
@@ -398,13 +411,13 @@ class PersonalMemory:
                 or reply.get("clarification") != ""
             ):
                 raise ValueError("Invalid memory selection")
-            valid, _ = self._rows(as_of=as_of)
+            valid, _ = self._rows(as_of=as_of, identifiers=selected)
             if set(selected) - {row["id"] for row in valid}:
                 raise ValueError("Memory source changed; recall again")
             matches = [by_id[x] for x in dict.fromkeys(selected)]
         return {
             "kind": "memories",
-            "coverage": {"global_unavailable_count": unavailable},
+            "coverage": {"candidate_unavailable_count": unavailable},
             "status": ("retrieved" if select else "candidates") if matches else "uncertain",
             "matches": matches,
             "sources": sorted({s for row in matches for s in row["sources"]}),
@@ -572,7 +585,12 @@ class PersonalMemory:
             if prior:
                 return json.loads(prior["result"])
             check_active()
-            valid_related = {row["id"] for row in self._rows()[0]}
+            valid_related = {
+                row["id"]
+                for row in self._rows(
+                    identifiers=[op["related_id"] for op in prepared if op["related_id"]]
+                )[0]
+            }
             for op in prepared:
                 self._quote_sources(db, op["quotes"])
                 if op["related_id"]:
@@ -626,6 +644,9 @@ class PersonalMemory:
                         json.dumps([op["related_id"]] if op["related_id"] else []),
                         op["grounding"],
                     ),
+                )
+                self.vectors.add(
+                    db, op["id"], op["embedding"], json.dumps(self.encoder.fingerprint)
                 )
                 if op["related_id"]:
                     db.execute(
