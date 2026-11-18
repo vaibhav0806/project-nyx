@@ -1,0 +1,117 @@
+"""Rejected paired-image scene experiment; ordinary inspection uses the runtime contract."""
+
+import argparse
+import hashlib
+import json
+from pathlib import Path
+from unittest.mock import patch
+
+from experiments.companion import physical_scene_replay
+from nyx.verification import INSPECTION_SCHEMA as SCHEMA
+from nyx.verification import PROMPT, CloudVerifier, parse_judgment
+
+REFERENCE_TASK = """CANDIDATE: inspect and count only this scene. The requested object must match the reference's visible appearance. Reject visible conflicts; return uncertain when distinguishing support is insufficient. Never copy the reference location."""
+REFERENCE_SCHEMA = {
+    **SCHEMA,
+    "properties": {
+        "comparison": {
+            "type": "string",
+            "description": "Compare visible reference and candidate appearance, including conflicts.",
+        },
+        "appearance_match": {
+            "type": "string",
+            "enum": ["supported", "different", "uncertain"],
+        },
+        **SCHEMA["properties"],
+    },
+    "required": ["comparison", "appearance_match", *SCHEMA["required"]],
+}
+
+
+class SceneVerifier(CloudVerifier):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fingerprint["scene_contract_experiment"] = hashlib.sha256(
+            (PROMPT + json.dumps(SCHEMA, sort_keys=True)).encode()
+        ).hexdigest()
+        self.fingerprint["reference_comparison_experiment"] = hashlib.sha256(
+            (REFERENCE_TASK + json.dumps(REFERENCE_SCHEMA, sort_keys=True)).encode()
+        ).hexdigest()
+        self.fingerprint["reference_task_role"] = "system"
+
+    def inspect_reference(self, image, reference, object_query):
+        return self._observe(
+            [
+                {
+                    "type": "text",
+                    "text": "REFERENCE: appearance cue only, not the scene to inspect.",
+                },
+                {"type": "image", "image": reference},
+                {
+                    "type": "text",
+                    "text": "CANDIDATE: scene to inspect.",
+                },
+                {"type": "image", "image": image},
+                {"type": "text", "text": json.dumps({"object": object_query})},
+            ],
+            reference_task=True,
+        )
+
+    def _observe(self, content, *, reference_task=False):
+        raw = json.loads(
+            self.client.generate(
+                [
+                    {
+                        "role": "system",
+                        "content": (REFERENCE_TASK + "\n" if reference_task else "") + PROMPT,
+                    },
+                    {"role": "user", "content": content},
+                ],
+                self.vision_model,
+                350,
+                schema=REFERENCE_SCHEMA if reference_task else SCHEMA,
+            )
+        )
+        if (
+            not isinstance(raw, dict)
+            or raw.get("presence") not in SCHEMA["properties"]["presence"]["enum"]
+        ):
+            return parse_judgment("")
+        visibility = {
+            "physical": "visible",
+            "depicted": "not_visible",
+            "absent": "not_visible",
+            "uncertain": "uncertain",
+        }[raw["presence"]]
+        if reference_task:
+            match = raw.get("appearance_match")
+            if match == "different":
+                visibility = "not_visible"
+            elif match != "supported":
+                visibility = "uncertain"
+        result = parse_judgment(json.dumps({**raw, "visibility": visibility}))
+        return {
+            **result,
+            "presence": raw["presence"],
+            "scene_context": raw.get("scene_context"),
+            **(
+                {key: raw.get(key) for key in ("comparison", "appearance_match")}
+                if reference_task
+                else {}
+            ),
+        }
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--data", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--split", choices=["development", "holdout"], default="development")
+    parser.add_argument("--max-spend", type=float, default=0.10)
+    args = parser.parse_args()
+    with patch.object(physical_scene_replay, "CloudVerifier", SceneVerifier):
+        print(
+            json.dumps(
+                physical_scene_replay.run(args.data, args.output, args.split, args.max_spend)
+            )
+        )

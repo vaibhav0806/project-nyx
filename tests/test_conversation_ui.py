@@ -232,7 +232,6 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
             expect(page.locator(".reply-dots i")).to_have_count(3)
             expect(page.locator("#conversation-answer")).not_to_contain_text("Thinking")
             expect(page.locator("#conversation-state")).not_to_contain_text("Thinking")
-            answer_top = page.locator("#conversation-answer").bounding_box()["y"]
             answer = "I saw your phone in your hand about thirty minutes ago, just before you went into the bedroom."
             assert page.evaluate(
                 "text => { conversation.answer(text); return document.getElementById('conversation-answer').textContent !== text; }",
@@ -241,7 +240,11 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
             page.wait_for_timeout(500)
             assert len(page.locator("#conversation-answer").inner_text().split()) <= 3
             expect(page.locator("#conversation-answer")).to_have_text(answer, timeout=10000)
-            assert abs(page.locator("#conversation-answer").bounding_box()["y"] - answer_top) < 1
+            assert page.evaluate("""() => {
+                const stage = document.querySelector('.conversation-stage').getBoundingClientRect();
+                const content = document.querySelector('.conversation-content').getBoundingClientRect();
+                return Math.abs((stage.top + stage.bottom) / 2 - (content.top + content.bottom) / 2) < 2;
+            }""")
             page.evaluate(
                 "conversation.answer('This older reply should stop appearing once a new question starts.'); conversation.begin('And my keys?')"
             )
@@ -275,6 +278,58 @@ def test_conversation_sources_controls_and_mobile_layout(tmp_path):
             page.set_viewport_size({"width": 390, "height": 844})
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
             page.screenshot(path=str(tmp_path / "conversation-mobile.png"))
+            # Long transcripts retain their full text but show only the latest two lines.
+            long_question = ("Please remember this item. " * 60) + "Last item: twenty-five fries."
+            long_answer = "\n".join(f"- Item {index}: five portions" for index in range(45))
+            for width, height in [(1440, 900), (390, 844), (844, 390)]:
+                page.set_viewport_size({"width": width, "height": height})
+                page.evaluate("text => conversation.begin(text)", long_question)
+                page.evaluate("text => conversation.answer(text, true)", long_answer)
+                page.wait_for_timeout(100)
+                expect(page.locator("#conversation-question")).to_have_text(long_question)
+                assert page.evaluate("""() => {
+                    const q = document.getElementById('conversation-question');
+                    const a = document.getElementById('conversation-answer');
+                    const dock = document.querySelector('.conversation-dock').getBoundingClientRect();
+                    const box = a.getBoundingClientRect();
+                    return q.clientHeight <= parseFloat(getComputedStyle(q).lineHeight) * 2 + 1
+                        && q.scrollTop > 0
+                        && q.scrollHeight - q.clientHeight - q.scrollTop < 2
+                        && a.scrollHeight > a.clientHeight
+                        && box.bottom <= dock.top
+                        && dock.bottom <= innerHeight
+                        && document.documentElement.scrollHeight <= innerHeight
+                        && document.documentElement.scrollWidth <= innerWidth;
+                }""")
+                page.screenshot(path=str(tmp_path / f"hybrid-long-{width}.png"))
+                page.evaluate(
+                    "text => conversation.answer(text, true)", long_answer + "\n- Latest item"
+                )
+                assert page.locator("#conversation-answer").evaluate(
+                    "el => el.scrollHeight - el.clientHeight - el.scrollTop < 2"
+                )
+                page.locator("#conversation-answer").evaluate("el => el.scrollTop = 100")
+                page.evaluate(
+                    "text => conversation.answer(text, true)",
+                    long_answer + "\n- Latest item\n- Added item",
+                )
+                assert page.locator("#conversation-answer").evaluate("el => el.scrollTop") == 100
+                page.locator("#reply-scroll").click()
+                assert page.locator("#conversation-answer").evaluate(
+                    "el => el.scrollHeight - el.clientHeight - el.scrollTop < 2"
+                )
+                page.evaluate(
+                    "conversation.begin('Thanks'); conversation.answer('You’re welcome!', true)"
+                )
+                expect(page.locator("#reply-scroll")).not_to_be_visible()
+                assert page.locator("#conversation-answer").evaluate("el => el.scrollTop") == 0
+                page.screenshot(path=str(tmp_path / f"hybrid-{width}.png"))
+            page.set_viewport_size({"width": 1440, "height": 900})
+            page.evaluate("text => conversation.begin(text)", long_question)
+            page.evaluate("text => conversation.answer(text, true)", long_answer)
+            page.locator("#type-toggle").click()
+            expect(page.locator("#companion-message")).to_be_visible()
+            assert page.locator("#companion-send").bounding_box()["y"] < 900
             assert errors == []
             browser.close()
     finally:

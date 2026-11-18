@@ -1,5 +1,48 @@
 # Scope
 
+## Approved hybrid conversation layout — 2026-11-18
+
+The user approved implementing the Paper hybrid and centered positioning, superseding
+earlier UI restrictions for this bounded presentation change. Rolling two-line requests,
+bounded scrollable replies and visible voice controls change display only. Preserve
+complete transcripts, existing speech behavior and recordings. No publication requested.
+
+## Approved simplification pass — 2026-11-17
+
+Execute the [shared agent/general memory design](superpowers/specs/2026-11-17-simple-agent-memory-design.md)
+on work/memory-reliability, regular commits, optional work-branch backup only. No new PR/merge,
+main/UI changes or demo production. General source-linked personal memory is now authorized;
+retire departure-specific behavior, duplicate reference modes and separate AI judges.
+Models: Luna for conversation/memory; Flash-Lite for vision; embeddings and Sarvam unchanged.
+Verified cumulative OpenRouter ceiling is $8, superseding older $5/$2 wording for this pass.
+Per-run cap ≤$0.25, sequential tests, preserve $0.10 settlement headroom. Public/synthetic cloud
+evaluation and strictly offline private recording audits remain the developer-test boundary.
+No camera/microphone activation or private-media upload. All original sources stay untouched.
+Older dated sections below describe previous scope and experiments.
+
+The latest user instruction requires simple root-cause repairs and verification;
+do not add rules for individual examples or more orchestration. Model-role changes remain a user decision. Household physical-identity
+and acoustic acceptance remain open. Rejected experiments do not authorize runtime promotion.
+
+
+## Complete household workflow engineering — 2026-11-16
+
+The user authorized the shown-item → remember → later recall experience, including normal moves,
+corrections, intentions, uncertainty and spoken tool boundaries. PR2 was merged by the teammate;
+this pass starts from bdb7ad0 on work/memory-reliability. It authorizes neither a new main push nor
+another PR/merge. Contributor UI and original recordings stay unchanged. Existing local videos
+are used offline; cloud evaluation uses public/synthetic footage with explicit replay clocks,
+under the existing cumulative $5 ceiling. No real capture hardware is activated.
+
+Backend workflow improvements and reproducible small public-source experiments are in scope;
+full household recognition, acoustic/human acceptance and permissioned demo production remain
+separate. Default ambiguity checks can veto a joint result and may miss a usable demonstration.
+The separated extraction/handoff pipeline is opt-in after an unsafe heldout save; its higher
+composite score did not authorize default promotion. No automatic expiry, storage-cap change, Hydra migration, new
+provider, embedding reindex or general autonomous household action was added. See
+[R29](research/R29-household-experience.md).
+
+
 ## Renewed reliability work and budget — 2026-11-15
 
 The user authorized continued reliability work/public datasets and explicitly raised the

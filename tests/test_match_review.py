@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 from test_app import wait_for_job
+from test_companion import Planner
 from test_nyx import ColorEncoder
 
 from nyx.app import create_app
@@ -13,7 +14,7 @@ from nyx.app import create_app
 pytest_plugins = ["test_nyx"]
 
 
-class CandidateVerifier:
+class CandidateVerifier(Planner):
     fingerprint: ClassVar[dict] = {"model": "deliberately-permissive-fixture"}
 
     def inspect(self, image, query):
@@ -53,6 +54,7 @@ def test_reject_confirm_replay_restart_and_source_deletion(tmp_path, video, reco
         assert confirmed.status_code == 200
         result = confirmed.json()
         assert result["status"] == "confirmed"
+        assert result["identity_verified"] is True and result["confirmation"] == "user"
         assert result["confirmation"] == "user"
         assert result["evidence"]["observed_at"] == second["evidence"]["observed_at"]
         assert "current location" in result["answer"]

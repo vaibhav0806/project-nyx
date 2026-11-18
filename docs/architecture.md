@@ -1,5 +1,150 @@
 # Technical architecture
 
+## Bounded conversation presentation — 2026-11-18
+
+The browser uses a viewport-sized flex layout with a centered, height-constrained content
+group and a separate voice dock. The request viewport scrolls to its last two lines on
+text updates and resize. Markdown replies retain their full content in an accessible
+scroll container; updates follow the end only when the reader was already there.
+New turns reset reply scroll and remove the reply panel while waiting. This supersedes
+the old top-anchored answer layout below, preserving speech timing and stable DOM updates.
+
+## Spoken transcript admission and preview — 2026-11-18
+
+The Sarvam adapter admits en/hi labels and Latin/Devanagari letters before forwarding transcripts.
+Unsupported finals close their speech boundary without nonempty agent text and notify the user
+to repeat. Decoder auto-detection itself is not an English/Hindi allowlist. Browser messages carry
+committed text, interim text and finality separately. Whole-word agreement across successive
+hypotheses stabilizes display only; provider final text remains authoritative downstream.
+All browser socket writes track FIFO audio/control bytes so frame uploads do not trip an audio-only
+backlog limit. Actual stalled PCM remains bounded. SeeR38; idle timing and speech models unchanged.
+
+## Personal-memory vec0 and immediate reads — 2026-11-18
+
+`memory_vectors.py` owns additive fingerprint-specific vec0 tables alongside authoritative
+`memories` records. Existing vectors backfill without inference; source row/index writes are atomic.
+KNN eligibility runs in SQL; retrieved records and their dependency closure receive exact source,
+correction and timestamp validation. Invalid candidate batches refill; equal-distance boundaries
+use SQL cosine/recency to avoid arbitrary omissions. No vector-corpus transfer to Python.
+Prepared current/early context validation runs in background threads. Native recall reads committed
+state without a writer barrier; one ordered worker still saves completed inputs. Unresolved
+background receipts remain internal, never delayed clarification questions. SeeR36.
+
+## Early saved-memory context — 2026-11-18
+
+Before waiting for frozen images, the completed-turn hook starts `BackgroundMemory.prefetch`.
+A single independent read worker permits one in-flight request; up to five candidates use existing
+PersonalMemory retrieval without its selection LLM. Small compatible pools need no query embedding.
+Prefetch waiting overlaps images within250ms; incomplete lookup does not hold ordinary generation.
+Generation revalidates only selected sources/corrections/as-of state off-loop and supplies compact optional records.
+Native further recall remains independent. Retrieval reads photo-presence metadata instead of
+photo bytes. Current-input saving keeps its ordered background worker. Local revalidation/large-
+corpus scaling remain separate from the wait bound. Main Luna6 medium effort; memory low. SeeR35.
+
+## Image-aware quick speech with background memory — 2026-11-18
+
+This supersedes synchronous spoken memory preparation below. The completed-user-turn hook owns
+durable input, consumes frames frozen at raw final STT events and submits an ordered background
+task. `background_memory.py` owns a bounded single-worker lane for the application lifetime;
+normal shutdown drains it. Reply interruption/new speech does not cancel completed-input saves.
+Recall reads committed state immediately, with cached progress audio; it does not await pending
+memory. Source validators and atomic writes remain in PersonalMemory. Earlier input preparation
+cannot consume later raw user turns. Abrupt-crash inference replay remains unimplemented.
+
+The conversational Luna6 call receives at most six timestamped owned images in its generation
+copy; past chat keeps text, not raw image payloads. Browser frame responses have a750ms deadline,
+with text-only fallback. Existing12s per-final frame windows stay bounded; exact server-owned
+frame clocks permit reuse across coalesced segments. Memory uses those same images independently
+when its existing reference task is needed. Typed API preparation remains synchronous. SeeR34.
+
+## Pause and input availability follow-up — 2026-11-18
+
+Raw partial/final transcripts now provide an immediate, appended display preview; canonical
+turns still come from the completed-turn hook. Dynamic endpointing coalesces short pauses.
+Completed input remains available after an interrupted assistant reply; the reply itself remains
+unavailable. Small ingest pools need no similarity query when every compatible record fits;
+ordinary recall retains ranking. See [R32](research/R32-pause-latency-memory-trial.md) for timing and limits.
+
+## Completed speech lifecycle — 2026-11-17
+
+LiveKit's `on_user_turn_completed` owns canonical spoken input, question delivery and automatic
+memory preparation. Raw final STT events only retain language metadata; they do not replace the
+active durable turn. The LLM node supplies bounded context and streams generation. The real-SDK
+interruption replay and remaining trial limits are in [R31](research/R31-voice-turn-lifecycle.md).
+The authorized browser transport now receives LiveKit user-state events. Both gates keep an
+already activated stream open during user speech or agent thinking/speech, then use the idle
+follow-up window. Session cancellation/mute still clears activation; initial idle cannot open cloud audio.
+
+## Shared native agent and general memory — 2026-11-17
+
+Conversation rows distinguish `input_sources`/`input_available` from the assistant's `sources`.
+`context_turns` records bounded prior input/answer dependencies actually supplied by either
+adapter. SQLite recursively checks availability, so a followup cannot launder a deleted answer
+into fresh evidence. Independent user statements remain available when a lookup is deleted;
+explicit frame confirmations retain recording dependencies. Legacy rows migrate conservatively.
+No extra inference, service or summarization layer is involved. Inspection and reference-image
+comparison use strict object response schemas; rejected paired-scene experiments are not runtime.
+
+Ordinary inspection now returns scene context and physical/depicted/absent/uncertain presence
+from one Flash-Lite call, normalized to the existing visibility response. Reference-image
+comparison retains its earlier task/schema and one call. They are different visual tasks in the
+same verifier, not a second judge. After explicit historical recall, both adapters scope automatic
+background memory to its cutoff before continuing generation. Memory receipts/history are preserved.
+
+This supersedes the historical household pipeline below. `agent_policy.py` contains the short
+shared personality/behavior policy; `agent_tools.py` defines native lookup, shown-object and
+memory-recall tools for voice and text. `agent.py` executes bounded native calls for the API;
+LiveKit executes the same tool bodies for speech. No typed JSON planner remains.
+
+`personal_memory.py` processes each owned user input before conversational generation. It
+retrieves related memories, asks Luna for source-linked operations/relevant records, validates
+quotes and relationships, then writes atomically to conversations.sqlite3. Facts/preferences,
+reports, events and plans use the same mechanism. Ordinary moves append; explicit corrections
+and retractions preserve historical versions. Visual acquisition is requested only when needed:
+one short Flash-Lite reference task, followed by completing the memory interpretation. No extra
+AI judges. Existing statement tables/photos/vectors are copied losslessly and remain untouched.
+
+Typed calls receive structured memory context directly. Voice awaits the committed question
+and existing authenticated tool transport before reading context from shared SQLite. Preemptive
+generation is disabled to avoid persisting partial speech. Source validity is rechecked for
+continuations; source/provider/write failures preserve the original input and cannot claim a save.
+Generic visual inspection remains separate from memory interpretation and recording/indexing.
+
+Proactive departure observation/scheduling is removed. Preserved UI polling returns inactive
+status and empty deliveries; retired mutations return410. Existing reminder databases are not
+modified. See the [approved design](superpowers/specs/2026-11-17-simple-agent-memory-design.md).
+
+
+Reference checks are shared within an exact owned turn/window using bounded pixel/clock keys;
+changed inputs/new turns cannot reuse them. User source availability and freshness are rechecked
+before/after inference and on reuse. Clarification remains clarification. Sightings carry
+`identity_verified=false`; explicit user confirmation alone carries true. Tool summaries preserve
+these caveats and generic people/hands; they never manufacture listener ownership. The shared
+conversational policy is95 words atpolicy8. SeeR30 for the still-failing visual acceptance gates.
+
+## Household reference and report pipeline — 2026-11-16
+
+The planner receives validated turn-window availability/count separately from current-view
+availability; an earlier demonstrated object is usable without a fresh current snapshot.
+Default `NYX_HOUSEHOLD_REFERENCE_POLICY=joint` retains the merged claim/identity decision and its
+validators. An independent unique-referent check can withhold visual associations before embedding
+or persistence, without anchoring on the primary answer. It cannot fill a refused placement claim.
+This adds bounded inference cost/latency and can withhold valid but cluttered demonstrations.
+
+The opt-in `separated` policy extracts claim kind and exact destination from text, resolves visual
+identity independently and requires that same uniqueness check. Its bounded cache reuses checked
+identity only inside the identical owned utterance window: transcript, context/frame clocks and
+pixel hashes must match. A new turn/window or later identity refusal invalidates it. Claim extraction
+still runs separately. This pipeline improved positive controls but saved an ambiguous two-phone
+report; it is not the default and does not pass household acceptance. Existing links are not
+silently reverified or backfilled. Provider/protocol errors preserve original transcripts.
+
+Stored claim/checker metadata distinguish the user's words from image support; a destination is
+never proof of physical placement. Correction edges, timestamps and restart-independent statement
+retrieval retain their contracts. Empty report recall is uncertain. Successful reference/report
+completion returns the report answer rather than internal handoff instructions. See
+[R29](research/R29-household-experience.md) for misses, rejected default promotion and corpus limits.
+
 ## Decoded import preservation and explicit retry — 2026-11-16
 
 A decoded import survives embedding/index failure; failed frames remain excluded. Startup marks

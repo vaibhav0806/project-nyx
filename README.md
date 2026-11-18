@@ -36,7 +36,10 @@ Nyx puts help within reach through a simple conversation. It is designed around 
 | **Talk in English or Hindi** — receive a reply in the detected speech language. | “Hey Nyx, what's up?” |
 | **Check the source** — inspect the supporting image and replay the recorded moment. | Select **View source**. |
 
-Nyx also includes an experimental next-departure reminder: “Remind me to take my bottle when I leave.” Event detection can miss or misread a departure; this is separate from a scheduled alarm.
+The current engineering branch focuses on general memory and recall: facts, preferences, reports and plans remain source-linked. Proactive departure reminders are retired; household and acoustic acceptance testing remains open.
+User statements and assistant evidence have separate source availability: deleting a lookup video
+withholds answers derived from it while preserving unrelated user memories. Current measured
+results and remaining visual failures are recorded in [R30](docs/research/R30-simple-agent-memory.md).
 
 ## The experience
 
@@ -112,6 +115,9 @@ cd project-nyx
 uv sync --python 3.12 --managed-python --extra web --extra voice --extra vision
 ```
 
+The `web` extra includes the shared native-tool SDK. Speech plugins and local wake recognition
+remain in `voice`; the typed agent also works with a web-only installation.
+
 Cache the pinned local wake-recognition model once:
 
 ```bash
@@ -160,13 +166,14 @@ The data directory holds saved recordings, indexes, and transcripts across resta
 
 LiveKit manages conversational turns, interruptions, streaming speech, and playback-paced text. No separate LiveKit room server or LiveKit account is required for this configuration. Speech/text alignment is estimated rather than exact word timing.
 
-Spoken turns and tool selection use Gemini 3.5 Flash (`NYX_VOICE_MODEL`); the typed planner uses GPT-6 Luna.
-
-Object checks inherit the Lite vision model. Backend-only `NYX_OBJECT_VISION_MODEL` can override
-that role; `NYX_VISUAL_SCENE_POLICY=1` and `NYX_VISUAL_CONFIRMATION=1` enable experimental scene
-and positive-confirmation checks. These remain opt-in after mixed broader results; see
-[visual evaluation](docs/research/R25-funded-visual.md). Wake experiments also retained the current
-recognizer after rejected regressions ([findings](docs/research/R24-wake-detector.md)).
+Voice and text share the same short policy, native tools and GPT-6 Luna model
+(`NYX_AGENT_MODEL`). The memory component automatically interprets useful user information,
+retains exact quotes and history, and owns corrections. Gemini 3.5 Flash-Lite
+(`NYX_VISION_MODEL`) performs object inspection and shown-object resolution. Embeddings remain
+Gemini Embedding 2. There are no extra ambiguity/correction/positive-confirmation judges or
+alternate reference policies. Recognition quality is being evaluated on the simplified path;
+previous [R29 findings](docs/research/R29-household-experience.md) describe the retired pipeline.
+Wake behavior remains unchanged ([findings](docs/research/R24-wake-detector.md)).
 
 See the [architecture](docs/architecture.md) for the pipeline and [decisions](docs/decisions.md) for why it is built this way.
 

@@ -1,0 +1,6 @@
+{"version":1,"cases":[
+{"id":"fresh-clear-object","split":"development","sources":[142620],"kind":"reported_placement","messages":["I left this in the hallway cupboard."],"query":"Where did I say I left this?","expected_report":0},
+{"id":"fresh-ambiguous-remotes","split":"development","sources":[75612,96493],"kind":null,"messages":["I left this on the bedroom shelf."],"query":"Where did I say I left this?","expected_report":null},
+{"id":"fresh-clear-phone","split":"holdout","sources":[194724],"kind":"reported_placement","messages":["I put this in the living room cabinet."],"query":"Where did I say I put this?","expected_report":0},
+{"id":"fresh-ambiguous-devices","split":"holdout","sources":[222299,229358],"kind":null,"messages":["I put this in the kitchen cupboard."],"query":"Where did I say I put this?","expected_report":null}
+]}

@@ -1,5 +1,120 @@
 # Decisions and open choices
 
+## Bound visible conversation text by layout — 2026-11-18
+
+User approved the Paper hybrid: retain complete text while showing the latest two user
+lines and a naturally sized, scrollable Nyx reply capped at350px/available height. Center
+the group between header and controls. Use rendered height rather than character limits
+so English/Hindi wrapping and narrow screens share the same rule. Preserve manual
+scrollback during streaming and reset on new turns. This supersedes top-anchored replies.
+
+## Stabilize provisional captions and separate audio backlog — 2026-11-18
+
+Keep finalized transcript segments separate from a locally stabilized interim preview. Consecutive
+hypothesis agreement controls display only; provider finals own input/agent/memory. Track audio and
+control WebSocket bytes separately, preserving the audio budget without treating camera images as
+stalled microphone data. Recognition remains Sarvam auto with explicit en/hi label/script admission
+and repeat notice on unsupported finals; its prompt is not a bilingual decoder lock. No provider,
+layout or timeout change. See [R38](research/R38-voice-transcript-boundaries.md).
+
+## SQLite-native personal memory and independent reads — 2026-11-18
+
+User approved additive linked vec0 storage using existing vectors; Python no longer ranks the
+personal-memory corpus. Preserve source/correction/as-of eligibility and optional relevance
+selection. Validate retrieved records/dependencies off the voice event loop, not the entire archive.
+Recall reads committed state without waiting for the background writer; writes remain ordered.
+One continuous conversation provides recent context. Unresolved background saves stay internal,
+preserving raw input without guessing or delayed clarification questions. No new model/service,
+UI, paid inference or immediate read-after-write guarantee. See [R36](research/R36-personal-vector-retrieval.md).
+
+## Supply optional saved memories before spoken generation — 2026-11-18
+
+User approved up to five early candidates alongside image preparation, retaining native lookup.
+Use the existing memory store/encoder without an extra selection LLM, bounded independent reads
+and a250ms prefetch wait budget. Distinguish already-saved records from current-input saving.
+Keep source/correction/as-of validation and background write ordering. Main Luna6 medium effort
+improved the bounded replay's use of supplied memory; memory interpretation stays low. Shared
+policy93 words, attribution once and useful leads first. Further tools remain available; one
+confirmation outlier still chose visual search. No hard router or universal speed claim. SeeR35.
+
+## Respond from owned images; process completed speech memory in background — 2026-11-18
+
+User approved retaining Luna6 and moving expensive preparation off the spoken reply path.
+Completed-turn ownership stays in LiveKit's hook; raw final STT requests selected frames before
+delayed processing. An app-owned ordered worker handles memory independently of reply cancellation,
+and memory recall waits for pending writes. Foreground generation sees timestamped images and
+pending/saved status, without claiming unfinished persistence. Normal shutdown drains tasks.
+No new service, model migration, UI layout or main change. The97-word shared policy distinguishes
+untimed later recall from scheduled delivery. Typed preparation remains synchronous.
+See [R34](research/R34-fast-visual-voice.md) for evidence, rejected replies and remaining trial gates.
+
+## Let LiveKit own completed spoken turns — 2026-11-17
+
+Create owned spoken input and prepare memory in `on_user_turn_completed`, not on each final STT
+segment or inside interruptible reply generation. The actual-SDK regression reproduces the old
+ownership race and verifies preservation of a plan plus a follow-up reply. Audio-gate expiry is
+a separate transport repair, applied after the user authorized the narrow `voice.js` exception.
+Use SDK user/agent activity to keep an activated stream open; retain idle timeout and cancellation
+boundaries. No prompt, model or TypeScript migration. See [R31](research/R31-voice-turn-lifecycle.md).
+
+## Simplify shared agent and general memory — 2026-11-17
+
+Keep user input separate from assistant evidence in storage. A lookup deletion must invalidate
+answers derived from it across followups without invalidating an unrelated fact the user said.
+Persist bounded context links and resolve source availability in SQLite; do not add an AI judge
+or make the conversational prompt responsible for provenance. Legacy input dependencies migrate
+conservatively. Strict visual response schemas repair protocol errors; malformed output remains
+uncertain. Reject the combined scene/appearance rewrite after appearance-control regressions, despite
+better screen/photo scores. See [R30](research/R30-simple-agent-memory.md).
+
+Apply an explicit historical recall cutoff to prepared background records as well as the
+lookup result; do not add another interpretation call. Adopt scene context/presence for ordinary
+single-image inspection only after source-separated tests and full public-history replay. Preserve
+the existing reference-image comparison task exactly; the combined scene/appearance rewrite is
+still rejected. The new shorter reference experiment also fails the phone ambiguity case and
+stays out of runtime. Fresh confirmation rejects the Luna-reference migration: Lite 5/5 versus
+Luna 4/5. Keep the selected model roles and withdraw the earlier split proposal. See R30 for
+gains, the new category-proxy error and remaining acceptance gates.
+
+The user's approved [design](superpowers/specs/2026-11-17-simple-agent-memory-design.md)
+supersedes the joint/separated household policy below. Voice/text now share a short policy,
+native tool definitions and Luna. Automatic source-linked general memory owns matching,
+append/correction/retraction operations and relevant context; Flash-Lite owns visual tasks.
+Removed the JSON planner, duplicate reference modes and extra ambiguity/correction/positive
+judges. Departure tools, observer and scheduling are retired; persisted reminder data is untouched.
+Existing statement data imports losslessly into additive memory tables without reembedding.
+
+This is an authorized architectural simplification, not a measured claim of improved household
+accuracy. Deterministic checks pass; general memory and native report replies improve, but default visual identity,
+physical/depiction separation and Hindi identity caveats fail measured gates. Keep these explicit
+([R30](research/R30-simple-agent-memory.md)); no automatic model promotion. The verified
+provider ceiling is $8 cumulative, with sequential per-run caps ≤$0.25 and $0.10 settlement
+headroom. Main, UI, original recordings, embeddings and Sarvam remain unchanged.
+
+
+Later full-path testing found a legacy evidence-summary rewrite dropping caveats and inventing
+“your” ownership. Remove it, preserve source uncertainty/people/time, and expose explicit
+identity-verification metadata. Reuse exactly owned visual checks to avoid duplicate inference;
+never reuse across changed frames/clocks or unavailable sources. Prompt/model candidates that
+fail hard identity/depiction gates stay experimental; no automatic model substitution.
+
+
+## Separate household claims from visual identity — 2026-11-16
+
+Keep a placement statement distinct from visual proof of an action. The separated claim/identity
+pipeline improved positive workflows but saved a report against an ambiguous two-phone target
+where matched main refused. Reject default promotion: retain it only with backend
+`NYX_HOUSEHOLD_REFERENCE_POLICY=separated`. Its exact-owned-window identity handoff avoids duplicate
+recognition but cannot repair an already wrong identity.
+
+Default `joint` keeps the merged primary schema/prompt and placement decision; add the independent,
+unanchored unique-referent check only as a veto. A joint refusal cannot be promoted by this check,
+text extraction or cached identity. Explicit named reports stay text-supported. Empty recall is
+uncertain, a reference is not a location, and internal tool instructions are not an answer.
+Malformed checks/outages preserve transcripts without partial links. Extra calls and false
+clarifications remain costs. See [R29](research/R29-household-experience.md) for all failed trials
+and why a higher small-corpus score is insufficient for household/acoustic acceptance.
+
 ## Preserve decoded imports on indexing failure — 2026-11-16
 
 Do not remove a successfully decoded saved video because embeddings or persistence failed.

@@ -42,18 +42,6 @@ def local_now(timezone=None):
         ) from None
 
 
-def clock_reply(text, now):
-    text = wake_command(text) if wake_command(text) is not None else text
-    if re.fullmatch(
-        r"(?:please[ ,]+)?(?:what(?:'s| is) the (?:current )?time|what time is it|tell me (?:the )?time)"
-        r"(?:\s+(?:right now|now))?(?:[ ,]+(?:please|nyx|ma'am|mam))?[?.! ]*",
-        text.strip(),
-        re.IGNORECASE,
-    ):
-        return f"It's {now.strftime('%I:%M %p').lstrip('0').lower()}."
-    return None
-
-
 def relative_time(value, now=None):
     if not value:
         return None
@@ -81,18 +69,9 @@ def relative_time(value, now=None):
     return "about a day ago" if days == 1 else f"about {days} days ago"
 
 
-def personal_wording(text):
-    text = re.sub(r"\bthe (?:user|person)['’]s\b", "your", text, flags=re.IGNORECASE)
-    return re.sub(r"\bthe (?:user|person)\b", "you", text, flags=re.IGNORECASE)
-
-
 def spoken_location(location):
     if not location:
         return ""
-    location = personal_wording(location)
-    location = re.sub(
-        r"\bthe ((?:right |left )?hands?)\b", r"your \1", location, flags=re.IGNORECASE
-    )
     location = re.sub(
         r"\b(?:near|at|in|on|towards?)\s+(?:the\s+)?"
         r"(?:(?:upper|lower|top|bottom|left|right|middle|center|centre)\s*)+"
@@ -112,7 +91,7 @@ def spoken_location(location):
 
 def spoken_answer(result, *, now=None):
     kind = result.get("kind")
-    query = personal_wording(result.get("object_query", "that object"))
+    query = result.get("object_query", "that object")
     if result.get("status") == "confirmed":
         return result["answer"]
     if result.get("status") == "clarify":
@@ -120,30 +99,20 @@ def spoken_answer(result, *, now=None):
     if kind == "snapshot":
         if result.get("status") == "seen":
             location = spoken_location(result["judgment"].get("location"))
-            return f"I can see {query}{' ' + location if location else ''}."
+            return f"I can see {query}{' ' + location if location else ''}. Its identity is unconfirmed."
         return f"I can't clearly see {query} in this view."
     if kind == "history":
         evidence = result.get("evidence")
         if evidence:
             when = relative_time(evidence.get("observed_at"), now)
-            noun = (
-                query
-                if re.match(r"^(?:a|an|the|you|your|that|those|someone)\b", query, re.IGNORECASE)
-                else f"your {query}"
-            )
             location = spoken_location(evidence.get("judgment", {}).get("location"))
-            if query.lower().startswith("you ") and location.lower() == "in front of you":
-                location = ""
             place = f", {location.rstrip('.')}" if location else ""
             answer = (
-                f"I think I saw {noun} {when}{place}."
+                f"A possible visual match {when}{place}."
                 if when
-                else (f"I think I saw {noun}{place}, but I don't know when that was.")
+                else (f"A possible visual match{place}, but I don't know when that was.")
             )
-            statements = result.get("spoken_context") or []
-            if statements:
-                answer += " " + " ".join(f"You said, “{row['text']}”" for row in statements)
-            return answer
+            return answer + " Its identity and current location are unconfirmed."
         return f"I haven't found {query} yet. I can look further back."
     return result["answer"]
 
@@ -261,6 +230,17 @@ class Conversations:
             db.execute("""CREATE TABLE IF NOT EXISTS turns
                 (id TEXT PRIMARY KEY, at TEXT, transcript TEXT, plan TEXT, answer TEXT,
                 sources TEXT, sources_available INTEGER DEFAULT 1, status TEXT)""")
+            columns = {row[1] for row in db.execute("PRAGMA table_info(turns)")}
+            if "input_sources" not in columns:
+                db.execute("ALTER TABLE turns ADD COLUMN input_sources TEXT DEFAULT '[]'")
+                db.execute("ALTER TABLE turns ADD COLUMN input_available INTEGER DEFAULT 1")
+                # Old rows did not distinguish user input from assistant evidence. Preserve
+                # their existing, conservative source dependencies during the migration.
+                db.execute(
+                    "UPDATE turns SET input_sources=sources,input_available=sources_available"
+                )
+            if "context_turns" not in columns:
+                db.execute("ALTER TABLE turns ADD COLUMN context_turns TEXT DEFAULT '[]'")
             if recover_pending:
                 db.execute("UPDATE turns SET status='interrupted' WHERE status='pending'")
             db.execute("""CREATE TABLE IF NOT EXISTS diagnostics
@@ -291,11 +271,11 @@ class Conversations:
             ).fetchall()
         return [{**dict(row), "details": json.loads(row["details"])} for row in reversed(rows)]
 
-    def begin(self, transcript, plan, identifier=None):
+    def begin(self, transcript, plan, identifier=None, *, input_sources=()):
         identifier = identifier or uuid.uuid4().hex
         with self.connect() as db:
             db.execute(
-                "INSERT INTO turns VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT INTO turns(id,at,transcript,plan,answer,sources,sources_available,status,input_sources,input_available,context_turns) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     identifier,
                     datetime.now(UTC).isoformat(),
@@ -305,30 +285,61 @@ class Conversations:
                     "[]",
                     1,
                     "pending",
+                    json.dumps(list(input_sources)),
+                    1,
+                    "[]",
                 ),
             )
         return identifier
 
     def finish(self, identifier, answer=None, sources=(), status="complete"):
         with self.connect() as db:
+            row = db.execute("SELECT sources FROM turns WHERE id=?", (identifier,)).fetchone()
+            if not row:
+                raise ValueError("Conversation turn is unavailable")
+            dependencies = list(dict.fromkeys([*json.loads(row[0]), *sources]))
             db.execute(
                 "UPDATE turns SET answer=?, sources=?, status=? WHERE id=?",
-                (answer, json.dumps(list(sources)), status, identifier),
+                (answer, json.dumps(dependencies), status, identifier),
             )
 
-    def update_plan(self, identifier, plan):
+    def update_plan(self, identifier, plan, *, sources=()):
         with self.connect() as db:
-            db.execute("UPDATE turns SET plan=? WHERE id=?", (json.dumps(plan), identifier))
+            row = db.execute("SELECT sources FROM turns WHERE id=?", (identifier,)).fetchone()
+            if not row:
+                raise ValueError("Conversation turn is unavailable")
+            dependencies = sorted(set(json.loads(row[0])) | set(sources))
+            db.execute(
+                "UPDATE turns SET plan=?,sources=? WHERE id=?",
+                (json.dumps(plan), json.dumps(dependencies), identifier),
+            )
+
+    def tool_result(self, identifier, action):
+        """Read the server-owned action result after the existing browser transport completes."""
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT plan,sources_available,status FROM turns WHERE id=?", (identifier,)
+            ).fetchone()
+        if not row or not self.source_availability([identifier]).get(identifier):
+            raise ValueError("Tool evidence is no longer available")
+        saved = json.loads(row["plan"]).get("last_tool", {})
+        if saved.get("action") != action or not isinstance(saved.get("result"), dict):
+            raise ValueError("Tool result does not match the owned request")
+        return saved["result"]
 
     def recent(self):
         with self.connect() as db:
             rows = db.execute("SELECT * FROM turns ORDER BY rowid DESC LIMIT 20").fetchall()
+        available = self.source_availability(row["id"] for row in rows)
         return [
             {
                 **dict(row),
                 "plan": json.loads(row["plan"]),
                 "sources": json.loads(row["sources"]),
-                "sources_available": bool(row["sources_available"]),
+                "sources_available": available[row["id"]],
+                "input_available": bool(row["input_available"]),
+                "input_sources": json.loads(row["input_sources"]),
+                "context_turns": json.loads(row["context_turns"]),
             }
             for row in reversed(rows)
         ]
@@ -340,35 +351,78 @@ class Conversations:
                 (SELECT turns.id FROM turns, json_each(turns.sources) WHERE json_each.value=?)""",
                 (source,),
             )
+            db.execute(
+                """UPDATE turns SET input_available=0 WHERE id IN
+                (SELECT turns.id FROM turns, json_each(turns.input_sources) WHERE json_each.value=?)
+                OR ?='transcript:' || id""",
+                (source, source),
+            )
 
-    def source_availability(self, identifiers):
+    def attach_context(self, identifier, context):
+        """Record the bounded context actually supplied, without copying its whole ancestry."""
+        with self.connect() as db:
+            row = db.execute("SELECT context_turns FROM turns WHERE id=?", (identifier,)).fetchone()
+            if not row:
+                raise ValueError("Conversation turn is unavailable")
+            dependencies = {edge["id"]: edge["answer"] for edge in json.loads(row[0])}
+            for turn in context:
+                if turn.get("id") != identifier and turn.get(
+                    "input_available", turn.get("sources_available", True)
+                ):
+                    dependencies[turn["id"]] = bool(
+                        dependencies.get(turn["id"]) or turn.get("sources_available", True)
+                    )
+            db.execute(
+                "UPDATE turns SET context_turns=? WHERE id=?",
+                (
+                    json.dumps(
+                        [{"id": key, "answer": value} for key, value in dependencies.items()]
+                    ),
+                    identifier,
+                ),
+            )
+
+    def source_availability(self, identifiers, *, input_only=False):
         identifiers = list(dict.fromkeys(identifiers))[-48:]
         if not identifiers:
             return {}
         with self.connect() as db:
             rows = db.execute(
-                "SELECT id,sources_available,status FROM turns WHERE id IN ("
-                + ",".join("?" for _ in identifiers)
-                + ")",
-                identifiers,
+                """WITH RECURSIVE dependencies(root,id,answer) AS (
+                    SELECT value,value,? FROM json_each(?)
+                    UNION
+                    SELECT dependencies.root,json_extract(edge.value,'$.id'),
+                           json_extract(edge.value,'$.answer')
+                    FROM dependencies JOIN turns ON turns.id=dependencies.id,
+                         json_each(turns.context_turns) AS edge
+                    WHERE dependencies.answer=1
+                ) SELECT dependencies.root,dependencies.answer,turns.id,turns.at,
+                         turns.input_available,turns.sources_available,turns.status
+                  FROM dependencies LEFT JOIN turns ON turns.id=dependencies.id""",
+                (int(not input_only), json.dumps(identifiers)),
             ).fetchall()
-        available = {identifier: False for identifier in identifiers}
-        available.update(
-            {
-                row["id"]: bool(
-                    row["sources_available"] and row["status"] in {"complete", "pending"}
-                )
-                for row in rows
-            }
-        )
+        available = {identifier: True for identifier in identifiers}
+        from nyx.memory import aware_time
+
+        for row in rows:
+            try:
+                valid_clock = not row["at"] or aware_time(row["at"]) <= datetime.now(UTC)
+            except (ValueError, TypeError):
+                valid_clock = False
+            available[row["root"]] &= bool(
+                row["id"]
+                and row["input_available"]
+                and valid_clock
+                and (not row["answer"] or row["sources_available"])
+                and (not row["answer"] or row["status"] in {"complete", "pending"})
+            )
         return available
 
 
 class Voice:
-    def __init__(self, root, provider, recognizer=None, *, agent_mode=False):
+    def __init__(self, root, provider, recognizer=None):
         self.provider = provider
         self.recognizer = recognizer
-        self.agent_mode = agent_mode
         self.root = Path(root)
         self.conversations = Conversations(root)
         self.lock = Lock()

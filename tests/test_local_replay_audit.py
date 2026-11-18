@@ -35,3 +35,47 @@ def test_audit_uses_copy_and_preserves_original_database_and_media(tmp_path, vid
     assert result["media"][0]["bytes_preserved"]
     assert result["context"]["invalidated_claim_withheld"]
     assert all(digest(path) == value for path, value in before.items())
+
+
+def test_actual_memory_conversion_is_offline_lossless_and_only_touches_copy(tmp_path):
+    import json
+
+    from test_personal_memory import Encoder
+
+    from nyx.voice import Conversations
+
+    root = tmp_path / "private-library"
+    conversations = Conversations(root)
+    turn = conversations.begin("Private fixture statement", {})
+    with conversations.connect() as db:
+        db.execute(
+            "CREATE TABLE statements(turn_id TEXT PRIMARY KEY, object_description TEXT, kind TEXT, captured_at TEXT, image BLOB, embedding BLOB, encoder TEXT, resolver TEXT)"
+        )
+        db.execute(
+            "INSERT INTO statements VALUES (?,?,?,?,?,?,?,?)",
+            (
+                turn,
+                "object",
+                "reported_placement",
+                None,
+                b"private-photo",
+                Encoder().encode_text("").tobytes(),
+                json.dumps(Encoder.fingerprint),
+                "{}",
+            ),
+        )
+    before = digest(root / "conversations.sqlite3")
+    output = tmp_path / "audit"
+    output.mkdir()
+    result = module.memory_conversion(root, output)
+    assert result == {
+        "status": "complete",
+        "original_statement_count": 1,
+        "memory_count": 1,
+        "vectors_and_photos_preserved": True,
+        "legacy_rows_unchanged": True,
+        "original_database_unchanged": True,
+        "inference_requests": 0,
+    }
+    assert "private-photo" not in json.dumps(result) and "Private fixture" not in json.dumps(result)
+    assert digest(root / "conversations.sqlite3") == before

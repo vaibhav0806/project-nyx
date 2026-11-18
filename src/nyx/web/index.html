@@ -20,10 +20,13 @@
   </header>
   <main class="conversation">
     <section class="conversation-stage" aria-label="Conversation">
-      <p id="conversation-question" class="question" hidden></p>
-      <div id="conversation-answer" aria-live="polite"><h1>What would you like to know?</h1></div>
-      <p id="conversation-hint">Say “Hey Nyx” or tap the microphone.</p>
-      <button id="view-source" class="quiet-button" hidden>View source <span aria-hidden="true">›</span></button>
+      <div class="conversation-content">
+        <p id="conversation-question" class="question" hidden></p>
+        <div id="conversation-answer" aria-live="polite" tabindex="0"><h1>What would you like to know?</h1></div>
+        <button id="reply-scroll" class="quiet-button" hidden>Scroll to read the rest ↓</button>
+        <p id="conversation-hint">Say “Hey Nyx” or tap the microphone.</p>
+        <button id="view-source" class="quiet-button" hidden>View source <span aria-hidden="true">›</span></button>
+      </div>
     </section>
     <section class="conversation-dock" aria-label="Voice controls">
       <div class="conversation-state"><span class="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span id="conversation-state" role="status">Getting ready…</span></div>

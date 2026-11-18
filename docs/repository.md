@@ -1,5 +1,32 @@
 # Repository structure
 
+`memory_vectors.py` owns SQLite-native personal-memory KNN, additive backfill and write-through
+index entries; `personal_memory.py` retains interpretation and candidate/dependency validation.
+
+`background_memory.py` owns the bounded app-lifetime voice memory worker and recall barrier.
+`realtime.py` owns canonical spoken input, raw-final frame requests and generation-only images;
+the narrow `voice.js` transport retains those selected windows. SeeR34 for the2026-11-18 update.
+
+## Shared agent and memory ownership — 2026-11-17
+
+Current ownership supersedes the historical inventory below: `agent_policy.py` (short policy,
+model roles), `agent_tools.py` (shared SDK native tools), `agent.py` (bounded typed execution),
+`realtime.py` (speech adapter), `personal_memory.py` (general memory interpretation/retrieval,
+source validation and transactional persistence), `reference.py` (one visual reference task).
+`verification.py` contains Luna/Flash-Lite transports, one-call ordinary scene inspection and
+reference-image comparison with distinct evidence schemas; `context.py` now
+only owns bounded playback. `statements.py`, `intentions.py` and `observation.py` are removed.
+`voice.py` still owns authoritative transcripts and source availability. Memory tables share the
+existing conversations database; original statement/reminder data remains intact. No new service.
+It separates user-input dependencies from assistant evidence and persists bounded context links;
+`conversation_context.py` projects those states for both providers without changing durable text.
+
+Current experiment entry points and retired-driver provenance are listed in
+[the experiment migration note](../experiments/companion/retired-2026-11-17.md). JSON datasets and
+research findings remain; old results are not current-path acceptance. Private outputs stay ignored.
+
+
+Historical ownership before the2026-11-17 migration:
 `conversation_context.py` owns bounded source-aware provider context copies and whole-exchange
 LiveKit context selection. It does not own persistence or generate memory summaries. `voice.py`
 retains authoritative transcripts/source flags; `statements.py` owns durable retrieval. The R19

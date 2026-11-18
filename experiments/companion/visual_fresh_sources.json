@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "frozen_on": "2026-11-17",
+  "selection": "First eligible unused CC-BY COCO val2017 sources by image ID, categories 75/77/44/47; every target bbox covers 0.4%-60% of image, one target or 2-4 targets. Two single/two multiple targets in each split, then one annotated-absent category per image. Exclude all IDs in existing public evaluation manifests. Selected before image inference; no runtime rules depend on these IDs.",
+  "images": [
+    {"id":157046,"category":75,"split":"development"},
+    {"id":430286,"category":75,"split":"holdout"},
+    {"id":537991,"category":77,"split":"development"},
+    {"id":42528,"category":77,"split":"holdout"},
+    {"id":146489,"category":44,"split":"development"},
+    {"id":64084,"category":44,"split":"holdout"},
+    {"id":35682,"category":47,"split":"development"},
+    {"id":157601,"category":47,"split":"holdout"}
+  ]
+}

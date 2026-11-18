@@ -1,5 +1,260 @@
 # Working on Nyx
 
+## Voice boundary repair activated — 2026-11-18
+
+User paused/closed the page; capture confirmed interrupted before normal shutdown. Service8001
+restarted on5e1a943, PID55945/session74103, original household root. HTTP200 and exact served
+voice.js/companion.js verified. All8 memory rows match the pre-restart digest;696 ready clips
+remain. No hardware activation or developer inference. Reload before the next manual trial;
+new acoustic recognition/preview acceptance remains pending. Logs append to
+data/runs/manual-smoke-2026-11-18/server.log. This supersedes the pending-activation note below.
+
+## Voice boundary repair awaiting safe activation — 2026-11-18
+
+User reported slow-connection disconnect, unsupported-script transcript and continued volatile
+speech preview. Reproduced camera-image traffic triggering the96k audio-only guard; new FIFO
+accounting distinguishes audio/control backlog. Preview now separates committed segments from
+consecutive-hypothesis whole-word agreement; provider final owns durable input and may correct
+the preview once. STT remains Sarvam auto (no documented bilingual allowlist); application accepts
+en/hi labels and Latin/Devanagari letters, rejects unsupported finals with repeat notice rather
+than inventing/stripping text. Guard is not measured acoustic recognition improvement.
+512 tests34.23s,26 Chrome checks and lint/format/syntax pass. R38 records references/proof/limits.
+Capture was still recording at inspection; do not restart PID27002/session36071 until user
+pauses/stops capture or closes the tab. Browser hard refresh alone cannot activate new backend
+metadata/gating. No provider inference/hardware/private upload, main/layout/timeouts change.
+
+## Streaming text exception and manual trial — 2026-11-18
+
+User authorized narrow live-text display repair in companion.js/voice.js, superseding the web
+ban only for this behavior. Stable rendered/text nodes replace full HTML/transcript remounts;
+Markdown, real STT corrections, layout/styles and playback timing remain.14 actual-Chrome synthetic
+checks and67 nearby API tests pass. R37 records primary framework references and limits.
+User trial: no error/failed diagnostic events; phone plan recalled2411ms after transcript,
+bedroom-shelf correction saved3603ms. Other playback samples reach7112ms; no universal speed claim.
+Cloud follow-up timeout remains10s, initial activation30s; continuous video has no idle timeout.
+Capture currently paused by user. Service8001 PID27002/session36071 uses original household data
+on the new backend; static display changes require a hard refresh. No service restart/hardware
+activation/private upload/paid developer inference for this repair. Main and other UI stay intact.
+
+## Personal vector retrieval verification — 2026-11-18
+
+User approved linked sqlite-vec storage, ordered best-effort quiet background saving and recall
+without a writer barrier. One continuous chat supplies recent context; immediate read-after-write
+consistency is not a requirement. Implemented additive fingerprint-specific vec0 backfill/write-through,
+candidate/dependency validation off-loop and native SQL recency resolution for equidistant KNN
+boundaries. Existing vectors/records/media retained.506 tests34.07s, Ruff/format pass. R36 documents
+offline original phone-trial parity (three prior memories, kitchen-shelf plan),3.06ms preparation,
+10k/768D retrieval180.45ms baseline versus106.90ms, selected revalidation0.30ms. No1k speed gain,
+new model/speech evaluation, paid inference, hardware, private upload or source/main/UI edit.
+Live services were not restarted and may still serve the preceding build. Raw private results stay
+ignored. Final review is inline self-review, not independent PR review; no PR or push in this pass.
+
+## Early context verification — 2026-11-18
+
+Implemented optional <=5 saved records before first spoken generation, overlapping image
+preparation with250ms lookup wait budget. Native further recall/visual lookup remain. Source,
+correction/as-of validation and ordered background saving remain. SQL no longer reads photo BLOBs
+for retrieval. Shared policy93 words/version10; main Luna6 medium effort, memory low/vision Lite
+unchanged.498 tests31.63s and18 JS checks pass. R35 records actual replay:5/6 medium recall runs
+direct, latest2/3 with one10.61s visual-search outlier. Do not claim universal fast recall or
+complete visual/acoustic acceptance. No more developer inference at this checkpoint.
+Final key usage$6.72334125/$8; remaining$1.27665875. Observer-reported pass total$0.09137575 is a
+conservative duplicated upper figure, not exact invoice. Raw private replay/failed runs stay ignored.
+Fresh data/early-memory-check-2026-11-18 retains4 memories and32 markers; old dialogue/recall
+answers excluded from recent context. Do not confuse it with the original household directory.
+Services refreshed after confirming no active recording:8001 PID73619/session6699 uses the
+original household directory (capture interrupted);8002 PID73620/session86359 uses the fresh
+early-memory copy (capture inactive). HTTP200 and exact served transport verified. All574 old
+source-file hashes and saved memory rows still match; older isolated source directory preserved.
+User must reload before testing; no developer hardware activation. Main remains unchanged.
+
+## Early memory context authorization — 2026-11-18
+
+User approved early optional candidates retrieved in parallel with image preparation, retaining
+further native recall, and the short answer-first prompt edit. They explicitly requested replaying
+their recent real phone-recall trial to verify the desired response. Use the existing memory
+system/Luna6, source-separated saved evidence, bounded paid replay and ignored private artifacts.
+No UI/main/source edits, hardware activation or interruption of active capture. Regular branch
+commits. See the early-memory-context plan; no new service or AI selection judge is needed.
+
+## Latest user memory-test handoff — 2026-11-18
+
+Real next trial: playback2778ms after accepted transcript; background save4654ms, new location plan
+persisted. Total3 memories. Unwanted notification caveat still appeared in the restored-context
+reply; do not claim wording fully fixed. R34 records this limitation and measured improvement.
+For genuine recall,8002 now uses data/memory-only-check-2026-11-18-latest, PID64933/session98307.
+This fresh copy retains3 memories/source rows plus32 synthetic markers; originals absent from
+recent20/model12/memory6 context. No private cloud query or hardware activation by developer.
+8001 remains untouched and capture was recording at inspection. User should close its tab before
+the isolated trial, turn8002 camera off and ask where they said they planned to keep the item.
+Expected answer refers to the latest reported shelf plan, not a verified current location.
+
+## Fast voice handoff — 2026-11-18
+
+Implemented Luna6 image-grounded replies plus app-owned ordered background memory. Raw-final
+frames precede canonical processing; recall waits for pending saves, interruption does not cancel
+completed input. Shared policy97 words/version9.493 tests31.97s and18 browser checks pass;
+R34 records real-provider first PCM4.07s/3.09s, rejected wording and remaining household/acoustic
+gates. Typed preparation stays synchronous. Do not claim complete household/p95 acceptance.
+Final cumulative key usage$6.601774225/$8; stop developer inference here.
+User-authorized cleanup removed only20 unrelated latest clips,16,830,988 bytes. All556 retained
+original hashes, selected trial evidence and saved conversation/memory rows are unchanged.
+Normal shutdown drains memory work; abrupt-crash inference replay remains unimplemented.
+Both idle services restarted on the verified build:8001 PID64051/session77031 uses the original
+household directory;8002 PID64052/session48486 uses the isolated old-memory copy. HTTP200 and
+exact served voice.js bytes verified for both. Capture remains interrupted/inactive; no hardware
+was opened. Post-restart hashes still match; original household DB retains7 turns and2 memories.
+
+## Fast visual conversation implementation — 2026-11-18
+
+User explicitly approved keeping Luna6 and implementing image-aware quick voice replies with
+background memory, then preparing localhost for manual testing. This authorizes the narrow
+voice.js frame transport edit required to freeze evidence promptly; no layout/styling changes.
+Keep completed input memory independent of reply cancellation, ordered with later recall, and
+truthful about pending/failed saves. See the fast-visual-conversation plan. User closed the
+capture tab and authorized deleting a little unrelated recording while preserving actual test
+footage. Identify/protect trial sources first; do not delete all recordings or activate hardware.
+
+## Multimodal conversational comparison — 2026-11-18
+
+The user requested comparing Gemini3.5 Flash, Flash-Lite, GPT5.6 Luna and GPT6 Luna for one
+image-grounded conversational call before choosing a production model. They then explicitly
+asked to use their recent localhost trial data for these tests. This authorizes the selected
+saved trial image, corresponding utterances and time-aligned replay frames for this bounded
+four-model comparison through the existing providers. It does not authorize bulk/full-video or
+idle-audio upload, hardware activation, or unrelated private data. Preserve originals and budget:
+$8 cumulative, sequential guarded runs <=$0.25 with settlement headroom. Latest metadata at
+benchmark setup is$6.34252565/$8. No runtime model promotion until measured review/choice.
+
+Comparison complete:20 responses with valid PCM; all12 shown-image replies recognized the basic
+category. Flash-Lite selected an incorrect background referent in the endpoint-only case.
+Luna6 remains the integration candidate; no runtime change. R33 records timings, limitations and
+the19.8s frame-freeze defect. Latest key metadata$6.47447075/$8 includes application activity;
+raw response observer duplicated usage entries, conservative summed total$0.0409782. Stop paid
+comparison here; no prompt/model sweep or extra dataset expansion is required.
+
+The user's scope clarification: basic category recognition such as a smartphone is sufficient;
+proving a particular instance's unique identity is out of scope. Unclear images must remain
+uncertain; do not invent objects or current presence from an earlier frame. Current browser
+buffer captures every500ms, retains12s/24frames and selects up to6 when the question event arrives.
+The trial's delayed completion hook froze the continuation window19.8s after its raw final;
+end-of-speech replay no longer shows the phone. Benchmark earlier-plus-latest as well as one-frame
+input; do not call a delayed freeze safe merely because a rolling buffer exists.
+
+## Current handoff — 2026-11-18
+
+Paused-speech preview/append, native short-pause coalescing, small-ingest embedding avoidance
+and completed-input availability after interrupted replies are verified:487 tests35.85s and14
+browser checks. See [R32](docs/research/R32-pause-latency-memory-trial.md). The14s visual request
+remains a measured bottleneck, not eliminated. Three reply-style prompt candidates were rejected;
+runtime policy8 stays unchanged. Stop prompt sweeps here; the user redirected priority to UI/
+latency explanation and a concrete handoff. Four bounded synthetic runs cost$0.005189 reported;
+last key metadata$6.02137985/$8 includes the user's runtime activity. No more developer inference.
+
+Updated isolated memory-test service runs at http://127.0.0.1:8002, PID56599/session89824,
+using data/memory-only-check-2026-11-17. It retains two saved memories and original sources, plus32
+synthetic context markers; original source turns are absent from all recent-chat context paths.
+It has not run a private cloud query automatically; user testing is pending. Original8001 service
+PID44647 remains on the preceding backend while its capture is recording; do not interrupt it.
+Stop the old recording/tab before using the isolated trial. No hardware activation or private
+upload by developer tools. No new PR/main changes; preserve the remaining visual/acoustic gates.
+
+## Pause/latency/memory-trial follow-up — 2026-11-17
+
+The user requested live transcript continuation/appending across pauses, latency investigation,
+short natural location-memory acknowledgements and a test outside recent chat. This authorizes
+the narrow voice.js transcript-display/transport changes required for that behavior; preserve
+layout/styling/other UI work. Keep private developer evaluation offline. The observed trial did
+save two source-linked records: shown smartphone report and kitchen plan. Its visual call took14s,
+first preparation20.1s, next preparation4.45s, reply generation1.84s; indexing was separate/queue0.
+Do not conflate a plan with a completed placement, or restart with a fresh chat: recent turns
+reload from SQLite. An isolated copy with32 synthetic filler turns is prepared under
+data/memory-only-check-2026-11-17; original source rows/memories are retained, recent context
+excludes them. No automatic private cloud test is authorized by preparing that copy.
+
+## Narrow audio-transport exception — 2026-11-17
+
+The user explicitly authorized applying the prepared audio-transport patch, including the narrow
+src/nyx/web/voice.js edit. This supersedes the web-file ban only for the audio activity/gate repair
+and its necessary verification. Keep layout, styling and wording unchanged; no TypeScript/build
+migration or other UI edits. Preserve current recordings and check capture state before restarting.
+The patch is now applied and verified:483 tests pass28.77s,11 actual-JavaScript synthetic transport
+checks pass, lint/format114 files and JS syntax pass. After capture became interrupted/page closed,
+the8001 service restarted normally on edc12ef (PID44647/session53617). All154 saved clips and4
+conversation turns are preserved; served JS matches the committed transport. The repair is loaded,
+but a user page reload and new household trial remain required. No paid inference/hardware/private
+upload for verification. SeeR31 for limits.
+
+## Voice trial follow-up — 2026-11-17
+
+Real trial: one complete greeting, three interrupted turns, zero memories. At8f0a263, spoken
+input ownership and memory preparation move to LiveKit's completed-user-turn hook; actual-SDK
+synthetic regression fails the old owner race and passes the repair. Full suite481 passed29.41s.
+See [R31](docs/research/R31-voice-turn-lifecycle.md). The live8001 process was subsequently updated
+as recorded above. Preserve active capture before any further restart. Do not claim a new household
+trial passed.
+
+Audio-gate expiry was subsequently repaired under the explicit exception above. The earlier
+proposal remains as provenance at .superpowers/sdd/2026-11-17-simple-agent-memory/voice-flow/
+audio-gate-proposal.patch. This is not acoustic acceptance. No model/prompt/main or visual UI
+change was made; only the approved browser audio-transport edit is permitted.
+
+## Simple-agent execution authorization — 2026-11-17
+
+The user approved the simple shared-agent/general-memory design and asked to execute. Use
+openai/gpt-6-luna for the shared agent and memory interpretation; google/gemini-3.5-flash-lite
+for vision. Keep embeddings/Sarvam speech unchanged. Remove legacy planner/duplicate reference
+policies, separate ambiguity/correction judges and departure-specific active feature paths as
+replacement tests pass. Memory owns related-record matching and update history. Preserve data,
+UI contracts, recordings and main. Work inline on work/memory-reliability, regular commits and
+optional branch-only backup. No subagents or new PR/merge. See the approved
+[design](docs/superpowers/specs/2026-11-17-simple-agent-memory-design.md) and
+[plan](docs/superpowers/plans/2026-11-17-simple-agent-memory.md).
+
+The user increased the OpenRouter key limit; verified metadata on 2026-11-17 is $8 TOTAL,
+usage $4.73185091, remaining $3.26814909. This supersedes $5 for this work, not an additional $8.
+Use guarded paid runs, public/synthetic inputs only, preserve settlement headroom. Private
+recordings stay offline; no hardware capture or new paid account/provider.
+
+Latest checkpoint: conservative cumulative usage$5.392088575/$8; paid tests stopped. Keep the
+95-word shared policy and selected model roles. Paired-image scene changes remain experimental
+after appearance-control regressions; do not promote their better depiction score. Ordinary
+single-image scene inspection was adopted separately at319a49f after fresh physical/category
+checks, four complete public-history workflows and exact request comparison proving the prior
+reference-image task remains unchanged. Identity/paired depiction acceptance remains open. User input
+sources/availability and assistant/context dependencies are now separate in conversations.sqlite3;
+preserve that distinction and conservative legacy migration. The user's latest instruction is
+simple root-cause fixes, no overengineering. Historical background cutoff repair51e71eb now
+passes8/8 recall workflows; full runtime suite479 passed25.81s at4db9329. Later shorter reference
+and paired-camera variants failed quality gates and remain experimental. Fresh reference
+confirmation favors keeping the selected roles: Lite5/5, Luna4/5 with a clear-cup
+refusal. The earlier unapplied Luna-reference proposal is withdrawn; no model-choice decision is
+pending. Later named recall without another image passes6 reviewed replies. Fixed synthetic
+acknowledgements are prepared and the local wake model loads. A live isolated server at
+http://127.0.0.1:8001 is for a user-run household/voice check only; do not open its browser/camera/
+microphone during automated verification. Public human Hindi STT passes one control; short
+synthetic Hindi retains errors. Actual LiveKit/Sarvam streaming TTS returns valid English/Hindi
+PCM without playback; this proves transport compatibility, not intelligibility. Physical/acoustic
+acceptance and known visual limits remain open.
+Do not add prompt rules or architecture for those fixtures. SeeR30.
+
+## Household workflow authorization — 2026-11-16
+
+PR2 merged the reliability work at bdb7ad0. The user then authorized engineering the complete
+shown-item/remember/later-recall household experience, using existing laptop and public data.
+Continue inline on work/memory-reliability from the merged baseline, regular commits and optional
+branch-only backups. Keep main/UI/original media untouched. Private recordings stay offline;
+cloud developer evaluation uses public/synthetic evidence under the existing $5 TOTAL ceiling.
+Do not interpret generic local-video use as permission to upload personal footage or activate
+hardware. The household plan/spec defines source-separated full-API workflows and remaining
+real-household/acoustic acceptance gates. No automatic new PR or merge was requested.
+R29 found an unsafe new saved link in the separated household pipeline. It remains opt-in via
+NYX_HOUSEHOLD_REFERENCE_POLICY=separated; default joint retains the merged placement decision plus
+an independent ambiguity veto. Do not promote the experimental path based on its higher small-
+corpus score. Verified cumulative OpenRouter usage is now$4.73185091/$5; paid tests stopped with
+$0.26814909 remaining. Household physical-identity/acoustic/user acceptance remains open.
+
+
 ## Latest authorization — 2026-11-15
 
 The latest user increased the OpenRouter test-key limit to **$5 total**, superseding the prior

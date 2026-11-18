@@ -1,0 +1,8 @@
+{
+  "models": ["openai/gpt-6-luna"],
+  "shared_agent": true,
+  "cases": [
+    {"id": "shown-then-lowered", "images": ["shown_image", "endpoint_image"], "utterance": "combined", "repeats": 1, "criterion": "Acknowledge the shown phone category and kitchen plan directly, with no finished-save claim or unnecessary separate visual tool."},
+    {"id": "end-image-only", "images": ["endpoint_image"], "utterance": "combined", "repeats": 1, "criterion": "Do not select background objects as the demonstrated referent; clarify if the intended object cannot be seen."}
+  ]
+}

@@ -451,15 +451,17 @@ def test_unreadable_sources_do_not_hide_other_history_or_become_negative_sightin
     class Client:
         def generate(self, messages, model, max_tokens, **kwargs):
             calls.append(model)
-            return json.dumps(
-                {
-                    "visibility": "visible",
-                    "location": "beside the chair",
-                    "description": "Generated fixture.",
-                    "matching_count": 1,
-                    "ambiguous": False,
-                }
-            )
+            observation = {
+                "visibility": "visible",
+                "location": "beside the chair",
+                "description": "Generated fixture.",
+                "matching_count": 1,
+                "ambiguous": False,
+            }
+            if "presence" in kwargs["schema"]["properties"]:
+                observation.pop("visibility")
+                observation.update(scene_context="A physical room", presence="physical")
+            return json.dumps(observation)
 
     verifier = CloudVerifier(Client())
     if route == "fallback":

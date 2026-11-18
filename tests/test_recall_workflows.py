@@ -44,15 +44,13 @@ def test_workflow_identity_cannot_escape_artifact_directory(workflow):
 def test_workflow_request_allowance_is_bounded_without_becoming_a_tool_validation_error(
     workflow, monkeypatch
 ):
-    from experiments.companion import correction_replay
+    from experiments.companion import budget
     from nyx.cloud import CloudError, OpenRouter
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "fixture")
-    monkeypatch.setattr(
-        correction_replay, "budget_snapshot", lambda client: {"usage": 1.4, "limit": 2}
-    )
+    monkeypatch.setattr(budget, "budget_snapshot", lambda client: {"usage": 1.4, "limit": 2})
     monkeypatch.setattr(OpenRouter, "request", lambda *args, **kwargs: {"usage": {"cost": 0}})
-    client = correction_replay.BudgetedClient(0.20, max_requests=96)
+    client = budget.BudgetedClient(0.20, max_requests=96)
     for _ in range(96):
         client.request("chat/completions", {})
     with pytest.raises(CloudError, match="limit"):
@@ -64,7 +62,7 @@ def test_scoring_requires_exact_direct_reports_and_attributed_sources(workflow):
     result = {
         "status": "complete",
         "answer": "You said your phone is in the bag.",
-        "observations": [{"kind": "statements", "matches": [{"turn_id": "saved"}]}],
+        "observations": [{"kind": "memories", "matches": [{"turn_id": "saved"}]}],
         "sources": ["transcript:saved", "transcript:prior-correction-source"],
     }
     assert score_answer(case(), result, {"claim": "saved"})["correct"]
@@ -94,6 +92,20 @@ def test_negative_requires_abstention_or_an_empty_checked_statement_lookup(workf
     checked = {
         "status": "complete",
         "answer": "No relevant saved statement.",
-        "observations": [{"kind": "statements", "matches": []}],
+        "observations": [{"kind": "memories", "matches": []}],
     }
     assert score_answer(negative, checked, {})["correct"]
+
+
+def test_paid_client_retains_highest_observed_usage_across_lagging_replicas(monkeypatch):
+    from experiments.companion import budget
+    from nyx.cloud import OpenRouter
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "fixture")
+    readings = iter([1.4, 1.50, 1.45])
+    monkeypatch.setattr(budget, "budget_snapshot", lambda _: {"usage": next(readings), "limit": 2})
+    monkeypatch.setattr(OpenRouter, "request", lambda *args, **kwargs: {})
+    client = budget.BudgetedClient(0.15)
+    client.request("chat/completions", {})
+    client.request("chat/completions", {})
+    assert client.high_water_usage == 1.50

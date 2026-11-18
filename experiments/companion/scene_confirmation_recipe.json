@@ -1,0 +1,50 @@
+{
+  "candidate_frozen_at": "4760109",
+  "preparer": "experiments/companion/physical_scene_replay.py:prepare",
+  "parent_manifest_sha256": "25b7d75c108985686cb2d50c144d21a893c7853190362680a690e4db39ffe356",
+  "prepared_manifest_sha256": "9b9ee2320a8d7f38a042a1ee43b02b4f91de36bbf49972cb74b8b092d6382ae8",
+  "conditions": 24,
+  "source_groups": [
+    {
+      "id": 157046,
+      "category": 75,
+      "split": "development"
+    },
+    {
+      "id": 430286,
+      "category": 75,
+      "split": "holdout"
+    },
+    {
+      "id": 537991,
+      "category": 77,
+      "split": "development"
+    },
+    {
+      "id": 42528,
+      "category": 77,
+      "split": "holdout"
+    },
+    {
+      "id": 146489,
+      "category": 44,
+      "split": "development"
+    },
+    {
+      "id": 64084,
+      "category": 44,
+      "split": "holdout"
+    },
+    {
+      "id": 35682,
+      "category": 47,
+      "split": "development"
+    },
+    {
+      "id": 157601,
+      "category": 47,
+      "split": "holdout"
+    }
+  ],
+  "decision": "Compare safe depiction rejection and unframed positive/ambiguity controls, retaining all failures; never promote based on all-uncertain outputs."
+}

@@ -1,10 +1,6 @@
 """Region-relative motion uses observations, without event labels or fixed layouts."""
 
-import json
-from typing import ClassVar
-
 import pytest
-from PIL import Image
 
 from nyx import events
 
@@ -100,80 +96,3 @@ def test_model_region_is_validated_before_using_it_for_geometry():
         assert events.parse_region({**region, **patch}) is None
     assert events.parse_region(None) is None
     assert events.parse_region([]) is None
-
-
-def test_local_inspection_retains_independent_geometry_even_when_semantics_disagree():
-    from nyx.verification import CloudVerifier
-
-    class Detector:
-        fingerprint: ClassVar = {"model": "synthetic-box-observations"}
-
-        def detect(self, images):
-            return observations([(0.82, 0.6), (0.5, 0.6), (0.2, 0.6)])
-
-    verifier = CloudVerifier.__new__(CloudVerifier)
-    verifier.detector = Detector()
-    verifier.generate_json = lambda *args: json.dumps(
-        {
-            "departure": True,
-            "uncertain": False,
-            "approached_exit": True,
-            "exit_interaction": True,
-            "cue": "Incorrect semantic departure claim",
-            "region": {
-                "label": "Exit",
-                "kind": "exterior_exit",
-                "box": [800, 100, 950, 800],
-                "uncertain": False,
-            },
-            "motion": {"relation": "approaching"},  # Model cannot supply measured geometry.
-            "tracking": {"observations": observations([(0.2, 0.6), (0.5, 0.6), (0.82, 0.6)])},
-        }
-    )
-    result = verifier.inspect_departure([Image.new("RGB", (160, 96)) for _ in range(3)])
-    assert result["motion"]["relation"] == "away"
-    assert result["region"]["box"] == [0.8, 0.1, 0.95, 0.8]
-    assert result["detector"] == Detector.fingerprint
-    assert result["tracking"] is None
-
-
-def test_missing_entity_does_not_spend_a_semantic_inference_or_establish_absence():
-    from nyx.verification import CloudVerifier
-
-    class Detector:
-        fingerprint: ClassVar = {"model": "synthetic-missed-detection"}
-
-        def detect(self, images):
-            return [[], [], []]
-
-    verifier = CloudVerifier.__new__(CloudVerifier)
-    verifier.detector = Detector()
-
-    def unexpected(*args):
-        pytest.fail("No complete trajectory; do not run semantic inference")
-
-    verifier.generate_json = unexpected
-    result = verifier.inspect_departure([Image.new("RGB", (160, 96)) for _ in range(3)])
-    assert result["uncertain"]
-    assert not result["departure"]
-    assert result["motion"]["relation"] == "unknown"
-
-
-def test_stationary_subject_preserves_semantic_capacity_for_later_movement():
-    from nyx.verification import CloudVerifier
-
-    class Detector:
-        fingerprint: ClassVar = {"model": "synthetic-stationary-detection"}
-
-        def detect(self, images):
-            return observations([(0.4, 0.6), (0.41, 0.6), (0.4, 0.6)])
-
-    verifier = CloudVerifier.__new__(CloudVerifier)
-    verifier.detector = Detector()
-    verifier.generate_json = lambda *args: pytest.fail(
-        "Stationary positions cannot establish approach"
-    )
-    result = verifier.inspect_departure([Image.new("RGB", (160, 96)) for _ in range(3)])
-    assert not result["departure"]
-    assert result["motion"]["relation"] == "stationary"
-    assert result["motion"]["points"] == [[0.4, 0.6], [0.41, 0.6], [0.4, 0.6]]

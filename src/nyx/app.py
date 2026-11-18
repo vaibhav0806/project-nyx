@@ -80,6 +80,10 @@ class Workspace:
         self.scheduled = set()
         self.capture = CaptureJournal(self.root, video_budget_bytes)
         self.conversations = None
+        self.memories = None
+        from nyx.background_memory import BackgroundMemory
+
+        self.background_memory = BackgroundMemory(self)
 
     def store(self):
         with self.store_lock:
@@ -91,12 +95,29 @@ class Workspace:
             identity = json.loads(row[0])
             return Store(self.root, identity["encoder"], identity["dimensions"])
 
-    def model_store(self):
+    def embedding_encoder(self):
         with self.model_lock:
             if self.encoder is None:
                 self.encoder = self.encoder_factory()
+        return self.encoder
+
+    def model_store(self):
+        self.embedding_encoder()
         with self.store_lock:
             return Store(self.root, self.encoder.fingerprint, self.encoder.dimensions)
+
+    def personal_memory(self):
+        from nyx.personal_memory import PersonalMemory
+
+        if self.memories is None:
+            verifier = self.visual_verifier()
+            self.memories = PersonalMemory(
+                self.conversations,
+                self.embedding_encoder(),
+                verifier.memory_reply,
+                model_info=verifier.fingerprint,
+            )
+        return self.memories
 
     def visual_verifier(self):
         with self.model_lock:
@@ -220,6 +241,7 @@ class Workspace:
             self.upload_lock.release()
 
     def close(self):
+        self.background_memory.close()
         self.queue.put((99, next(self.order), None, None))
         self.ingest_queue.put((99, next(self.order), None, None))
         self.thread.join()
@@ -480,7 +502,7 @@ def create_app(
         if voice is None:
             await socket.close(code=1008)
             return
-        await serve_live_voice(socket, voice)
+        await serve_live_voice(socket, voice, workspace.background_memory)
 
     @app.get("/api/voice/diagnostics")
     def voice_diagnostics(request: Request):
@@ -583,8 +605,6 @@ def create_app(
 
     @app.post("/api/capture/{session_id}/state")
     def capture_state(session_id: str, body: CaptureState):
-        if body.state != "recording":
-            workspace.observer.reset()
         return workspace.capture.transition(
             session_id, body.state, body.at.isoformat(), body.reason
         )
@@ -820,6 +840,7 @@ def create_app(
             )
             return {
                 "kind": "snapshot",
+                "identity_verified": False,
                 "object_query": object_query,
                 "status": "clarify" if ambiguous else "seen" if seen else "uncertain",
                 "answer": "Which one do you mean? Please describe its color, position, or another distinguishing detail."

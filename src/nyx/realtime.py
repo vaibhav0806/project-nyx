@@ -6,50 +6,43 @@ import json
 import os
 import random
 import time
+import unicodedata
 import uuid
 import wave
 from collections import deque
 from contextlib import suppress
 from datetime import UTC, datetime
-from typing import Literal
 from urllib.parse import urlencode
 
 import aiohttp
 from livekit import rtc
-from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, Agent, AgentSession, function_tool, llm, stt
+from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, Agent, AgentSession, llm, stt
 from livekit.agents.voice import io
 from livekit.agents.voice.transcription import TranscriptSynchronizer
 from livekit.plugins import openai, sarvam
 from starlette.websockets import WebSocketDisconnect
 from websockets.asyncio.client import connect
 
+from nyx.agent_policy import AGENT_INSTRUCTIONS as INSTRUCTIONS
+from nyx.agent_policy import AGENT_MODEL, AGENT_REASONING_EFFORT
+from nyx.agent_tools import AgentTools
 from nyx.speech import ACKNOWLEDGEMENTS, acknowledgement_path
 from nyx.voice import local_now
 
 VOICES = {"en": "shalini_en_companion", "hi": "shalini_hi_companion"}
-INSTRUCTIONS_VERSION = 3
-INSTRUCTIONS = """You are Nyx, a calm, relaxed, attentive companion with light dry wit.
-Use very simple spoken words and short sentences. Be easy to talk to, not clever to listen to.
-No forced slang, bro, pet names, technical labels, or jokes when someone is worried.
-This personal app has one user. Say you/your hand, never the person or the user.
-Only English and Hindi are supported. Reply in the language of the latest user turn.
-Recent conversation text may be clipped; do not invent missing details or use old assistant claims as fresh evidence. Restored turns include date/source-availability metadata: unavailable sources cannot support a location, and an older report is not a current observation. Retrieve saved statements for older report recall and clarify an unresolved object.
-Tool arguments must exactly match the declared schema; identify_shown_object takes no arguments.
-Use remember_statement for a new statement about where the user is putting or plans to put an object, including this/it while showing it. Never claim a durable object link until the tool succeeds. If it returns clarification, ask rather than acknowledging a successful save.
-For an explicit correction or retraction of a saved USER REPORT, first search_statements, then pass an actual returned statement_refs turn_id as supersedes_turn_id to remember_statement. A normal later move does not make an earlier report false. Never correct an assistant answer or visual candidate as a saved user report; visual rejection uses look_for_object exclusions. Do not invent IDs or read them aloud. For reports at an explicitly requested historical time, search_statements accepts as_of as an ISO timestamp with timezone; otherwise omit it. Report sources and dates do not prove current placement.
-Use search_statements alongside visual lookup for object-location questions, even in a fresh conversation. These are user claims, not confirmed placement. Consider dates and contradictions; do not repeat unrelated candidates. Attribute intentions as intentions.
-For the latest/newest saved user report, pass selection=latest_report to search_statements; otherwise use all reports. Keep as_of for an explicitly requested historical report state. Latest reported placement is not a latest visual sighting. A plan can be affirmative even when the user says they have not carried it out yet.
-For an unresolved this/it in a lookup, call identify_shown_object first to identify what is being shown. Then use its resolved description to search both visual history and saved statements. If identity is ambiguous or unresolved, ask; never replace missing visual identity with a guess from recent conversation. Use look_for_object for current or historical visual questions. Resolve follow-ups from conversation.
-Use departure_reminder to create, list or cancel next-departure reminders. Timed reminders are not supported.
-Compose the final spoken reply naturally from tool evidence; tool answers are factual summaries, not a script to recite. Combine relevant visual findings and saved statements in one short reply. Preserve exact meaning, dates, uncertainty, and the difference between a plan and observed placement. Never turn a plan into a confirmed location.
-When a visual tool returns status=candidate, it found a possible match, not a confirmed identification of the requested belonging. Preserve that identity uncertainty in ordinary spoken words even if its visibility is visible. Unless the user has explicitly confirmed the match, do not turn the candidate into a definite sighting of their item. Keep historical time and current-location uncertainty separate; a saved report is still only what the user said.
-Keep the temporal precision of the tool's spoken summary. Do not add a time of day or clock time when it supplied only a date or relative day. Use finer local-time wording only when the tool explicitly provides it in the user's timezone; never read a UTC clock hour as local time. If that detail is unavailable, keep the supported date/day instead of guessing.
-Never guess a location or sighting. Preserve uncertainty and relative time from tool evidence.
-Past conversation is not new visual evidence; use tools to check current or last-seen questions.
-Use physical places, not image coordinates. Never recite verification boilerplate.
-The lookup tool handles its own brief acknowledgement; do not add another let me check.
-For general questions answer directly without tools or checking filler. Never claim to be human.
-"""
+INSTRUCTIONS_VERSION = 10
+
+
+def supported_transcription(text, language):
+    """Admit English/Hindi labels and scripts; never silently strip misrecognized words."""
+    if language and language.split("-")[0].lower() not in {"en", "hi"}:
+        return False
+    return all(
+        not unicodedata.category(char).startswith("L")
+        or "LATIN" in unicodedata.name(char, "")
+        or "DEVANAGARI" in unicodedata.name(char, "")
+        for char in text
+    )
 
 
 def stt_url():
@@ -136,13 +129,17 @@ class SarvamStream(stt.SpeechStream):
                     return
                 owner, ended_at = ended_utterances.popleft()
                 final_language = pending_final.get("language") or "en-IN"
+                text = pending_final["text"].strip()
+                if not supported_transcription(text, final_language):
+                    self._stt.log("realtime_stt_rejected", language=final_language, final=True)
+                    text = ""
                 self._event_ch.send_nowait(
                     stt.SpeechEvent(
                         type=stt.SpeechEventType.FINAL_TRANSCRIPT,
                         alternatives=[
                             stt.SpeechData(
                                 language=final_language,
-                                text=pending_final["text"].strip(),
+                                text=text,
                             )
                         ],
                     )
@@ -207,6 +204,8 @@ class SarvamStream(stt.SpeechStream):
                         if pending_final is not None:
                             continue
                         language = event.get("language") or "en-IN"
+                        if not supported_transcription(text, language):
+                            continue
                         self._event_ch.send_nowait(
                             stt.SpeechEvent(
                                 type=stt.SpeechEventType.INTERIM_TRANSCRIPT,
@@ -293,7 +292,7 @@ class BrowserText(io.TextOutput):
         pass
 
 
-async def serve(socket, voice):
+async def serve(socket, voice, memory_lane):
     origin = socket.headers.get("origin")
     if origin and origin not in {
         "http://" + socket.headers.get("host", ""),
@@ -308,6 +307,8 @@ async def serve(socket, voice):
     http = None
     tts = None
     pending = {}
+    visual_requests = {}
+    visual_segments = []
     tool_lock = asyncio.Lock()
     token = None
     try:
@@ -317,8 +318,21 @@ async def serve(socket, voice):
         timezone = auth.get("timezone")
         local_now(timezone)
         outgoing = asyncio.Queue(128)
+        transcript_parts = []
+        transcript_interim = ""
+        preview_open = False
+        answer_started_for = None
+
+        def transcript_preview():
+            return " ".join([*transcript_parts, transcript_interim]).strip()
 
         async def send(event):
+            nonlocal transcript_interim, preview_open, answer_started_for
+            if event.get("type") == "text" and event.get("text") and turn_id != answer_started_for:
+                answer_started_for = turn_id
+                transcript_parts.clear()
+                transcript_interim = ""
+                preview_open = False
             await outgoing.put(event)
 
         async def write():
@@ -329,10 +343,20 @@ async def serve(socket, voice):
 
         def log(event, **details):
             voice.conversations.event(event, **details)
+            if event == "realtime_stt_rejected":
+                asyncio.create_task(
+                    send(
+                        {
+                            "type": "transcription_rejected",
+                            "committed_text": " ".join(transcript_parts),
+                        }
+                    )
+                )
 
         source = BrowserInput()
         sink = BrowserAudio(send, outgoing.put_nowait)
         language = "en"
+        input_language = "en"
         last_question = ""
         turn_id = None
         turn_started = 0
@@ -348,10 +372,11 @@ async def serve(socket, voice):
             enable_preprocessing=True,
         )
 
-        class Companion(Agent):
+        class Companion(AgentTools, Agent):
             def __init__(self):
                 context = llm.ChatContext()
                 self._context_turns = {}
+                self._turn_frames = {}
                 from nyx.conversation_context import recent_context
 
                 for row in recent_context(voice.conversations.recent()):
@@ -365,7 +390,12 @@ async def serve(socket, voice):
                         + json.dumps(
                             {
                                 key: row.get(key)
-                                for key in ["at", "sources_available", "context_truncated"]
+                                for key in [
+                                    "at",
+                                    "input_available",
+                                    "sources_available",
+                                    "context_truncated",
+                                ]
                             }
                         ),
                     )
@@ -391,8 +421,127 @@ async def serve(socket, voice):
                             )
                 super().__init__(instructions=INSTRUCTIONS, chat_ctx=context)
 
-            def llm_node(self, chat_ctx, tools, model_settings):
+            async def on_user_turn_completed(self, turn_ctx, new_message):
+                nonlocal language, last_question, turn_id, sources, turn_started
+                if not new_message.text_content.strip():
+                    raise llm.StopResponse()
+                if input_language != language:
+                    language = input_language
+                    tts.update_options(
+                        target_language_code="hi-IN" if language == "hi" else "en-IN",
+                        speaker=VOICES[language],
+                    )
+                last_question = new_message.text_content
+                sources = []
+                if voice.turn and not any(
+                    row["id"] == voice.turn["id"] and row["status"] == "complete"
+                    for row in voice.conversations.recent()
+                ):
+                    voice.conversations.finish(voice.turn["id"], status="interrupted")
+                turn_started = time.time()
+                turn_id = voice.conversations.begin(
+                    last_question, {"mode": "livekit", "language": language}
+                )
+                voice.turn = {"id": turn_id, "transcript": last_question}
+                lookup_started = time.perf_counter()
+                early = memory_lane.prefetch(turn_id, last_question)
+                # Freeze ownership before awaiting browser context. New STT events belong to
+                # the next completed input, even while these bounded replies are in flight.
+                segments = visual_segments[:]
+                visual_segments.clear()
+                frames = []
+                context_at = None
+                selected_ids = []
+                if segments:
+                    try:
+                        async with asyncio.timeout(0.75):
+                            await asyncio.gather(
+                                *(asyncio.shield(row["future"]) for row in segments)
+                            )
+                    except (TimeoutError, ValueError):
+                        log("voice_visual_context_incomplete", turn_id=turn_id)
+                    for row in segments:
+                        future = row["future"]
+                        if future.done() and not future.cancelled() and future.exception() is None:
+                            frames.extend(future.result())
+                            context_at = row["at"]
+                            selected_ids.append(row["id"])
+                        visual_requests.pop(row["id"], None)
+                        if not future.done():
+                            future.cancel()
+                frames = list({frame["captured_at"]: frame for frame in frames}.values())
+                frames.sort(key=lambda frame: frame["captured_at"])
+                if len(frames) > 6:
+                    frames = [frames[round(i * (len(frames) - 1) / 5)] for i in range(6)]
+                if early is not None and not early.done():
+                    remaining = 0.25 - (time.perf_counter() - lookup_started)
+                    if remaining > 0:
+                        reading = asyncio.wrap_future(early)
+                        reading.add_done_callback(
+                            lambda result: None if result.cancelled() else result.exception()
+                        )
+                        await asyncio.wait([reading], timeout=remaining)
+                lookup_status = "unavailable"
+                if early is not None:
+                    lookup_status = (
+                        "pending"
+                        if not early.done()
+                        else "failed"
+                        if early.exception()
+                        else "ready"
+                    )
+                log(
+                    "early_memory_lookup",
+                    turn_id=turn_id,
+                    status=lookup_status,
+                    preparation_ms=round((time.perf_counter() - lookup_started) * 1000),
+                )
+                self._turn_frames = {turn_id: frames}
+                available = {
+                    "current_view": bool(frames),
+                    "current_view_captured_at": frames[-1]["captured_at"] if frames else None,
+                    "turn_visual_context": bool(frames),
+                    "turn_visual_frame_count": len(frames),
+                }
+                voice.conversations.update_plan(
+                    turn_id,
+                    {
+                        "mode": "livekit",
+                        "language": language,
+                        "voice_visual_context": "raw-final-v1",
+                        "available": available,
+                        "turn_context_at": context_at,
+                        "turn_frame_times": [frame["captured_at"] for frame in frames],
+                    },
+                )
+                try:
+                    memory_lane.submit(turn_id, frames)
+                except ValueError:
+                    log("background_memory_rejected", turn_id=turn_id)
+                if voice.awake_until:
+                    voice.awake_until = time.monotonic() + 30
+                self._context_turns[new_message.id] = turn_id
+                while len(self._context_turns) > 96:
+                    del self._context_turns[next(iter(self._context_turns))]
+                await send(
+                    {
+                        "type": "question",
+                        "text": last_question,
+                        "display_text": transcript_preview() or last_question,
+                        "language": language,
+                        "turn_id": turn_id,
+                        "at": datetime.fromtimestamp(turn_started, UTC).isoformat(),
+                        "context_at": context_at,
+                        "visual_context_ids": selected_ids,
+                    }
+                )
+
+            async def llm_node(self, chat_ctx, tools, model_settings):
+                nonlocal sources
                 from nyx.conversation_context import bounded_live_context
+                from nyx.personal_memory import memory_context_at
+
+                requested_turn = turn_id
 
                 turn_ctx = chat_ctx.copy()
                 users = [
@@ -415,45 +564,124 @@ async def serve(socket, voice):
                     if item.id in self._context_turns
                 }
                 available = voice.conversations.source_availability(bound.values())
+                inputs = voice.conversations.source_availability(bound.values(), input_only=True)
                 turn_ctx.add_message(
                     role="system",
                     content=f"User local time: {local_now(timezone).isoformat()}. Reply in {'Hindi' if language == 'hi' else 'English'}.",
                 )
-                return Agent.default.llm_node(
+                if requested_turn:
+                    memory = await asyncio.to_thread(memory_lane.turn_context, requested_turn)
+                    with voice.conversations.connect() as db:
+                        plan = json.loads(
+                            db.execute(
+                                "SELECT plan FROM turns WHERE id=?", (requested_turn,)
+                            ).fetchone()[0]
+                        )
+                    recalled = next(
+                        (
+                            step
+                            for step in reversed(plan.get("steps", []))
+                            if step.get("action") == "recall_memory"
+                        ),
+                        {},
+                    )
+                    memory = memory_context_at(memory, recalled.get("as_of"))
+                    early_context = await asyncio.to_thread(
+                        memory_lane.early_context, requested_turn, as_of=recalled.get("as_of")
+                    )
+                    log(
+                        "early_memory_context",
+                        turn_id=requested_turn,
+                        status=early_context["status"],
+                        memory_ids=[row["id"] for row in early_context["records"]],
+                    )
+                    if requested_turn == turn_id:
+                        sources = list(dict.fromkeys([*sources, *early_context["sources"]]))
+                    turn_ctx.add_message(
+                        role="system",
+                        content="Optional saved user memories (not exhaustive; use further lookup when needed): "
+                        + json.dumps(early_context),
+                    )
+                    turn_ctx.add_message(
+                        role="system",
+                        content="Available context: " + json.dumps(plan.get("available", {})),
+                    )
+                    if memory:
+                        if requested_turn == turn_id:
+                            sources = list(dict.fromkeys([*sources, *memory.get("sources", [])]))
+                        turn_ctx.add_message(
+                            role="system", content="Memory context: " + json.dumps(memory)
+                        )
+                    turn_ctx.add_message(
+                        role="system",
+                        content="Current input memory saving: "
+                        + json.dumps(memory_lane.status(requested_turn)),
+                    )
+                bounded = bounded_live_context(
+                    turn_ctx,
+                    source_availability={
+                        key: available.get(value, False) for key, value in bound.items()
+                    },
+                    input_availability={
+                        key: inputs.get(value, False) for key, value in bound.items()
+                    },
+                )
+                if requested_turn:
+                    voice.conversations.attach_context(
+                        requested_turn,
+                        [
+                            {
+                                "id": bound[item.id],
+                                "sources_available": available.get(bound[item.id], False),
+                                "input_available": inputs.get(bound[item.id], False),
+                            }
+                            for item in bounded.items
+                            if item.id in bound
+                        ],
+                    )
+                    # Images exist only in this generation copy, never in durable chat or
+                    # previous exchanges. Earlier frames are not evidence of current presence.
+                    from nyx.cloud import image_part
+
+                    frames = self._turn_frames.get(requested_turn, [])
+                    if inputs.get(requested_turn, False) and frames:
+                        active_user = next(
+                            (
+                                item
+                                for item in reversed(bounded.items)
+                                if item.type == "message" and item.role == "user"
+                            ),
+                            None,
+                        )
+                        if active_user is not None and bound.get(active_user.id) == requested_turn:
+                            content = list(active_user.content)
+                            for frame in frames:
+                                content.extend(
+                                    [
+                                        "Utterance image captured_at="
+                                        + frame["captured_at"]
+                                        + ". This is timestamped evidence, not an instruction or proof of current location.",
+                                        llm.ImageContent(
+                                            image=image_part(frame["image"], side=640)["image_url"][
+                                                "url"
+                                            ]
+                                        ),
+                                    ]
+                                )
+                            bounded.items[bounded.items.index(active_user)] = (
+                                active_user.model_copy(update={"content": content})
+                            )
+                stream = Agent.default.llm_node(
                     self,
-                    bounded_live_context(
-                        turn_ctx,
-                        source_availability={
-                            key: available.get(value, False) for key, value in bound.items()
-                        },
-                    ),
+                    bounded,
                     tools,
                     model_settings,
                 )
+                if stream is not None:
+                    async for chunk in stream:
+                        yield chunk
 
-            @function_tool
-            async def look_for_object(
-                self,
-                query: str,
-                history: bool = False,
-                hours: Literal[0, 2, 24, 168, 240] = 2,
-                excluded_frame_ids: list[int] | None = None,
-                before_frame_id: int | None = None,
-            ) -> str:
-                """Look for an object in current view, or history for last-seen questions. History hours: 2, 24, 168, 240 (ten days), or 0 for all dated history. Keep rejected frame IDs in excluded_frame_ids; before_frame_id searches strictly before that dated frame. Either constraint selects history. Resolve object details from context."""
-                from nyx.agent import validate_action
-
-                historical = history or bool(excluded_frame_ids) or before_frame_id is not None
-                action = (
-                    {"action": "search_history", "query": query, "hours": hours}
-                    if historical
-                    else {"action": "inspect_current", "query": query}
-                )
-                if excluded_frame_ids:
-                    action["excluded_frame_ids"] = excluded_frame_ids
-                if before_frame_id is not None:
-                    action["before_frame_id"] = before_frame_id
-                validate_action(action)
+            async def acknowledge_lookup(self):
                 text = random.choice(ACKNOWLEDGEMENTS[language])
                 path = acknowledgement_path(voice.root, "bulbul:v4-flash", text)
                 if path.exists():
@@ -467,46 +695,6 @@ async def serve(socket, voice):
                                 yield rtc.AudioFrame(pcm, 24000, 1, len(pcm) // 2)
 
                     self.session.say("", audio=cached_audio(), add_to_chat_ctx=False)
-                return await self.run_tool(action)
-
-            @function_tool
-            async def identify_shown_object(self) -> str:
-                """Resolve this/it from the current image before searching history or statements. Ask if ambiguous."""
-                return await self.run_tool({"action": "identify_shown_object"})
-
-            @function_tool
-            async def remember_statement(self, supersedes_turn_id: str | None = None) -> str:
-                """Save a new placement/intention report. Only for an explicit correction/retraction, supply an actual saved user-report ID from search_statements as supersedes_turn_id."""
-                from nyx.agent import validate_action
-
-                action = {"action": "remember_statement"}
-                if supersedes_turn_id is not None:
-                    action["supersedes_turn_id"] = supersedes_turn_id
-                validate_action(action)
-                return await self.run_tool(action)
-
-            @function_tool
-            async def search_statements(
-                self,
-                query: str,
-                as_of: str | None = None,
-                selection: Literal["all", "latest_report"] = "all",
-            ) -> str:
-                """Search attributed user reports. Use latest_report for the newest saved report, all for multiple reports. Optional as_of is an aware ISO timestamp for historical report state. Plans are not completed placements; report dates are not visual sightings."""
-                from nyx.agent import validate_action
-
-                action = {"action": "search_statements", "query": query}
-                if as_of is not None:
-                    action["as_of"] = as_of
-                if selection != "all":
-                    action["selection"] = selection
-                validate_action(action)
-                return await self.run_tool(action)
-
-            @function_tool
-            async def departure_reminder(self) -> str:
-                """Create, list or cancel a next-departure reminder when the user explicitly asks. Never promise clock-based reminders."""
-                return await self.run_tool(None)
 
             async def run_tool(self, action):
                 requested_turn, question = turn_id, last_question
@@ -526,18 +714,21 @@ async def serve(socket, voice):
                         }
                     )
                     try:
-                        result = await asyncio.wait_for(future, 90)
-                        return result
+                        await asyncio.wait_for(future, 90)
+                        if not voice.turn or voice.turn["id"] != requested_turn:
+                            raise ValueError("Voice question is no longer active")
+                        result = voice.conversations.tool_result(requested_turn, action)
+                        return json.dumps(result)
                     finally:
                         pending.pop(identifier, None)
                         if not future.done() or future.cancelled():
                             await send({"type": "cancel_tool", "id": identifier})
 
-        voice_model = os.environ.get("NYX_VOICE_MODEL", "google/gemini-3.5-flash")
+        voice_model = os.environ.get("NYX_AGENT_MODEL", AGENT_MODEL)
         log(
             "voice_model_selected",
             model=voice_model,
-            reasoning_effort="low",
+            reasoning_effort=AGENT_REASONING_EFFORT,
             instructions_version=INSTRUCTIONS_VERSION,
         )
         session = AgentSession(
@@ -547,20 +738,20 @@ async def serve(socket, voice):
                 model=voice_model,
                 api_key=os.environ["OPENROUTER_API_KEY"],
                 base_url="https://openrouter.ai/api/v1",
-                reasoning_effort="low",
+                reasoning_effort=AGENT_REASONING_EFFORT,
                 max_completion_tokens=2048,
                 parallel_tool_calls=True,
                 extra_body={"provider": {"data_collection": "deny"}},
             ),
             turn_handling={
                 "turn_detection": "stt",
-                "endpointing": {"min_delay": 0, "max_delay": 1.5},
+                "endpointing": {"mode": "dynamic", "min_delay": 0.5, "max_delay": 3.0},
                 "interruption": {
                     "mode": "vad",
                     "min_duration": 0.5,
                     "resume_false_interruption": False,
                 },
-                "preemptive_generation": {"enabled": True},
+                "preemptive_generation": {"enabled": False},
             },
             user_away_timeout=None,
         )
@@ -573,36 +764,38 @@ async def serve(socket, voice):
 
         @session.on("user_input_transcribed")
         def transcribed(event):
-            nonlocal language, last_question, turn_id, sources, turn_started
-            if not event.is_final:
+            nonlocal input_language, transcript_interim, preview_open
+            if event.is_final:
+                input_language = "hi" if (event.language or "").startswith("hi") else "en"
+            if not event.transcript.strip():
                 return
-            detected = "hi" if (event.language or "").startswith("hi") else "en"
-            if detected != language:
-                language = detected
-                tts.update_options(
-                    target_language_code="hi-IN" if language == "hi" else "en-IN",
-                    speaker=VOICES[language],
-                )
-            last_question = event.transcript
-            sources = []
-            if voice.turn and not any(
-                row["id"] == voice.turn["id"] and row["status"] == "complete"
-                for row in voice.conversations.recent()
-            ):
-                voice.conversations.finish(voice.turn["id"], status="interrupted")
-            turn_started = time.time()
-            turn_id = voice.conversations.begin(
-                last_question, {"mode": "livekit", "language": language}
-            )
-            voice.turn = {"id": turn_id, "transcript": last_question}
+            new_turn = not preview_open
+            preview_open = True
+            if event.is_final:
+                identifier = uuid.uuid4().hex
+                at = datetime.now(UTC).isoformat()
+                future = asyncio.get_running_loop().create_future()
+                row = {"id": identifier, "at": at, "future": future}
+                visual_requests[identifier] = row
+                visual_segments.append(row)
+                while len(visual_segments) > 16:
+                    old = visual_segments.pop(0)
+                    visual_requests.pop(old["id"], None)
+                    old["future"].cancel()
+                asyncio.create_task(send({"type": "freeze_context", "id": identifier, "at": at}))
+                transcript_parts.append(event.transcript.strip())
+                transcript_interim = ""
+            else:
+                transcript_interim = event.transcript.strip()
             asyncio.create_task(
                 send(
                     {
-                        "type": "question",
-                        "text": last_question,
-                        "language": language,
-                        "turn_id": turn_id,
-                        "at": datetime.fromtimestamp(turn_started, UTC).isoformat(),
+                        "type": "transcript",
+                        "text": transcript_preview(),
+                        "new_turn": new_turn,
+                        "is_final": event.is_final,
+                        "committed_text": " ".join(transcript_parts),
+                        "interim_text": transcript_interim,
                     }
                 )
             )
@@ -618,9 +811,15 @@ async def serve(socket, voice):
             ):
                 voice.conversations.finish(turn_id, event.item.text_content, sources)
 
+        @session.on("user_state_changed")
+        def user_state_changed(event):
+            if event.new_state == "listening" and voice.awake_until:
+                voice.awake_until = time.monotonic() + 10
+            asyncio.create_task(send({"type": "user_state", "state": event.new_state}))
+
         @session.on("agent_state_changed")
         def state_changed(event):
-            if event.new_state == "listening" and last_question:
+            if event.new_state == "listening" and last_question and voice.turn:
                 voice.awake_until = time.monotonic() + 10
             asyncio.create_task(send({"type": "state", "state": event.new_state}))
 
@@ -659,11 +858,51 @@ async def serve(socket, voice):
                 pcm = packet["bytes"]
                 if not 0 < len(pcm) <= 96000 or len(pcm) % 2:
                     raise ValueError("Invalid microphone frame")
-                if time.monotonic() < voice.awake_until:
+                if voice.awake_until and (
+                    time.monotonic() < voice.awake_until
+                    or session.user_state == "speaking"
+                    or session.agent_state in {"thinking", "speaking"}
+                ):
                     await source.frames.put(rtc.AudioFrame(pcm, 16000, 1, len(pcm) // 2))
             else:
                 event = json.loads(packet["text"])
-                if event.get("type") == "played":
+                if event.get("type") == "audio_backpressure":
+                    log(
+                        "browser_audio_backpressure",
+                        **{
+                            key: event[key]
+                            for key in ("audio_bytes", "total_bytes")
+                            if type(event.get(key)) is int and event[key] >= 0
+                        },
+                    )
+                elif event.get("type") == "visual_context" and event.get("id") in visual_requests:
+                    from nyx.companion import TurnFrame, decode_image
+
+                    row = visual_requests[event["id"]]
+                    if not row["future"].done():
+                        try:
+                            raw_frames = event.get("visual_frames", [])
+                            if not isinstance(raw_frames, list) or len(raw_frames) > 6:
+                                raise ValueError("Too many utterance frames")
+                            decoded = []
+                            for raw in raw_frames:
+                                frame = TurnFrame.model_validate(raw)
+                                delta = (
+                                    datetime.fromisoformat(row["at"]) - frame.captured_at
+                                ).total_seconds()
+                                if not -2 <= delta <= 15:
+                                    raise ValueError("Frame is outside its speech window")
+                                decoded.append(
+                                    {
+                                        "image": decode_image(frame.snapshot),
+                                        "captured_at": frame.captured_at.isoformat(),
+                                    }
+                                )
+                            row["future"].set_result(decoded)
+                        except ValueError:
+                            row["future"].set_result([])
+                            log("voice_visual_context_invalid")
+                elif event.get("type") == "played":
                     sink.played(event.get("segment"))
                 elif event.get("type") == "playback_started":
                     segment = event.get("segment")
@@ -688,16 +927,7 @@ async def serve(socket, voice):
                             future.set_exception(ValueError("Invalid tool source references"))
                             continue
                         sources = list(dict.fromkeys([*sources, *tool_sources[:32]]))
-                        answer = str(event.get("answer", "No result."))[:4000]
-                        review = event.get("review_context")
-                        if isinstance(review, dict):
-                            encoded = json.dumps(review)
-                            if len(encoded) <= 2000:
-                                answer += (
-                                    "\nCandidate metadata for follow-up tools, not proof of identity: "
-                                    + encoded
-                                )
-                        future.set_result(answer)
+                        future.set_result(None)
     except (TimeoutError, WebSocketDisconnect):
         pass
     except Exception:
@@ -712,6 +942,8 @@ async def serve(socket, voice):
         with CancelScope(shield=True):
             for _, future in pending.values():
                 future.cancel()
+            for row in visual_requests.values():
+                row["future"].cancel()
             if writer:
                 writer.cancel()
                 await asyncio.gather(writer, return_exceptions=True)

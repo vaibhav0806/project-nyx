@@ -16,6 +16,7 @@ vision = [
 ]
 web = [
     "fastapi>=0.115,<1",
+    "livekit-agents>=1.3,<2",
     "uvicorn>=0.34,<1",
 ]
 voice = [

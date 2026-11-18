@@ -1,8 +1,8 @@
-"""Companion API: local agent tools, live observation, and event-delivery lifecycle."""
+"""Companion API: shared agent tools, owned visual evidence and memory."""
 
 import base64
+import hashlib
 import json
-import re
 import time
 import traceback
 from datetime import UTC, datetime, timedelta
@@ -14,12 +14,10 @@ from fastapi import HTTPException, Request
 from PIL import Image, UnidentifiedImageError
 from pydantic import AwareDatetime, BaseModel, Field
 
-from nyx.agent import agent_steps
+from nyx.agent import _model_tool_result, native_agent_steps
 from nyx.answers import history_steps
-from nyx.intentions import Intentions
 from nyx.memory import aware_time
-from nyx.observation import Observer, departure_action
-from nyx.voice import Conversations, clock_reply, local_now, spoken_answer
+from nyx.voice import Conversations, local_now, spoken_answer
 
 
 class ConfirmMatchRequest(BaseModel):
@@ -76,14 +74,12 @@ def fresh(captured_at, limit=15):
 
 
 def install_companion(app, workspace, voice):
-    tasks = Intentions(workspace.root)
-    observer = Observer()
     conversations = workspace.conversations or Conversations(workspace.root)
     workspace.conversations = conversations
-    workspace.observer = observer
     requests = {}
     references = {}
-    last_observation = {"state": "idle", "note": "Camera off; no departure monitoring"}
+    reference_checks = {}
+    last_observation = {"state": "inactive", "note": "Proactive reminders are not enabled"}
 
     @app.get("/companion.js")
     def companion_javascript():
@@ -105,17 +101,11 @@ def install_companion(app, workspace, voice):
 
     @app.get("/api/companion")
     def status():
-        with workspace.lock:
-            job = workspace.jobs.get(last_observation.get("job_id"), {})
-            if job.get("status") == "failed":
-                last_observation.update(state="interrupted", error=job.get("error"))
-            elif job.get("status") == "succeeded" and last_observation["state"] == "checking":
-                last_observation["state"] = job.get("result", {}).get("state", "watching")
         return {
             "conversations": conversations.recent(),
-            "reminders": tasks.recent(),
+            "reminders": [],
             "observation": last_observation,
-            "pending": tasks.pending(),
+            "pending": [],
         }
 
     @app.post("/api/matches/confirm")
@@ -137,7 +127,7 @@ def install_companion(app, workspace, voice):
                     raise HTTPException(409, "Confirmation ID belongs to a different choice")
                 if not existing["sources_available"]:
                     raise HTTPException(404, "That source has been deleted")
-                return plan["result"]
+                return {**plan["result"], "identity_verified": True}
             store = workspace.store()
             rows = store.frame_context(body.frame_id) if store else []
             evidence = next((row for row in rows if row["id"] == body.frame_id), None)
@@ -151,6 +141,7 @@ def install_companion(app, workspace, voice):
                 "kind": "history",
                 "status": "confirmed",
                 "confirmation": "user",
+                "identity_verified": True,
                 "object_query": body.object_query,
                 "turn_id": identifier,
                 "answer": f"You confirmed this item in the recorded frame at {when}. This does not establish its current location or a later sighting.",
@@ -171,6 +162,7 @@ def install_companion(app, workspace, voice):
                     "result": result,
                 },
                 identifier=identifier,
+                input_sources=[evidence["video_id"]],
             )
             conversations.finish(identifier, result["answer"], [evidence["video_id"]])
             return result
@@ -197,21 +189,32 @@ def install_companion(app, workspace, voice):
         image = decode_image(body.snapshot) if body.snapshot else None
         if image is not None and body.captured_at is None:
             raise ValueError("Current view needs a capture time")
+        if image is not None:
+            fresh(body.captured_at.isoformat(), limit=90)
         turn_frames = []
+        owned_times = None
         if body.visual_frames:
             if body.context_at is None:
                 raise ValueError("Visual window requires a turn timestamp")
             fresh(body.context_at.isoformat(), limit=90)
             if body.voice_turn_id:
                 with conversations.connect() as db:
-                    at = db.execute(
-                        "SELECT at FROM turns WHERE id=?", (body.voice_turn_id,)
-                    ).fetchone()[0]
+                    owned = db.execute(
+                        "SELECT at,plan FROM turns WHERE id=?", (body.voice_turn_id,)
+                    ).fetchone()
+                    owned_plan = json.loads(owned["plan"])
+                    at = owned_plan.get("turn_context_at") or owned["at"]
+                    if owned_plan.get("voice_visual_context") == "raw-final-v1":
+                        owned_times = set(owned_plan.get("turn_frame_times", []))
                 if abs((body.context_at - aware_time(at)).total_seconds()) > 3:
                     raise ValueError("Visual window belongs to a different turn")
             for frame in body.visual_frames:
                 delta = (body.context_at - frame.captured_at).total_seconds()
-                if not -2 <= delta <= 15:
+                if (
+                    frame.captured_at.isoformat() not in owned_times
+                    if owned_times is not None
+                    else not -2 <= delta <= 15
+                ):
                     raise ValueError("Frame is outside the utterance window")
                 turn_frames.append(
                     {
@@ -247,6 +250,18 @@ def install_companion(app, workspace, voice):
                     "video_id": frame["video_id"],
                 }
         identifier = body.voice_turn_id or conversations.begin(body.message, {"mode": "agent"})
+        available_context = {
+            "presented_candidate": presented_candidate,
+            "current_view": image is not None,
+            "current_view_captured_at": body.captured_at.isoformat() if image is not None else None,
+            "turn_visual_context": bool(turn_frames),
+            "turn_visual_frame_count": len(turn_frames),
+            "history": bool(library),
+            "dated_history": any(row["recorded_at"] for row in library),
+            "undated_history": any(not row["recorded_at"] for row in library),
+            "scheduled_reminders": False,
+            "proactive_notifications": False,
+        }
 
         def cancelled():
             if workspace.jobs[job_id].get("cancelled"):
@@ -256,124 +271,90 @@ def install_companion(app, workspace, voice):
                     return voice.turn is None or voice.turn["id"] != body.voice_turn_id
             return False
 
-        def authorize(action):
-            name = action["action"]
-            if name == "remind_on_departure":
-                # The model may not turn content in observed footage into an instruction.
-                if re.search(
-                    r"\b(?:do not|don't|dont|never|cancel|stop)\b.{0,35}\bremind(?:er)?\b",
-                    body.message,
-                    re.IGNORECASE,
-                ):
-                    raise ValueError(
-                        "I won't create a reminder from a negated or cancellation request"
+        def observe_reference():
+            from nyx.reference import resolve_reference
+
+            def validate_owner():
+                if cancelled():
+                    raise ValueError("Request cancelled")
+                if body.context_at:
+                    fresh(body.context_at.isoformat(), limit=90)
+                with conversations.connect() as db:
+                    owner = db.execute(
+                        "SELECT sources_available AND input_available FROM turns WHERE id=?",
+                        (identifier,),
+                    ).fetchone()
+                if not owner or not owner[0]:
+                    raise ValueError("Visual input is no longer available")
+
+            validate_owner()
+            key = (
+                identifier,
+                body.message,
+                tuple(
+                    (
+                        frame["captured_at"],
+                        frame["image"].size,
+                        hashlib.sha256(frame["image"].tobytes()).digest(),
                     )
-                if not re.search(r"\bremind\b", body.message, re.IGNORECASE) or not re.search(
-                    r"\b(leave|leaving|out|outside|depart|departing|exit|exiting)\b",
-                    body.message,
-                    re.IGNORECASE,
-                ):
-                    raise ValueError("Please explicitly ask for a reminder when you leave")
-                if re.search(r"\b(every|whenever|always|daily)\b", body.message, re.IGNORECASE):
-                    raise ValueError(
-                        "This demo supports the next departure only; ask for a next-departure reminder"
+                    for frame in turn_frames
+                ),
+            )
+            with workspace.lock:
+                result = reference_checks.get(key)
+            if result is None:
+                reference = resolve_reference(
+                    workspace.visual_verifier(), body.message, turn_frames
+                )
+                validate_owner()
+                conversations.event("reference_resolved", turn_id=identifier, reference=reference)
+                result = {"kind": "reference", **reference}
+                if reference["status"] == "resolved":
+                    result.update(
+                        image=turn_frames[reference["frame_index"]]["image"],
+                        answer="Shown object: "
+                        + reference["object_description"]
+                        + ". This identifies the demonstrated object, not its current location.",
                     )
-            if name == "cancel_reminder":
-                text = body.message
-                if (
-                    not re.search(
-                        r"^\s*(?:(?:please|can you|could you|would you|will you|i want you to)\s+)*(?:cancel|forget|remove|stop)\b",
-                        text,
-                        re.IGNORECASE,
-                    )
-                    or re.search(
-                        r"\b(?:do not|don't|dont|never)\b.{0,35}\b(?:cancel|forget|remove|stop)\b",
-                        text,
-                        re.IGNORECASE,
-                    )
-                    or re.search(r"\bremind me\b", text, re.IGNORECASE)
-                ):
-                    raise ValueError(
-                        "Please explicitly ask to cancel a departure reminder; the current request does not authorize cancellation"
-                    )
-                active = tasks.active()
-                selected = next((row for row in active if row["id"] == action["id"]), None)
-                if selected is None:
-                    raise ValueError(
-                        "Choose an exact active reminder ID, or clarify which reminder"
-                    )
-                if not (
-                    re.search(r"\breminders?\b", text, re.IGNORECASE)
-                    or selected["message"].casefold() in text.casefold()
-                    or re.search(
-                        r"\b(?:cancel|forget|remove|stop)\s+(?:it|that|this)(?:\s+one)?[.!?]*$",
-                        text.strip(),
-                        re.IGNORECASE,
-                    )
-                ):
-                    raise ValueError("The cancellation must identify a departure reminder")
-                matches = [row for row in active if row["message"].casefold() in text.casefold()]
-                if len(active) > 1 and (len(matches) != 1 or matches[0]["id"] != selected["id"]):
-                    raise ValueError(
-                        "Multiple reminders are active; clarify the exact reminder message before cancelling"
-                    )
+            else:
+                validate_owner()
+                conversations.event("reference_reused", turn_id=identifier)
+            with workspace.lock:
+                reference_checks[key] = result
+                while len(reference_checks) > 8:
+                    del reference_checks[next(iter(reference_checks))]
+                if result["status"] == "resolved":
+                    references[identifier] = result["image"]
+                else:
+                    references.pop(identifier, None)
+                while len(references) > 8:
+                    del references[next(iter(references))]
+            return result.copy()
+
+        def prepare_memory():
+            memory = workspace.personal_memory()
+            memory.process(
+                identifier,
+                active=lambda: not cancelled(),
+                observe=observe_reference if turn_frames else None,
+            )
+            return memory.turn_context(conversations, identifier)
 
         def tool(action):
             conversations.event("tool_started", turn_id=identifier, action=action)
-            authorize(action)
             name = action["action"]
-            if name in {"remember_statement", "search_statements"}:
-                from nyx.statements import Statements
-
-                statements = Statements(conversations)
-                workspace.model_store()
-                if name == "remember_statement":
-                    return statements.remember(
-                        identifier,
-                        workspace.visual_verifier(),
-                        workspace.encoder,
-                        image,
-                        body.captured_at.isoformat() if body.captured_at else None,
-                        frames=turn_frames,
-                        supersedes_turn_id=action.get("supersedes_turn_id"),
-                    )
-                return statements.recall(
+            if name == "process_memory":
+                return prepare_memory()
+            if name == "recall_memory":
+                return workspace.personal_memory().recall(
                     action["query"],
-                    workspace.encoder,
-                    workspace.visual_verifier(),
-                    identifier,
-                    reference_image=references.get(identifier),
                     as_of=action.get("as_of"),
-                    selection=action.get("selection", "all"),
+                    select=True,
+                    active=lambda: not cancelled(),
                 )
             if name in {"inspect_current", "identify_shown_object"}:
                 if name == "identify_shown_object":
-                    from nyx.reference import resolve_reference
-
-                    reference = resolve_reference(
-                        workspace.visual_verifier(), body.message, turn_frames
-                    )
-                    conversations.event(
-                        "reference_resolved",
-                        turn_id=identifier,
-                        frame_times=[f["captured_at"] for f in turn_frames],
-                        reference=reference,
-                    )
-                    if reference["status"] != "resolved":
-                        return {"kind": "reference", **reference}
-                    if reference["source"] == "visual":
-                        with workspace.lock:
-                            references[identifier] = turn_frames[reference["frame_index"]]["image"]
-                            while len(references) > 8:
-                                del references[next(iter(references))]
-                    return {
-                        "kind": "reference",
-                        "status": "complete",
-                        "reference": reference,
-                        "answer": "Shown object: "
-                        + reference["object_description"]
-                        + ". Use this description to search visual history and saved user statements. This is turn evidence, not a current location.",
-                    }
+                    return {k: v for k, v in observe_reference().items() if k != "image"}
                 if image is None:
                     return {
                         "kind": "unavailable",
@@ -386,6 +367,7 @@ def install_companion(app, workspace, voice):
                 judgment = verifier.inspect(image, action["query"])
                 result = {
                     "kind": "snapshot",
+                    "identity_verified": False,
                     "object_query": action["query"],
                     "status": "clarify"
                     if judgment.get("ambiguous")
@@ -403,8 +385,6 @@ def install_companion(app, workspace, voice):
                     "snapshot_url": f"data:{image.info['nyx_mime']};base64,{body.snapshot}",
                 }
                 result["answer"] = spoken_answer(result)
-                if name == "identify_shown_object" and result["status"] == "seen":
-                    result["answer"] = "Shown object: " + judgment["description"]
                 return result
             if name in {"search_history", "search_matches"}:
                 if workspace.store() is None:
@@ -465,29 +445,6 @@ def install_companion(app, workspace, voice):
                 result["scope"]["hours"] = action.get("hours")
                 result["scope"]["before_frame_id"] = action.get("before_frame_id")
                 result["answer"] = spoken_answer(result)
-                if result.get("evidence") and hasattr(workspace.visual_verifier(), "generate_json"):
-                    from nyx.capture import frame_image
-                    from nyx.cloud import CloudError
-                    from nyx.context import attach_statements
-
-                    try:
-                        context_started = time.perf_counter()
-                        attach_statements(
-                            result,
-                            conversations,
-                            workspace.visual_verifier(),
-                            lambda: frame_image(
-                                store.root / result["evidence"]["video_path"],
-                                result["evidence"]["offset_seconds"],
-                            ),
-                            identifier,
-                        )
-                        result["answer"] = spoken_answer(result)
-                        result["timings"]["spoken_context_ms"] = round(
-                            (time.perf_counter() - context_started) * 1000
-                        )
-                    except (CloudError, ValueError):
-                        result["answer"] += " Spoken context could not be checked right now."
                 conversations.event(
                     "history_timing",
                     turn_id=identifier,
@@ -496,124 +453,76 @@ def install_companion(app, workspace, voice):
                     checked=len(result.get("checked", [])),
                 )
                 return result
-            if name == "remind_on_departure":
-                item = tasks.create(body.request_id, action["message"])
-                return {
-                    "kind": "reminder",
-                    "status": item["state"],
-                    "reminder": item,
-                    "answer": f"For your next departure: {item['message']}. Keep the camera running with the main door visible; departure detection is experimental."
-                    if item["state"] == "armed"
-                    else f"That departure request already exists and is {item['state']}.",
-                }
-            if name == "list_reminders":
-                rows = tasks.recent()
-                return {
-                    "kind": "reminder",
-                    "status": "complete",
-                    "answer": "; ".join(f"{row['message']} ({row['state']})" for row in rows)
-                    or "You have no departure reminders.",
-                    "reminders": rows,
-                }
-            if name == "cancel_reminder":
-                if not re.search(r"\b(cancel|forget|remove|stop)\b", body.message, re.IGNORECASE):
-                    raise ValueError("Please explicitly ask to cancel a departure reminder")
-                tasks.cancel(action["id"])
-                return {
-                    "kind": "reminder",
-                    "status": "cancelled",
-                    "answer": "That departure reminder is cancelled.",
-                }
-            raise ValueError("Unsupported companion tool")
+            raise ValueError("Unsupported tool")
 
         def run():
             try:
                 now = local_now(body.timezone)
-                clock = clock_reply(body.message, now)
-                if clock:
-                    result = {
-                        "kind": "agent",
-                        "status": "answered",
-                        "answer": clock,
-                        "steps": [],
-                        "sources": [],
-                        "checked": [],
-                        "turn_id": identifier,
-                        "voice_turn_id": body.voice_turn_id,
+                availability = conversations.source_availability(row["id"] for row in context)
+                input_availability = conversations.source_availability(
+                    (row["id"] for row in context), input_only=True
+                )
+                current_context = [
+                    {
+                        **row,
+                        "sources_available": availability.get(row["id"], False),
+                        "input_available": input_availability.get(row["id"], False),
                     }
-                    if not body.voice_turn_id:
-                        conversations.finish(identifier, clock)
-                    return result
+                    for row in context
+                ]
+                from nyx.conversation_context import recent_context
 
-                if re.search(r"\bremind\b", body.message, re.IGNORECASE) and (
-                    re.search(
-                        r"\b(?:at|by)\s+(?:\d|one\b|two\b|three\b|four\b|five\b|six\b|seven\b|eight\b|nine\b|ten\b|eleven\b|twelve\b|noon\b|midnight\b)",
-                        body.message,
-                        re.IGNORECASE,
-                    )
-                    or re.search(
-                        r"\b(?:tomorrow|tonight|next week|on monday|on tuesday|on wednesday|on thursday|on friday|on saturday|on sunday|in \d+ (?:minutes?|hours?|days?))\b",
-                        body.message,
-                        re.IGNORECASE,
-                    )
-                ):
-                    result = {
-                        "kind": "agent",
-                        "status": "clarify",
-                        "answer": "Timed reminders aren't available in this demo yet. I can remind you on your next departure, without a clock-time condition.",
-                        "steps": [],
-                        "sources": [],
-                        "checked": [],
-                        "turn_id": identifier,
-                        "voice_turn_id": body.voice_turn_id,
-                    }
-                    if not body.voice_turn_id:
-                        conversations.finish(identifier, result["answer"])
-                    return result
+                current_context = recent_context(current_context)
+                conversations.attach_context(identifier, current_context)
+                context_sources = ["transcript:" + identifier] + [
+                    "transcript:" + row["id"] for row in current_context if row["input_available"]
+                ]
 
-                def decide(state):
-                    decision_started = time.perf_counter()
+                def validate_sources(sources):
+                    for source in set(context_sources + sources):
+                        if source.startswith("transcript:"):
+                            with conversations.connect() as db:
+                                row = db.execute(
+                                    "SELECT input_available FROM turns WHERE id=?", (source[11:],)
+                                ).fetchone()
+                            if not row or not row[0]:
+                                raise ValueError("Conversation evidence changed; ask again")
+                        else:
+                            store = workspace.store()
+                            if not store or store.video(source)["status"] != "ready":
+                                raise ValueError("Recording evidence changed; ask again")
+                    required = [row["id"] for row in current_context if row["sources_available"]]
+                    if not all(conversations.source_availability(required).values()):
+                        raise ValueError("Conversation evidence changed; ask again")
+
+                memory_context = None
+                if body.initial_action is None:
+                    memory_context = prepare_memory()
+
+                def generate(messages, tools):
+                    generation_started = time.perf_counter()
                     verifier = workspace.visual_verifier()
-                    action = (
-                        (
-                            {"action": "finish", "observation": len(state["observations"]) - 1}
-                            if state["observations"]
-                            else body.initial_action
-                        )
-                        if body.initial_action
-                        else verifier.decide(
-                            {
-                                **state,
-                                "now": local_now(body.timezone).isoformat(),
-                                "user_timezone": body.timezone or str(now.tzinfo),
-                                "reminders": tasks.active(),
-                            }
-                        )
-                    )
+                    reply = verifier.agent_reply(messages, tools)
                     conversations.event(
-                        "agent_decision",
+                        "agent_generation",
                         turn_id=identifier,
-                        action=action,
-                        context_turns=len(context),
-                        elapsed_ms=round((time.perf_counter() - decision_started) * 1000),
+                        elapsed_ms=round((time.perf_counter() - generation_started) * 1000),
                         model=verifier.fingerprint,
                     )
-                    return action
+                    return reply
 
-                result = yield from agent_steps(
+                result = yield from native_agent_steps(
                     body.message,
-                    context,
-                    decide,
+                    current_context,
+                    generate,
                     tool,
                     cancelled=cancelled,
-                    validate_tool=authorize,
-                    available={
-                        "presented_candidate": presented_candidate,
-                        "current_view": image is not None,
-                        "history": bool(library),
-                        "dated_history": any(row["recorded_at"] for row in library),
-                        "undated_history": any(not row["recorded_at"] for row in library),
-                    },
+                    initial_action=body.initial_action,
+                    now=now.isoformat(),
+                    user_timezone=body.timezone,
+                    memory_context=memory_context,
+                    validate_sources=validate_sources,
+                    available=available_context,
                 )
                 result["turn_id"] = identifier
                 result["voice_turn_id"] = body.voice_turn_id
@@ -630,6 +539,7 @@ def install_companion(app, workspace, voice):
                 plan = {
                     **previous,
                     "mode": "agent",
+                    "available": available_context,
                     "steps": previous.get("steps", []) + result["steps"],
                     "presented_candidate": presented_candidate,
                     "candidate": {
@@ -655,6 +565,11 @@ def install_companion(app, workspace, voice):
                     if body.captured_at
                     else None,
                 }
+                if result["steps"]:
+                    plan["last_tool"] = {
+                        "action": result["steps"][-1],
+                        "result": _model_tool_result(result["observations"][-1]),
+                    }
                 statement_observations = [
                     r for r in result.get("observations", []) if r.get("kind") == "statements"
                 ]
@@ -673,7 +588,9 @@ def install_companion(app, workspace, voice):
                 conversations.update_plan(
                     identifier,
                     plan,
+                    sources=result["sources"],
                 )
+                validate_sources(result["sources"])
                 review = dict(plan["candidate"] or {})
                 if plan["statement_refs"]:
                     review["statement_refs"] = plan["statement_refs"]
@@ -688,6 +605,8 @@ def install_companion(app, workspace, voice):
                 )
                 if not body.voice_turn_id:
                     conversations.finish(identifier, result["answer"], result["sources"])
+                if (body.initial_action or {}).get("action") == "process_memory":
+                    result["steps"] = []
                 return result
             except Exception as exc:
                 conversations.event(
@@ -718,173 +637,14 @@ def install_companion(app, workspace, voice):
         return {"cancelled": True}
 
     @app.delete("/api/reminders/{identifier}")
-    def cancel_reminder(identifier: str):
-        tasks.cancel(identifier)
-        return {"cancelled": True}
-
+    @app.post("/api/reminders/{identifier}/cancel")
     @app.post("/api/reminders/{identifier}/acknowledge")
-    def acknowledge(identifier: str):
-        tasks.acknowledge(identifier)
-        return tasks.get(identifier)
+    @app.post("/api/deliveries/{identifier}/claim")
+    @app.post("/api/deliveries/{identifier}/outcome")
+    def retired_reminder_action(identifier: str):
+        raise HTTPException(410, "Proactive reminders are not enabled")
 
     @app.post("/api/observe")
     def observe(body: ObservationRequest):
-        session = workspace.capture.snapshot()["session"]
-        if not session or session["id"] != body.session_id or session["state"] != "recording":
-            observer.reset()
-            raise HTTPException(409, "Live observation needs the active recording session")
-        image = decode_image(body.image, 640 * 360)
-        if not any(row["state"] == "armed" for row in tasks.active()):
-            observer.reset()
-            last_observation.update(
-                state="quiet", phase="quiet", note="Camera active; no armed departure reminder"
-            )
-            return {"state": "quiet"}
-        burst = observer.feed(body.session_id, image, body.captured_at.isoformat())
-        last_observation.update(
-            state="watching",
-            phase=observer.phase,
-            at=body.captured_at.isoformat(),
-            note="Checking local visual changes for an active departure request",
-        )
-        if burst is None:
-            return {"state": "watching", "phase": observer.phase}
-        with workspace.lock:
-            if any(
-                job["kind"] == "observe" and job["status"] not in {"succeeded", "failed"}
-                for job in workspace.jobs.values()
-            ):
-                return {"state": "busy"}
-        job_id = workspace.reserve("observe")
-        observer.accept(burst)
-        last_observation.pop("error", None)
-        last_observation["job_id"] = job_id
-        last_observation["state"] = "checking"
-
-        def check():
-            if not observer.valid(burst):
-                return {"state": "interrupted", "deliveries": []}
-            fresh(burst["times"][-1], 8)
-            model = workspace.visual_verifier()
-            fresh(burst["times"][-1], 8)
-            started = time.perf_counter()
-            judgment = model.inspect_departure(
-                burst["tracking_images"],
-                times=burst["tracking_times"],
-                view_id=(burst["session"], burst["epoch"]),
-            )
-            checked = burst
-            selected = judgment.get("frame_indices")
-            if selected:
-                if (
-                    len(selected) != 3
-                    or any(
-                        type(i) is not int or not 0 <= i < len(burst["tracking_times"])
-                        for i in selected
-                    )
-                    or selected != sorted(set(selected))
-                ):
-                    raise ValueError(
-                        "Semantic inspection needs three distinct ordered image indices"
-                    )
-                checked = {**burst, "times": [burst["tracking_times"][i] for i in selected]}
-            elif selected is not None and judgment.get("semantic_checked") is not False:
-                raise ValueError("Missing inspected image indices")
-            session = workspace.capture.snapshot()["session"]
-            if (
-                not observer.valid(burst)
-                or not session
-                or session["id"] != burst["session"]
-                or session["state"] != "recording"
-            ):
-                return {"state": "interrupted", "deliveries": []}
-            fresh(checked["times"][-1])
-            decision = departure_action(checked, judgment, tasks.active())
-            continuity = None
-            if decision["act"]:
-                continuity = observer.delivery_continuity(burst, checked["times"][-1])
-                if not continuity["supported"]:
-                    decision = {
-                        "act": False,
-                        "request_ids": [],
-                        "reason": "superseded_evidence",
-                    }
-            semantic_times = (
-                checked["times"] if judgment.get("semantic_checked") is not False else []
-            )
-            evidence = {
-                "judgment": judgment,
-                "model": model.fingerprint,
-                "frame_times": checked["times"],
-                "semantic_frame_times": semantic_times,
-                "inference_seconds": time.perf_counter() - started,
-                "kind": "model_inference" if semantic_times else "detector_observation",
-                "event_id": burst["event_id"],
-                "activity": burst["activity"],
-                "decision": decision,
-                "delivery_continuity": continuity,
-            }
-            deliveries = (
-                tasks.trigger(
-                    burst["event_id"],
-                    checked["times"][-1],
-                    evidence,
-                    request_ids=decision["request_ids"],
-                )
-                if decision["act"]
-                else []
-            )
-            last_observation.update(
-                state="triggered" if deliveries else "watching",
-                judgment=judgment,
-                decision=decision,
-                delivery_continuity=continuity,
-                seconds=evidence["inference_seconds"],
-            )
-            return {
-                "state": last_observation["state"],
-                "judgment": judgment,
-                "deliveries": deliveries,
-                "decision": decision,
-                "event_id": burst["event_id"],
-                "activity": burst["activity"],
-                "frame_times": checked["times"],
-                "semantic_frame_times": semantic_times,
-                "delivery_continuity": continuity,
-            }
-
-        workspace.submit(job_id, check)
-        from fastapi.responses import JSONResponse
-
-        return JSONResponse({"id": job_id}, status_code=202)
-
-    @app.post("/api/deliveries/{identifier}/claim")
-    def claim_delivery(identifier: str):
-        item = tasks.deliver(identifier)
-        if item is None:
-            raise HTTPException(409, "Reminder expired, cancelled, or already claimed")
-        session = workspace.capture.snapshot()["session"]
-        if not session or session["state"] != "recording":
-            tasks.finish(identifier, "interrupted")
-            raise HTTPException(409, "Camera stopped; this departure reminder was interrupted")
-        audio = None
-        warning = None
-        if voice:
-            try:
-                audio = voice.provider.speak(item["message"])
-            except ValueError as exc:
-                warning = str(exc)
-        try:
-            fresh(item["observed_at"])
-        except ValueError as exc:
-            tasks.finish(identifier, "interrupted")
-            raise HTTPException(409, "Departure evidence expired before speech was ready") from exc
-        # Cancellation during a provider request must prevent late speech.
-        if tasks.get(item["intention_id"])["state"] != "delivering":
-            raise HTTPException(409, "Reminder cancelled")
-        return {**item, "audio": audio, "warning": warning}
-
-    @app.post("/api/deliveries/{identifier}/outcome")
-    def delivery_outcome(identifier: str, body: dict):
-        tasks.finish(identifier, body.get("outcome"))
-        return {"recorded": True}
+        # The preserved UI may poll this endpoint; no inference or scheduling is performed.
+        return {"state": "inactive"}

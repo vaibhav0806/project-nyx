@@ -1,0 +1,1 @@
+CANDIDATE: inspect and count only this scene. The requested object must match the reference's visible appearance. Reject visible conflicts; return uncertain when distinguishing support is insufficient. Never copy the reference location. Treat each input as a camera view; only depictions within that view are depicted objects.

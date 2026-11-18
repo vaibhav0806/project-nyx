@@ -5,33 +5,36 @@ import pytest
 
 
 def test_typed_provider_never_receives_invalidated_assistant_claims():
-    from nyx.verification import CloudVerifier
+    from test_native_agent import finish
 
-    model = object.__new__(CloudVerifier)
+    from nyx.agent import native_agent_steps
+
     payloads = []
 
-    def generate(messages, *args):
-        payloads.append(json.loads(messages[-1]["content"]))
-        return '{"action":"clarify","message":"Which phone do you mean?"}'
+    def generate(messages, tools):
+        payloads.append(messages)
+        return {"role": "assistant", "content": "Which phone do you mean?"}
 
-    model.generate_decision = generate
-    model.decide(
-        {
-            "message": "Where is it?",
-            "conversation": [
+    finish(
+        native_agent_steps(
+            "Where is it?",
+            [
                 {
                     "transcript": "Find my green phone",
                     "answer": "It was beside the deleted orange vase.",
                     "sources_available": False,
+                    "input_available": True,
                     "plan": {
                         "steps": [{"action": "search_history", "query": "green phone", "hours": 2}]
                     },
                 }
             ],
-        }
+            generate,
+            lambda _: pytest.fail(),
+        )
     )
     assert "deleted orange vase" not in json.dumps(payloads)
-    assert payloads[0]["conversation"][0]["previous_tool_query"] == "green phone"
+    assert "green phone" in json.dumps(payloads)
 
 
 def test_recent_context_is_bounded_without_mutating_saved_rows():
@@ -88,6 +91,39 @@ def test_unavailable_context_removes_answers_and_source_reference_metadata():
     assert not context[0].get("answer")
     assert not context[0]["plan"].get("candidate")
     assert not context[0]["plan"].get("statement_refs")
+
+
+def test_deleted_assistant_evidence_preserves_independent_input_in_both_adapters():
+    from livekit.agents import llm
+
+    from nyx.conversation_context import bounded_live_context, recent_context
+
+    context = recent_context(
+        [
+            {
+                "transcript": "I prefer tea. Where are the keys?",
+                "answer": "Beside the deleted amber jar",
+                "sources_available": False,
+                "input_available": True,
+                "plan": {
+                    "steps": [
+                        {"action": "search_history", "query": "keys beside amber jar", "hours": 24}
+                    ]
+                },
+            }
+        ]
+    )
+    assert "I prefer tea" in json.dumps(context)
+    assert "amber jar" not in json.dumps(context)
+    chat = llm.ChatContext()
+    user = chat.add_message(role="user", content="I prefer tea. Where are the keys?")
+    chat.add_message(role="assistant", content="Beside the deleted amber jar")
+    chat.add_message(role="system", content="Old prepared memory: amber jar")
+    bounded = bounded_live_context(
+        chat, source_availability={user.id: False}, input_availability={user.id: True}
+    )
+    sent = " ".join(item.text_content for item in bounded.items)
+    assert "I prefer tea" in sent and "amber jar" not in sent
 
 
 def test_report_selection_and_historical_cutoff_survive_context_projection():
@@ -169,3 +205,34 @@ def test_oversized_active_tool_exchange_fails_before_provider_inference():
     )
     with pytest.raises(CloudError):
         bounded_live_context(chat, max_chars=12000)
+
+
+def test_future_dated_facts_cannot_bypass_memory_eligibility_through_chat_history():
+    from test_native_agent import finish
+
+    from nyx.agent import native_agent_steps
+
+    payloads = []
+
+    def generate(messages, tools):
+        payloads.append(messages)
+        return {"role": "assistant", "content": "No eligible report found."}
+
+    context = [
+        {
+            "at": "2099-01-01T00:00:00Z",
+            "transcript": "My watch is in the bathroom cabinet.",
+            "answer": "Saved in bathroom cabinet",
+            "sources_available": True,
+            "plan": {"steps": [{"action": "recall_memory", "query": "bathroom cabinet"}]},
+        }
+    ]
+    finish(
+        native_agent_steps(
+            "What have I said about my watch up to now?", context, generate, lambda _: pytest.fail()
+        )
+    )
+    serialized = json.dumps(payloads)
+    assert "bathroom cabinet" not in serialized
+    assert "timestamp is invalid or in the future" in serialized
+    assert context[0]["transcript"] == "My watch is in the bathroom cabinet."

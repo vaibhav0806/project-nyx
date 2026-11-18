@@ -10,7 +10,7 @@ import time
 from importlib.metadata import version
 from pathlib import Path
 
-from nyx.agent import agent_steps
+from nyx.agent import native_agent_steps
 from nyx.verification import CloudVerifier
 
 CASES = [
@@ -251,7 +251,7 @@ def score_case(case, result):
         "no_contradictory_attributes": all(
             not any(word in query for word in case.get("forbidden", [])) for query in queries
         ),
-        "path": "path" not in case or path == case["path"],
+        "path": "path" not in case or path == [x for x in case["path"] if x != "finish"],
         "hours": "hours" not in case or hours == case["hours"],
         "bounded": len(path) <= 6,
         "earlier_than_evidence": "before_frame_id" not in case
@@ -303,35 +303,25 @@ def main():
     if args.cases and len(selected) != len(set(args.cases)):
         parser.error("Every requested case must exist")
     args.output.mkdir(parents=True, exist_ok=False)
-    model = CloudVerifier()
-    original = model.generate_decision
+    from experiments.companion.budget import BudgetedClient
 
-    def record(messages, max_tokens=240):
-        if args.natural_user_turn:
-            state = json.loads(messages[1]["content"])
-            latest = state.pop("message")
-            messages = [
-                {
-                    "role": "system",
-                    "content": messages[0]["content"]
-                    + "\nThe first user message is background context. The final user message is the current request.",
-                },
-                {"role": "user", "content": json.dumps(state)},
-                {"role": "user", "content": latest},
-            ]
-        raw = original(messages, max_tokens)
+    client = BudgetedClient(0.20, max_requests=96)
+    model = CloudVerifier(client=client)
+    original = model.agent_reply
+
+    def record(messages, tools):
+        reply = original(messages, tools)
         with (args.output / "raw.jsonl").open("a") as file:
-            file.write(json.dumps({"messages": messages, "raw": raw}) + "\n")
-        return raw
+            file.write(json.dumps({"messages": messages, "reply": reply}) + "\n")
+        return reply
 
-    model.generate_decision = record
     results = {
         "platform": platform.platform(),
         "python": platform.python_version(),
         "runtime": {name: version(name) for name in ["numpy", "fastapi"]},
         "model": model.fingerprint,
         "load_seconds": model.load_seconds,
-        "natural_user_turn": args.natural_user_turn,
+        "protocol": "shared-native-tools-v1",
         "tools": "controlled observations; no actual retrieval or mutations",
         "scoring": "Query concept/contradiction checks and expected tool paths; manual review still required",
         "cases": [],
@@ -363,12 +353,10 @@ def main():
             }
 
         started = time.perf_counter()
-        steps = agent_steps(
+        steps = native_agent_steps(
             case["message"],
             case.get("context", []),
-            lambda state, case=case: model.decide(
-                {**state, "reminders": case.get("reminders", [])}
-            ),
+            record,
             tool,
             available={
                 "current_view": case.get("current_view", True),

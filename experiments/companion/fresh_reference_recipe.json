@@ -1,0 +1,86 @@
+{
+  "parent_manifest_sha256": "25b7d75c108985686cb2d50c144d21a893c7853190362680a690e4db39ffe356",
+  "selection": "Largest annotated instance of each declared category, existing household crop renderer with 15% context. No inference before freezing.",
+  "images": [
+    {
+      "id": 157046,
+      "annotation_id": 1111587,
+      "bbox": [
+        294.85,
+        152.56,
+        152.53,
+        222.44
+      ]
+    },
+    {
+      "id": 430286,
+      "annotation_id": 1109287,
+      "bbox": [
+        398.24,
+        22.91,
+        98.04,
+        148.33
+      ]
+    },
+    {
+      "id": 537991,
+      "annotation_id": 330062,
+      "bbox": [
+        156.87,
+        171.04,
+        46.59,
+        60.65
+      ]
+    },
+    {
+      "id": 42528,
+      "annotation_id": 328787,
+      "bbox": [
+        413.77,
+        183.45,
+        119.51,
+        232.73
+      ]
+    },
+    {
+      "id": 146489,
+      "annotation_id": 86514,
+      "bbox": [
+        180.3,
+        3.6,
+        110.82,
+        319.43
+      ]
+    },
+    {
+      "id": 64084,
+      "annotation_id": 2213432,
+      "bbox": [
+        25.77,
+        58.12,
+        132.09,
+        345.79
+      ]
+    },
+    {
+      "id": 35682,
+      "annotation_id": 671606,
+      "bbox": [
+        64.96,
+        374.27,
+        126.59,
+        122.27
+      ]
+    },
+    {
+      "id": 157601,
+      "annotation_id": 670357,
+      "bbox": [
+        192.54,
+        305.31,
+        204.92,
+        279.18
+      ]
+    }
+  ]
+}

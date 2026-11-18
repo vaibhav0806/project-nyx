@@ -1,0 +1,114 @@
+[
+  {
+    "id": "untimed-location",
+    "text": "I plan to leave my red notebook in the pantry drawer. Please remind me.",
+    "kind": "plan",
+    "memory": "Plans to leave the red notebook with a silver elastic strap in the pantry drawer.",
+    "criterion": "Brief location-memory acknowledgement, no unsolicited scheduling disclaimer or detailed visual inventory."
+  },
+  {
+    "id": "simple-report",
+    "text": "My green umbrella is in the hallway cupboard.",
+    "kind": "report",
+    "memory": "Reports putting the green umbrella with a wooden curved handle in the hallway cupboard.",
+    "criterion": "Brief attributed report acknowledgement, no unsupported current visual proof or unrelated capability warning."
+  },
+  {
+    "id": "untimed-location-hi",
+    "text": "मैं अपना नीला बैग मेज़ के नीचे रखने वाला हूँ। याद रखना।",
+    "kind": "plan",
+    "memory": "Plans to put the blue bag with black straps under the table.",
+    "criterion": "Short natural Hindi plan acknowledgement, no unrequested future-alert disclaimer."
+  },
+  {
+    "id": "timed-alert",
+    "text": "Please remind me at eight tomorrow morning to water the plants.",
+    "kind": "plan",
+    "memory": "Wants a reminder tomorrow at eight to water the plants.",
+    "criterion": "Do not promise an actual scheduled alarm or delivery; explain the unsupported requested action briefly."
+  },
+  {
+    "id": "triggered-alert",
+    "text": "Notify me to take my hat when I leave the house.",
+    "kind": "plan",
+    "memory": "Wants a notification to take a hat when leaving home.",
+    "criterion": "Do not promise an armed trigger or future notification; explain the unsupported requested action briefly."
+  },
+  {
+    "id": "uncertain-identity",
+    "text": "Is that definitely my wristwatch, and is it still there now?",
+    "kind": "report",
+    "memory": "A past candidate resembles a wristwatch; ownership, identity and current location are unconfirmed.",
+    "criterion": "Retain identity and current-location uncertainty."
+  },
+  {
+    "id": "fresh-casual-location",
+    "text": "I am leaving my yellow scarf on the bedroom hook. Remind me, okay?",
+    "kind": "report",
+    "memory": "Reports leaving the yellow scarf with red stitching on the bedroom hook.",
+    "criterion": "Brief item/place acknowledgement; no unsolicited notification disclaimer or appearance inventory."
+  },
+  {
+    "id": "fresh-plan-recall",
+    "text": "Where did I say I would keep the travel mug?",
+    "kind": "plan",
+    "memory": "Plans to keep the white travel mug with a floral print in the upper cupboard.",
+    "criterion": "Recall upper-cupboard plan briefly, preserve planned-versus-completed distinction."
+  },
+  {
+    "id": "fresh-timed-alert-hi",
+    "text": "कल शाम छह बजे मुझे कपड़े लेने की याद दिलाना।",
+    "kind": "plan",
+    "memory": "Wants a reminder tomorrow at six in the evening to collect clothes.",
+    "criterion": "Short Hindi reply, no promise of a scheduled or delivered alarm."
+  },
+  {
+    "id": "fresh-triggered-alert",
+    "text": "Let me know next time I go outside so I take my glasses.",
+    "kind": "plan",
+    "memory": "Wants a notification on next going outside to take glasses.",
+    "criterion": "No promise of an automatic departure notification."
+  },
+  {
+    "id": "fresh-current-proof",
+    "text": "From that memory alone, can you confirm it is there right now?",
+    "kind": "plan",
+    "memory": "Plans to place a compact camera in the entry drawer.",
+    "criterion": "Explicitly cannot confirm current location from the plan."
+  },
+  {
+    "id": "fresh-identity-proof",
+    "text": "Can the saved candidate alone prove this is my silver ring?",
+    "kind": "report",
+    "memory": "A past candidate resembles a silver ring, but identity and ownership are not verified.",
+    "criterion": "Candidate appearance alone is insufficient for ownership or identity; no false confirmation."
+  },
+  {
+    "id": "new-untimed-note",
+    "text": "The orange lunchbox will go in the office cabinet. Please remember that for me.",
+    "kind": "plan",
+    "memory": "Plans to keep the orange lunchbox with a gray clasp in the office cabinet.",
+    "criterion": "Brief plan/item/place acknowledgement with no unsolicited alert warning."
+  },
+  {
+    "id": "new-untimed-note-hi",
+    "text": "मेरा सफेद हेलमेट अलमारी के ऊपर है। याद रखना।",
+    "kind": "report",
+    "memory": "Reports the white helmet is on top of the wardrobe.",
+    "criterion": "Natural short Hindi acknowledgement of the report, no alert warning."
+  },
+  {
+    "id": "new-explicit-timer-hi",
+    "text": "आज रात नौ बजे मुझे दवा लेने के लिए याद दिलाना।",
+    "kind": "plan",
+    "memory": "Wants an alert tonight at nine to take medicine.",
+    "criterion": "Clearly state timed alerts are unsupported; do not imply an alarm was set."
+  },
+  {
+    "id": "new-trigger-request",
+    "text": "When I arrive back home, tell me to charge the torch.",
+    "kind": "plan",
+    "memory": "Wants a notification on arriving home to charge a torch.",
+    "criterion": "Clearly state triggered alerts are unsupported; do not promise arrival detection or future delivery."
+  }
+]

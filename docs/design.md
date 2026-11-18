@@ -1,5 +1,31 @@
 # Product design
 
+## Centered bounded conversation — 2026-11-18
+
+The approved hybrid keeps the latest two rendered lines of the user's request visible,
+without a full-request button. Center the request and reply together between the header
+and voice controls. Replies grow naturally to a 350px maximum (less on small viewports),
+then scroll inside their panel. Follow incoming text until the reader scrolls back.
+Full text remains in the DOM and existing history; this is not a character limit.
+The follow-up visual refinement removes the reply card background and border, uses softer
+26px reply text, and separates caption and reply by48px (32px mobile,20px short screens).
+Prose is centered; lists remain left-aligned. Paragraphs have a full line of separation.
+
+## General memory first — 2026-11-17
+
+The approved [simplification](superpowers/specs/2026-11-17-simple-agent-memory-design.md)
+replaces the object-statement-only writer with automatic source-linked memory for ordinary
+facts, preferences, reports, plans and events. Voice/text share one short conversational policy
+and native tools; memory owns matching and updates. Visual understanding uses one prompt per
+task. Proactive departure behavior is retired. Contributor UI and recording controls stay as-is.
+The implementation passes deterministic checks; household, acoustic and real-model acceptance
+remain separate and are not established by passing unit tests. Older dated sections are history.
+
+Source withdrawal applies to evidence-derived answers across followups, while independent facts
+the person stated remain available. This distinction belongs to storage/context, not more agent
+instructions. Rejected vision changes stay experimental even when one benchmark improves.
+
+
 ## Current memory behavior and preserved interface — 2026-11-15
 
 The contributor's conversation UI is preserved. Backend recall can now accept an explicit

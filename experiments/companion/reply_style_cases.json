@@ -1,0 +1,44 @@
+[
+  {
+    "id": "untimed-location",
+    "text": "I plan to leave my red notebook in the pantry drawer. Please remind me.",
+    "kind": "plan",
+    "memory": "Plans to leave the red notebook with a silver elastic strap in the pantry drawer.",
+    "criterion": "Brief location-memory acknowledgement, no unsolicited scheduling disclaimer or detailed visual inventory."
+  },
+  {
+    "id": "simple-report",
+    "text": "My green umbrella is in the hallway cupboard.",
+    "kind": "report",
+    "memory": "Reports putting the green umbrella with a wooden curved handle in the hallway cupboard.",
+    "criterion": "Brief attributed report acknowledgement, no unsupported current visual proof or unrelated capability warning."
+  },
+  {
+    "id": "untimed-location-hi",
+    "text": "मैं अपना नीला बैग मेज़ के नीचे रखने वाला हूँ। याद रखना।",
+    "kind": "plan",
+    "memory": "Plans to put the blue bag with black straps under the table.",
+    "criterion": "Short natural Hindi plan acknowledgement, no unrequested future-alert disclaimer."
+  },
+  {
+    "id": "timed-alert",
+    "text": "Please remind me at eight tomorrow morning to water the plants.",
+    "kind": "plan",
+    "memory": "Wants a reminder tomorrow at eight to water the plants.",
+    "criterion": "Do not promise an actual scheduled alarm or delivery; explain the unsupported requested action briefly."
+  },
+  {
+    "id": "triggered-alert",
+    "text": "Notify me to take my hat when I leave the house.",
+    "kind": "plan",
+    "memory": "Wants a notification to take a hat when leaving home.",
+    "criterion": "Do not promise an armed trigger or future notification; explain the unsupported requested action briefly."
+  },
+  {
+    "id": "uncertain-identity",
+    "text": "Is that definitely my wristwatch, and is it still there now?",
+    "kind": "report",
+    "memory": "A past candidate resembles a wristwatch; ownership, identity and current location are unconfirmed.",
+    "criterion": "Retain identity and current-location uncertainty."
+  }
+]

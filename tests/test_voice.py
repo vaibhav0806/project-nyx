@@ -62,6 +62,66 @@ def test_conversations_reopen_interrupt_and_invalidate_sources(tmp_path):
     assert reopened.recent()[0]["sources_available"] is False
 
 
+def test_context_dependencies_survive_many_followups_without_copying_ancestry(tmp_path):
+    db = Conversations(tmp_path)
+    first = db.begin("Find the keys", {})
+    db.finish(first, "Possible sighting beside an amber jar", ["video"])
+    previous = first
+    for _ in range(60):
+        parent = previous
+        turn = db.begin("Repeat the location", {})
+        db.attach_context(turn, [{"id": previous, "sources_available": True}])
+        db.finish(turn, "Beside an amber jar")
+        previous = turn
+    with db.connect() as connection:
+        row = connection.execute(
+            "SELECT sources,context_turns FROM turns WHERE id=?", (previous,)
+        ).fetchone()
+    assert json.loads(row["sources"]) == []
+    assert json.loads(row["context_turns"]) == [{"id": parent, "answer": True}]
+    assert db.source_availability([previous])[previous]
+    db.invalidate("video")
+    assert not db.source_availability([previous])[previous]
+    assert db.source_availability([previous], input_only=True)[previous]
+    # A new response using only the surviving user input does not inherit the deleted answer.
+    fresh = db.begin("What did I ask?", {})
+    db.attach_context(
+        fresh, [{"id": previous, "sources_available": False, "input_available": True}]
+    )
+    db.finish(fresh, "You asked to repeat a location")
+    assert db.source_availability([fresh])[fresh]
+    db.invalidate("transcript:" + previous)
+    assert not db.source_availability([fresh])[fresh]
+
+
+def test_confirmation_input_is_unavailable_when_its_recording_is_deleted(tmp_path):
+    db = Conversations(tmp_path)
+    turn = db.begin("I confirm the item in this frame", {}, input_sources=["video"])
+    db.finish(turn, "You confirmed this item", ["video"])
+    db.invalidate("video")
+    assert not db.source_availability([turn], input_only=True)[turn]
+    assert not db.recent()[0]["input_available"]
+
+
+def test_legacy_conversation_migration_preserves_original_source_boundaries(tmp_path):
+    import sqlite3
+
+    with sqlite3.connect(tmp_path / "conversations.sqlite3") as db:
+        db.execute(
+            "CREATE TABLE turns(id TEXT PRIMARY KEY,at TEXT,transcript TEXT,plan TEXT,answer TEXT,sources TEXT,sources_available INTEGER,status TEXT)"
+        )
+        db.execute(
+            "INSERT INTO turns VALUES (?,?,?,?,?,?,?,?)",
+            ("old", None, "Original report", "{}", "Original answer", '["video"]', 1, "complete"),
+        )
+    conversations = Conversations(tmp_path)
+    assert conversations.recent()[0]["transcript"] == "Original report"
+    assert conversations.recent()[0]["answer"] == "Original answer"
+    conversations.invalidate("video")
+    assert not conversations.source_availability(["old"], input_only=True)["old"]
+    assert not Conversations(tmp_path).recent()[0]["sources_available"]
+
+
 def test_deletion_marks_conversation_sources_even_when_voice_not_configured(tmp_path, monkeypatch):
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
@@ -114,8 +174,9 @@ def test_spoken_answer_is_brief_but_keeps_historical_uncertainty():
     }
     text = spoken_answer(result)
     assert "beside the laptop" in text
-    assert "I think I saw" in text
-    assert "not verified" not in text
+    assert "possible visual match" in text.lower()
+    assert "identity" in text and "unconfirmed" in text
+    assert "current location" in text
     assert "check the image" not in text
     assert "2026-10-19T" not in text
     assert len(text) < 240
@@ -273,7 +334,7 @@ def test_unknown_or_future_sightings_do_not_invent_elapsed_time():
 @pytest.mark.parametrize(
     "location, expected",
     [
-        ("held in the right hand near the center of the image", "in your right hand"),
+        ("held in the right hand near the center of the image", "in the right hand"),
         ("on the table, in the lower right corner of the frame", "on the table"),
         ("near the center of the image, beside the laptop", "beside the laptop"),
         ("on the right side of the table", "on the right side of the table"),
@@ -299,39 +360,25 @@ def test_spoken_locations_keep_landmarks_not_image_coordinates(location, expecte
     if expected:
         assert expected in answer
     else:
-        assert answer == "I can see a phone."
+        assert answer.startswith("I can see a phone.")
+    assert "identity is unconfirmed" in answer
 
 
 @pytest.mark.parametrize(
-    "query, location, expected",
+    "query, location",
     [
-        (
-            "the user using a phone",
-            "in front of the user",
-            "you using a phone about 50 minutes ago.",
-        ),
-        (
-            "the user's phone",
-            "in the user's hand",
-            "your phone about 50 minutes ago, in your hand.",
-        ),
-        ("your phone", "in the person's hand", "your phone about 50 minutes ago, in your hand."),
-        (
-            "the person’s phone",
-            "in the person’s right hand",
-            "your phone about 50 minutes ago, in your right hand.",
-        ),
-        (
-            "the person using a phone",
-            "in front of the person",
-            "you using a phone about 50 minutes ago.",
-        ),
-        ("a phone", "held in the right hand", "a phone about 50 minutes ago, in your right hand."),
-        ("a visitor", "beside the table", "a visitor about 50 minutes ago, beside the table."),
-        ("a phone", "in a visitor's hand", "a phone about 50 minutes ago, in a visitor's hand."),
+        ("the user using a phone", "in front of the user"),
+        ("the user's phone", "in the user's hand"),
+        ("my coffee cup", "on the table"),
+        ("a phone", "in the person's hand"),
+        ("the person’s phone", "in the person’s right hand"),
+        ("the person using a phone", "in front of the person"),
+        ("a phone", "held in the right hand"),
+        ("a visitor", "beside the table"),
+        ("a phone", "in a visitor's hand"),
     ],
 )
-def test_personal_demo_speaks_to_listener_without_changing_evidence(query, location, expected):
+def test_spoken_evidence_does_not_invent_user_ownership(query, location):
     from datetime import datetime
 
     from nyx.voice import spoken_answer
@@ -345,6 +392,30 @@ def test_personal_demo_speaks_to_listener_without_changing_evidence(query, locat
         },
     }
     answer = spoken_answer(result, now=datetime.fromisoformat("2026-10-31T12:50:00+00:00"))
-    assert answer == "I think I saw " + expected
+    assert "possible visual match" in answer.lower()
+    assert "about 50 minutes ago" in answer
+    assert "identity" in answer and "current location" in answer and "unconfirmed" in answer
+    assert "your" not in answer and "you using" not in answer
+    if "person" in location or "visitor" in location:
+        assert location in answer
     assert result["object_query"] == query
     assert result["evidence"]["judgment"]["location"] == location
+
+
+def test_interrupted_reply_does_not_withdraw_its_completed_user_input(tmp_path):
+    from nyx.voice import Conversations
+
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("I plan to keep my blue bag by the door.", {})
+    conversations.finish(turn, status="interrupted")
+    assert conversations.source_availability([turn], input_only=True) == {turn: True}
+    assert conversations.source_availability([turn]) == {turn: False}
+    followup = conversations.begin("What did I say?", {})
+    conversations.attach_context(
+        followup, [{"id": turn, "sources_available": False, "input_available": True}]
+    )
+    conversations.finish(followup, "You described a plan for your bag.")
+    assert conversations.source_availability([followup]) == {followup: True}
+    conversations.invalidate("transcript:" + turn)
+    assert conversations.source_availability([turn], input_only=True) == {turn: False}
+    assert conversations.source_availability([followup]) == {followup: False}
