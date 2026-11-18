@@ -9,6 +9,33 @@ from nyx.personal_memory import PersonalMemory
 from nyx.voice import Conversations
 
 
+def test_unresolved_background_memory_is_quiet_and_keeps_original_input(tmp_path):
+    from nyx.background_memory import BackgroundMemory
+
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("I keep this in the kitchen.", {})
+    component = PersonalMemory(
+        conversations, Encoder(), lambda *args: response(clarification="Which item do you mean?")
+    )
+    lane = BackgroundMemory(
+        SimpleNamespace(conversations=conversations, personal_memory=lambda: component)
+    )
+    try:
+        lane.submit(turn, []).result(timeout=1)
+        context = lane.turn_context(turn)
+        assert context["status"] == "unresolved"
+        assert "?" not in context["answer"]
+        assert lane.status(turn)["status"] == "unresolved"
+        with conversations.connect() as db:
+            assert (
+                db.execute("SELECT transcript FROM turns WHERE id=?", (turn,)).fetchone()[0]
+                == "I keep this in the kitchen."
+            )
+            assert db.execute("SELECT count(*) FROM memories").fetchone()[0] == 0
+    finally:
+        lane.close()
+
+
 def test_background_memory_is_ordered_owned_and_durable(tmp_path):
     from nyx.background_memory import BackgroundMemory
 

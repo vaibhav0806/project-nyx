@@ -1142,7 +1142,7 @@ def test_conversation_uses_raw_final_images_without_retaining_them_in_chat(tmp_p
     replay_voice_tools(tmp_path, monkeypatch, scenario, visual_frames=frames)
 
 
-def test_spoken_recall_waits_for_pending_earlier_memory(tmp_path, monkeypatch):
+def test_spoken_recall_does_not_wait_for_background_memory(tmp_path, monkeypatch):
     from test_personal_memory import operation, response
 
     started, release = asyncio.Event(), asyncio.Event()
@@ -1163,13 +1163,13 @@ def test_spoken_recall_waits_for_pending_earlier_memory(tmp_path, monkeypatch):
         await transcribe(session, "Where did I say the bottle is?")
         recall = asyncio.create_task(session.agent.recall_memory(query="bottle"))
         try:
-            await asyncio.sleep(0.03)
-            assert socket.tools.empty(), "Recall must not race the unfinished save"
-            release.set()
-            tool = await asyncio.wait_for(socket.tools.get(), 2)
+            tool = await asyncio.wait_for(socket.tools.get(), 0.3)
+            assert not release.is_set(), (
+                "Recall should use committed memory without a write barrier"
+            )
             with voice.conversations.connect() as db:
-                assert db.execute("SELECT 1 FROM memories WHERE turn_id=?", (first,)).fetchone()
-            await socket.reply(tool, ["transcript:" + first])
+                assert not db.execute("SELECT 1 FROM memories WHERE turn_id=?", (first,)).fetchone()
+            await socket.reply(tool, [])
             assert json.loads(await recall)["answer"] == "Checked."
         finally:
             release.set()
@@ -1179,6 +1179,37 @@ def test_spoken_recall_waits_for_pending_earlier_memory(tmp_path, monkeypatch):
     replay_voice_tools(
         tmp_path, monkeypatch, scenario, before_memory=before_memory, memory_reply=interpret
     )
+
+
+def test_memory_context_validation_runs_off_voice_event_loop(tmp_path, monkeypatch):
+    import threading
+
+    from livekit.agents import llm
+
+    from nyx.personal_memory import PersonalMemory
+
+    monkeypatch.setattr(realtime.Agent.default, "llm_node", lambda *args: None)
+
+    async def scenario(session, socket, voice):
+        await transcribe(session, "Hello again")
+        await asyncio.to_thread(session.memory_lane.wait, voice.turn["id"])
+        original = PersonalMemory._read_rows
+        event_thread = threading.get_ident()
+        checks = []
+
+        def checked(*args, **kwargs):
+            assert threading.get_ident() != event_thread
+            assert kwargs.get("identifiers") is not None
+            checks.append(True)
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(PersonalMemory, "_read_rows", staticmethod(checked))
+        context = llm.ChatContext()
+        context.add_message(role="user", content="Hello again")
+        await consume_node(session.agent.llm_node(context, [], {}))
+        assert checks
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
 
 
 def test_first_reply_receives_optional_saved_memory_while_writer_is_blocked(tmp_path, monkeypatch):

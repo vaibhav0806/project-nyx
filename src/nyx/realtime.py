@@ -511,7 +511,7 @@ async def serve(socket, voice, memory_lane):
             async def llm_node(self, chat_ctx, tools, model_settings):
                 nonlocal sources
                 from nyx.conversation_context import bounded_live_context
-                from nyx.personal_memory import PersonalMemory, memory_context_at
+                from nyx.personal_memory import memory_context_at
 
                 requested_turn = turn_id
 
@@ -542,7 +542,7 @@ async def serve(socket, voice, memory_lane):
                     content=f"User local time: {local_now(timezone).isoformat()}. Reply in {'Hindi' if language == 'hi' else 'English'}.",
                 )
                 if requested_turn:
-                    memory = PersonalMemory.turn_context(voice.conversations, requested_turn)
+                    memory = await asyncio.to_thread(memory_lane.turn_context, requested_turn)
                     with voice.conversations.connect() as db:
                         plan = json.loads(
                             db.execute(
@@ -558,8 +558,8 @@ async def serve(socket, voice, memory_lane):
                         {},
                     )
                     memory = memory_context_at(memory, recalled.get("as_of"))
-                    early_context = memory_lane.early_context(
-                        requested_turn, as_of=recalled.get("as_of")
+                    early_context = await asyncio.to_thread(
+                        memory_lane.early_context, requested_turn, as_of=recalled.get("as_of")
                     )
                     log(
                         "early_memory_context",
@@ -670,9 +670,6 @@ async def serve(socket, voice, memory_lane):
 
             async def run_tool(self, action):
                 requested_turn, question = turn_id, last_question
-                failed = []
-                if action.get("action") == "recall_memory":
-                    failed = await asyncio.to_thread(memory_lane.wait, requested_turn)
                 async with tool_lock:
                     if not voice.turn or voice.turn["id"] != requested_turn:
                         raise ValueError("Voice question is no longer active")
@@ -693,12 +690,6 @@ async def serve(socket, voice, memory_lane):
                         if not voice.turn or voice.turn["id"] != requested_turn:
                             raise ValueError("Voice question is no longer active")
                         result = voice.conversations.tool_result(requested_turn, action)
-                        if failed:
-                            result = {
-                                **result,
-                                "memory_processing_failures": failed,
-                                "coverage_note": "Some completed inputs could not be processed; recall may be incomplete.",
-                            }
                         return json.dumps(result)
                     finally:
                         pending.pop(identifier, None)

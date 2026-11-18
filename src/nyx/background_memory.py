@@ -53,7 +53,9 @@ class BackgroundMemory:
         wanted = {row["id"] for row in task.result()["matches"]}
         if not wanted:
             return {**context, "status": "retrieved"}
-        rows, _ = PersonalMemory._read_rows(self.workspace.conversations, as_of=as_of)
+        rows, _ = PersonalMemory._read_rows(
+            self.workspace.conversations, as_of=as_of, identifiers=wanted
+        )
         by_id = {row["id"]: row for row in rows}
         records = [
             {
@@ -69,6 +71,20 @@ class BackgroundMemory:
             "records": records,
             "sources": sorted({source for row in records for source in row["sources"]}),
         }
+
+    def turn_context(self, turn_id):
+        """Background uncertainty is an internal outcome, not a delayed user question."""
+        from nyx.personal_memory import PersonalMemory
+
+        context = PersonalMemory.turn_context(self.workspace.conversations, turn_id)
+        if context and context["status"] == "clarify":
+            return {
+                **context,
+                "status": "unresolved",
+                "answer": "No new memory saved: the input could not be resolved reliably.",
+                "visual": {},
+            }
+        return context
 
     def submit(self, turn_id, frames):
         with self.lock:
@@ -138,10 +154,11 @@ class BackgroundMemory:
             return {"status": "pending"}
         if task.exception() is not None:
             return {"status": "failed"}
-        return {"status": task.result()["status"]}
+        status = task.result()["status"]
+        return {"status": "unresolved" if status == "clarify" else status}
 
     def wait(self, turn_id, *, timeout=90):
-        """A recall barrier through this input, without blocking ordinary conversation."""
+        """Explicit audit/test synchronization; ordinary memory reads never call this."""
         with self.lock:
             tasks = list(self.pending.items())
             boundary = next(

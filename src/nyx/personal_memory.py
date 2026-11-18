@@ -108,6 +108,8 @@ class PersonalMemory:
                     relation TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS memory_turns (
                     turn_id TEXT PRIMARY KEY, result TEXT NOT NULL);
+                CREATE INDEX IF NOT EXISTS memory_relations_previous
+                    ON memory_relations(previous_id);
             """)
             if "image" not in {row[1] for row in db.execute("PRAGMA table_info(memories)")}:
                 db.execute("ALTER TABLE memories ADD COLUMN image BLOB")
@@ -122,7 +124,8 @@ class PersonalMemory:
         self._import_statements()
         from nyx.memory_vectors import MemoryVectors
 
-        self.vectors = MemoryVectors(conversations, encoder)
+        # Offline legacy conversion deliberately supplies no encoder or inference client.
+        self.vectors = MemoryVectors(conversations, encoder) if encoder is not None else None
 
     def _import_statements(self):
         """Copy attributed old rows losslessly; no inference, source edits or vector rebuild."""
