@@ -153,6 +153,23 @@ Open **http://127.0.0.1:8000** and allow camera and microphone access. Say **“
 
 The data directory holds saved recordings, indexes, and transcripts across restarts. Reuse the same directory to keep that history. Starting the server alone does not activate the camera or microphone; the browser page manages hardware access.
 
+### Optional message relay calls
+
+Set `BOLNA_API_KEY`, `BOLNA_AGENT_ID` and `NYX_CALLER_NAME` in the ignored `.env`.
+`BOLNA_FROM_NUMBER` is optional; otherwise Bolna uses its account default caller.
+Configure a dedicated relay agent using the contract in `src/nyx/calling.py`
+(`RELAY_PROMPT`), with call summaries enabled and automatic rescheduling disabled.
+Restart the backend after changing environment settings. Under **Settings → Favorite
+people**, save up to five names, relationships and numbers including country codes.
+Ask “Call my daughter and ask her to bring flowers.” Nyx relays the message, collects
+a reply, and reports the outcome on a later interaction. Calls share the message,
+contact details and phone conversation with Bolna and its configured providers.
+
+Calls/transcripts persist in `calls.sqlite3`; uncertain submissions are never
+blindly retried. Check Bolna before asking again when submission status is unknown.
+No scheduling or automatic redial. Real telephone delivery and bilingual behavior
+still require manual acceptance; deterministic tests do not establish them.
+
 ## Built with
 
 | Layer | Technology |

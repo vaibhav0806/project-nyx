@@ -362,6 +362,10 @@ def create_app(
         else (Conversations(root) if (Path(root) / "conversations.sqlite3").exists() else None)
     )
 
+    from nyx.calling import Calls
+
+    workspace.calls = Calls(root)
+
     @asynccontextmanager
     async def lifespan(app):
         workspace.recover_deletions()
@@ -369,6 +373,7 @@ def create_app(
         workspace.recover_imports()
         for segment in workspace.capture.pending():
             workspace.submit_segment(segment)
+        workspace.calls.start()
         workspace.thread.start()
         workspace.ingest_thread.start()
         if voice:
@@ -380,6 +385,7 @@ def create_app(
 
             workspace.queue.put((2, next(workspace.order), job_id, warmup))
         yield
+        workspace.calls.close()
         workspace.close()
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -502,7 +508,7 @@ def create_app(
         if voice is None:
             await socket.close(code=1008)
             return
-        await serve_live_voice(socket, voice, workspace.background_memory)
+        await serve_live_voice(socket, voice, workspace.background_memory, workspace.calls)
 
     @app.get("/api/voice/diagnostics")
     def voice_diagnostics(request: Request):

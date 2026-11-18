@@ -86,8 +86,9 @@ function renderAnswer(answer, text) {
 const conversation = {
   configured: false,
   status: "Connecting",
-  answerTarget: "", shownAnswer: "", revealTimer: null,
+  answerTarget: "", shownAnswer: "", revealTimer: null, onShown: null,
   stopReveal() {
+    this.onShown = null;
     clearTimeout(this.revealTimer);
     this.revealTimer = null;
     this.answerTarget = this.shownAnswer;
@@ -103,6 +104,9 @@ const conversation = {
     const remaining = this.answerTarget.slice(this.shownAnswer.length);
     if (!remaining) {
       $("conversation-answer").setAttribute("aria-busy", "false");
+      const shown = this.onShown;
+      this.onShown = null;
+      shown?.();
       return;
     }
     const words = remaining.match(/\S+\s*|\s+/gu) || [];
@@ -136,7 +140,7 @@ const conversation = {
     this.status = "";
     this.render();
   },
-  answer(text, synchronized = false) {
+  answer(text, synchronized = false, onShown = null) {
     if (!text) return;
     const answer = $("conversation-answer");
     answer.removeAttribute("aria-label");
@@ -153,8 +157,10 @@ const conversation = {
       this.stopReveal();
       this.answerTarget = this.shownAnswer = text;
       renderAnswer(answer, text);
+      onShown?.();
     } else if (this.revealTimer === null) {
       answer.setAttribute("aria-busy", "true");
+      this.onShown = onShown;
       this.reveal();
     }
     this.status = voice.mic ? "Listening" : "Ready";
@@ -241,7 +247,12 @@ const companion = {
       if (epoch !== this.epoch) throw new Error("Request stopped");
       if (turn && voice.turnVisual?.id !== turn.id) throw new Error("Voice question is no longer active");
       $("companion-status").textContent = result.answer;
-      if (!turn && !initialAction) conversation.answer(result.answer);
+      if (!turn && !initialAction) {
+        const completedJob = this.job;
+        conversation.answer(result.answer, false, result.call_update_id ? () => {
+          api(`/api/calling/updates/${completedJob}/seen`, { method: "POST" }).catch(() => {});
+        } : null);
+      }
       $("companion-steps").replaceChildren();
       for (const step of result.steps) {
         const line = document.createElement("p");

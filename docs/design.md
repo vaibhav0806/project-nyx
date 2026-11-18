@@ -1,5 +1,23 @@
 # Product design
 
+## Conversational tone — 2026-11-18
+
+Use relaxed, everyday language and contractions, matching the user's familiarity
+without forced slang. Ordinary call acknowledgements say what Nyx will do using the
+contact's name. Avoid queue jargon and routine delivery disclaimers; actual failures
+and uncertain submissions still need an honest explanation. This shared policy
+applies to typed and spoken replies.
+
+## Favorite people and call updates — 2026-11-18
+
+Settings holds five numbered favorites with a name, relationship and international
+phone number. A user can ask Nyx to call a saved person and relay a message; ambiguous
+names or missing messages require clarification. Nyx acknowledges queueing without
+claiming delivery. After a later interaction, it reports the collected outcome without
+interrupting the user's current request. Interrupted reports remain pending. Recent
+calls and full available transcripts are readable in Settings. No new main-screen
+card, automatic redial or scheduling controls are introduced.
+
 ## Centered bounded conversation — 2026-11-18
 
 The approved hybrid keeps the latest two rendered lines of the user's request visible,

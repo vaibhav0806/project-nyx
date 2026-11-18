@@ -664,3 +664,47 @@ controls();
 refreshLibrary().catch((error) => message(`Could not load the library: ${error.message}`, true));
 refreshCoverage().catch((error) => message(`Could not load recording status: ${error.message}`, true));
 setInterval(() => refreshCoverage().catch(() => {}), 1500);
+
+let favoriteContacts = [];
+function showFavorite() {
+  const contact = favoriteContacts.find(row => row.slot === Number($("contact-slot").value));
+  $("contact-name").value = contact?.name || "";
+  $("contact-relationship").value = contact?.relationship || "";
+  $("contact-phone").value = contact?.phone || "";
+}
+async function loadCalling() {
+  try {
+    const state = await api("/api/calling");
+    favoriteContacts = state.contacts;
+    showFavorite();
+    $("calling-status").textContent = state.configured ? "Calling is configured. Calls share your message and the recipient’s number with Bolna." : "Calling needs backend configuration. You can save contacts now.";
+    $("call-history").replaceChildren(...state.calls.map(call => {
+      const item = document.createElement("details");
+      const summary = document.createElement("summary");
+      summary.textContent = `${call.name} · ${call.status} · ${new Date(call.created_at).toLocaleString()} — ${call.message}${call.summary ? " — " + call.summary : ""}`;
+      const transcript = document.createElement("p");
+      transcript.style.whiteSpace = "pre-wrap";
+      transcript.textContent = call.transcript || call.error || "No transcript yet.";
+      item.append(summary, transcript);
+      return item;
+    }));
+  } catch (error) { $("calling-status").textContent = error.message; }
+}
+$("contact-slot").addEventListener("change", showFavorite);
+$("open-settings").addEventListener("click", loadCalling);
+$("contact-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  try {
+    await api(`/api/calling/contacts/${$("contact-slot").value}`, {
+      method: "PUT", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: $("contact-name").value, relationship: $("contact-relationship").value, phone: $("contact-phone").value.trim() })
+    });
+    await loadCalling();
+  } catch (error) { $("calling-status").textContent = error.message; }
+});
+$("contact-delete").addEventListener("click", async () => {
+  try {
+    await api(`/api/calling/contacts/${$("contact-slot").value}`, { method: "DELETE" });
+    await loadCalling();
+  } catch (error) { $("calling-status").textContent = error.message; }
+});

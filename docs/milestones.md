@@ -1,5 +1,24 @@
 # Milestones
 
+## Immediate call relay — 2026-11-18
+
+Implemented locally: five favorite contacts, a shared spoken/typed relay tool,
+Bolna execution tracking, persisted transcripts/summaries, restart-safe submission
+state, and pending outcome reports with interruption recovery. Dedicated Bolna relay
+agent created and its saved prompt/summary configuration verified. API credentials
+are ignored and backend-only. The user-supplied test favorite is saved locally.
+Validation: 524 tests passed after the reporting fix; Ruff, formatting and JavaScript syntax checks passed.
+The local server was restarted and its calling endpoint verified configured.
+User-operated calls exposed stale-status contradictions and verbose report narration;
+current results now enter the normal reply before generation. Developer checks placed
+no phone calls; manual acceptance of the updated experience remains open. See
+[R36](research/R36-call-relay.md). No scheduling or automatic retries.
+
+Latest call review: six user-operated transcripts inspected. Bolna's casual prompt
+was restored with a single short acknowledgement and no closing read-back; the
+online-presence check was disabled and saved configuration verified. New live-call
+acceptance remains pending.
+
 ## Centered hybrid conversation layout — 2026-11-18
 
 Implemented the approved rolling two-line user caption and naturally sized reply panel,

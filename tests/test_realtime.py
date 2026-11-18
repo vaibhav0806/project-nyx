@@ -219,6 +219,7 @@ def replay_voice_tools(
     session_factory=None,
     before_memory=None,
     visual_frames=None,
+    calls=None,
 ):
     """Exercise our real socket/turn persistence with only speech/model IO replaced."""
     sessions = []
@@ -370,7 +371,7 @@ def replay_voice_tools(
         socket = Socket()
         socket.memory_lane = lane
         async with asyncio.timeout(5):
-            serving = asyncio.create_task(realtime.serve(socket, voice, lane))
+            serving = asyncio.create_task(realtime.serve(socket, voice, lane, calls))
             while socket.scenario is None:
                 await asyncio.sleep(0)
             try:

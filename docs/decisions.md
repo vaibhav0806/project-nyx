@@ -1,5 +1,27 @@
 # Decisions and open choices
 
+## 2026-11-18 — Compose call updates within the conversation
+
+Manual testing exposed contradictory stale status followed by a raw provider report.
+Supply current call states and transcripts to the existing conversational model before
+it answers, and incorporate one pending result into the same reply. Do not add a
+second generated report or another model pass. Prefer transcript evidence over
+provider summary claims. Preserve playback/display delivery acknowledgement. Use
+casual first-person outcomes and ask a follow-up only when the recipient left a
+question/request. The phone agent can naturally promise to pass a message back, but
+cannot promise the sender's actions or initiate another call.
+
+## 2026-11-18 — Immediate message relay through Bolna
+
+User approved up to five favorite contacts, immediate outbound message relay and
+response collection, followed by a report on the next interaction. Keep the existing
+Sarvam/LiveKit conversation pipeline; add one Bolna adapter and a SQLite call ledger
+inside the Python application. No scheduling, negotiation, autonomous errands or
+automatic redial. Persist before submission; an uncertain submission is not retried.
+Poll final execution records locally; do not require a public webhook. The dedicated
+provider agent identifies itself as AI, checks the recipient and relays the supplied
+message. Credentials remain backend-only. See [R36](research/R36-call-relay.md).
+
 ## Bound visible conversation text by layout — 2026-11-18
 
 User approved the Paper hybrid: retain complete text while showing the latest two user

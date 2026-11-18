@@ -1,5 +1,28 @@
 # Technical architecture
 
+## Message relay — 2026-11-18
+
+`calling.py` owns five favorite contacts and durable call jobs in `calls.sqlite3`.
+The shared native `relay_message` tool accepts a saved slot and message, using the
+current request/voice-turn ID for idempotency. The backend snapshots the destination
+before dispatch. A single app-lifetime thread submits pending jobs and polls known
+Bolna execution IDs every five seconds, waiting beyond `call-disconnected` for final
+results. Provider failure or uncertain acceptance never triggers automatic redial;
+restart marks stranded submissions unknown. Provider calls continue independently
+of the browser; result retrieval waits if this backend is asleep or stopped.
+
+Call summaries/transcripts remain separate from personal memory. Both reply paths
+receive fresh call states and recipient transcripts before generation, including
+already-reported calls, so earlier queued acknowledgements cannot override newer
+results. One pending update is included in the normal conversational reply instead
+of appending a provider report. The shared policy requests concise first-person
+wording, transcript-grounded outcomes and follow-up questions only when warranted.
+LiveKit's non-interrupted, playback-completed assistant message marks delivery;
+typed delivery waits for the browser to finish revealing the answer. Interrupted
+or failed generations release the claim for a later attempt. Settings exposes
+contacts and recent call records. No phone number is accepted as an agent tool
+argument; the model selects a saved contact and must clarify ambiguous recipients.
+
 ## Bounded conversation presentation — 2026-11-18
 
 The browser uses a viewport-sized flex layout with a centered, height-constrained content

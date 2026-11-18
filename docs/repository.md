@@ -1,5 +1,13 @@
 # Repository structure
 
+## Call relay ownership — 2026-11-18
+
+`calling.py` owns the Bolna HTTP adapter, five-contact SQLite store, durable call
+states and app-lifetime polling. `agent_tools.py` exposes the shared relay tool;
+`companion.py` supplies typed execution and contact/history APIs; `realtime.py`
+handles spoken dispatch and playback-acknowledged updates. `tests/test_calling.py`
+uses synthetic provider outcomes and exercises both conversation paths.
+
 `memory_vectors.py` owns SQLite-native personal-memory KNN, additive backfill and write-through
 index entries; `personal_memory.py` retains interpretation and candidate/dependency validation.
 

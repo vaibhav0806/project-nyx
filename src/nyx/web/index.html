@@ -49,6 +49,20 @@
         </section><section id="replay-panel" hidden aria-label="Selected source moment"><h2>Selected moment</h2><video id="replay" playsinline controls aria-label="Source replay"></video><p id="replay-caption" class="caption"></p></section></dialog>
   <dialog id="settings-dialog" aria-labelledby="settings-title"><div class="dialog-heading"><h2 id="settings-title">Settings &amp; history</h2><button data-close="settings-dialog" aria-label="Close settings">Close</button></div>
     <p class="help">Nyx uses your camera to remember moments. Idle audio stays on this device. Selected images, activated speech and conversation context go to the configured cloud providers.</p>
+    <section class="voice-panel" aria-label="Favorite contacts">
+      <h2>Favorite people</h2>
+      <p class="help">Save up to five people. Ask Nyx to call a favorite, relay a message and bring back their response.</p>
+      <p id="calling-status" role="status"></p>
+      <form id="contact-form" class="controls">
+        <label>Favorite <select id="contact-slot"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
+        <label>Name <input id="contact-name" maxlength="80" required></label>
+        <label>Relationship <input id="contact-relationship" maxlength="80" placeholder="Daughter, friend…"></label>
+        <label>Phone <input id="contact-phone" type="tel" placeholder="+919876543210" required></label>
+        <button type="submit">Save contact</button>
+        <button id="contact-delete" type="button">Remove contact</button>
+      </form>
+      <details><summary>Recent calls</summary><div id="call-history"></div></details>
+    </section>
     <section class="voice-panel" aria-label="Nyx companion">
       <h2>Talk to Nyx</h2>
       <p class="help">Describe the item you want to find. If a match is wrong, say “That’s not it” or add a distinguishing detail. Selected frames are sent to OpenRouter and its model providers for search and interpretation. Recordings stay on this device. Nyx checks the current view and recorded history using cloud models; review the image before relying on a result.</p>

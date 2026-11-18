@@ -1,5 +1,17 @@
 # Scope
 
+## Authorized call relay — 2026-11-18
+
+The user authorized immediate Bolna calls to up to five saved favorites, solely to
+relay an explicitly requested message and collect the recipient's response. Report
+outcomes on the next user interaction; distinguish queued, completed, unanswered,
+failed and uncertain calls. Scheduling and autonomous follow-up calls are excluded.
+Recipient names/numbers, sender name, message and phone conversation are processed
+by Bolna and its configured providers. Nyx stores the transcript and provider summary
+locally; it does not download audio recordings. Provider-side recording/retention is
+separate and is not represented as disabled. Existing camera/recording boundaries
+remain. Developer tests use simulated calls; live call acceptance remains untested.
+
 ## Approved hybrid conversation layout — 2026-11-18
 
 The user approved implementing the Paper hybrid and centered positioning, superseding

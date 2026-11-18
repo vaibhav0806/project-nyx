@@ -22,6 +22,7 @@ def validate_action(value):
         raise TypeError("Expected one tool decision")
     action = value.get("action")
     fields = {
+        "relay_message": {"contact_slot", "message"},
         "inspect_current": {"query"},
         "process_memory": set(),
         "recall_memory": {"query"},
@@ -62,6 +63,12 @@ def validate_action(value):
         type(value["before_frame_id"]) is not int or value["before_frame_id"] < 0
     ):
         raise ValueError("before_frame_id must be a nonnegative saved frame ID")
+    if action == "relay_message":
+        if type(value["contact_slot"]) is not int or not 1 <= value["contact_slot"] <= 5:
+            raise ValueError("Choose a saved favorite from 1 to 5")
+        if not isinstance(value["message"], str) or not 1 <= len(value["message"].strip()) <= 1500:
+            raise ValueError("Relay message must be 1–1500 characters")
+        return value
     for key in fields[action] - {"hours"}:
         if not isinstance(value[key], str) or not 1 <= len(value[key].strip()) <= 240:
             raise ValueError("Tool text must be 1–240 characters")
