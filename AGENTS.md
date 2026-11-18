@@ -1,5 +1,18 @@
 # Working on Nyx
 
+## Streaming text exception and manual trial — 2026-11-18
+
+User authorized narrow live-text display repair in companion.js/voice.js, superseding the web
+ban only for this behavior. Stable rendered/text nodes replace full HTML/transcript remounts;
+Markdown, real STT corrections, layout/styles and playback timing remain.14 actual-Chrome synthetic
+checks and67 nearby API tests pass. R37 records primary framework references and limits.
+User trial: no error/failed diagnostic events; phone plan recalled2411ms after transcript,
+bedroom-shelf correction saved3603ms. Other playback samples reach7112ms; no universal speed claim.
+Cloud follow-up timeout remains10s, initial activation30s; continuous video has no idle timeout.
+Capture currently paused by user. Service8001 PID27002/session36071 uses original household data
+on the new backend; static display changes require a hard refresh. No service restart/hardware
+activation/private upload/paid developer inference for this repair. Main and other UI stay intact.
+
 ## Personal vector retrieval verification — 2026-11-18
 
 User approved linked sqlite-vec storage, ordered best-effort quiet background saving and recall

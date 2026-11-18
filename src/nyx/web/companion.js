@@ -3,39 +3,50 @@
 const answerMarkdown = window.markdownit({ html: false, breaks: true }).disable("image");
 
 
-// Playback synchronization owns *when* text arrives; this only softens its appearance.
-function renderAnswer(answer, text) {
-  const textNodes = () => {
-    const walker = document.createTreeWalker(answer, NodeFilter.SHOW_TEXT);
-    const nodes = [];
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      // Ignore Markdown's structural newline nodes, not meaningful inline spaces.
-      if (!node.data.trim() && node.data.includes("\n") && !node.parentElement.closest("pre, code")) continue;
-      nodes.push(node);
+// Keep settled DOM nodes while streaming; playback still owns when speech text arrives.
+function updateStreamingText(target, text) {
+  const node = target.nodeType === Node.TEXT_NODE ? target : target.firstChild;
+  if (!node || node.nodeType !== Node.TEXT_NODE || (target !== node && target.childNodes.length !== 1)) {
+    target.replaceChildren(document.createTextNode(text));
+    return;
+  }
+  let prefix = 0;
+  while (prefix < node.length && prefix < text.length && node.data[prefix] === text[prefix]) prefix++;
+  if (prefix !== node.length || prefix !== text.length)
+    node.replaceData(prefix, node.length - prefix, text.slice(prefix));
+}
+
+function updateRenderedChildren(parent, desired) {
+  let current = parent.firstChild;
+  for (const wanted of desired.childNodes) {
+    const next = current?.nextSibling;
+    if (!current) {
+      parent.append(wanted.cloneNode(true));
+    } else if (current.nodeType !== wanted.nodeType || current.nodeName !== wanted.nodeName) {
+      current.replaceWith(wanted.cloneNode(true));
+    } else if (current.nodeType === Node.TEXT_NODE) {
+      updateStreamingText(current, wanted.data);
+    } else if (current.nodeType === Node.ELEMENT_NODE) {
+      for (const attribute of [...current.attributes])
+        if (!wanted.hasAttribute(attribute.name)) current.removeAttribute(attribute.name);
+      for (const attribute of wanted.attributes)
+        if (current.getAttribute(attribute.name) !== attribute.value)
+          current.setAttribute(attribute.name, attribute.value);
+      updateRenderedChildren(current, wanted);
     }
-    return nodes;
-  };
-  const previous = textNodes().map(node => node.data).join("");
-  answer.innerHTML = answerMarkdown.render(text);
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  // Markdown may reinterpret an earlier delimiter. Do not replay settled text then.
-  const nodes = textNodes();
-  if (!nodes.map(node => node.data).join("").startsWith(previous)) return;
-  const additions = [];
-  let offset = 0;
-  for (const node of nodes) {
-    const start = Math.max(0, previous.length - offset);
-    offset += node.length;
-    if (start < node.length && node.data.slice(start).trim()) additions.push([node, start]);
+    current = next;
   }
-  for (const [node, start] of additions) {
-    const fresh = start ? node.splitText(start) : node;
-    const span = document.createElement("span");
-    span.className = "spoken-arrival";
-    fresh.replaceWith(span);
-    span.append(fresh);
+  while (current) {
+    const next = current.nextSibling;
+    current.remove();
+    current = next;
   }
+}
+
+function renderAnswer(answer, text) {
+  const desired = document.createElement("template");
+  desired.innerHTML = answerMarkdown.render(text);
+  updateRenderedChildren(answer, desired.content);
 }
 
 const conversation = {
@@ -80,7 +91,7 @@ const conversation = {
     dots.setAttribute("aria-hidden", "true");
     for (let i = 0; i < 3; i++) dots.append(document.createElement("i"));
     answer.replaceChildren(dots);
-    $("conversation-question").textContent = text;
+    updateStreamingText($("conversation-question"), text);
     $("conversation-question").hidden = false;
     $("conversation-hint").hidden = true;
     $("answer-panel").hidden = true;

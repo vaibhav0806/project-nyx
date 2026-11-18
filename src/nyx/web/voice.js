@@ -196,7 +196,7 @@ const voice = {
       this.turnVisual = { id: event.turn_id, context: { context_at: event.context_at || event.at, visual_frames: selected } };
       this.answer = "";
       conversation.begin(event.display_text || event.text);
-      $("voice-question").textContent = `You: ${event.display_text || event.text}`;
+      updateStreamingText($("voice-question"), `You: ${event.display_text || event.text}`);
       this.lastTranscript = performance.now();
       this.wakeUntil = performance.now() + 30000;
     }
@@ -205,9 +205,9 @@ const voice = {
         this.answer = "";
         conversation.begin(event.text);
       } else {
-        $("conversation-question").textContent = event.text;
+        updateStreamingText($("conversation-question"), event.text);
       }
-      $("voice-question").textContent = `You: ${event.text}`;
+      updateStreamingText($("voice-question"), `You: ${event.text}`);
     }
     if (event.type === "text") {
       this.answer += event.text;

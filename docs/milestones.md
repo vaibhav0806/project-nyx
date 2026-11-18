@@ -1,5 +1,14 @@
 # Milestones
 
+## Manual trial and stable streamed text — 2026-11-18
+
+User reports the household conversation works well. Diagnostics verify kitchen-plan recall
+playback2.41s and bedroom-shelf correction saved3.60s, with no failed/error events in the trial.
+The approved narrow display repair preserves settled Markdown/text nodes during streaming;
+14 actual-Chrome synthetic checks and67 nearby API tests pass. Speech timing, layout/styles
+and timeout values unchanged. See [R37](research/R37-streaming-text-display.md); browser hard
+refresh and subjective user check remain. This is not completed acoustic/p95 or PR gate acceptance.
+
 ## SQLite-native personal memory and independent recall — 2026-11-18
 
 User-approved correction pass completed: linked vec0 storage reuses original vectors,
