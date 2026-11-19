@@ -12,6 +12,14 @@ synthetic model responses, not a measured live recognition result. Local trial i
 were inspected offline; no developer private-media upload or paid inference. A fresh
 manual trial remains the acceptance check; silent movement interpretation stays deferred.
 
+After the user closed the page and authorized restart, service8001 restarted on the
+fix branch (PID39869); root and voice configuration returnHTTP200, capture remains
+interrupted. Backed up conversations.sqlite3 locally, then withdrew exactly the two
+incorrect phone-derived trial records, their linked vector entries and stale save
+receipts. All original turn rows and the other eight memory rows match pre-repair
+digests; recordings were untouched. Repeat the shown-item statements for acceptance;
+the withdrawn records were not replaced with fabricated corrected model results.
+
 ## General conversational policy — 2026-11-19
 
 User replaced the example-driven personality with a general conversational policy.
