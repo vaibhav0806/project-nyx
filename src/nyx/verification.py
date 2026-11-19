@@ -148,7 +148,7 @@ class CloudVerifier:
             "runtime": "openrouter",
             "agent_policy_version": 11,
             "agent_reasoning_effort": AGENT_REASONING_EFFORT,
-            "memory_policy_version": 7,
+            "memory_policy_version": 8,
             "prompt_version": 12,
             "inspection_schema_version": 2,
             "reference_inspection_contract": "prompt10/schema1",

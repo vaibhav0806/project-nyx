@@ -194,6 +194,17 @@ def compose_answer(observation):
 class Planner:
     fingerprint: ClassVar[dict] = {"model": "deterministic-fixture"}
 
+    def generate_json(self, *args, **kwargs):
+        return json.dumps(
+            {
+                "targets": "A green fixture object",
+                "target_count": 1,
+                "object_description": "green object",
+                "frame_index": 0,
+                "ambiguous": False,
+            }
+        )
+
     def memory_reply(self, payload, schema):
         from test_personal_memory import response
 
@@ -887,7 +898,8 @@ def test_memory_and_native_tool_share_one_reference_check_per_owned_window(tmp_p
         calls = 0
 
         def memory_reply(self, payload, schema):
-            return memory_response(needs_visual=payload["visual"] is None)
+            assert payload.get("frames")
+            return memory_response()
 
         def generate_json(self, *args, **kwargs):
             self.calls += 1
@@ -1059,3 +1071,60 @@ def test_voice_tool_reuses_owned_frames_across_coalesced_speech(tmp_path):
         assert (
             client.post("/api/agent", headers={"x-nyx-voice": token}, json=body).status_code == 400
         )
+
+
+def test_typed_recall_receives_saved_quote_and_photo_without_a_new_camera_frame(tmp_path):
+    from test_personal_memory import Encoder, operation
+    from test_personal_memory import response as memory_response
+
+    requests = []
+    original = "I will keep this in my purse and the purse in the cupboard."
+
+    class MemoryPlanner(Planner):
+        def memory_reply(self, payload, schema):
+            current = payload["current_turn"]
+            if current["text"] == original:
+                return memory_response(
+                    [
+                        operation(
+                            current["turn_id"],
+                            original,
+                            "Plans to keep shown key in purse and purse in cupboard",
+                            kind="plan",
+                            grounding="visual",
+                            visual_reference={"object_description": "key", "frame_index": 0},
+                        )
+                    ]
+                )
+            return memory_response(relevant_ids=[row["id"] for row in payload["memories"]][:1])
+
+        def agent_reply(self, messages, tools):
+            requests.append(messages)
+            return {
+                "role": "assistant",
+                "content": "You planned to keep it in your purse in the cupboard.",
+            }
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=Encoder, verifier_factory=MemoryPlanner)
+    ) as client:
+        stamp = datetime.now(UTC).isoformat()
+        first = client.post(
+            "/api/agent",
+            json={
+                "message": original,
+                "request_id": "remember",
+                "visual_frames": [{"snapshot": snapshot(), "captured_at": stamp}],
+                "context_at": stamp,
+            },
+        ).json()
+        assert wait_for_job(client, first["id"])["status"] == "succeeded"
+        second = client.post(
+            "/api/agent", json={"message": "Where is my key?", "request_id": "recall"}
+        ).json()
+        assert wait_for_job(client, second["id"])["status"] == "succeeded"
+        current = next(row for row in reversed(requests[-1]) if row["role"] == "user")
+        assert any(part["type"] == "image_url" for part in current["content"])
+        labels = " ".join(part.get("text", "") for part in current["content"])
+        assert "Historical supporting image" in labels and stamp in labels
+        assert original in json.dumps(requests[-1])

@@ -588,9 +588,11 @@ async def serve(socket, voice, memory_lane, calls=None):
                 nonlocal sources
                 from nyx.agent import _model_tool_result
                 from nyx.conversation_context import bounded_live_context
-                from nyx.personal_memory import memory_context_at
+                from nyx.personal_memory import memory_context_at, memory_image_label
 
                 requested_turn = turn_id
+                memory_photo_ids = []
+                memory_as_of = None
 
                 turn_ctx = chat_ctx.copy()
                 users = [
@@ -662,9 +664,16 @@ async def serve(socket, voice, memory_lane, calls=None):
                         {},
                     )
                     memory = memory_context_at(memory, recalled.get("as_of"))
+                    memory_as_of = recalled.get("as_of")
                     early_context = await asyncio.to_thread(
                         memory_lane.early_context, requested_turn, as_of=recalled.get("as_of")
                     )
+                    memory_photo_ids = [row["id"] for row in early_context["records"]]
+                    if memory:
+                        memory_photo_ids.extend(row["id"] for row in memory.get("records", []))
+                    last_result = plan.get("last_tool", {}).get("result", {})
+                    if last_result.get("kind") == "memories":
+                        memory_photo_ids.extend(row["id"] for row in last_result.get("matches", []))
                     log(
                         "early_memory_context",
                         turn_id=requested_turn,
@@ -740,7 +749,16 @@ async def serve(socket, voice, memory_lane, calls=None):
                     from nyx.cloud import image_part
 
                     frames = self._turn_frames.get(requested_turn, [])
-                    if inputs.get(requested_turn, False) and frames:
+                    photos = (
+                        await asyncio.to_thread(
+                            memory_lane.workspace.personal_memory().photos,
+                            memory_photo_ids,
+                            as_of=memory_as_of,
+                        )
+                        if memory_photo_ids
+                        else []
+                    )
+                    if inputs.get(requested_turn, False) and (frames or photos):
                         active_user = next(
                             (
                                 item
@@ -751,6 +769,15 @@ async def serve(socket, voice, memory_lane, calls=None):
                         )
                         if active_user is not None and bound.get(active_user.id) == requested_turn:
                             content = list(active_user.content)
+                            for photo in photos:
+                                content.extend(
+                                    [
+                                        memory_image_label(photo),
+                                        llm.ImageContent(
+                                            image=image_part(photo["image"])["image_url"]["url"]
+                                        ),
+                                    ]
+                                )
                             for frame in frames:
                                 content.extend(
                                     [

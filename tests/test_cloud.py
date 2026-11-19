@@ -376,7 +376,7 @@ def test_shared_conversation_memory_and_vision_use_selected_models(monkeypatch):
         def generate(self, messages, model, max_tokens, **kwargs):
             calls.append(("memory" if kwargs.get("schema") == SCHEMA else "vision", model))
             if kwargs.get("schema") == SCHEMA:
-                return '{"operations":[],"relevant_ids":[],"needs_visual":false,"clarification":""}'
+                return '{"operations":[],"relevant_ids":[]}'
             return '{"visibility":"not_visible","location":"","description":"No match.","matching_count":0,"ambiguous":false}'
 
     verifier = CloudVerifier(Client())
@@ -414,7 +414,7 @@ def test_memory_generation_sends_owned_images_and_times_in_the_first_call():
                 assert frame["captured_at"] in content[index * 2 + 1]["text"]
                 assert content[index * 2 + 2]["image"] is frame["image"]
             assert kwargs["schema"] is SCHEMA
-            return '{"operations":[],"relevant_ids":[],"needs_visual":false,"clarification":""}'
+            return '{"operations":[],"relevant_ids":[]}'
 
     assert CloudVerifier(Client()).memory_reply(payload, SCHEMA)["operations"] == []
     assert len(calls) == 1 and payload["frames"] is frames

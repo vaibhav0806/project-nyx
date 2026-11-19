@@ -430,7 +430,22 @@ def replay_voice_tools(
 
         component.process = prepare
         lane = BackgroundMemory(
-            SimpleNamespace(conversations=voice.conversations, personal_memory=lambda: component)
+            SimpleNamespace(
+                conversations=voice.conversations,
+                personal_memory=lambda: component,
+                visual_verifier=lambda: SimpleNamespace(
+                    fingerprint={"model": "fixture-vision"},
+                    generate_json=lambda *args, **kwargs: json.dumps(
+                        {
+                            "targets": "One fixture object held",
+                            "target_count": 1,
+                            "object_description": "fixture object",
+                            "frame_index": 0,
+                            "ambiguous": False,
+                        }
+                    ),
+                ),
+            )
         )
         socket = Socket()
         socket.memory_lane = lane
@@ -1502,5 +1517,66 @@ def test_bare_wake_word_waits_for_the_request_and_short_overlaps_do_not_interrup
         assert voice.conversations.recent() == []
         await transcribe(session, "Nyx, how are you doing today?")
         assert voice.turn["transcript"] == "Nyx, how are you doing today?"
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
+def test_saved_statement_and_supporting_photo_reach_voice_without_new_camera(tmp_path, monkeypatch):
+    from livekit.agents import llm
+    from PIL import Image
+    from test_personal_memory import operation, response
+
+    contexts = []
+    monkeypatch.setattr(
+        realtime.Agent.default, "llm_node", lambda agent, ctx, tools, settings: contexts.append(ctx)
+    )
+
+    async def scenario(session, socket, voice):
+        component = session.memory_lane.workspace.personal_memory()
+        old = voice.conversations.begin(
+            "I plan to keep this in my purse and the purse in the cupboard.", {}
+        )
+        component.interpret = lambda *args: response(
+            [
+                operation(
+                    old,
+                    "I plan to keep this in my purse and the purse in the cupboard.",
+                    "Plans to keep shown item in purse and purse in cupboard",
+                    kind="plan",
+                    grounding="visual",
+                    visual_reference={"object_description": "small brass item", "frame_index": 0},
+                )
+            ]
+        )
+        record = component.process(
+            old,
+            frames=[
+                {"image": Image.new("RGB", (10, 10), "gold"), "captured_at": "2026-11-19T05:53:45Z"}
+            ],
+        )["saved_ids"][0]
+        component.interpret = lambda *args: response()
+        voice.conversations.finish(old, "Noted")
+        await transcribe(session, "Where is my key?")
+        await asyncio.to_thread(session.memory_lane.prefetch(voice.turn["id"], "key").result, 1)
+        ctx = llm.ChatContext()
+        original = ctx.add_message(role="user", content="Where is my key?")
+        await consume_node(session.agent.llm_node(ctx, [], {}))
+        user = next(
+            item for item in contexts[-1].items if item.type == "message" and item.role == "user"
+        )
+        assert len([part for part in user.content if isinstance(part, llm.ImageContent)]) == 1
+        assert record in user.text_content and "Historical supporting image" in user.text_content
+        assert "proof that a planned placement happened" in user.text_content
+        text = " ".join(item.text_content for item in contexts[-1].items if item.type == "message")
+        assert "purse in the cupboard" in text and "small brass item" in text
+        assert original.content == ["Where is my key?"]
+        voice.conversations.invalidate("transcript:" + old)
+        await consume_node(session.agent.llm_node(ctx, [], {}))
+        assert not any(
+            isinstance(part, llm.ImageContent)
+            for item in contexts[-1].items
+            if item.type == "message"
+            for part in item.content
+        )
 
     replay_voice_tools(tmp_path, monkeypatch, scenario)

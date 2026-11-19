@@ -358,25 +358,33 @@ def install_companion(app, workspace, voice):
                 reference_checks[key] = result
                 while len(reference_checks) > 8:
                     del reference_checks[next(iter(reference_checks))]
-                if result["status"] == "resolved":
-                    references[identifier] = result["image"]
-                else:
-                    references.pop(identifier, None)
-                while len(references) > 8:
-                    del references[next(iter(references))]
             return result.copy()
 
         def prepare_memory():
             memory = workspace.personal_memory()
+            observation = None
+            if turn_frames:
+                try:
+                    observation = observe_reference()
+                except (ValueError, TypeError) as error:
+                    conversations.event(
+                        "memory_visual_reference_failed",
+                        turn_id=identifier,
+                        error_type=type(error).__name__,
+                    )
             memory.process(
                 identifier,
                 frames=turn_frames,
+                observation=observation,
                 active=lambda: not cancelled(),
-                observe=observe_reference if turn_frames else None,
             )
             return memory.turn_context(conversations, identifier)
 
+        recalled_memories = []
+        memory_as_of = None
+
         def tool(action):
+            nonlocal recalled_memories, memory_as_of
             conversations.event("tool_started", turn_id=identifier, action=action)
             name = action["action"]
             if name == "relay_message":
@@ -390,15 +398,28 @@ def install_companion(app, workspace, voice):
             if name == "process_memory":
                 return prepare_memory()
             if name == "recall_memory":
-                return workspace.personal_memory().recall(
+                result = workspace.personal_memory().recall(
                     action["query"],
                     as_of=action.get("as_of"),
                     select=True,
                     active=lambda: not cancelled(),
                 )
+                recalled_memories = result["matches"]
+                memory_as_of = action.get("as_of")
+                return result
             if name in {"inspect_current", "identify_shown_object"}:
                 if name == "identify_shown_object":
-                    return {k: v for k, v in observe_reference().items() if k != "image"}
+                    reference = observe_reference()
+                    # Only an explicit reference tool selects appearance constraints
+                    # for later history lookup. Memory preparation must not do that.
+                    with workspace.lock:
+                        if reference["status"] == "resolved":
+                            references[identifier] = reference["image"]
+                        else:
+                            references.pop(identifier, None)
+                        while len(references) > 8:
+                            del references[next(iter(references))]
+                    return {k: v for k, v in reference.items() if k != "image"}
                 if image is None:
                     return {
                         "kind": "unavailable",
@@ -557,6 +578,38 @@ def install_companion(app, workspace, voice):
                             + json.dumps(workspace.calls.context(call_update)),
                         },
                     ]
+                    from nyx.cloud import image_part
+                    from nyx.personal_memory import memory_image_label
+
+                    records = [*(memory_context or {}).get("records", []), *recalled_memories]
+                    photos = (
+                        workspace.personal_memory().photos(
+                            [row["id"] for row in records], as_of=memory_as_of
+                        )
+                        if records
+                        else []
+                    )
+                    if photos:
+                        index = next(
+                            i
+                            for i in range(len(messages) - 1, -1, -1)
+                            if messages[i]["role"] == "user"
+                        )
+                        user = messages[index]
+                        content = user["content"]
+                        content = (
+                            list(content)
+                            if isinstance(content, list)
+                            else [{"type": "text", "text": content}]
+                        )
+                        for photo in photos:
+                            content.extend(
+                                [
+                                    {"type": "text", "text": memory_image_label(photo)},
+                                    image_part(photo["image"]),
+                                ]
+                            )
+                        messages[index] = {**user, "content": content}
                     generation_started = time.perf_counter()
                     verifier = workspace.visual_verifier()
                     reply = verifier.agent_reply(messages, tools)
