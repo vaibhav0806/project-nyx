@@ -1,5 +1,22 @@
 # Decisions and open choices
 
+## Keep household memory evidence together — 2026-11-19
+
+Replace the legacy memory clarification/visual-request protocol with supported
+operations and relevant IDs. One ordered background writer uses the existing
+Flash-Lite reference helper for object identification, then one Luna interpretation
+with the same owned frames and source statement. Unclear/failed visual preparation
+does not discard independently supported facts. Voice acknowledgement stays
+independent. Retain strict quote/frame/source validation rather than fabricating
+missing evidence. This supersedes the prior direct-image-only interpretation choice.
+
+Keep source quotes and concise object metadata in bounded early candidates; supply
+at most two nominated, source-valid historical supporting photos to generation.
+New memory embeddings include content, quote and description with the existing
+model/index. Existing records/vectors remain intact. No automatic questions, new
+judge/service, UI or sampling changes. See [R39](research/R39-linked-household-memory.md)
+for replay results and remaining model-compliance/household limits.
+
 ## English voice selection — 2026-11-19
 
 User selected `sanchita_en_companion` for testing. Apply it to browser replies,

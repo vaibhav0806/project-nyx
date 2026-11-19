@@ -1,5 +1,22 @@
 # Technical architecture
 
+## Linked memory statements and images — 2026-11-19
+
+The ordered voice background writer prepares a basic shown-object description with
+the existing reference helper, then calls the memory interpreter once with that
+optional description, the owned frames and the utterance. Failed visual preparation
+falls back to the image-aware writer. The interpreter emits supported operations
+and relevant IDs, without the old clarification/visual-request loop. Typed preparation
+uses the same helper and record contract; it remains synchronous.
+
+Each visual memory keeps an exact source quote, object description and owned photo/time.
+New vectors encode content plus quote/description. Early context carries bounded
+records with those source details; typed/spoken generation may add two nominated,
+source-valid supporting photos labeled historical. Photo reads validate only selected
+IDs, respect source withdrawal/as-of state, and do not scan the photo corpus. Memory
+preparation does not select appearance constraints for later visual-history tools.
+See [R39](research/R39-linked-household-memory.md).
+
 ## Shared acknowledgement and reply synthesis — 2026-11-19
 
 Live replies and the acknowledgement preparation command use `speech_options` for

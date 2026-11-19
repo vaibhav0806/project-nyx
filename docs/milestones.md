@@ -1,5 +1,27 @@
 # Milestones
 
+## Linked household plan replay — 2026-11-19
+
+Diagnosed a real trial that saved nothing after background clarification, despite
+having images; recall was not simply too early. Removed that protocol, preserved
+supported partial facts, and connected existing visual identification to the ordered
+memory writer. Early/explicit recall now carries the statement, concise visual
+metadata and up to two source-valid historical photos together.
+
+Authorized reconstructed-frame replay saved the complete object → container →
+cupboard plan, reopened persistence, and recalled it without the original chat in
+generation. Explicit-name and greeting controls passed. One earlier replay failed
+strict visual-reference validation; no perfect-compliance claim. 554 tests pass in
+34.49s; lint/format/whitespace pass. Original trial/history/media remain unchanged.
+No new hardware/audio/phone-call trial. Fresh household acceptance remains pending.
+See [R39](research/R39-linked-household-memory.md).
+
+Activated code commit7981ed1 on service8001 after confirming capture interrupted.
+PID56121/session68988 servesHTTP200 without reload. All turn/memory/contact rows
+and all six recording hashes match the pre-restart snapshot; no history reset or
+automatic replacement memory. Reload the page and repeat the shown-item statement
+for the next manual trial. No browser hardware was activated by developer tools.
+
 ## Fresh demo workspace and truthful call failures — 2026-11-19
 
 User requested a full active-history reset while preserving Vaibhav. Stopped the
