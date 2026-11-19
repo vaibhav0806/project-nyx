@@ -1,5 +1,15 @@
 # Decisions and open choices
 
+## Provider failure and fresh demo state — 2026-11-19
+
+Honor provider termination reasons in call reporting: a completed telephony session
+with a synthesizer error is a technical failure, not successful delivery or evidence
+the recipient did not answer. Retain timeout uncertainty and separate call attempts.
+The user selected10s for the remote relay agent's silence allowance. Sarvam429 failures
+get an actionable message and30s reconnect cooldown, without automatic redial.
+User authorized resetting all active history while retaining Vaibhav; archive the
+prior root outside the active workspace and preserve contacts/configuration only.
+
 ## Shared streamed speech for lookup acknowledgements — 2026-11-19
 
 User heard different acknowledgement and response voices. Both configured speaker

@@ -1,5 +1,26 @@
 # Milestones
 
+## Fresh demo workspace and truthful call failures — 2026-11-19
+
+User requested a full active-history reset while preserving Vaibhav. Stopped the
+service, archived its old workspace outside the active root, then rebuilt the same
+root with only contacts and reusable acknowledgement audio. Original history remains
+offline in the archive; fresh conversation, memories, recordings/index and call ledger
+are empty. API credentials remain unchanged.
+
+Bolna's latest call debug record attributes the one-second disconnect to Sarvam TTS
+rate limiting (`agent_voice_error` / `synthesizer_error`), not recipient behavior.
+An earlier call ended on inactivity. Calls now exposes terminal voice failures as
+failed with an explicit error, retains silence-timeout context, and tells conversation
+to keep separate attempts distinct. Remote silence allowance saved and reread at10s,
+as requested. No developer call placed; external provider rate limits remain possible.
+
+Speech HTTP429 status now survives the LiveKit error wrapper, with a specific message,
+no immediate STT retry and a30s session-reconnect cooldown.96 focused call/voice tests
+pass in8.99s; Ruff/whitespace checks pass. User-requested server restarted on the fresh
+root without reload for recording; no further code changes or restarts during the
+demo trial. Listening/call acceptance is not proven by these deterministic checks.
+
 ## Align lookup and response speech generation — 2026-11-19
 
 Both paths already selected Shalini Companion, but fixed lookup audio came from HTTP

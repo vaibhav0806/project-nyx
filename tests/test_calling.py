@@ -299,3 +299,33 @@ def test_call_context_uses_current_name_only_for_same_phone_and_keeps_reported_r
     assert calls.claim_update() is None
     calls.save_contact(1, "Different person", "friend", "+919000000002")
     assert calls.context()["recent_calls"][0]["recipient"] == "Asha"
+
+
+@pytest.mark.parametrize(
+    "reason,hangup,status,error",
+    [
+        ("agent_voice_error", "synthesizer_error", "failed", "voice service failed"),
+        (None, "synthesizer_error", "failed", "voice service failed"),
+        ("inactivity_timeout", "inactivity_timeout", "completed", "silence timeout"),
+        ("user_hangup", None, "completed", ""),
+    ],
+)
+def test_terminal_call_reason_is_exposed_without_claiming_recipient_behavior(
+    tmp_path, reason, hangup, status, error
+):
+    calls, provider = setup_calls(tmp_path)
+    calls.enqueue("turn", 1, "When are you coming over?")
+    calls.tick()
+    provider.response = {
+        "status": "completed",
+        "termination_reason": reason,
+        "telephony_data": {"hangup_reason": hangup},
+        "transcript": "",
+    }
+    calls.tick()
+    report = calls.claim_update()
+    assert report["status"] == status
+    assert error in report["error"]
+    assert len(provider.started) == 1
+    calls.tick()
+    assert len(provider.started) == 1
