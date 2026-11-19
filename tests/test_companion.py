@@ -173,6 +173,24 @@ def test_livekit_selected_tool_skips_redundant_planner_calls(tmp_path):
         assert job["result"]["answer"].startswith("I can see green")
 
 
+def compose_answer(observation):
+    """The scripted model speaks from the same projected fields the real model receives."""
+    if "answer" in observation:
+        return observation["answer"]
+    if observation["status"] == "clarify":
+        return "Which one do you mean?"
+    query = observation.get("object_query", "it")
+    location = f" {observation['location']}" if observation.get("location") else ""
+    if observation.get("visibility") != "visible":
+        return f"I haven't found {query} yet."
+    if observation["kind"] == "snapshot":
+        return f"I can see {query}{location}."
+    when = observation.get("seen_ago") or observation.get("seen_at")
+    if not when:
+        return f"I saw {query}{location}, but I don't know when that was."
+    return f"I saw {query}{location}, {when}."
+
+
 class Planner:
     fingerprint: ClassVar[dict] = {"model": "deterministic-fixture"}
 
@@ -236,8 +254,7 @@ class Planner:
         if name in {"chat", "clarify"}:
             return {"role": "assistant", "content": action["message"]}
         if name == "finish":
-            chosen = observations[action["observation"]]
-            answer = chosen["answer"]
+            answer = compose_answer(observations[action["observation"]])
             if "statement_observation" in action:
                 answer += " " + observations[action["statement_observation"]]["answer"]
             return {"role": "assistant", "content": answer}

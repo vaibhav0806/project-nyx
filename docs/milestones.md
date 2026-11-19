@@ -1,5 +1,66 @@
 # Milestones
 
+## General conversational policy — 2026-11-19
+
+User replaced the example-driven personality with a general conversational policy.
+Remove the reply word limit, situation-specific rules and scripted examples. Keep
+natural familiarity, relevance, appropriate brevity, useful follow-ups and factual
+grounding. This supersedes the earlier example-driven prompt; both voice and text
+continue to use the same shared policy.
+
+## Permanent personality — 2026-11-19
+
+The shared confident, familiar companion voice is normal product behavior for all
+typed and spoken interactions. It has no temporary-mode condition or ownership
+disclaimer. Use the requested object name for matching visible objects; preserve
+actual observation details without inventing actions or timestamps.
+
+## 2026-11-19 — Separate observation evidence from review prose
+
+A live trial still echoed identity disclaimers and speculative filming commentary.
+Project structured visual evidence into the conversational model without the canned
+source-review answer or scene_context prose. Keep visibility, physical presence,
+location, timestamps, descriptions and identity flags; preserve the original tool
+record. Clarify that lack of independently verified unique identity is not itself
+visual ambiguity or evidence against ownership. Mention actual ambiguity/conflicts,
+and do not invent activities or motives. Both typed and spoken tool paths share this
+projection; regression coverage checks evidence preservation and non-mutation.
+
+## 2026-11-19 — Shared companion personality
+
+Apply the approved relaxed, familiar personality to typed and spoken replies through
+shared agent policy. Add grounded examples for sightings, uncertainty, greetings,
+call updates, corrections and failures. Use object names and natural uncertainty;
+include known useful details and ask follow-ups only when helpful. No slang restriction.
+The approved example-driven personality supersedes the previous 100-word policy cap;
+model roles, evidence boundaries and call dispatch remain unchanged.
+
+## 2026-11-19 — Recover spoken replies after lookup
+
+A successful history lookup could overflow the 24,000-character voice context budget
+because stale call transcripts were included in available context and then added again
+as current calling context. Exclude the stale copy, budget current calling context with
+the rest of the request, and use the existing media-free tool-result projection.
+Generation failures now mark the turn failed, release any unreported call update,
+and send a browser error that replaces the loading indicator. Durable evidence remains
+unchanged. Synthetic regressions cover large lookup exchanges and generation failure.
+
+
+## Camera-context narration and retrospective denial — 2026-11-19
+
+Reviewed the latest22 local turns. Repeated greetings elicited unsolicited camera
+descriptions; a live object description was retracted37seconds later and another
+after a neutral acknowledgement. Those retractions made no history-search calls,
+so indexing latency is not established as their cause. This audit reviewed text
+and frame metadata, not the original ephemeral pixels; it cannot independently
+confirm the depicted object's appearance.
+
+Implemented camera-context relevance/temporal instructions and bounded prior-turn
+frame metadata in generation copies. The real-SDK regression checks current image
+delivery, prior metadata without pixels, unchanged original chat and exclusion after
+source invalidation. Full suite:524passed in41.70s; changed-file Ruff checks pass. Live model
+wording and acoustic acceptance remain pending; no private media uploaded for tests.
+
 ## Immediate call relay — 2026-11-18
 
 Implemented locally: five favorite contacts, a shared spoken/typed relay tool,

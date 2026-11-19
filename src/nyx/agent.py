@@ -79,14 +79,50 @@ def validate_action(value):
     return value
 
 
+def _seen_ago(observed_at):
+    if not observed_at:
+        return None
+    seconds = (datetime.now(UTC) - datetime.fromisoformat(observed_at)).total_seconds()
+    if seconds < 90:
+        return "just now"
+    if seconds < 3600:
+        return f"about {round(seconds / 60)} minutes ago"
+    if seconds < 86400:
+        hours = round(seconds / 3600)
+        return f"about {hours} hour{'s' if hours > 1 else ''} ago"
+    return None
+
+
+def _visual_observation(result):
+    """What was seen, where and when; scores, identity flags and canned prose invite hedging."""
+    evidence = result.get("evidence") or {}
+    judgment = evidence.get("judgment") or result.get("judgment") or {}
+    seen_at = evidence.get("observed_at") or result.get("captured_at")
+    observation = {
+        "kind": result["kind"],
+        "status": result.get("status"),
+        "object_query": result.get("object_query"),
+        "frame_id": evidence.get("id"),
+        "seen_at": seen_at,
+        "seen_ago": _seen_ago(seen_at),
+        "user_confirmed": result.get("confirmation") == "user" or None,
+        **{
+            key: judgment.get(key)
+            for key in ["visibility", "presence", "location", "description", "ambiguous"]
+        },
+    }
+    return {key: item for key, item in observation.items() if item is not None}
+
+
 def _model_tool_result(value):
     """Send evidence metadata to the agent, without raw media or storage payloads."""
     if isinstance(value, dict):
-        return {
-            key: _model_tool_result(item)
-            for key, item in value.items()
-            if key not in {"snapshot_url", "image", "embedding", "thumbnail", "path"}
-        }
+        if value.get("kind") in {"history", "snapshot"} and (
+            value.get("evidence") or value.get("judgment")
+        ):
+            return _visual_observation(value)
+        excluded = {"snapshot_url", "image", "embedding", "thumbnail", "path", "scene_context"}
+        return {key: _model_tool_result(item) for key, item in value.items() if key not in excluded}
     if isinstance(value, list):
         return [_model_tool_result(item) for item in value]
     return value

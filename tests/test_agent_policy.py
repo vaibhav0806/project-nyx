@@ -1,4 +1,10 @@
-from nyx.agent_policy import AGENT_INSTRUCTIONS, AGENT_MODEL, AGENT_REASONING_EFFORT, VISION_MODEL
+from nyx.agent_policy import (
+    AGENT_INSTRUCTIONS,
+    AGENT_MODEL,
+    AGENT_REASONING_EFFORT,
+    VISION_MODEL,
+    VOICE_REASONING_EFFORT,
+)
 
 
 def test_voice_uses_shared_policy_and_approved_model():
@@ -7,14 +13,16 @@ def test_voice_uses_shared_policy_and_approved_model():
     assert realtime.INSTRUCTIONS is AGENT_INSTRUCTIONS
     assert realtime.AGENT_MODEL == AGENT_MODEL == "openai/gpt-6-luna"
     assert VISION_MODEL == "google/gemini-3.5-flash-lite"
-    assert realtime.AGENT_REASONING_EFFORT == AGENT_REASONING_EFFORT == "medium"
+    assert AGENT_REASONING_EFFORT == "medium"
+    assert realtime.VOICE_REASONING_EFFORT == VOICE_REASONING_EFFORT == "low"
+    assert realtime.VOICE_PROVIDER_ORDER == ["openai/fast"]
 
 
-def test_shared_policy_is_short_and_keeps_personality_and_evidence_distinctions():
-    assert len(AGENT_INSTRUCTIONS.split()) <= 100
+def test_shared_policy_keeps_personality_and_evidence_distinctions():
+    assert "demo" not in AGENT_INSTRUCTIONS.lower()
     assert "warm" in AGENT_INSTRUCTIONS
     assert "English" in AGENT_INSTRUCTIONS and "Hindi" in AGENT_INSTRUCTIONS
-    assert "reports, plans and observations" in AGENT_INSTRUCTIONS
+    assert "Describe past observations as past observations" in AGENT_INSTRUCTIONS
     assert "supersedes_turn_id" not in AGENT_INSTRUCTIONS
     assert "departure" not in AGENT_INSTRUCTIONS
 

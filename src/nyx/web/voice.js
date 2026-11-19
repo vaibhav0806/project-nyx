@@ -365,7 +365,18 @@ const voice = {
         );
     }
     if (event.type === "cancel_tool") await companion.cancel();
-    if (event.type === "error") await this.stop(event.message);
+    if (event.type === "turn_error") {
+      if (event.turn_id !== this.turnVisual?.id) return;
+      this.stopPlayback();
+      this.working = false;
+      this.answer = event.message;
+      conversation.answer(event.message, true);
+      this.state("Listening");
+    }
+    if (event.type === "error") {
+      conversation.answer(event.message, true);
+      await this.stop(event.message);
+    }
   },
   stopPlayback() {
     conversation.stopReveal();

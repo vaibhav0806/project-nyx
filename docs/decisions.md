@@ -1,5 +1,72 @@
 # Decisions and open choices
 
+## Approved spoken personality and natural time — 2026-11-19
+
+User approved the replacement shared prompt verbatim: concise relevant conversation,
+uncertainty only when it changes the next action, no routine closing caveats, and
+natural relative/rounded time in the user's timezone. Preserve past versus current
+observations and truthful action completion. One approved tone example replaces
+the earlier example collection. This supersedes the previous general-policy text.
+
+## General conversational policy — 2026-11-19
+
+User replaced the example-driven personality with a general conversational policy.
+Remove the reply word limit, situation-specific rules and scripted examples. Keep
+natural familiarity, relevance, appropriate brevity, useful follow-ups and factual
+grounding. This supersedes the earlier example-driven prompt; both voice and text
+continue to use the same shared policy.
+
+## Permanent companion voice — 2026-11-19
+
+User specified this as permanent product behavior, not a temporary presentation mode.
+Use the user's object name for clearly visible physical objects matching their request.
+Spoken and typed answers are confident and familiar, without ownership-verification
+disclaimers or candidate jargon. Missing visibility, actual ambiguity and unknown
+timestamps remain grounds to clarify. Stored verification flags remain unchanged.
+
+
+## 2026-11-19 — Separate observation evidence from review prose
+
+A live trial still echoed identity disclaimers and speculative filming commentary.
+Project structured visual evidence into the conversational model without the canned
+source-review answer or scene_context prose. Keep visibility, physical presence,
+location, timestamps, descriptions and identity flags; preserve the original tool
+record. Clarify that lack of independently verified unique identity is not itself
+visual ambiguity or evidence against ownership. Mention actual ambiguity/conflicts,
+and do not invent activities or motives. Both typed and spoken tool paths share this
+projection; regression coverage checks evidence preservation and non-mutation.
+
+## 2026-11-19 — Shared companion personality
+
+Apply the approved relaxed, familiar personality to typed and spoken replies through
+shared agent policy. Add grounded examples for sightings, uncertainty, greetings,
+call updates, corrections and failures. Use object names and natural uncertainty;
+include known useful details and ask follow-ups only when helpful. No slang restriction.
+The approved example-driven personality supersedes the previous 100-word policy cap;
+model roles, evidence boundaries and call dispatch remain unchanged.
+
+## 2026-11-19 — Recover spoken replies after lookup
+
+A successful history lookup could overflow the 24,000-character voice context budget
+because stale call transcripts were included in available context and then added again
+as current calling context. Exclude the stale copy, budget current calling context with
+the rest of the request, and use the existing media-free tool-result projection.
+Generation failures now mark the turn failed, release any unreported call update,
+and send a browser error that replaces the loading indicator. Durable evidence remains
+unchanged. Synthetic regressions cover large lookup exchanges and generation failure.
+
+
+## 2026-11-19 — Separate background camera context from user intent
+
+Recent spoken trials showed unsolicited scene narration and retractions of earlier
+visual descriptions solely after the scene changed. Keep automatic current frames,
+but label them as background context, not user uploads. Carry capture-time metadata
+for available earlier turns into generation copies without retaining their pixels.
+Missing current evidence cannot invalidate a past observation; prior assistant text
+also cannot independently verify one. Use existing history tools when verification
+is needed, without making live perception depend on recording/index completion.
+No greeting classifier, extra model call or additional media retention.
+
 ## 2026-11-18 — Compose call updates within the conversation
 
 Manual testing exposed contradictory stale status followed by a raw provider report.

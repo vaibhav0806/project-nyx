@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from typing import ClassVar
 from urllib.parse import parse_qs, urlparse
 
+import pytest
 from livekit import rtc
 
 from nyx import realtime
@@ -1130,6 +1131,7 @@ def test_conversation_uses_raw_final_images_without_retaining_them_in_chat(tmp_p
 
     async def scenario(session, socket, voice):
         await transcribe(session, "Look at this; I will keep it in the kitchen.")
+        first_turn = voice.turn["id"]
         context = llm.ChatContext()
         original = context.add_message(
             role="user", content="Look at this; I will keep it in the kitchen."
@@ -1139,20 +1141,33 @@ def test_conversation_uses_raw_final_images_without_retaining_them_in_chat(tmp_p
             item for item in calls[-1].items if item.type == "message" and item.role == "user"
         )
         assert len([part for part in current.content if isinstance(part, llm.ImageContent)]) == 2
+        assert "Automatic background camera frame captured_at=" in current.text_content
         assert original.content == ["Look at this; I will keep it in the kitchen."]
         await asyncio.sleep(0)
         question = next(event for event in socket.sent if event["type"] == "question")
         freeze = next(event for event in socket.sent if event["type"] == "freeze_context")
         assert question["visual_context_ids"] == [freeze["id"]]
         assert question["context_at"] == freeze["at"]
+        complete_reply(session)
         await transcribe(session, "What time is it?")
         context.add_message(role="user", content="What time is it?")
         await consume_node(session.agent.llm_node(context, [], {}))
         users = [item for item in calls[-1].items if item.type == "message" and item.role == "user"]
         assert all(isinstance(part, str) for part in users[0].content)
+        assert "Frames were supplied then, but are not attached now" in users[0].text_content
+        assert "frame_times" in users[0].text_content
+        assert original.content == ["Look at this; I will keep it in the kitchen."]
         assert len([part for part in users[-1].content if isinstance(part, llm.ImageContent)]) == 2
         assert not any(
             event.get("action", {}).get("action") == "process_memory" for event in socket.sent
+        )
+        with voice.conversations.connect() as db:
+            db.execute("UPDATE turns SET sources_available=0 WHERE id=?", (first_turn,))
+        await consume_node(session.agent.llm_node(context, [], {}))
+        assert not any(
+            "Automatic camera context for this earlier turn:" in (item.text_content or "")
+            for item in calls[-1].items
+            if item.type == "message"
         )
 
     replay_voice_tools(tmp_path, monkeypatch, scenario, visual_frames=frames)
@@ -1271,7 +1286,7 @@ def test_first_reply_receives_optional_saved_memory_while_writer_is_blocked(tmp_
 
     async def scenario(session, socket, voice):
         try:
-            assert session.options["llm"].reasoning_effort == realtime.AGENT_REASONING_EFFORT
+            assert session.options["llm"].reasoning_effort == realtime.VOICE_REASONING_EFFORT
             restored = " ".join(
                 item.text_content for item in session.agent.chat_ctx.items if item.type == "message"
             )
@@ -1349,5 +1364,80 @@ def test_slow_early_lookup_has_a_deadline_and_does_not_disable_further_recall(
             assert json.loads(await lookup)["answer"] == "Checked."
         finally:
             release.set()
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
+def test_generation_failure_finishes_turn_and_notifies_browser(tmp_path, monkeypatch):
+    from livekit.agents import llm
+
+    def fail(*args):
+        raise RuntimeError("synthetic provider failure")
+
+    monkeypatch.setattr(realtime.Agent.default, "llm_node", fail)
+
+    async def scenario(session, socket, voice):
+        await transcribe(session, "Where is my phone?")
+        context = llm.ChatContext()
+        context.add_message(role="user", content="Where is my phone?")
+        await consume_node(session.agent.llm_node(context, [], {}))
+        await asyncio.sleep(0)
+        errors = [event for event in socket.sent if event["type"] == "turn_error"]
+        assert errors[-1]["turn_id"] == voice.turn["id"]
+        assert voice.conversations.recent()[-1]["status"] == "failed"
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
+def test_stale_call_context_does_not_overflow_lookup_reply(tmp_path, monkeypatch):
+    from livekit.agents import llm
+
+    contexts = []
+    monkeypatch.setattr(
+        realtime.Agent.default, "llm_node", lambda agent, ctx, tools, settings: contexts.append(ctx)
+    )
+
+    async def scenario(session, socket, voice):
+        await transcribe(session, "When did you last see my phone?")
+        with voice.conversations.connect() as db:
+            row = db.execute("SELECT plan FROM turns WHERE id=?", (voice.turn["id"],)).fetchone()
+            plan = json.loads(row[0])
+            plan["available"]["calling"] = {"recent_calls": ["old transcript " * 3000]}
+            db.execute("UPDATE turns SET plan=? WHERE id=?", (json.dumps(plan), voice.turn["id"]))
+        context = llm.ChatContext()
+        context.add_message(role="user", content="When did you last see my phone?")
+        context.items.extend(
+            [
+                llm.FunctionCall(
+                    call_id="lookup", name="search_history", arguments='{"query":"phone"}'
+                ),
+                llm.FunctionCallOutput(
+                    call_id="lookup",
+                    name="search_history",
+                    output=json.dumps({"evidence": "x" * 12000}),
+                    is_error=False,
+                ),
+            ]
+        )
+        await consume_node(session.agent.llm_node(context, [], {}))
+        assert contexts
+        assert any(item.type == "function_call_output" for item in contexts[-1].items)
+        assert not any(event["type"] == "turn_error" for event in socket.sent)
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
+def test_bare_wake_word_waits_for_the_request_and_short_overlaps_do_not_interrupt(
+    tmp_path, monkeypatch
+):
+    from livekit.agents import llm
+
+    async def scenario(session, socket, voice):
+        assert session.options["turn_handling"]["interruption"]["min_words"] == 2
+        with pytest.raises(llm.StopResponse):
+            await transcribe(session, "Hey Nyx.")
+        assert voice.conversations.recent() == []
+        await transcribe(session, "Nyx, how are you doing today?")
+        assert voice.turn["transcript"] == "Nyx, how are you doing today?"
 
     replay_voice_tools(tmp_path, monkeypatch, scenario)

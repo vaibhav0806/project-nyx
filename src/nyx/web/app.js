@@ -335,7 +335,7 @@ async function pumpUploads() {
     }
   } catch (error) {
     uploadFailed = true;
-    message(`Recording stopped: ${error.message} Saved clips are kept.`, true);
+    message(`Recording stopped: ${error.message}`, true);
     await stopCapture(`Saving failed: ${error.message}`.slice(0, 300), "interrupted");
   } finally {
     uploading = false;
