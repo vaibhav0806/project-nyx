@@ -104,3 +104,52 @@ Activation: code7981ed1 is running on localhost8001, PID56121/session68988, afte
 confirming capture interrupted. HTTP200 and unchanged turn/memory/contact rows plus
 all six recording hashes verified. No reset, automatic replay into the live database,
 or developer hardware activation. Page reload and a new user statement remain required.
+
+## Earlier manual-trial regression — 2026-11-19
+
+After finishing the recorded demo, the user requested testing previous manual data
+on the same branch. Replayed four preserved statements with the unchanged code at
+7981ed1: the older phone/kitchen plan and bedroom-shelf correction, scissors/kitchen,
+an earlier keys/purse/cupboard statement, and the latest keys/container statement.
+Twenty-four frames were reconstructed at the recorded browser selection timestamps,
+using the existing maximum size and JPEG quality. No resolution or sampling change.
+
+Each isolated workspace received the original statement and up to six preceding user
+statements, without old assistant answers or preexisting derived memories. The phone
+case also received the actual later correction. Actual background reference inference,
+memory interpretation, embeddings and SQLite/vec writes ran before reopening the
+components. Recall generation received only early saved candidates and their one
+supporting photo: zero old chat messages and zero new camera frames. It used the
+current spoken Luna policy, low reasoning and configured priority provider order.
+This tests the save/retrieval/model handoff, not acoustic input or browser playback.
+
+Reviewed outputs:
+
+- Phone correction: recalled the bedroom shelf rather than the earlier kitchen plan.
+  An offline historical cutoff before the correction still retrieved the kitchen plan.
+- Scissors: recalled the red-handled scissors plan for the kitchen.
+- Earlier keys: recalled both the key in the purse and purse in the cupboard. The
+  writer emitted two linked-by-statement facts; recall combined their supported details.
+- Latest keys: recalled both container relationships, but added an unnecessary
+  object-in-hand sentence after the plan. Its “try checking there” ending is less
+  clear than the desired concise answer. Count memory content as successful and
+  wording as a remaining weakness; do not claim all four replies were ideal.
+
+All four completed on their first conversational generation without further lookup.
+Completed-response request times were 2,392 / 1,651 / 1,708 / 2,155 ms respectively;
+these are non-streaming model request times, not time to first speech. Background
+save work took 12,894 ms for the two-statement phone/correction sequence, and
+6,095 / 8,967 / 6,823 ms for the remaining cases. It remains independent of spoken
+acknowledgement. These four cases are a regression sample, not a latency distribution
+or broad household accuracy benchmark.
+
+Offline checks on the actual saved rows verified exact source quotes, owned photo
+timestamps, 768-dimensional vectors, correction history and inherited photo context.
+Withdrawing the original source in separate audit copies withheld both its memories
+and supporting photos in all four cases. Original databases and selected source-video
+hashes remained unchanged. Private fixtures, script and raw results stay ignored under
+data/runs/manual-regression-2026-11-19; no source/UI/model/prompt change or server
+restart was made. Twenty provider requests reported $0.013240725, within a guarded
+$0.10 run cap and the existing cumulative ceiling. No audio, hardware or call tests.
+The later key snapshot was $7.547935815 cumulative usage, matching the reported
+run cost above the $7.53469509 starting usage and remaining below the $8 ceiling.

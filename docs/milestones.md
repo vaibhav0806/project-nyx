@@ -1,5 +1,21 @@
 # Milestones
 
+## Previous manual-trial regression — 2026-11-19
+
+User reports demo recorded/submitted and requests previous-data verification on this
+branch. Current code replayed four preserved manual workflows: phone plan/correction,
+scissors/kitchen, earlier keys/container and latest keys/container. All four saved and
+recalled the intended location relationships after reopening persistence, without
+old conversational messages or new camera frames in generation. Latest keys output
+still added an unnecessary object-in-hand sentence; response wording is not perfect.
+
+Actual saved-row audits passed quote/photo provenance, vector dimensions, historical
+correction state and source-withdrawal checks. Original source hashes unchanged;
+live data/server/UI/code untouched. Twenty bounded model requests reported $0.01324.
+The existing 554-test result still applies to the unchanged code; no repeated suite
+or acoustic test was needed for this report-only pass. See the expanded
+[R39 evidence](research/R39-linked-household-memory.md#earlier-manual-trial-regression--2026-11-19).
+
 ## Linked household plan replay — 2026-11-19
 
 Diagnosed a real trial that saved nothing after background clarification, despite
