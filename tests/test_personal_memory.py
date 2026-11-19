@@ -37,6 +37,119 @@ def operation(turn_id, quote, content, **changes):
     }
 
 
+def test_memory_sees_current_frames_before_resolving_against_an_old_object(tmp_path):
+    from PIL import Image
+
+    conversations = Conversations(tmp_path)
+    old = conversations.begin("My phone is on the kitchen shelf", {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response(
+            [operation(old, "My phone is on the kitchen shelf", "Phone on kitchen shelf")]
+        ),
+    )
+    memory.process(old)
+    text = "I'm gonna keep this in my purse."
+    turn = conversations.begin(text, {})
+    payloads = []
+    frames = [{"image": Image.new("RGB", (10, 10), "grey"), "captured_at": "2026-11-19T05:53:45Z"}]
+
+    def interpret(payload, schema):
+        payloads.append(payload)
+        assert payload["frames"] is frames
+        assert not payload["visual_available"]
+        assert any(row["content"] == "Phone on kitchen shelf" for row in payload["memories"])
+        return response(
+            [
+                operation(
+                    turn,
+                    text,
+                    "Plans to keep key in purse",
+                    kind="plan",
+                    grounding="visual",
+                    visual_reference={"object_description": "metal key", "frame_index": 0},
+                )
+            ]
+        )
+
+    memory.interpret = interpret
+    saved = memory.process(
+        turn, frames=frames, observe=lambda: pytest.fail("Redundant visual call")
+    )
+    assert saved["status"] == "saved" and len(payloads) == 1
+    # Reopening the same data root (as after a refresh/restart) retains the key,
+    # its current visual source, and no dependency on the old phone.
+    reopened = PersonalMemory(Conversations(tmp_path), Encoder(), lambda *args: response())
+    key = next(
+        row for row in reopened.recall("Where is my key?")["matches"] if row["turn_id"] == turn
+    )
+    assert key["content"] == "Plans to keep key in purse" and key["has_image"]
+    assert key["visual"]["captured_at"] == "2026-11-19T05:53:45Z"
+    assert key["sources"] == ["transcript:" + turn]
+    with conversations.connect() as db:
+        assert (
+            db.execute("SELECT dependencies FROM memories WHERE id=?", (key["id"],)).fetchone()[0]
+            == "[]"
+        )
+        assert (
+            db.execute("SELECT count(*) FROM memories WHERE content='Phone in purse'").fetchone()[0]
+            == 0
+        )
+
+
+@pytest.mark.parametrize("save", [True, False])
+def test_named_fact_or_noop_does_not_run_unneeded_visual_check(tmp_path, save):
+    conversations = Conversations(tmp_path)
+    text = "My key is in my purse." if save else "Where is my key?"
+    turn = conversations.begin(text, {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response([operation(turn, text, "Key in purse")] if save else []),
+    )
+    result = memory.process(turn, observe=lambda: pytest.fail("Unnecessary visual check"))
+    assert result["status"] == ("saved" if save else "noop")
+
+
+def test_unresolved_camera_does_not_block_a_clear_conversational_reference(tmp_path):
+    conversations = Conversations(tmp_path)
+    old = conversations.begin("I prefer tea", {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response([operation(old, "I prefer tea", "Prefers tea")]),
+    )
+    tea = memory.process(old)["saved_ids"][0]
+    turn = conversations.begin("Make it without sugar", {})
+    payloads = []
+
+    def interpret(payload, schema):
+        payloads.append(payload)
+        return response(
+            [
+                operation(
+                    turn,
+                    "Make it without sugar",
+                    "Prefers tea without sugar",
+                    grounding="memory",
+                    related_id=tea,
+                )
+            ]
+        )
+
+    memory.interpret = interpret
+    result = memory.process(
+        turn, observe=lambda: {"status": "clarify", "answer": "No shown object"}
+    )
+    assert result["status"] == "saved" and len(payloads) == 1
+    assert payloads[-1]["visual"] is None
+    assert (
+        next(row for row in memory.recall("tea")["matches"] if row["turn_id"] == turn)["visual"]
+        == {}
+    )
+
+
 def test_ingest_skips_query_embedding_when_every_available_memory_fits(tmp_path):
     queries = []
 
@@ -825,3 +938,33 @@ def test_unresolved_interpretation_discards_proposed_writes_and_returns_clarific
             db.execute("SELECT transcript FROM turns WHERE id=?", (turn,)).fetchone()[0]
             == "I put it there"
         )
+
+
+@pytest.mark.parametrize("index", [-1, 1, True, "0", None])
+def test_visual_memory_cannot_claim_a_frame_outside_its_owned_window(tmp_path, index):
+    from PIL import Image
+
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("I keep this in my bag", {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response(
+            [
+                operation(
+                    turn,
+                    "I keep this in my bag",
+                    "Key in bag",
+                    grounding="visual",
+                    visual_reference={"object_description": "key", "frame_index": index},
+                )
+            ]
+        ),
+    )
+    with pytest.raises(ValueError, match="visual memory reference"):
+        memory.process(
+            turn,
+            frames=[{"image": Image.new("RGB", (10, 10)), "captured_at": "2026-11-19T05:53:45Z"}],
+        )
+    with conversations.connect() as db:
+        assert db.execute("SELECT count(*) FROM memories").fetchone()[0] == 0

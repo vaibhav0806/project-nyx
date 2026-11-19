@@ -1,5 +1,16 @@
 # Decisions and open choices
 
+## Image-aware background memory — 2026-11-19
+
+The key/purse and scissors/kitchen trials reused an unrelated historical phone
+reference because the memory interpreter received text and optional visual access,
+while conversation received current images. Supply the same owned, bounded turn
+frames directly to the existing Luna memory call. Visual operations return an object
+description and supporting frame index; validate the index and retain that frame's
+image/time per record. No additional visual judge, foreground wait or UI change.
+Plans remain user statements, not observed placements. Silent action tracking remains
+deferred. Real-model household acceptance requires a fresh user trial.
+
 ## Approved spoken personality and natural time — 2026-11-19
 
 User approved the replacement shared prompt verbatim: concise relevant conversation,

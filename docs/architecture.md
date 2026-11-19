@@ -1,5 +1,14 @@
 # Technical architecture
 
+## Image-aware memory input — 2026-11-19
+
+Spoken background saving and typed preparation pass up to six owned turn frames to
+the existing memory interpreter. Its first request includes timestamped images with
+the source utterance and saved candidates. Each visual operation names its supporting
+frame; storage validates ownership and saves that image/time separately from the
+user's reported location or plan. Ordinary text/context records retain their original
+source rules. Conversation still replies independently of the ordered background writer.
+
 ## General conversational policy — 2026-11-19
 
 User replaced the example-driven personality with a general conversational policy.

@@ -1,5 +1,17 @@
 # Milestones
 
+## Current images reach memory creation — 2026-11-19
+
+Fixed the missing image handoff behind two local shown-object statements inheriting
+an old phone reference. Memory now sees the owned images in its initial existing LLM
+call; per-operation frame validation preserves supporting image/time and source quotes.
+539 tests pass in38.40s; targeted105 tests, Ruff and whitespace checks pass. Regressions
+cover first-call image order/timestamps, unrelated old-phone context, durable key-plan
+retrieval after reopening, invalid frame references and ordinary text saves. These use
+synthetic model responses, not a measured live recognition result. Local trial images
+were inspected offline; no developer private-media upload or paid inference. A fresh
+manual trial remains the acceptance check; silent movement interpretation stays deferred.
+
 ## General conversational policy — 2026-11-19
 
 User replaced the example-driven personality with a general conversational policy.

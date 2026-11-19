@@ -104,8 +104,6 @@ class BackgroundMemory:
             return task
 
     def _process(self, turn_id, frames):
-        from nyx.reference import resolve_reference
-
         conversations = self.workspace.conversations
         started = time.perf_counter()
         conversations.event("background_memory_started", turn_id=turn_id)
@@ -113,21 +111,9 @@ class BackgroundMemory:
         def available():
             return conversations.source_availability([turn_id], input_only=True).get(turn_id, False)
 
-        def observe():
-            if not available():
-                raise ValueError("User input is unavailable")
-            with conversations.connect() as db:
-                transcript = db.execute(
-                    "SELECT transcript FROM turns WHERE id=?", (turn_id,)
-                ).fetchone()[0]
-            result = resolve_reference(self.workspace.visual_verifier(), transcript, frames)
-            if result.get("status") == "resolved":
-                result["image"] = frames[result["frame_index"]]["image"]
-            return result
-
         try:
             result = self.workspace.personal_memory().process(
-                turn_id, observe=observe if frames else None, active=available
+                turn_id, frames=frames, active=available
             )
             conversations.event(
                 "background_memory_completed",

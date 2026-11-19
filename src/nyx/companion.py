@@ -370,6 +370,7 @@ def install_companion(app, workspace, voice):
             memory = workspace.personal_memory()
             memory.process(
                 identifier,
+                frames=turn_frames,
                 active=lambda: not cancelled(),
                 observe=observe_reference if turn_frames else None,
             )
