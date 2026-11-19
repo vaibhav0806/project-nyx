@@ -1,5 +1,15 @@
 # Milestones
 
+## Align lookup and response speech generation — 2026-11-19
+
+Both paths already selected Shalini Companion, but fixed lookup audio came from HTTP
+synthesis and replies from LiveKit WebSocket. Unified options and synthesis route;
+new cache identity excludes prior-route audio.84 focused voice/speech tests pass,
+including cache invalidation, warm-cache reuse, exact PCM formatting and failure
+cleanup. Prepared all12 fixed public phrases through Sarvam WebSocket (282 Unicode
+characters, no retries or playback). Nonempty mono24kHz16-bit WAV verified; listening
+consistency is not established by those checks and remains a user acceptance test.
+
 ## Current images reach memory creation — 2026-11-19
 
 Fixed the missing image handoff behind two local shown-object statements inheriting

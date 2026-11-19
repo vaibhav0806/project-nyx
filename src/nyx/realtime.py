@@ -27,10 +27,9 @@ from nyx.agent_policy import AGENT_INSTRUCTIONS as INSTRUCTIONS
 from nyx.agent_policy import AGENT_MODEL, VOICE_PROVIDER_ORDER, VOICE_REASONING_EFFORT
 from nyx.agent_tools import AgentTools
 from nyx.calling import CALL_INSTRUCTIONS
-from nyx.speech import ACKNOWLEDGEMENTS, acknowledgement_path
+from nyx.speech import ACKNOWLEDGEMENTS, VOICES, acknowledgement_path, speech_options
 from nyx.voice import local_now, wake_command
 
-VOICES = {"en": "shalini_en_companion", "hi": "shalini_hi_companion"}
 INSTRUCTIONS_VERSION = 18
 
 CAMERA_CONTEXT_INSTRUCTIONS = """Camera frames are automatically supplied background context, not photos the user sent or a request to describe the scene. Answer the user's spoken request; mention visual details only when relevant to that request. A new camera view does not restart an earlier request.
@@ -367,15 +366,7 @@ async def serve(socket, voice, memory_lane, calls=None):
         turn_started = 0
         sources = []
         http = aiohttp.ClientSession()
-        tts = sarvam.TTS(
-            http_session=http,
-            model="bulbul:v4-flash",
-            speaker=VOICES["en"],
-            target_language_code="en-IN",
-            speech_sample_rate=24000,
-            output_audio_codec="linear16",
-            enable_preprocessing=True,
-        )
+        tts = sarvam.TTS(http_session=http, **speech_options("en"))
 
         class Companion(AgentTools, Agent):
             def __init__(self):

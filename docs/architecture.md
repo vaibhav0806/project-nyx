@@ -1,5 +1,14 @@
 # Technical architecture
 
+## Shared acknowledgement and reply synthesis — 2026-11-19
+
+Live replies and the acknowledgement preparation command use `speech_options` for
+the same Sarvam model, per-language Shalini Companion speaker, rate, codec and prosody
+settings. Preparation uses LiveKit's streaming WebSocket route with bounded output,
+no retries and atomic WAV writes. Cache identity includes those options and transport,
+so prior HTTP-generated clips cannot silently survive a configuration change. Lookup
+still plays prepared local audio without waiting for online synthesis.
+
 ## Image-aware memory input — 2026-11-19
 
 Spoken background saving and typed preparation pass up to six owned turn frames to

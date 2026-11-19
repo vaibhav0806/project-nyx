@@ -1,5 +1,15 @@
 # Decisions and open choices
 
+## Shared streamed speech for lookup acknowledgements — 2026-11-19
+
+User heard different acknowledgement and response voices. Both configured speaker
+IDs already named Shalini Companion, but the cached clips were synthesized through
+the separate HTTP route while replies used LiveKit/Sarvam WebSocket. The precise
+acoustic cause is unproven without a preserved reply recording. Generate the fixed
+lookup clips through that same WebSocket implementation and shared synthesis options;
+include settings and transport in the cache identity. Cached playback stays immediate.
+No speaker/personality change; listening acceptance remains with the user.
+
 ## Image-aware background memory — 2026-11-19
 
 The key/purse and scissors/kitchen trials reused an unrelated historical phone
