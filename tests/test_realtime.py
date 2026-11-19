@@ -12,6 +12,69 @@ from nyx import realtime
 from nyx.voice import Voice
 
 
+def test_sarvam_rate_limit_preserves_status_without_retrying(monkeypatch):
+    from livekit.agents import APIStatusError
+    from websockets.datastructures import Headers
+    from websockets.exceptions import InvalidStatus
+    from websockets.http11 import Response
+
+    attempts = []
+
+    class Rejected:
+        async def __aenter__(self):
+            attempts.append(True)
+            raise InvalidStatus(
+                Response(429, "Too Many Requests", Headers(), body=b"private provider error")
+            )
+
+        async def __aexit__(self, *args):
+            pass
+
+    monkeypatch.setenv("SARVAM_API_KEY", "fixture")
+    monkeypatch.setattr(realtime, "connect", lambda *args, **kwargs: Rejected())
+
+    async def run():
+        provider = realtime.RealtimeSTT(lambda *args, **kwargs: None)
+        try:
+            async with provider.stream() as stream:
+                with pytest.raises(APIStatusError) as error:
+                    async for _ in stream:
+                        pass
+                assert error.value.status_code == 429 and not error.value.retryable
+                assert "private" not in str(error.value)
+        finally:
+            await provider.aclose()
+
+    asyncio.run(run())
+    assert len(attempts) == 1
+
+
+def test_rate_limit_sends_actionable_message_and_blocks_rapid_reconnect(tmp_path, monkeypatch):
+    from livekit.agents import APIStatusError
+
+    async def scenario(session, socket, voice):
+        session.handlers["error"](
+            SimpleNamespace(
+                error=SimpleNamespace(
+                    error=APIStatusError("Rejected", status_code=429), recoverable=False
+                )
+            )
+        )
+        for _ in range(10):
+            await asyncio.sleep(0)
+            if any(event["type"] == "error" for event in socket.sent):
+                break
+        error = next(event for event in socket.sent if event["type"] == "error")
+        assert "rate-limited" in error["message"] and "30 seconds" in error["message"]
+        voice.stop(voice.token)
+        with pytest.raises(ValueError, match="rate-limited"):
+            voice.start()
+        voice.reconnect_after = time.monotonic() - 1
+        assert voice.start()["token"]
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
 def test_text_waits_for_actual_playback_and_stops_on_interruption():
     async def run():
         events = []

@@ -433,6 +433,7 @@ class Voice:
         self.probed = False
         self.turn = None
         self.epoch = 0
+        self.reconnect_after = 0
 
     def check(self, token):
         if not token or token != self.token or time.monotonic() > self.expires:
@@ -441,6 +442,11 @@ class Voice:
 
     def start(self):
         with self.lock:
+            if time.monotonic() < self.reconnect_after:
+                remaining = max(1, int(self.reconnect_after - time.monotonic()) + 1)
+                raise VoiceError(
+                    f"Speech service is rate-limited. Wait {remaining} seconds before reconnecting."
+                )
             if self.token and time.monotonic() < self.expires:
                 raise VoiceError("Another tab is listening. Mute it before starting here.")
             self._cancel("session_started")
@@ -448,6 +454,10 @@ class Voice:
             self.token = uuid.uuid4().hex
             self.expires = time.monotonic() + 30
             return {"token": self.token}
+
+    def defer_reconnect(self):
+        with self.lock:
+            self.reconnect_after = time.monotonic() + 30
 
     def heartbeat(self, token):
         with self.lock:

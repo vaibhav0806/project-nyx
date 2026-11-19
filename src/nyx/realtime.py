@@ -16,12 +16,20 @@ from urllib.parse import urlencode
 
 import aiohttp
 from livekit import rtc
-from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, Agent, AgentSession, llm, stt
+from livekit.agents import (
+    DEFAULT_API_CONNECT_OPTIONS,
+    Agent,
+    AgentSession,
+    APIStatusError,
+    llm,
+    stt,
+)
 from livekit.agents.voice import io
 from livekit.agents.voice.transcription import TranscriptSynchronizer
 from livekit.plugins import openai, sarvam
 from starlette.websockets import WebSocketDisconnect
 from websockets.asyncio.client import connect
+from websockets.exceptions import InvalidStatus
 
 from nyx.agent_policy import AGENT_INSTRUCTIONS as INSTRUCTIONS
 from nyx.agent_policy import AGENT_MODEL, VOICE_PROVIDER_ORDER, VOICE_REASONING_EFFORT
@@ -80,6 +88,18 @@ class RealtimeSTT(stt.STT):
 
 class SarvamStream(stt.SpeechStream):
     async def _run(self):
+        try:
+            await self._run_connected()
+        except InvalidStatus as error:
+            # Preserve HTTP status through LiveKit's STTError wrapper. A raw
+            # websocket exception otherwise becomes an unexplained disconnect.
+            raise APIStatusError(
+                "Speech recognition connection was rejected",
+                status_code=error.response.status_code,
+                retryable=False if error.response.status_code == 429 else None,
+            ) from error
+
+    async def _run_connected(self):
         async with connect(
             stt_url(),
             additional_headers={"api-subscription-key": os.environ["SARVAM_API_KEY"]},
@@ -917,13 +937,20 @@ async def serve(socket, voice, memory_lane, calls=None):
         @session.on("error")
         def session_error(event):
             recoverable = getattr(event.error, "recoverable", False)
-            log("livekit_error", error_type=type(event.error).__name__, recoverable=recoverable)
+            provider_error = getattr(event.error, "error", event.error)
+            status = getattr(provider_error, "status_code", None)
+            log(
+                "livekit_error",
+                error_type=type(event.error).__name__,
+                recoverable=recoverable,
+                status_code=status,
+            )
+            message = "Voice connection stopped. Please reconnect."
+            if status == 429:
+                voice.defer_reconnect()
+                message = "Speech service is temporarily rate-limited. Wait 30 seconds, then enable the microphone."
             if not recoverable:
-                asyncio.create_task(
-                    send(
-                        {"type": "error", "message": "Voice connection stopped. Please reconnect."}
-                    )
-                )
+                asyncio.create_task(send({"type": "error", "message": message}))
 
         @session.on("metrics_collected")
         def metrics(event):
