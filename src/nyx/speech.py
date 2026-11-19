@@ -7,7 +7,7 @@ import re
 import wave
 from pathlib import Path
 
-VOICES = {"en": "shalini_en_companion", "hi": "shalini_hi_companion"}
+VOICES = {"en": "sanchita_en_companion", "hi": "shalini_hi_companion"}
 
 
 def speech_options(language):

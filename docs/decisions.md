@@ -1,5 +1,12 @@
 # Decisions and open choices
 
+## English voice selection — 2026-11-19
+
+User selected `sanchita_en_companion` for testing. Apply it to browser replies,
+cached English acknowledgements and the Bolna relay agent. Keep pace/speed1.0,
+neutral pitch/normal loudness, Hindi's existing voice and the10s phone silence
+allowance. Regenerated acknowledgement cache with the shared streaming settings.
+
 ## Provider failure and fresh demo state — 2026-11-19
 
 Honor provider termination reasons in call reporting: a completed telephony session
