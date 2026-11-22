@@ -1,5 +1,19 @@
 # Milestones
 
+## PR4 self-review repairs — 2026-11-22
+
+Reviewed the full branch against latest main. Fixed explicit recall photo selection
+being crowded out by earlier candidates in both interfaces, loss of spoken recall
+photos after an intervening tool, and a call-failure message that discounted possible
+recipient speech. Added deterministic regressions using real persistence, typed API
+and installed voice SDK context; retained photo bounds, source validation and turn
+isolation. README now matches quiet background uncertainty handling.
+
+561 tests pass in34.80s; lint/format/whitespace and final two voice isolation cases
+pass. No UI/prompt/model changes, provider inference, live-data mutation or server
+restart. This is self-review only; independent GitHub review remains pending and no
+CI workflows are configured. See [R39](research/R39-linked-household-memory.md).
+
 ## Previous manual-trial regression — 2026-11-19
 
 User reports demo recorded/submitted and requests previous-data verification on this

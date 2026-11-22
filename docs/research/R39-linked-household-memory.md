@@ -153,3 +153,34 @@ restart was made. Twenty provider requests reported $0.013240725, within a guard
 $0.10 run cap and the existing cumulative ceiling. No audio, hardware or call tests.
 The later key snapshot was $7.547935815 cumulative usage, matching the reported
 run cost above the $7.53469509 starting usage and remaining below the $8 ceiling.
+
+## Full PR self-review — 2026-11-22
+
+Reviewed the entire PR against current main, including memory persistence/retrieval,
+typed and spoken tool handoffs, acknowledgement synthesis, rate-limit recovery,
+call-result reporting, tests and documentation. Three concrete issues were repaired:
+
+- Prepared/early candidate photo IDs preceded explicit recall results. Five candidates
+  could exclude the requested record before its photo was read; even two earlier
+  photos could consume the image budget. Prioritize explicit recall in both interfaces
+  while retaining the existing five-ID/two-photo bounds and source validation.
+- Spoken generation read explicit photos only from plan.last_tool, so a subsequent
+  inspection could replace that result. Read delivered memory results from the bounded
+  current-turn tool exchange as well. Do not carry their photos into another request.
+- The provider voice-failure error categorically said no response was confirmed,
+  although the same result could contain recipient speech. Report the technical
+  failure and possible transcript incompleteness without discounting retained speech.
+
+Typed API and actual-SDK synthetic regressions failed under the original photo
+selection and passed after the fixes. They use six persisted visual memories and a
+requested record outside the five background candidates. Added coverage for an
+intervening tool and isolation from the next request. Call tests cover both empty
+and nonempty transcripts for each termination category. Updated the README's stale
+background-clarification wording.
+
+Full suite: 561 passed in 34.80 s. Lint, format and whitespace checks pass; the final
+new-request isolation assertions also pass in both voice cases. No new paid inference,
+hardware activation, outbound calls, live-data changes or service restarts. Earlier
+four manual-provider replays remain evidence for the unchanged writer/model policy;
+the review fixes were verified offline. This is inline self-review, not independent
+approval. GitHub review remains pending; no CI workflows are configured.
