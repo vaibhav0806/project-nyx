@@ -1128,3 +1128,87 @@ def test_typed_recall_receives_saved_quote_and_photo_without_a_new_camera_frame(
         labels = " ".join(part.get("text", "") for part in current["content"])
         assert "Historical supporting image" in labels and stamp in labels
         assert original in json.dumps(requests[-1])
+
+
+def test_explicit_recall_photo_takes_priority_over_prepared_candidates(tmp_path):
+    import numpy as np
+    from test_personal_memory import Encoder, operation, response
+
+    from nyx.personal_memory import PersonalMemory
+    from nyx.voice import Conversations
+
+    class DistinctEncoder(Encoder):
+        def encode_text(self, text):
+            return np.array([1, 0] if "item 0" in text.lower() else [0, 1], dtype=np.float32)
+
+    conversations = Conversations(tmp_path)
+    memory = PersonalMemory(conversations, DistinctEncoder(), lambda *args: response())
+    records = []
+    for index in range(6):
+        text = f"Item {index} is in cupboard {index}."
+        turn = conversations.begin(text, {})
+        memory.interpret = lambda *args, turn=turn, text=text: response(
+            [
+                operation(
+                    turn,
+                    text,
+                    text,
+                    grounding="visual",
+                    visual_reference={
+                        "object_description": text,
+                        "frame_index": 0,
+                    },
+                )
+            ]
+        )
+        records.extend(
+            memory.process(
+                turn,
+                frames=[
+                    {
+                        "image": Image.new("RGB", (10, 10), "blue"),
+                        "captured_at": "2026-11-19T05:53:45Z",
+                    }
+                ],
+            )["saved_ids"]
+        )
+        conversations.finish(turn)
+
+    target = records[0]
+    requests = []
+
+    class RecallPlanner(Planner):
+        def memory_reply(self, payload, schema):
+            return response(relevant_ids=[target] if payload["mode"] == "recall" else records[1:])
+
+        def agent_reply(self, messages, tools):
+            requests.append(messages)
+            if not any(row["role"] == "tool" for row in messages):
+                return {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "recall",
+                            "type": "function",
+                            "function": {
+                                "name": "recall_memory",
+                                "arguments": '{"query":"Item 0"}',
+                            },
+                        }
+                    ],
+                }
+            result = json.loads(next(row["content"] for row in messages if row["role"] == "tool"))
+            assert result["kind"] == "memories" and result["matches"][0]["id"] == target
+            return {"role": "assistant", "content": "Item 0 is in cupboard 0."}
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=DistinctEncoder, verifier_factory=RecallPlanner)
+    ) as client:
+        job = client.post(
+            "/api/agent", json={"message": "Where is item 0?", "request_id": "lookup"}
+        ).json()
+        assert wait_for_job(client, job["id"])["status"] == "succeeded"
+    user = next(row for row in reversed(requests[-1]) if row["role"] == "user")
+    labels = [part["text"] for part in user["content"] if part.get("type") == "text"]
+    assert any(target in text and "Historical supporting image" in text for text in labels)

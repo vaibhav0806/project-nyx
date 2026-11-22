@@ -581,7 +581,7 @@ def install_companion(app, workspace, voice):
                     from nyx.cloud import image_part
                     from nyx.personal_memory import memory_image_label
 
-                    records = [*(memory_context or {}).get("records", []), *recalled_memories]
+                    records = [*recalled_memories, *(memory_context or {}).get("records", [])]
                     photos = (
                         workspace.personal_memory().photos(
                             [row["id"] for row in records], as_of=memory_as_of

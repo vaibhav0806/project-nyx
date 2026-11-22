@@ -668,12 +668,12 @@ async def serve(socket, voice, memory_lane, calls=None):
                     early_context = await asyncio.to_thread(
                         memory_lane.early_context, requested_turn, as_of=recalled.get("as_of")
                     )
-                    memory_photo_ids = [row["id"] for row in early_context["records"]]
-                    if memory:
-                        memory_photo_ids.extend(row["id"] for row in memory.get("records", []))
                     last_result = plan.get("last_tool", {}).get("result", {})
                     if last_result.get("kind") == "memories":
                         memory_photo_ids.extend(row["id"] for row in last_result.get("matches", []))
+                    if memory:
+                        memory_photo_ids.extend(row["id"] for row in memory.get("records", []))
+                    memory_photo_ids.extend(row["id"] for row in early_context["records"])
                     log(
                         "early_memory_context",
                         turn_id=requested_turn,
@@ -749,6 +749,28 @@ async def serve(socket, voice, memory_lane, calls=None):
                     from nyx.cloud import image_part
 
                     frames = self._turn_frames.get(requested_turn, [])
+                    active_user = next(
+                        (
+                            item
+                            for item in reversed(bounded.items)
+                            if item.type == "message" and item.role == "user"
+                        ),
+                        None,
+                    )
+                    # Use delivered recall results even when another tool has since
+                    # replaced plan.last_tool. Only inspect this turn's exchange.
+                    if active_user is not None and bound.get(active_user.id) == requested_turn:
+                        recalled_ids = []
+                        for item in reversed(bounded.items[bounded.items.index(active_user) + 1 :]):
+                            if item.type != "function_call_output" or item.is_error:
+                                continue
+                            try:
+                                result = json.loads(item.output)
+                            except (ValueError, TypeError):
+                                continue
+                            if isinstance(result, dict) and result.get("kind") == "memories":
+                                recalled_ids.extend(row["id"] for row in result.get("matches", []))
+                        memory_photo_ids = [*recalled_ids, *memory_photo_ids]
                     photos = (
                         await asyncio.to_thread(
                             memory_lane.workspace.personal_memory().photos,
@@ -758,42 +780,38 @@ async def serve(socket, voice, memory_lane, calls=None):
                         if memory_photo_ids
                         else []
                     )
-                    if inputs.get(requested_turn, False) and (frames or photos):
-                        active_user = next(
-                            (
-                                item
-                                for item in reversed(bounded.items)
-                                if item.type == "message" and item.role == "user"
-                            ),
-                            None,
-                        )
-                        if active_user is not None and bound.get(active_user.id) == requested_turn:
-                            content = list(active_user.content)
-                            for photo in photos:
-                                content.extend(
-                                    [
-                                        memory_image_label(photo),
-                                        llm.ImageContent(
-                                            image=image_part(photo["image"])["image_url"]["url"]
-                                        ),
-                                    ]
-                                )
-                            for frame in frames:
-                                content.extend(
-                                    [
-                                        "Automatic background camera frame captured_at="
-                                        + frame["captured_at"]
-                                        + ". Evidence for this capture time only; not a user-uploaded photo or a request for scene narration.",
-                                        llm.ImageContent(
-                                            image=image_part(frame["image"], side=640)["image_url"][
-                                                "url"
-                                            ]
-                                        ),
-                                    ]
-                                )
-                            bounded.items[bounded.items.index(active_user)] = (
-                                active_user.model_copy(update={"content": content})
+                    if (
+                        inputs.get(requested_turn, False)
+                        and (frames or photos)
+                        and active_user is not None
+                        and bound.get(active_user.id) == requested_turn
+                    ):
+                        content = list(active_user.content)
+                        for photo in photos:
+                            content.extend(
+                                [
+                                    memory_image_label(photo),
+                                    llm.ImageContent(
+                                        image=image_part(photo["image"])["image_url"]["url"]
+                                    ),
+                                ]
                             )
+                        for frame in frames:
+                            content.extend(
+                                [
+                                    "Automatic background camera frame captured_at="
+                                    + frame["captured_at"]
+                                    + ". Evidence for this capture time only; not a user-uploaded photo or a request for scene narration.",
+                                    llm.ImageContent(
+                                        image=image_part(frame["image"], side=640)["image_url"][
+                                            "url"
+                                        ]
+                                    ),
+                                ]
+                            )
+                        bounded.items[bounded.items.index(active_user)] = active_user.model_copy(
+                            update={"content": content}
+                        )
                 stream = Agent.default.llm_node(
                     self,
                     bounded,

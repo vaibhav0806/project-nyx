@@ -1580,3 +1580,122 @@ def test_saved_statement_and_supporting_photo_reach_voice_without_new_camera(tmp
         )
 
     replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
+@pytest.mark.parametrize("later_tool", [False, True])
+def test_explicit_voice_recall_keeps_its_photo_ahead_of_early_candidates(
+    tmp_path, monkeypatch, later_tool
+):
+    from livekit.agents import llm
+    from PIL import Image
+    from test_personal_memory import operation, response
+
+    contexts = []
+    monkeypatch.setattr(
+        realtime.Agent.default, "llm_node", lambda agent, ctx, tools, settings: contexts.append(ctx)
+    )
+
+    async def scenario(session, socket, voice):
+        component = session.memory_lane.workspace.personal_memory()
+        records = []
+        for index in range(6):
+            text = f"Item {index} is in cupboard {index}."
+            old = voice.conversations.begin(text, {})
+            component.interpret = lambda *args, old=old, text=text: response(
+                [
+                    operation(
+                        old,
+                        text,
+                        text,
+                        grounding="visual",
+                        visual_reference={
+                            "object_description": text,
+                            "frame_index": 0,
+                        },
+                    )
+                ]
+            )
+            records.extend(
+                component.process(
+                    old,
+                    frames=[
+                        {
+                            "image": Image.new("RGB", (10, 10), "gold"),
+                            "captured_at": "2026-11-19T05:53:45Z",
+                        }
+                    ],
+                )["saved_ids"]
+            )
+            voice.conversations.finish(old)
+        component.interpret = lambda *args: response()
+        await transcribe(session, "Where is item 0?")
+        turn = voice.turn["id"]
+        await asyncio.to_thread(session.memory_lane.wait, turn)
+        await asyncio.to_thread(session.memory_lane.prefetch(turn, "item 0").result, 1)
+        assert records[0] not in [
+            r["id"] for r in session.memory_lane.early_context(turn)["records"]
+        ]
+        lookup = {
+            "kind": "memories",
+            "status": "retrieved",
+            "matches": component._rows(identifiers=[records[0]])[0],
+        }
+        # Use the actual public result shape, not SQLite row metadata.
+        lookup["matches"] = [component._public(row) for row in lookup["matches"]]
+        voice.conversations.update_plan(
+            turn,
+            {
+                "steps": [{"action": "recall_memory", "query": "item 0"}],
+                "last_tool": {"result": {"kind": "snapshot"} if later_tool else lookup},
+            },
+        )
+        ctx = llm.ChatContext()
+        ctx.add_message(role="user", content="Where is item 0?")
+        ctx.items.extend(
+            [
+                llm.FunctionCall(
+                    call_id="recall", name="recall_memory", arguments='{"query":"item 0"}'
+                ),
+                llm.FunctionCallOutput(
+                    call_id="recall",
+                    name="recall_memory",
+                    output=json.dumps(lookup),
+                    is_error=False,
+                ),
+            ]
+        )
+        if later_tool:
+            ctx.items.extend(
+                [
+                    llm.FunctionCall(
+                        call_id="inspect", name="inspect_current", arguments='{"query":"item 0"}'
+                    ),
+                    llm.FunctionCallOutput(
+                        call_id="inspect",
+                        name="inspect_current",
+                        output='{"kind":"snapshot"}',
+                        is_error=False,
+                    ),
+                ]
+            )
+        await consume_node(session.agent.llm_node(ctx, [], {}))
+        user = next(
+            item for item in contexts[-1].items if item.type == "message" and item.role == "user"
+        )
+        assert records[0] in user.text_content
+
+        # The previous lookup's photo must not follow an unrelated new request.
+        await transcribe(session, "Where is item 1?")
+        turn = voice.turn["id"]
+        await asyncio.to_thread(session.memory_lane.wait, turn)
+        await asyncio.to_thread(session.memory_lane.prefetch(turn, "item 1").result, 1)
+        ctx.add_message(role="user", content="Where is item 1?")
+        await consume_node(session.agent.llm_node(ctx, [], {}))
+        user = next(
+            item
+            for item in reversed(contexts[-1].items)
+            if item.type == "message" and item.role == "user"
+        )
+        assert records[0] not in user.text_content
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
