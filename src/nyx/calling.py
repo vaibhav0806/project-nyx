@@ -308,7 +308,7 @@ class Calls:
                         ):
                             values.update(
                                 status="failed",
-                                error="The call ended because the provider's voice service failed; no response was confirmed.",
+                                error="The call ended because the provider's voice service failed; any available transcript may be incomplete.",
                             )
                         elif reason == "inactivity_timeout" or hangup == "inactivity_timeout":
                             values["error"] = (

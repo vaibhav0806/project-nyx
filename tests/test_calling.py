@@ -310,8 +310,9 @@ def test_call_context_uses_current_name_only_for_same_phone_and_keeps_reported_r
         ("user_hangup", None, "completed", ""),
     ],
 )
+@pytest.mark.parametrize("transcript", ["", "user: I'll come over at seven."])
 def test_terminal_call_reason_is_exposed_without_claiming_recipient_behavior(
-    tmp_path, reason, hangup, status, error
+    tmp_path, reason, hangup, status, error, transcript
 ):
     calls, provider = setup_calls(tmp_path)
     calls.enqueue("turn", 1, "When are you coming over?")
@@ -320,12 +321,14 @@ def test_terminal_call_reason_is_exposed_without_claiming_recipient_behavior(
         "status": "completed",
         "termination_reason": reason,
         "telephony_data": {"hangup_reason": hangup},
-        "transcript": "",
+        "transcript": transcript,
     }
     calls.tick()
     report = calls.claim_update()
     assert report["status"] == status
     assert error in report["error"]
+    assert report["transcript"] == transcript
+    assert "no response was confirmed" not in report["error"]
     assert len(provider.started) == 1
     calls.tick()
     assert len(provider.started) == 1
