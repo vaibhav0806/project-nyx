@@ -1,5 +1,40 @@
 # Technical architecture
 
+## Linked memory statements and images — 2026-11-19
+
+The ordered voice background writer prepares a basic shown-object description with
+the existing reference helper, then calls the memory interpreter once with that
+optional description, the owned frames and the utterance. Failed visual preparation
+falls back to the image-aware writer. The interpreter emits supported operations
+and relevant IDs, without the old clarification/visual-request loop. Typed preparation
+uses the same helper and record contract; it remains synchronous.
+
+Each visual memory keeps an exact source quote, object description and owned photo/time.
+New vectors encode content plus quote/description. Early context carries bounded
+records with those source details; typed/spoken generation may add two nominated,
+source-valid supporting photos labeled historical. Photo reads validate only selected
+IDs, respect source withdrawal/as-of state, and do not scan the photo corpus. Memory
+preparation does not select appearance constraints for later visual-history tools.
+See [R39](research/R39-linked-household-memory.md).
+
+## Shared acknowledgement and reply synthesis — 2026-11-19
+
+Live replies and the acknowledgement preparation command use `speech_options` for
+the same Sarvam model, per-language Shalini Companion speaker, rate, codec and prosody
+settings. Preparation uses LiveKit's streaming WebSocket route with bounded output,
+no retries and atomic WAV writes. Cache identity includes those options and transport,
+so prior HTTP-generated clips cannot silently survive a configuration change. Lookup
+still plays prepared local audio without waiting for online synthesis.
+
+## Image-aware memory input — 2026-11-19
+
+Spoken background saving and typed preparation pass up to six owned turn frames to
+the existing memory interpreter. Its first request includes timestamped images with
+the source utterance and saved candidates. Each visual operation names its supporting
+frame; storage validates ownership and saves that image/time separately from the
+user's reported location or plan. Ordinary text/context records retain their original
+source rules. Conversation still replies independently of the ordered background writer.
+
 ## General conversational policy — 2026-11-19
 
 User replaced the example-driven personality with a general conversational policy.

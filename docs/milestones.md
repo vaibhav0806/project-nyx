@@ -1,5 +1,108 @@
 # Milestones
 
+## PR4 self-review repairs — 2026-11-22
+
+Reviewed the full branch against latest main. Fixed explicit recall photo selection
+being crowded out by earlier candidates in both interfaces, loss of spoken recall
+photos after an intervening tool, and a call-failure message that discounted possible
+recipient speech. Added deterministic regressions using real persistence, typed API
+and installed voice SDK context; retained photo bounds, source validation and turn
+isolation. README now matches quiet background uncertainty handling.
+
+561 tests pass in34.80s; lint/format/whitespace and final two voice isolation cases
+pass. No UI/prompt/model changes, provider inference, live-data mutation or server
+restart. This is self-review only; independent GitHub review remains pending and no
+CI workflows are configured. See [R39](research/R39-linked-household-memory.md).
+
+## Previous manual-trial regression — 2026-11-19
+
+User reports demo recorded/submitted and requests previous-data verification on this
+branch. Current code replayed four preserved manual workflows: phone plan/correction,
+scissors/kitchen, earlier keys/container and latest keys/container. All four saved and
+recalled the intended location relationships after reopening persistence, without
+old conversational messages or new camera frames in generation. Latest keys output
+still added an unnecessary object-in-hand sentence; response wording is not perfect.
+
+Actual saved-row audits passed quote/photo provenance, vector dimensions, historical
+correction state and source-withdrawal checks. Original source hashes unchanged;
+live data/server/UI/code untouched. Twenty bounded model requests reported $0.01324.
+The existing 554-test result still applies to the unchanged code; no repeated suite
+or acoustic test was needed for this report-only pass. See the expanded
+[R39 evidence](research/R39-linked-household-memory.md#earlier-manual-trial-regression--2026-11-19).
+
+## Linked household plan replay — 2026-11-19
+
+Diagnosed a real trial that saved nothing after background clarification, despite
+having images; recall was not simply too early. Removed that protocol, preserved
+supported partial facts, and connected existing visual identification to the ordered
+memory writer. Early/explicit recall now carries the statement, concise visual
+metadata and up to two source-valid historical photos together.
+
+Authorized reconstructed-frame replay saved the complete object → container →
+cupboard plan, reopened persistence, and recalled it without the original chat in
+generation. Explicit-name and greeting controls passed. One earlier replay failed
+strict visual-reference validation; no perfect-compliance claim. 554 tests pass in
+34.49s; lint/format/whitespace pass. Original trial/history/media remain unchanged.
+No new hardware/audio/phone-call trial. Fresh household acceptance remains pending.
+See [R39](research/R39-linked-household-memory.md).
+
+Activated code commit7981ed1 on service8001 after confirming capture interrupted.
+PID56121/session68988 servesHTTP200 without reload. All turn/memory/contact rows
+and all six recording hashes match the pre-restart snapshot; no history reset or
+automatic replacement memory. Reload the page and repeat the shown-item statement
+for the next manual trial. No browser hardware was activated by developer tools.
+
+## Fresh demo workspace and truthful call failures — 2026-11-19
+
+User requested a full active-history reset while preserving Vaibhav. Stopped the
+service, archived its old workspace outside the active root, then rebuilt the same
+root with only contacts and reusable acknowledgement audio. Original history remains
+offline in the archive; fresh conversation, memories, recordings/index and call ledger
+are empty. API credentials remain unchanged.
+
+Bolna's latest call debug record attributes the one-second disconnect to Sarvam TTS
+rate limiting (`agent_voice_error` / `synthesizer_error`), not recipient behavior.
+An earlier call ended on inactivity. Calls now exposes terminal voice failures as
+failed with an explicit error, retains silence-timeout context, and tells conversation
+to keep separate attempts distinct. Remote silence allowance saved and reread at10s,
+as requested. No developer call placed; external provider rate limits remain possible.
+
+Speech HTTP429 status now survives the LiveKit error wrapper, with a specific message,
+no immediate STT retry and a30s session-reconnect cooldown.96 focused call/voice tests
+pass in8.99s; Ruff/whitespace checks pass. User-requested server restarted on the fresh
+root without reload for recording; no further code changes or restarts during the
+demo trial. Listening/call acceptance is not proven by these deterministic checks.
+
+## Align lookup and response speech generation — 2026-11-19
+
+Both paths already selected Shalini Companion, but fixed lookup audio came from HTTP
+synthesis and replies from LiveKit WebSocket. Unified options and synthesis route;
+new cache identity excludes prior-route audio.84 focused voice/speech tests pass,
+including cache invalidation, warm-cache reuse, exact PCM formatting and failure
+cleanup. Prepared all12 fixed public phrases through Sarvam WebSocket (282 Unicode
+characters, no retries or playback). Nonempty mono24kHz16-bit WAV verified; listening
+consistency is not established by those checks and remains a user acceptance test.
+
+## Current images reach memory creation — 2026-11-19
+
+Fixed the missing image handoff behind two local shown-object statements inheriting
+an old phone reference. Memory now sees the owned images in its initial existing LLM
+call; per-operation frame validation preserves supporting image/time and source quotes.
+539 tests pass in38.40s; targeted105 tests, Ruff and whitespace checks pass. Regressions
+cover first-call image order/timestamps, unrelated old-phone context, durable key-plan
+retrieval after reopening, invalid frame references and ordinary text saves. These use
+synthetic model responses, not a measured live recognition result. Local trial images
+were inspected offline; no developer private-media upload or paid inference. A fresh
+manual trial remains the acceptance check; silent movement interpretation stays deferred.
+
+After the user closed the page and authorized restart, service8001 restarted on the
+fix branch (PID39869); root and voice configuration returnHTTP200, capture remains
+interrupted. Backed up conversations.sqlite3 locally, then withdrew exactly the two
+incorrect phone-derived trial records, their linked vector entries and stale save
+receipts. All original turn rows and the other eight memory rows match pre-repair
+digests; recordings were untouched. Repeat the shown-item statements for acceptance;
+the withdrawn records were not replaced with fabricated corrected model results.
+
 ## General conversational policy — 2026-11-19
 
 User replaced the example-driven personality with a general conversational policy.

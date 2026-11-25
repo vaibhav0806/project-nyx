@@ -1,5 +1,60 @@
 # Decisions and open choices
 
+## Keep household memory evidence together — 2026-11-19
+
+Replace the legacy memory clarification/visual-request protocol with supported
+operations and relevant IDs. One ordered background writer uses the existing
+Flash-Lite reference helper for object identification, then one Luna interpretation
+with the same owned frames and source statement. Unclear/failed visual preparation
+does not discard independently supported facts. Voice acknowledgement stays
+independent. Retain strict quote/frame/source validation rather than fabricating
+missing evidence. This supersedes the prior direct-image-only interpretation choice.
+
+Keep source quotes and concise object metadata in bounded early candidates; supply
+at most two nominated, source-valid historical supporting photos to generation.
+New memory embeddings include content, quote and description with the existing
+model/index. Existing records/vectors remain intact. No automatic questions, new
+judge/service, UI or sampling changes. See [R39](research/R39-linked-household-memory.md)
+for replay results and remaining model-compliance/household limits.
+
+## English voice selection — 2026-11-19
+
+User selected `sanchita_en_companion` for testing. Apply it to browser replies,
+cached English acknowledgements and the Bolna relay agent. Keep pace/speed1.0,
+neutral pitch/normal loudness, Hindi's existing voice and the10s phone silence
+allowance. Regenerated acknowledgement cache with the shared streaming settings.
+
+## Provider failure and fresh demo state — 2026-11-19
+
+Honor provider termination reasons in call reporting: a completed telephony session
+with a synthesizer error is a technical failure, not successful delivery or evidence
+the recipient did not answer. Retain timeout uncertainty and separate call attempts.
+The user selected10s for the remote relay agent's silence allowance. Sarvam429 failures
+get an actionable message and30s reconnect cooldown, without automatic redial.
+User authorized resetting all active history while retaining Vaibhav; archive the
+prior root outside the active workspace and preserve contacts/configuration only.
+
+## Shared streamed speech for lookup acknowledgements — 2026-11-19
+
+User heard different acknowledgement and response voices. Both configured speaker
+IDs already named Shalini Companion, but the cached clips were synthesized through
+the separate HTTP route while replies used LiveKit/Sarvam WebSocket. The precise
+acoustic cause is unproven without a preserved reply recording. Generate the fixed
+lookup clips through that same WebSocket implementation and shared synthesis options;
+include settings and transport in the cache identity. Cached playback stays immediate.
+No speaker/personality change; listening acceptance remains with the user.
+
+## Image-aware background memory — 2026-11-19
+
+The key/purse and scissors/kitchen trials reused an unrelated historical phone
+reference because the memory interpreter received text and optional visual access,
+while conversation received current images. Supply the same owned, bounded turn
+frames directly to the existing Luna memory call. Visual operations return an object
+description and supporting frame index; validate the index and retain that frame's
+image/time per record. No additional visual judge, foreground wait or UI change.
+Plans remain user statements, not observed placements. Silent action tracking remains
+deferred. Real-model household acceptance requires a fresh user trial.
+
 ## Approved spoken personality and natural time — 2026-11-19
 
 User approved the replacement shared prompt verbatim: concise relevant conversation,

@@ -376,7 +376,7 @@ def test_shared_conversation_memory_and_vision_use_selected_models(monkeypatch):
         def generate(self, messages, model, max_tokens, **kwargs):
             calls.append(("memory" if kwargs.get("schema") == SCHEMA else "vision", model))
             if kwargs.get("schema") == SCHEMA:
-                return '{"operations":[],"relevant_ids":[],"needs_visual":false,"clarification":""}'
+                return '{"operations":[],"relevant_ids":[]}'
             return '{"visibility":"not_visible","location":"","description":"No match.","matching_count":0,"ambiguous":false}'
 
     verifier = CloudVerifier(Client())
@@ -391,3 +391,30 @@ def test_shared_conversation_memory_and_vision_use_selected_models(monkeypatch):
         ("vision", "flash-lite"),
     ]
     assert not hasattr(verifier, "decide") and not hasattr(verifier, "generate_reference")
+
+
+def test_memory_generation_sends_owned_images_and_times_in_the_first_call():
+    from nyx.personal_memory import SCHEMA
+    from nyx.verification import CloudVerifier
+
+    calls = []
+    frames = [
+        {"image": Image.new("RGB", (10, 10), color), "captured_at": stamp}
+        for color, stamp in [("red", "2026-11-19T05:53:40Z"), ("blue", "2026-11-19T05:53:45Z")]
+    ]
+    payload = {"mode": "ingest", "current_turn": {"text": "Keep this in my bag"}, "frames": frames}
+
+    class Client:
+        def generate(self, messages, model, max_tokens, **kwargs):
+            calls.append(messages)
+            content = messages[1]["content"]
+            assert [part["type"] for part in content] == ["text", "text", "image", "text", "image"]
+            assert "frames" not in json.loads(content[0]["text"])
+            for index, frame in enumerate(frames):
+                assert frame["captured_at"] in content[index * 2 + 1]["text"]
+                assert content[index * 2 + 2]["image"] is frame["image"]
+            assert kwargs["schema"] is SCHEMA
+            return '{"operations":[],"relevant_ids":[]}'
+
+    assert CloudVerifier(Client()).memory_reply(payload, SCHEMA)["operations"] == []
+    assert len(calls) == 1 and payload["frames"] is frames

@@ -1,5 +1,6 @@
 """Application-owned, ordered memory work; spoken reply cancellation does not cancel input."""
 
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
@@ -57,14 +58,14 @@ class BackgroundMemory:
             self.workspace.conversations, as_of=as_of, identifiers=wanted
         )
         by_id = {row["id"]: row for row in rows}
-        records = [
-            {
-                key: by_id[row["id"]][key]
-                for key in ("id", "turn_id", "at", "kind", "content", "sources")
-            }
-            for row in task.result()["matches"]
-            if row["id"] in by_id
-        ]
+        records = []
+        for row in task.result()["matches"]:
+            if row["id"] not in by_id:
+                continue
+            record = PersonalMemory.context_record(by_id[row["id"]])
+            if len(json.dumps([*records, record], ensure_ascii=False)) > 6000:
+                break
+            records.append(record)
         return {
             **context,
             "status": "retrieved",
@@ -108,31 +109,42 @@ class BackgroundMemory:
 
         conversations = self.workspace.conversations
         started = time.perf_counter()
-        conversations.event("background_memory_started", turn_id=turn_id)
+        conversations.event("background_memory_started", turn_id=turn_id, frame_count=len(frames))
 
         def available():
             return conversations.source_availability([turn_id], input_only=True).get(turn_id, False)
 
-        def observe():
-            if not available():
-                raise ValueError("User input is unavailable")
-            with conversations.connect() as db:
-                transcript = db.execute(
-                    "SELECT transcript FROM turns WHERE id=?", (turn_id,)
-                ).fetchone()[0]
-            result = resolve_reference(self.workspace.visual_verifier(), transcript, frames)
-            if result.get("status") == "resolved":
-                result["image"] = frames[result["frame_index"]]["image"]
-            return result
-
         try:
+            observation = None
+            if frames and available():
+                with conversations.connect() as db:
+                    transcript = db.execute(
+                        "SELECT transcript FROM turns WHERE id=?", (turn_id,)
+                    ).fetchone()[0]
+                try:
+                    observation = resolve_reference(
+                        self.workspace.visual_verifier(), transcript, frames
+                    )
+                    conversations.event(
+                        "memory_visual_reference",
+                        turn_id=turn_id,
+                        status=observation["status"],
+                        frame_index=observation.get("frame_index"),
+                    )
+                except (ValueError, TypeError) as error:
+                    conversations.event(
+                        "memory_visual_reference_failed",
+                        turn_id=turn_id,
+                        error_type=type(error).__name__,
+                    )
             result = self.workspace.personal_memory().process(
-                turn_id, observe=observe if frames else None, active=available
+                turn_id, frames=frames, observation=observation, active=available
             )
             conversations.event(
                 "background_memory_completed",
                 turn_id=turn_id,
                 status=result["status"],
+                saved_ids=result.get("saved_ids", []),
                 elapsed_ms=round((time.perf_counter() - started) * 1000),
             )
             return result

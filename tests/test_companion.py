@@ -194,6 +194,17 @@ def compose_answer(observation):
 class Planner:
     fingerprint: ClassVar[dict] = {"model": "deterministic-fixture"}
 
+    def generate_json(self, *args, **kwargs):
+        return json.dumps(
+            {
+                "targets": "A green fixture object",
+                "target_count": 1,
+                "object_description": "green object",
+                "frame_index": 0,
+                "ambiguous": False,
+            }
+        )
+
     def memory_reply(self, payload, schema):
         from test_personal_memory import response
 
@@ -887,7 +898,8 @@ def test_memory_and_native_tool_share_one_reference_check_per_owned_window(tmp_p
         calls = 0
 
         def memory_reply(self, payload, schema):
-            return memory_response(needs_visual=payload["visual"] is None)
+            assert payload.get("frames")
+            return memory_response()
 
         def generate_json(self, *args, **kwargs):
             self.calls += 1
@@ -1059,3 +1071,144 @@ def test_voice_tool_reuses_owned_frames_across_coalesced_speech(tmp_path):
         assert (
             client.post("/api/agent", headers={"x-nyx-voice": token}, json=body).status_code == 400
         )
+
+
+def test_typed_recall_receives_saved_quote_and_photo_without_a_new_camera_frame(tmp_path):
+    from test_personal_memory import Encoder, operation
+    from test_personal_memory import response as memory_response
+
+    requests = []
+    original = "I will keep this in my purse and the purse in the cupboard."
+
+    class MemoryPlanner(Planner):
+        def memory_reply(self, payload, schema):
+            current = payload["current_turn"]
+            if current["text"] == original:
+                return memory_response(
+                    [
+                        operation(
+                            current["turn_id"],
+                            original,
+                            "Plans to keep shown key in purse and purse in cupboard",
+                            kind="plan",
+                            grounding="visual",
+                            visual_reference={"object_description": "key", "frame_index": 0},
+                        )
+                    ]
+                )
+            return memory_response(relevant_ids=[row["id"] for row in payload["memories"]][:1])
+
+        def agent_reply(self, messages, tools):
+            requests.append(messages)
+            return {
+                "role": "assistant",
+                "content": "You planned to keep it in your purse in the cupboard.",
+            }
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=Encoder, verifier_factory=MemoryPlanner)
+    ) as client:
+        stamp = datetime.now(UTC).isoformat()
+        first = client.post(
+            "/api/agent",
+            json={
+                "message": original,
+                "request_id": "remember",
+                "visual_frames": [{"snapshot": snapshot(), "captured_at": stamp}],
+                "context_at": stamp,
+            },
+        ).json()
+        assert wait_for_job(client, first["id"])["status"] == "succeeded"
+        second = client.post(
+            "/api/agent", json={"message": "Where is my key?", "request_id": "recall"}
+        ).json()
+        assert wait_for_job(client, second["id"])["status"] == "succeeded"
+        current = next(row for row in reversed(requests[-1]) if row["role"] == "user")
+        assert any(part["type"] == "image_url" for part in current["content"])
+        labels = " ".join(part.get("text", "") for part in current["content"])
+        assert "Historical supporting image" in labels and stamp in labels
+        assert original in json.dumps(requests[-1])
+
+
+def test_explicit_recall_photo_takes_priority_over_prepared_candidates(tmp_path):
+    import numpy as np
+    from test_personal_memory import Encoder, operation, response
+
+    from nyx.personal_memory import PersonalMemory
+    from nyx.voice import Conversations
+
+    class DistinctEncoder(Encoder):
+        def encode_text(self, text):
+            return np.array([1, 0] if "item 0" in text.lower() else [0, 1], dtype=np.float32)
+
+    conversations = Conversations(tmp_path)
+    memory = PersonalMemory(conversations, DistinctEncoder(), lambda *args: response())
+    records = []
+    for index in range(6):
+        text = f"Item {index} is in cupboard {index}."
+        turn = conversations.begin(text, {})
+        memory.interpret = lambda *args, turn=turn, text=text: response(
+            [
+                operation(
+                    turn,
+                    text,
+                    text,
+                    grounding="visual",
+                    visual_reference={
+                        "object_description": text,
+                        "frame_index": 0,
+                    },
+                )
+            ]
+        )
+        records.extend(
+            memory.process(
+                turn,
+                frames=[
+                    {
+                        "image": Image.new("RGB", (10, 10), "blue"),
+                        "captured_at": "2026-11-19T05:53:45Z",
+                    }
+                ],
+            )["saved_ids"]
+        )
+        conversations.finish(turn)
+
+    target = records[0]
+    requests = []
+
+    class RecallPlanner(Planner):
+        def memory_reply(self, payload, schema):
+            return response(relevant_ids=[target] if payload["mode"] == "recall" else records[1:])
+
+        def agent_reply(self, messages, tools):
+            requests.append(messages)
+            if not any(row["role"] == "tool" for row in messages):
+                return {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "recall",
+                            "type": "function",
+                            "function": {
+                                "name": "recall_memory",
+                                "arguments": '{"query":"Item 0"}',
+                            },
+                        }
+                    ],
+                }
+            result = json.loads(next(row["content"] for row in messages if row["role"] == "tool"))
+            assert result["kind"] == "memories" and result["matches"][0]["id"] == target
+            return {"role": "assistant", "content": "Item 0 is in cupboard 0."}
+
+    with TestClient(
+        create_app(tmp_path, encoder_factory=DistinctEncoder, verifier_factory=RecallPlanner)
+    ) as client:
+        job = client.post(
+            "/api/agent", json={"message": "Where is item 0?", "request_id": "lookup"}
+        ).json()
+        assert wait_for_job(client, job["id"])["status"] == "succeeded"
+    user = next(row for row in reversed(requests[-1]) if row["role"] == "user")
+    labels = [part["text"] for part in user["content"] if part.get("type") == "text"]
+    assert any(target in text and "Historical supporting image" in text for text in labels)

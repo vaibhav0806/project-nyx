@@ -1,10 +1,30 @@
 """Reusable local acknowledgement clips; LiveKit owns streaming speech."""
 
-import base64
+import asyncio
 import hashlib
+import json
 import re
-from concurrent.futures import ThreadPoolExecutor
+import wave
 from pathlib import Path
+
+VOICES = {"en": "sanchita_en_companion", "hi": "shalini_hi_companion"}
+
+
+def speech_options(language):
+    """One synthesis configuration for replies and prepared lookup audio."""
+    return {
+        "model": "bulbul:v4-flash",
+        "speaker": VOICES[language],
+        "target_language_code": "hi-IN" if language == "hi" else "en-IN",
+        "speech_sample_rate": 24000,
+        "output_audio_codec": "linear16",
+        "enable_preprocessing": True,
+        "pitch": 0.0,
+        "pace": 1.0,
+        "loudness": 1.0,
+        "temperature": 0.6,
+    }
+
 
 ACKNOWLEDGEMENTS = {
     "en": (
@@ -27,34 +47,63 @@ ACKNOWLEDGEMENTS = {
 
 
 def acknowledgement_path(root, model, text):
-    voice = (
-        ("shalini_hi_companion" if re.search(r"[\u0900-\u097f]", text) else "shalini_en_companion")
-        if model == "bulbul:v4-flash"
-        else "Kore"
-    )
-    key = hashlib.sha256(f"{model}/{voice}/24000/v1/{text}".encode()).hexdigest()[:24]
+    if model == "bulbul:v4-flash":
+        language = "hi" if re.search(r"[\u0900-\u097f]", text) else "en"
+        identity = json.dumps(
+            {**speech_options(language), "transport": "livekit-sarvam-websocket-v2"},
+            sort_keys=True,
+        )
+    else:
+        identity = f"{model}/Kore/24000/v1"
+    key = hashlib.sha256(f"{identity}/{text}".encode()).hexdigest()[:24]
     return Path(root) / "voice-acknowledgements" / f"{key}.wav"
 
 
 def prepare_acknowledgements(root):
-    from nyx.voice import CloudVoice
+    return asyncio.run(_prepare_acknowledgements(root))
 
-    provider = CloudVoice()
 
-    def prepare(text):
-        path = acknowledgement_path(root, provider.tts_model, text)
-        if not path.exists():
-            audio = base64.b64decode(provider.speak(text))
-            path.parent.mkdir(parents=True, exist_ok=True)
-            temporary = path.with_suffix(".tmp")
-            temporary.write_bytes(audio)
-            temporary.replace(path)
-        return str(path)
+async def _prepare_acknowledgements(root):
+    import aiohttp
+    from livekit.agents import APIConnectOptions
+    from livekit.plugins import sarvam
 
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        return list(
-            pool.map(prepare, [text for texts in ACKNOWLEDGEMENTS.values() for text in texts])
-        )
+    paths = []
+    async with aiohttp.ClientSession() as http:
+        for language, texts in ACKNOWLEDGEMENTS.items():
+            options = speech_options(language)
+            tts = sarvam.TTS(http_session=http, **options)
+            try:
+                for text in texts:
+                    path = acknowledgement_path(root, options["model"], text)
+                    if not path.exists():
+                        stream = tts.stream(conn_options=APIConnectOptions(max_retry=0))
+                        try:
+                            stream.push_text(text)
+                            stream.end_input()
+                            pcm = bytearray()
+                            async with asyncio.timeout(25):
+                                async for event in stream:
+                                    frame = event.frame
+                                    if frame.sample_rate != 24000 or frame.num_channels != 1:
+                                        raise ValueError("Unexpected acknowledgement audio format")
+                                    pcm.extend(frame.data.cast("B"))
+                                    if len(pcm) > 4 * 1024**2:
+                                        raise ValueError("Acknowledgement audio exceeds limit")
+                            if not pcm or len(pcm) % 2:
+                                raise ValueError("Invalid acknowledgement audio")
+                            path.parent.mkdir(parents=True, exist_ok=True)
+                            temporary = path.with_suffix(".tmp")
+                            with wave.open(str(temporary), "wb") as audio:
+                                audio.setparams((1, 2, 24000, 0, "NONE", "not compressed"))
+                                audio.writeframes(pcm)
+                            temporary.replace(path)
+                        finally:
+                            await stream.aclose()
+                    paths.append(str(path))
+            finally:
+                await tts.aclose()
+    return paths
 
 
 if __name__ == "__main__":

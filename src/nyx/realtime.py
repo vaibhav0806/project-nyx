@@ -16,21 +16,28 @@ from urllib.parse import urlencode
 
 import aiohttp
 from livekit import rtc
-from livekit.agents import DEFAULT_API_CONNECT_OPTIONS, Agent, AgentSession, llm, stt
+from livekit.agents import (
+    DEFAULT_API_CONNECT_OPTIONS,
+    Agent,
+    AgentSession,
+    APIStatusError,
+    llm,
+    stt,
+)
 from livekit.agents.voice import io
 from livekit.agents.voice.transcription import TranscriptSynchronizer
 from livekit.plugins import openai, sarvam
 from starlette.websockets import WebSocketDisconnect
 from websockets.asyncio.client import connect
+from websockets.exceptions import InvalidStatus
 
 from nyx.agent_policy import AGENT_INSTRUCTIONS as INSTRUCTIONS
 from nyx.agent_policy import AGENT_MODEL, VOICE_PROVIDER_ORDER, VOICE_REASONING_EFFORT
 from nyx.agent_tools import AgentTools
 from nyx.calling import CALL_INSTRUCTIONS
-from nyx.speech import ACKNOWLEDGEMENTS, acknowledgement_path
+from nyx.speech import ACKNOWLEDGEMENTS, VOICES, acknowledgement_path, speech_options
 from nyx.voice import local_now, wake_command
 
-VOICES = {"en": "shalini_en_companion", "hi": "shalini_hi_companion"}
 INSTRUCTIONS_VERSION = 18
 
 CAMERA_CONTEXT_INSTRUCTIONS = """Camera frames are automatically supplied background context, not photos the user sent or a request to describe the scene. Answer the user's spoken request; mention visual details only when relevant to that request. A new camera view does not restart an earlier request.
@@ -81,6 +88,18 @@ class RealtimeSTT(stt.STT):
 
 class SarvamStream(stt.SpeechStream):
     async def _run(self):
+        try:
+            await self._run_connected()
+        except InvalidStatus as error:
+            # Preserve HTTP status through LiveKit's STTError wrapper. A raw
+            # websocket exception otherwise becomes an unexplained disconnect.
+            raise APIStatusError(
+                "Speech recognition connection was rejected",
+                status_code=error.response.status_code,
+                retryable=False if error.response.status_code == 429 else None,
+            ) from error
+
+    async def _run_connected(self):
         async with connect(
             stt_url(),
             additional_headers={"api-subscription-key": os.environ["SARVAM_API_KEY"]},
@@ -367,15 +386,7 @@ async def serve(socket, voice, memory_lane, calls=None):
         turn_started = 0
         sources = []
         http = aiohttp.ClientSession()
-        tts = sarvam.TTS(
-            http_session=http,
-            model="bulbul:v4-flash",
-            speaker=VOICES["en"],
-            target_language_code="en-IN",
-            speech_sample_rate=24000,
-            output_audio_codec="linear16",
-            enable_preprocessing=True,
-        )
+        tts = sarvam.TTS(http_session=http, **speech_options("en"))
 
         class Companion(AgentTools, Agent):
             def __init__(self):
@@ -577,9 +588,11 @@ async def serve(socket, voice, memory_lane, calls=None):
                 nonlocal sources
                 from nyx.agent import _model_tool_result
                 from nyx.conversation_context import bounded_live_context
-                from nyx.personal_memory import memory_context_at
+                from nyx.personal_memory import memory_context_at, memory_image_label
 
                 requested_turn = turn_id
+                memory_photo_ids = []
+                memory_as_of = None
 
                 turn_ctx = chat_ctx.copy()
                 users = [
@@ -651,9 +664,16 @@ async def serve(socket, voice, memory_lane, calls=None):
                         {},
                     )
                     memory = memory_context_at(memory, recalled.get("as_of"))
+                    memory_as_of = recalled.get("as_of")
                     early_context = await asyncio.to_thread(
                         memory_lane.early_context, requested_turn, as_of=recalled.get("as_of")
                     )
+                    last_result = plan.get("last_tool", {}).get("result", {})
+                    if last_result.get("kind") == "memories":
+                        memory_photo_ids.extend(row["id"] for row in last_result.get("matches", []))
+                    if memory:
+                        memory_photo_ids.extend(row["id"] for row in memory.get("records", []))
+                    memory_photo_ids.extend(row["id"] for row in early_context["records"])
                     log(
                         "early_memory_context",
                         turn_id=requested_turn,
@@ -729,33 +749,69 @@ async def serve(socket, voice, memory_lane, calls=None):
                     from nyx.cloud import image_part
 
                     frames = self._turn_frames.get(requested_turn, [])
-                    if inputs.get(requested_turn, False) and frames:
-                        active_user = next(
-                            (
-                                item
-                                for item in reversed(bounded.items)
-                                if item.type == "message" and item.role == "user"
-                            ),
-                            None,
+                    active_user = next(
+                        (
+                            item
+                            for item in reversed(bounded.items)
+                            if item.type == "message" and item.role == "user"
+                        ),
+                        None,
+                    )
+                    # Use delivered recall results even when another tool has since
+                    # replaced plan.last_tool. Only inspect this turn's exchange.
+                    if active_user is not None and bound.get(active_user.id) == requested_turn:
+                        recalled_ids = []
+                        for item in reversed(bounded.items[bounded.items.index(active_user) + 1 :]):
+                            if item.type != "function_call_output" or item.is_error:
+                                continue
+                            try:
+                                result = json.loads(item.output)
+                            except (ValueError, TypeError):
+                                continue
+                            if isinstance(result, dict) and result.get("kind") == "memories":
+                                recalled_ids.extend(row["id"] for row in result.get("matches", []))
+                        memory_photo_ids = [*recalled_ids, *memory_photo_ids]
+                    photos = (
+                        await asyncio.to_thread(
+                            memory_lane.workspace.personal_memory().photos,
+                            memory_photo_ids,
+                            as_of=memory_as_of,
                         )
-                        if active_user is not None and bound.get(active_user.id) == requested_turn:
-                            content = list(active_user.content)
-                            for frame in frames:
-                                content.extend(
-                                    [
-                                        "Automatic background camera frame captured_at="
-                                        + frame["captured_at"]
-                                        + ". Evidence for this capture time only; not a user-uploaded photo or a request for scene narration.",
-                                        llm.ImageContent(
-                                            image=image_part(frame["image"], side=640)["image_url"][
-                                                "url"
-                                            ]
-                                        ),
-                                    ]
-                                )
-                            bounded.items[bounded.items.index(active_user)] = (
-                                active_user.model_copy(update={"content": content})
+                        if memory_photo_ids
+                        else []
+                    )
+                    if (
+                        inputs.get(requested_turn, False)
+                        and (frames or photos)
+                        and active_user is not None
+                        and bound.get(active_user.id) == requested_turn
+                    ):
+                        content = list(active_user.content)
+                        for photo in photos:
+                            content.extend(
+                                [
+                                    memory_image_label(photo),
+                                    llm.ImageContent(
+                                        image=image_part(photo["image"])["image_url"]["url"]
+                                    ),
+                                ]
                             )
+                        for frame in frames:
+                            content.extend(
+                                [
+                                    "Automatic background camera frame captured_at="
+                                    + frame["captured_at"]
+                                    + ". Evidence for this capture time only; not a user-uploaded photo or a request for scene narration.",
+                                    llm.ImageContent(
+                                        image=image_part(frame["image"], side=640)["image_url"][
+                                            "url"
+                                        ]
+                                    ),
+                                ]
+                            )
+                        bounded.items[bounded.items.index(active_user)] = active_user.model_copy(
+                            update={"content": content}
+                        )
                 stream = Agent.default.llm_node(
                     self,
                     bounded,
@@ -926,13 +982,20 @@ async def serve(socket, voice, memory_lane, calls=None):
         @session.on("error")
         def session_error(event):
             recoverable = getattr(event.error, "recoverable", False)
-            log("livekit_error", error_type=type(event.error).__name__, recoverable=recoverable)
+            provider_error = getattr(event.error, "error", event.error)
+            status = getattr(provider_error, "status_code", None)
+            log(
+                "livekit_error",
+                error_type=type(event.error).__name__,
+                recoverable=recoverable,
+                status_code=status,
+            )
+            message = "Voice connection stopped. Please reconnect."
+            if status == 429:
+                voice.defer_reconnect()
+                message = "Speech service is temporarily rate-limited. Wait 30 seconds, then enable the microphone."
             if not recoverable:
-                asyncio.create_task(
-                    send(
-                        {"type": "error", "message": "Voice connection stopped. Please reconnect."}
-                    )
-                )
+                asyncio.create_task(send({"type": "error", "message": message}))
 
         @session.on("metrics_collected")
         def metrics(event):

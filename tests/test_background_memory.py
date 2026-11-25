@@ -14,18 +14,16 @@ def test_unresolved_background_memory_is_quiet_and_keeps_original_input(tmp_path
 
     conversations = Conversations(tmp_path)
     turn = conversations.begin("I keep this in the kitchen.", {})
-    component = PersonalMemory(
-        conversations, Encoder(), lambda *args: response(clarification="Which item do you mean?")
-    )
+    component = PersonalMemory(conversations, Encoder(), lambda *args: response())
     lane = BackgroundMemory(
         SimpleNamespace(conversations=conversations, personal_memory=lambda: component)
     )
     try:
         lane.submit(turn, []).result(timeout=1)
         context = lane.turn_context(turn)
-        assert context["status"] == "unresolved"
+        assert context["status"] == "noop"
         assert "?" not in context["answer"]
-        assert lane.status(turn)["status"] == "unresolved"
+        assert lane.status(turn)["status"] == "noop"
         with conversations.connect() as db:
             assert (
                 db.execute("SELECT transcript FROM turns WHERE id=?", (turn,)).fetchone()[0]
@@ -179,7 +177,8 @@ def test_early_candidates_do_not_wait_for_writer_and_revalidate_sources(tmp_path
         assert task.result(timeout=1)["matches"][0]["turn_id"] == old
         context = lane.early_context(new)
         assert context["records"][0]["content"] == "Plans to keep phone on shelf"
-        assert "embedding" not in str(context) and "visual" not in str(context)
+        assert "embedding" not in str(context)
+        assert context["records"][0]["quotes"][0]["text"] == "I plan to keep my phone on the shelf."
         conversations.invalidate("transcript:" + old)
         assert lane.early_context(new)["records"] == []
     finally:
@@ -252,4 +251,93 @@ def test_early_lookup_bounds_inflight_reads_and_exposes_failure_without_empty_su
         assert lane.early_context("first")["status"] == "failed"
     finally:
         release.set()
+        lane.close()
+
+
+@pytest.mark.parametrize("vision", ["resolved", "unclear", "failed"])
+def test_visual_preparation_is_evidence_not_a_gate_on_supported_memories(tmp_path, vision):
+    import json
+
+    from PIL import Image
+
+    from nyx.background_memory import BackgroundMemory
+    from nyx.cloud import CloudError
+
+    conversations = Conversations(tmp_path)
+    text = "I will put this in my purse and keep my purse in the cupboard."
+    turn = conversations.begin(text, {})
+    frames = [{"image": Image.new("RGB", (10, 10)), "captured_at": "2026-11-19T05:53:45Z"}]
+    payloads = []
+    encoded = []
+
+    class EvidenceEncoder(Encoder):
+        def encode_text(self, text):
+            encoded.append(text)
+            return super().encode_text(text)
+
+    def interpret(payload, schema):
+        payloads.append(payload)
+        assert payload["frames"] is frames
+        assert "visual_available" not in payload and "needs_visual" not in schema["properties"]
+        if vision == "resolved":
+            assert payload["shown_object"]["object_description"] == "brass key"
+            return response(
+                [
+                    operation(
+                        turn,
+                        text,
+                        "Plans to put shown key in purse and purse in cupboard",
+                        kind="plan",
+                        grounding="visual",
+                        visual_reference={"object_description": "brass key", "frame_index": 0},
+                    )
+                ]
+            )
+        assert "shown_object" not in payload
+        return response(
+            [
+                operation(
+                    turn,
+                    "keep my purse in the cupboard",
+                    "Plans to keep purse in cupboard",
+                    kind="plan",
+                )
+            ]
+        )
+
+    def visual_reply(*args, **kwargs):
+        if vision == "failed":
+            raise CloudError("Provider unavailable")
+        return json.dumps(
+            {
+                "targets": "One key" if vision == "resolved" else "Two unclear items",
+                "target_count": 1 if vision == "resolved" else 2,
+                "object_description": "brass key" if vision == "resolved" else "",
+                "frame_index": 0 if vision == "resolved" else -1,
+                "ambiguous": vision != "resolved",
+            }
+        )
+
+    memory = PersonalMemory(conversations, EvidenceEncoder(), interpret)
+    lane = BackgroundMemory(
+        SimpleNamespace(
+            conversations=conversations,
+            personal_memory=lambda: memory,
+            visual_verifier=lambda: SimpleNamespace(
+                fingerprint={"model": "fixture-vision"}, generate_json=visual_reply
+            ),
+        )
+    )
+    try:
+        result = lane.submit(turn, frames).result(timeout=1)
+        assert result["status"] == "saved" and len(payloads) == 1
+        record = memory.recall("purse", rank_all=False)["matches"][0]
+        assert record["has_image"] == (vision == "resolved")
+        assert "?" not in result["answer"]
+        if vision == "resolved":
+            assert "brass key" in encoded[0] and text in encoded[0]
+            assert record["visual"]["captured_at"] == frames[0]["captured_at"]
+        else:
+            assert record["content"] == "Plans to keep purse in cupboard"
+    finally:
         lane.close()

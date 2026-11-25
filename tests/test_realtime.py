@@ -12,6 +12,69 @@ from nyx import realtime
 from nyx.voice import Voice
 
 
+def test_sarvam_rate_limit_preserves_status_without_retrying(monkeypatch):
+    from livekit.agents import APIStatusError
+    from websockets.datastructures import Headers
+    from websockets.exceptions import InvalidStatus
+    from websockets.http11 import Response
+
+    attempts = []
+
+    class Rejected:
+        async def __aenter__(self):
+            attempts.append(True)
+            raise InvalidStatus(
+                Response(429, "Too Many Requests", Headers(), body=b"private provider error")
+            )
+
+        async def __aexit__(self, *args):
+            pass
+
+    monkeypatch.setenv("SARVAM_API_KEY", "fixture")
+    monkeypatch.setattr(realtime, "connect", lambda *args, **kwargs: Rejected())
+
+    async def run():
+        provider = realtime.RealtimeSTT(lambda *args, **kwargs: None)
+        try:
+            async with provider.stream() as stream:
+                with pytest.raises(APIStatusError) as error:
+                    async for _ in stream:
+                        pass
+                assert error.value.status_code == 429 and not error.value.retryable
+                assert "private" not in str(error.value)
+        finally:
+            await provider.aclose()
+
+    asyncio.run(run())
+    assert len(attempts) == 1
+
+
+def test_rate_limit_sends_actionable_message_and_blocks_rapid_reconnect(tmp_path, monkeypatch):
+    from livekit.agents import APIStatusError
+
+    async def scenario(session, socket, voice):
+        session.handlers["error"](
+            SimpleNamespace(
+                error=SimpleNamespace(
+                    error=APIStatusError("Rejected", status_code=429), recoverable=False
+                )
+            )
+        )
+        for _ in range(10):
+            await asyncio.sleep(0)
+            if any(event["type"] == "error" for event in socket.sent):
+                break
+        error = next(event for event in socket.sent if event["type"] == "error")
+        assert "rate-limited" in error["message"] and "30 seconds" in error["message"]
+        voice.stop(voice.token)
+        with pytest.raises(ValueError, match="rate-limited"):
+            voice.start()
+        voice.reconnect_after = time.monotonic() - 1
+        assert voice.start()["token"]
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
 def test_text_waits_for_actual_playback_and_stops_on_interruption():
     async def run():
         events = []
@@ -367,7 +430,22 @@ def replay_voice_tools(
 
         component.process = prepare
         lane = BackgroundMemory(
-            SimpleNamespace(conversations=voice.conversations, personal_memory=lambda: component)
+            SimpleNamespace(
+                conversations=voice.conversations,
+                personal_memory=lambda: component,
+                visual_verifier=lambda: SimpleNamespace(
+                    fingerprint={"model": "fixture-vision"},
+                    generate_json=lambda *args, **kwargs: json.dumps(
+                        {
+                            "targets": "One fixture object held",
+                            "target_count": 1,
+                            "object_description": "fixture object",
+                            "frame_index": 0,
+                            "ambiguous": False,
+                        }
+                    ),
+                ),
+            )
         )
         socket = Socket()
         socket.memory_lane = lane
@@ -1439,5 +1517,185 @@ def test_bare_wake_word_waits_for_the_request_and_short_overlaps_do_not_interrup
         assert voice.conversations.recent() == []
         await transcribe(session, "Nyx, how are you doing today?")
         assert voice.turn["transcript"] == "Nyx, how are you doing today?"
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
+def test_saved_statement_and_supporting_photo_reach_voice_without_new_camera(tmp_path, monkeypatch):
+    from livekit.agents import llm
+    from PIL import Image
+    from test_personal_memory import operation, response
+
+    contexts = []
+    monkeypatch.setattr(
+        realtime.Agent.default, "llm_node", lambda agent, ctx, tools, settings: contexts.append(ctx)
+    )
+
+    async def scenario(session, socket, voice):
+        component = session.memory_lane.workspace.personal_memory()
+        old = voice.conversations.begin(
+            "I plan to keep this in my purse and the purse in the cupboard.", {}
+        )
+        component.interpret = lambda *args: response(
+            [
+                operation(
+                    old,
+                    "I plan to keep this in my purse and the purse in the cupboard.",
+                    "Plans to keep shown item in purse and purse in cupboard",
+                    kind="plan",
+                    grounding="visual",
+                    visual_reference={"object_description": "small brass item", "frame_index": 0},
+                )
+            ]
+        )
+        record = component.process(
+            old,
+            frames=[
+                {"image": Image.new("RGB", (10, 10), "gold"), "captured_at": "2026-11-19T05:53:45Z"}
+            ],
+        )["saved_ids"][0]
+        component.interpret = lambda *args: response()
+        voice.conversations.finish(old, "Noted")
+        await transcribe(session, "Where is my key?")
+        await asyncio.to_thread(session.memory_lane.prefetch(voice.turn["id"], "key").result, 1)
+        ctx = llm.ChatContext()
+        original = ctx.add_message(role="user", content="Where is my key?")
+        await consume_node(session.agent.llm_node(ctx, [], {}))
+        user = next(
+            item for item in contexts[-1].items if item.type == "message" and item.role == "user"
+        )
+        assert len([part for part in user.content if isinstance(part, llm.ImageContent)]) == 1
+        assert record in user.text_content and "Historical supporting image" in user.text_content
+        assert "proof that a planned placement happened" in user.text_content
+        text = " ".join(item.text_content for item in contexts[-1].items if item.type == "message")
+        assert "purse in the cupboard" in text and "small brass item" in text
+        assert original.content == ["Where is my key?"]
+        voice.conversations.invalidate("transcript:" + old)
+        await consume_node(session.agent.llm_node(ctx, [], {}))
+        assert not any(
+            isinstance(part, llm.ImageContent)
+            for item in contexts[-1].items
+            if item.type == "message"
+            for part in item.content
+        )
+
+    replay_voice_tools(tmp_path, monkeypatch, scenario)
+
+
+@pytest.mark.parametrize("later_tool", [False, True])
+def test_explicit_voice_recall_keeps_its_photo_ahead_of_early_candidates(
+    tmp_path, monkeypatch, later_tool
+):
+    from livekit.agents import llm
+    from PIL import Image
+    from test_personal_memory import operation, response
+
+    contexts = []
+    monkeypatch.setattr(
+        realtime.Agent.default, "llm_node", lambda agent, ctx, tools, settings: contexts.append(ctx)
+    )
+
+    async def scenario(session, socket, voice):
+        component = session.memory_lane.workspace.personal_memory()
+        records = []
+        for index in range(6):
+            text = f"Item {index} is in cupboard {index}."
+            old = voice.conversations.begin(text, {})
+            component.interpret = lambda *args, old=old, text=text: response(
+                [
+                    operation(
+                        old,
+                        text,
+                        text,
+                        grounding="visual",
+                        visual_reference={
+                            "object_description": text,
+                            "frame_index": 0,
+                        },
+                    )
+                ]
+            )
+            records.extend(
+                component.process(
+                    old,
+                    frames=[
+                        {
+                            "image": Image.new("RGB", (10, 10), "gold"),
+                            "captured_at": "2026-11-19T05:53:45Z",
+                        }
+                    ],
+                )["saved_ids"]
+            )
+            voice.conversations.finish(old)
+        component.interpret = lambda *args: response()
+        await transcribe(session, "Where is item 0?")
+        turn = voice.turn["id"]
+        await asyncio.to_thread(session.memory_lane.wait, turn)
+        await asyncio.to_thread(session.memory_lane.prefetch(turn, "item 0").result, 1)
+        assert records[0] not in [
+            r["id"] for r in session.memory_lane.early_context(turn)["records"]
+        ]
+        lookup = {
+            "kind": "memories",
+            "status": "retrieved",
+            "matches": component._rows(identifiers=[records[0]])[0],
+        }
+        # Use the actual public result shape, not SQLite row metadata.
+        lookup["matches"] = [component._public(row) for row in lookup["matches"]]
+        voice.conversations.update_plan(
+            turn,
+            {
+                "steps": [{"action": "recall_memory", "query": "item 0"}],
+                "last_tool": {"result": {"kind": "snapshot"} if later_tool else lookup},
+            },
+        )
+        ctx = llm.ChatContext()
+        ctx.add_message(role="user", content="Where is item 0?")
+        ctx.items.extend(
+            [
+                llm.FunctionCall(
+                    call_id="recall", name="recall_memory", arguments='{"query":"item 0"}'
+                ),
+                llm.FunctionCallOutput(
+                    call_id="recall",
+                    name="recall_memory",
+                    output=json.dumps(lookup),
+                    is_error=False,
+                ),
+            ]
+        )
+        if later_tool:
+            ctx.items.extend(
+                [
+                    llm.FunctionCall(
+                        call_id="inspect", name="inspect_current", arguments='{"query":"item 0"}'
+                    ),
+                    llm.FunctionCallOutput(
+                        call_id="inspect",
+                        name="inspect_current",
+                        output='{"kind":"snapshot"}',
+                        is_error=False,
+                    ),
+                ]
+            )
+        await consume_node(session.agent.llm_node(ctx, [], {}))
+        user = next(
+            item for item in contexts[-1].items if item.type == "message" and item.role == "user"
+        )
+        assert records[0] in user.text_content
+
+        # The previous lookup's photo must not follow an unrelated new request.
+        await transcribe(session, "Where is item 1?")
+        turn = voice.turn["id"]
+        await asyncio.to_thread(session.memory_lane.wait, turn)
+        await asyncio.to_thread(session.memory_lane.prefetch(turn, "item 1").result, 1)
+        ctx.add_message(role="user", content="Where is item 1?")
+        await consume_node(session.agent.llm_node(ctx, [], {}))
+        user = next(
+            item
+            for item in reversed(contexts[-1].items)
+            if item.type == "message" and item.role == "user"
+        )
+        assert records[0] not in user.text_content
 
     replay_voice_tools(tmp_path, monkeypatch, scenario)

@@ -59,7 +59,8 @@ A bounded local camera buffer freezes a recent visual window at final transcript
 can be identified even if it has been lowered before tool execution. The agent can save an
 object-location statement with an image-backed object description,
 then search those statements independently of recent chat and visual history. Showing an item
-and saying “this” uses visual identification; ambiguity asks for clarification. Saved intentions
+and saying “this” uses visual identification. Background saving quietly retains supported
+details when identification is uncertain; the conversational agent can ask when needed. Saved intentions
 remain user claims, not proof of where an item is now. Existing recordings are preserved;
 older unlinked pronouns are not automatically reprocessed. See [architecture](docs/architecture.md).
 

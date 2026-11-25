@@ -46,6 +46,8 @@ Research should answer a bounded question that changes a decision. Keep product 
 | R37 | Can streamed text preserve settled content and what does the idle timeout stop? | Framework references, actual-DOM identity regressions and manual-trial diagnostics | [Streaming display](R37-streaming-text-display.md) |14 browser checks/67 nearby API tests; timeout values unchanged |
 | R38 | Why do finalized-image uploads disconnect voice, and how should interim/language boundaries work? | Mixed-traffic backlog reproduction, source-framework review, language/preview regressions | [Voice transcript boundaries](R38-voice-transcript-boundaries.md) |26 browser checks; backend activation waits for inactive capture |
 
+| R39 | Can spoken plans, object identity and supporting images remain linked through saving and recall? | Authorized time-aligned local-trial replay, isolated persistence/retrieval and provenance regressions | [Linked household memory](R39-linked-household-memory.md) | Replay recalled the full container plan from saved memory; fresh household/acoustic trial remains |
+
 R1/R2 can run alongside early technical feasibility work once separately authorized. R5 does not block the initial R3 retrieval baseline. Do not assign a person or deadline without their agreement.
 
 ## Ready-to-share product brief

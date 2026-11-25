@@ -19,8 +19,6 @@ def response(operations=(), relevant_ids=(), **changes):
     return {
         "operations": list(operations),
         "relevant_ids": list(relevant_ids),
-        "needs_visual": False,
-        "clarification": "",
         **changes,
     }
 
@@ -32,9 +30,119 @@ def operation(turn_id, quote, content, **changes):
         "kind": "report",
         "grounding": "text",
         "related_id": None,
+        "visual_reference": None,
         "quotes": [{"turn_id": turn_id, "text": quote}],
         **changes,
     }
+
+
+def test_memory_sees_current_frames_before_resolving_against_an_old_object(tmp_path):
+    from PIL import Image
+
+    conversations = Conversations(tmp_path)
+    old = conversations.begin("My phone is on the kitchen shelf", {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response(
+            [operation(old, "My phone is on the kitchen shelf", "Phone on kitchen shelf")]
+        ),
+    )
+    memory.process(old)
+    text = "I'm gonna keep this in my purse."
+    turn = conversations.begin(text, {})
+    payloads = []
+    frames = [{"image": Image.new("RGB", (10, 10), "grey"), "captured_at": "2026-11-19T05:53:45Z"}]
+
+    def interpret(payload, schema):
+        payloads.append(payload)
+        assert payload["frames"] is frames
+        assert "visual_available" not in payload and "visual" not in payload
+        assert any(row["content"] == "Phone on kitchen shelf" for row in payload["memories"])
+        return response(
+            [
+                operation(
+                    turn,
+                    text,
+                    "Plans to keep key in purse",
+                    kind="plan",
+                    grounding="visual",
+                    visual_reference={"object_description": "metal key", "frame_index": 0},
+                )
+            ]
+        )
+
+    memory.interpret = interpret
+    saved = memory.process(turn, frames=frames)
+    assert saved["status"] == "saved" and len(payloads) == 1
+    # Reopening the same data root (as after a refresh/restart) retains the key,
+    # its current visual source, and no dependency on the old phone.
+    reopened = PersonalMemory(Conversations(tmp_path), Encoder(), lambda *args: response())
+    key = next(
+        row for row in reopened.recall("Where is my key?")["matches"] if row["turn_id"] == turn
+    )
+    assert key["content"] == "Plans to keep key in purse" and key["has_image"]
+    assert key["visual"]["captured_at"] == "2026-11-19T05:53:45Z"
+    assert key["sources"] == ["transcript:" + turn]
+    with conversations.connect() as db:
+        assert (
+            db.execute("SELECT dependencies FROM memories WHERE id=?", (key["id"],)).fetchone()[0]
+            == "[]"
+        )
+        assert (
+            db.execute("SELECT count(*) FROM memories WHERE content='Phone in purse'").fetchone()[0]
+            == 0
+        )
+
+
+@pytest.mark.parametrize("save", [True, False])
+def test_named_fact_or_noop_does_not_run_unneeded_visual_check(tmp_path, save):
+    conversations = Conversations(tmp_path)
+    text = "My key is in my purse." if save else "Where is my key?"
+    turn = conversations.begin(text, {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response([operation(turn, text, "Key in purse")] if save else []),
+    )
+    result = memory.process(turn)
+    assert result["status"] == ("saved" if save else "noop")
+
+
+def test_unresolved_camera_does_not_block_a_clear_conversational_reference(tmp_path):
+    conversations = Conversations(tmp_path)
+    old = conversations.begin("I prefer tea", {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response([operation(old, "I prefer tea", "Prefers tea")]),
+    )
+    tea = memory.process(old)["saved_ids"][0]
+    turn = conversations.begin("Make it without sugar", {})
+    payloads = []
+
+    def interpret(payload, schema):
+        payloads.append(payload)
+        return response(
+            [
+                operation(
+                    turn,
+                    "Make it without sugar",
+                    "Prefers tea without sugar",
+                    grounding="memory",
+                    related_id=tea,
+                )
+            ]
+        )
+
+    memory.interpret = interpret
+    result = memory.process(turn)
+    assert result["status"] == "saved" and len(payloads) == 1
+    assert "visual" not in payloads[-1]
+    assert (
+        next(row for row in memory.recall("tea")["matches"] if row["turn_id"] == turn)["visual"]
+        == {}
+    )
 
 
 def test_ingest_skips_query_embedding_when_every_available_memory_fits(tmp_path):
@@ -259,42 +367,35 @@ def test_existing_linked_statements_import_without_reembedding_or_source_changes
         assert db.execute("SELECT image FROM memories").fetchone()[0] == b"original-photo"
 
 
-def test_visual_evidence_is_requested_once_and_ambiguity_does_not_create_a_link(tmp_path):
+def test_unsupported_reference_keeps_raw_input_without_questions_or_guesses(tmp_path):
     conversations = Conversations(tmp_path)
     turn = conversations.begin("I left this in the drawer", {})
     calls = []
 
     def interpret(payload, schema):
         calls.append(payload)
-        return response(needs_visual=True)
+        assert set(schema["properties"]) == {"operations", "relevant_ids"}
+        return response()
 
-    checks = []
-
-    def observe():
-        checks.append(True)
-        return {"status": "clarify", "answer": "Which item?"}
-
-    result = PersonalMemory(conversations, Encoder(), interpret).process(turn, observe=observe)
-    assert result["status"] == "clarify" and result["saved_ids"] == []
-    assert len(calls) == len(checks) == 1
+    result = PersonalMemory(conversations, Encoder(), interpret).process(turn)
+    assert result["status"] == "noop" and result["saved_ids"] == [] and len(calls) == 1
+    assert conversations.recent()[0]["transcript"] == "I left this in the drawer"
 
 
-def test_cancellation_stops_before_followup_visual_work(tmp_path):
+def test_cancellation_stops_before_embedding_or_committing(tmp_path):
     conversations = Conversations(tmp_path)
-    turn = conversations.begin("I left this in the drawer", {})
+    turn = conversations.begin("The key is in the drawer", {})
     enabled = [True]
 
     def interpret(*args):
         enabled[0] = False
-        return response(needs_visual=True)
+        return response([operation(turn, "key is in the drawer", "Key in drawer")])
 
     memory = PersonalMemory(conversations, Encoder(), interpret)
     with pytest.raises(ValueError, match="cancel"):
-        memory.process(
-            turn,
-            active=lambda: enabled[0],
-            observe=lambda: pytest.fail("Cancelled visual work ran"),
-        )
+        memory.process(turn, active=lambda: enabled[0])
+    with conversations.connect() as db:
+        assert db.execute("SELECT count(*) FROM memories").fetchone()[0] == 0
 
 
 def test_unavailable_correction_never_resurrects_a_superseded_memory(tmp_path):
@@ -613,20 +714,24 @@ def test_context_resolved_memory_inherits_original_visual_clock_photo_and_source
     conversations = Conversations(tmp_path)
     first = conversations.begin("I put this on the table", {})
     replies = [
-        response(needs_visual=True),
         response(
-            [operation(first, "I put this on the table", "Blue phone on table", grounding="visual")]
-        ),
+            [
+                operation(
+                    first,
+                    "I put this on the table",
+                    "Blue phone on table",
+                    grounding="visual",
+                    visual_reference={"object_description": "blue phone", "frame_index": 0},
+                )
+            ]
+        )
     ]
     memory = PersonalMemory(conversations, Encoder(), lambda *args: replies.pop(0))
     old_id = memory.process(
         first,
-        observe=lambda: {
-            "status": "resolved",
-            "object_description": "blue phone",
-            "captured_at": "2026-11-06T12:00:00Z",
-            "image": Image.new("RGB", (10, 10), "blue"),
-        },
+        frames=[
+            {"image": Image.new("RGB", (10, 10), "blue"), "captured_at": "2026-11-06T12:00:00Z"}
+        ],
     )["saved_ids"][0]
     second = conversations.begin("I moved it into my bag", {})
     replies.append(
@@ -689,26 +794,27 @@ def test_one_visual_observation_is_not_attached_to_unrelated_facts_in_same_utter
     conversations = Conversations(tmp_path)
     text = "I put this in my bag, and my glasses are on the table."
     turn = conversations.begin(text, {})
-    replies = [
-        response(needs_visual=True),
-        response(
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response(
             [
-                operation(turn, "I put this in my bag", "Phone in bag", grounding="visual"),
                 operation(
-                    turn, "my glasses are on the table", "Glasses on table", grounding="text"
+                    turn,
+                    "I put this in my bag",
+                    "Phone in bag",
+                    grounding="visual",
+                    visual_reference={"object_description": "phone", "frame_index": 0},
                 ),
+                operation(turn, "my glasses are on the table", "Glasses on table"),
             ]
         ),
-    ]
-    memory = PersonalMemory(conversations, Encoder(), lambda *args: replies.pop(0))
+    )
     memory.process(
         turn,
-        observe=lambda: {
-            "status": "resolved",
-            "object_description": "phone",
-            "captured_at": "2026-11-17T00:00:00Z",
-            "image": Image.new("RGB", (10, 10), "blue"),
-        },
+        frames=[
+            {"image": Image.new("RGB", (10, 10), "blue"), "captured_at": "2026-11-17T00:00:00Z"}
+        ],
     )
     records = {r["content"]: r for r in memory.recall("belongings")["matches"]}
     assert records["Phone in bag"]["has_image"]
@@ -717,8 +823,7 @@ def test_one_visual_observation_is_not_attached_to_unrelated_facts_in_same_utter
     )
 
 
-def test_visual_resolution_refreshes_candidates_beyond_initial_pronoun_query(tmp_path):
-    from PIL import Image
+def test_resolved_named_lookup_retrieves_memory_beyond_recent_context(tmp_path):
 
     class DistinctEncoder(Encoder):
         def encode_text(self, text):
@@ -742,29 +847,16 @@ def test_visual_resolution_refreshes_candidates_beyond_initial_pronoun_query(tmp
         memory.process(turn)
         conversations.finish(turn, "Noted")
     query = conversations.begin("Where did I put this?", {})
-    seen = []
-
-    def interpret(payload, schema):
-        seen.append(payload)
-        ids = {row["id"] for row in payload["memories"]}
-        if payload["visual"] is None:
-            assert identifier not in ids
-            return response(needs_visual=True)
-        assert identifier in ids
-        return response(relevant_ids=[identifier])
-
-    memory.interpret = interpret
-    memory.process(
-        query,
-        observe=lambda: {
-            "status": "resolved",
-            "object_description": "blue phone",
-            "captured_at": "2026-11-17T00:00:00Z",
-            "image": Image.new("RGB", (10, 10), "blue"),
-        },
-    )
-    assert len(seen) == 2
-    assert memory.turn_context(conversations, query)["records"][0]["turn_id"] == old
+    memory.interpret = lambda *args: response()
+    memory.process(query)
+    assert identifier not in {
+        r["id"] for r in memory.recall("Where did I put this?", limit=8)["matches"]
+    }
+    # The shared conversational agent can use its owned image/context to name the
+    # object in a native recall call; the background writer does not run a second judge.
+    found = memory.recall("blue phone")
+    assert found["matches"][0]["id"] == identifier
+    assert len([r for r in memory._rows()[0] if r["turn_id"] == query]) == 0
 
 
 @pytest.mark.parametrize("grounding", ["visual", "memory"])
@@ -805,23 +897,104 @@ def test_interpretation_model_is_recorded_before_an_assistant_can_fail(tmp_path)
         assert db.execute("SELECT count(*) FROM memories").fetchone()[0] == 1
 
 
-def test_unresolved_interpretation_discards_proposed_writes_and_returns_clarification(tmp_path):
+def test_partial_statement_keeps_supported_relation_without_inventing_object(tmp_path):
     conversations = Conversations(tmp_path)
-    turn = conversations.begin("I put it there", {})
+    text = "I'll put this in my purse and keep my purse in the cupboard."
+    turn = conversations.begin(text, {})
     memory = PersonalMemory(
         conversations,
         Encoder(),
         lambda *args: response(
-            [operation(turn, "I put it there", "Unspecified object in unspecified place")],
-            clarification="Which item and location do you mean?",
+            [
+                operation(
+                    turn,
+                    "keep my purse in the cupboard",
+                    "Plans to keep purse in cupboard",
+                    kind="plan",
+                )
+            ]
         ),
     )
     result = memory.process(turn)
-    assert result["status"] == "clarify" and result["saved_ids"] == []
-    assert result["answer"] == "Which item and location do you mean?"
+    assert result["status"] == "saved"
+    records = memory.recall("purse")["matches"]
+    assert len(records) == 1 and records[0]["content"] == "Plans to keep purse in cupboard"
+    assert not records[0]["has_image"] and records[0]["visual"] == {}
+    assert records[0]["quotes"] == [{"turn_id": turn, "text": "keep my purse in the cupboard"}]
+    assert conversations.recent()[0]["transcript"] == text
+
+
+@pytest.mark.parametrize("index", [-1, 1, True, "0", None])
+def test_visual_memory_cannot_claim_a_frame_outside_its_owned_window(tmp_path, index):
+    from PIL import Image
+
+    conversations = Conversations(tmp_path)
+    turn = conversations.begin("I keep this in my bag", {})
+    memory = PersonalMemory(
+        conversations,
+        Encoder(),
+        lambda *args: response(
+            [
+                operation(
+                    turn,
+                    "I keep this in my bag",
+                    "Key in bag",
+                    grounding="visual",
+                    visual_reference={"object_description": "key", "frame_index": index},
+                )
+            ]
+        ),
+    )
+    with pytest.raises(ValueError, match="visual memory reference"):
+        memory.process(
+            turn,
+            frames=[{"image": Image.new("RGB", (10, 10)), "captured_at": "2026-11-19T05:53:45Z"}],
+        )
     with conversations.connect() as db:
         assert db.execute("SELECT count(*) FROM memories").fetchone()[0] == 0
-        assert (
-            db.execute("SELECT transcript FROM turns WHERE id=?", (turn,)).fetchone()[0]
-            == "I put it there"
+
+
+def test_supporting_photos_are_bounded_and_follow_source_invalidation(tmp_path):
+    from PIL import Image
+
+    conversations = Conversations(tmp_path)
+    replies = []
+    memory = PersonalMemory(conversations, Encoder(), lambda *args: replies.pop(0))
+    ids, turns = [], []
+    for i in range(3):
+        text = f"I keep item {i} in my bag"
+        turn = conversations.begin(text, {})
+        turns.append(turn)
+        replies.append(
+            response(
+                [
+                    operation(
+                        turn,
+                        text,
+                        f"Item {i} in bag",
+                        grounding="visual",
+                        visual_reference={"object_description": f"Item {i}", "frame_index": 0},
+                    )
+                ]
+            )
         )
+        ids.extend(
+            memory.process(
+                turn,
+                frames=[
+                    {
+                        "image": Image.new("RGB", (10, 10), "blue"),
+                        "captured_at": "2026-11-19T05:53:45Z",
+                    }
+                ],
+            )["saved_ids"]
+        )
+    photos = memory.photos(ids)
+    assert [p["id"] for p in photos] == ids[:2]
+    assert all(p["captured_at"] == "2026-11-19T05:53:45Z" for p in photos)
+    assert all(p["image"].size == (10, 10) for p in photos)
+    conversations.invalidate("transcript:" + turns[0])
+    assert [p["id"] for p in memory.photos(ids)] == ids[1:]
+    conversations.invalidate("transcript:" + turns[1])
+    conversations.invalidate("transcript:" + turns[2])
+    assert memory.photos(ids) == []
